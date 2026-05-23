@@ -16,7 +16,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -35,9 +37,9 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
-import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
+import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
@@ -56,11 +58,9 @@ public class SearchConfigurationManagerImplTest {
 	@Mock
 	private OrganizationDao organizationDao;
 	@Mock
-	private SynonymSetDao synonymSetDao;
-	@Mock
 	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	@Mock
-	private org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao textAnalyzerDao;
+	private TextAnalyzerDao textAnalyzerDao;
 	@Mock
 	private NodeDAO nodeDAO;
 
@@ -69,7 +69,7 @@ public class SearchConfigurationManagerImplTest {
 	@BeforeEach
 	void setUp() {
 		manager = new SearchConfigurationManagerImpl(searchConfigurationDao, aclDao, organizationDao,
-				synonymSetDao, columnAnalyzerOverrideDao, textAnalyzerDao, nodeDAO);
+				columnAnalyzerOverrideDao, textAnalyzerDao, nodeDAO);
 	}
 
 	// --- Sage employee / admin authorization ---
@@ -221,7 +221,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
-		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
+		assertEquals(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG, ex.getMessage());
 	}
 
 	@Test
@@ -236,8 +236,32 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 
-		assertTrue(ex.getMessage().contains("name cannot be changed"));
+		assertEquals(SearchResourceConstants.NAME_IMMUTABLE_MSG, ex.getMessage());
 		verify(searchConfigurationDao, never()).update(any(), any());
+	}
+
+	@Test
+	public void testUpdateClearsColumnAnalyzerOverrides() {
+		// Verify that nulling columnAnalyzerOverrides on the request reaches the DAO
+		// with the same null rather than the manager defaulting back to the existing values.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		SearchConfiguration request = new SearchConfiguration().setId("999")
+			.setOrganizationName("test-org").setName("my_config").setEtag("etag-1");
+		request.setColumnAnalyzerOverrides(null);
+		SearchConfiguration existing = new SearchConfiguration().setId("999")
+			.setOrganizationName("test-org").setName("my_config").setEtag("etag-1")
+			.setColumnAnalyzerOverrides(Arrays.asList("biomed-overrides"));
+		when(searchConfigurationDao.get("999")).thenReturn(Optional.of(existing));
+		SearchConfiguration cleared = new SearchConfiguration().setId("999")
+			.setOrganizationName("test-org").setName("my_config").setEtag("etag-2");
+		when(searchConfigurationDao.update(eq(1L), eq(request))).thenReturn(cleared);
+
+		// call under test
+		SearchConfiguration result = manager.update(admin, request);
+
+		assertEquals(cleared, result);
+		verify(searchConfigurationDao).update(eq(1L), eq(request));
 	}
 
 	// --- List / pagination ---
@@ -423,6 +447,31 @@ public class SearchConfigurationManagerImplTest {
 		verifyZeroInteractions(searchConfigurationDao);
 	}
 
+	// --- Hierarchy walk for getSearchConfigBinding ---
+
+	@Test
+	public void testGetSearchConfigBindingWalksHierarchyAndThrowsWhenAbsent() {
+		when(nodeDAO.getEntityIdOfFirstBoundSearchConfig(1L)).thenReturn(Optional.empty());
+
+		// call under test
+		NotFoundException e = assertThrows(NotFoundException.class,
+				() -> manager.getSearchConfigBinding(new UserInfo(true), "syn1"));
+
+		assertTrue(e.getMessage().contains("any of its ancestors"));
+	}
+
+	@Test
+	public void testGetSearchConfigBindingFollowsHierarchyToAncestor() {
+		// nodeDAO returns ancestor 999 as the first bound node; fetch the binding under that.
+		when(nodeDAO.getEntityIdOfFirstBoundSearchConfig(1L)).thenReturn(Optional.of(999L));
+		SearchConfigBinding binding = new SearchConfigBinding().setBindId("7").setObjectId("999");
+		when(searchConfigurationDao.getSearchConfigBindingForObject(999L, "entity"))
+				.thenReturn(Optional.of(binding));
+
+		// call under test
+		assertEquals(binding, manager.getSearchConfigBinding(new UserInfo(true), "syn1"));
+	}
+
 	// --- Name pattern validation ---
 
 	@Test
@@ -432,8 +481,8 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-			manager.create(admin, new SearchConfiguration().setOrganizationName("test-org").setName("invalid-name")));
-		assertTrue(ex.getMessage().contains("Resource name must start with a letter"));
+			manager.create(admin, new SearchConfiguration().setOrganizationName("test-org").setName("9invalid")));
+		assertEquals(SearchResourceConstants.RESOURCE_NAME_PATTERN_MSG, ex.getMessage());
 		verifyZeroInteractions(searchConfigurationDao);
 	}
 
@@ -444,12 +493,12 @@ public class SearchConfigurationManagerImplTest {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 
-		// call under test — defaultAnalyzer with no hyphen
+		// call under test — defaultAnalyzer is a $ref to a malformed qname
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
 			manager.create(admin, new SearchConfiguration()
 				.setOrganizationName("test-org").setName("MyConfig")
-				.setDefaultAnalyzer("noHyphenHere")));
-		assertTrue(ex.getMessage().contains("'{organizationName}-{resourceName}'"));
+				.setDefaultAnalyzer(Map.of("$ref", "noHyphenHere"))));
+		assertTrue(ex.getMessage().contains("Invalid qualified name format"));
 		verifyZeroInteractions(searchConfigurationDao);
 	}
 
@@ -464,24 +513,8 @@ public class SearchConfigurationManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
 			manager.create(admin, new SearchConfiguration()
 				.setOrganizationName("test-org").setName("MyConfig")
-				.setDefaultAnalyzer("org.sagebionetworks-MISSING")));
-		assertTrue(ex.getMessage().contains("default analyzer name does not exist"));
-		verify(searchConfigurationDao, never()).create(anyLong(), any());
-	}
-
-	@Test
-	public void testCreateWithMissingSynonymSet() {
-		UserInfo admin = new UserInfo(true);
-		admin.setId(1L);
-		when(synonymSetDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING_SET")))
-			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING_SET"));
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-			manager.create(admin, new SearchConfiguration()
-				.setOrganizationName("test-org").setName("MyConfig")
-				.setSynonymSets(Arrays.asList("org.sagebionetworks-MISSING_SET"))));
-		assertTrue(ex.getMessage().contains("synonym set names do not exist"));
+				.setDefaultAnalyzer(Map.of("$ref", "org.sagebionetworks-MISSING"))));
+		assertTrue(ex.getMessage().contains("text analyzer name(s) do not exist"));
 		verify(searchConfigurationDao, never()).create(anyLong(), any());
 	}
 
@@ -496,8 +529,210 @@ public class SearchConfigurationManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
 			manager.create(admin, new SearchConfiguration()
 				.setOrganizationName("test-org").setName("MyConfig")
-				.setColumnAnalyzerOverrides(Arrays.asList("org.sagebionetworks-MISSING_OVERRIDE"))));
-		assertTrue(ex.getMessage().contains("column analyzer override names do not exist"));
+				.setColumnAnalyzerOverrides(Arrays.asList(Map.of("$ref", "org.sagebionetworks-MISSING_OVERRIDE")))));
+		assertTrue(ex.getMessage().contains("column analyzer override name(s) do not exist"));
 		verify(searchConfigurationDao, never()).create(anyLong(), any());
+	}
+
+	// --- Inline column-analyzer-override path through validateReferencedNames ---
+
+	@Test
+	public void testCreateWithInlineOverrideValidatesNestedAnalyzerRef() {
+		// An inline ColumnAnalyzerOverride lives only inside the SearchConfiguration's JSON;
+		// each entry's analyzer is itself inline-or-$ref. Refs nested inside an inline override
+		// must still be format-validated and existence-checked against TextAnalyzer.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		Map<String, Object> inlineOverride = Map.of("overrides", Arrays.asList(
+				Map.of("columnName", "diagnosis",
+						"analyzer", Map.of("$ref", "org.sagebionetworks-DEEP_REF"))));
+		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-DEEP_REF")))
+				.thenReturn(Collections.emptyList());
+		SearchConfiguration created = new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setColumnAnalyzerOverrides(Arrays.asList(inlineOverride));
+		when(searchConfigurationDao.create(eq(1L), any())).thenReturn(created.setId("1"));
+
+		// call under test
+		manager.create(admin, created);
+
+		verify(textAnalyzerDao).findNonExistentNames(Arrays.asList("org.sagebionetworks-DEEP_REF"));
+	}
+
+	@Test
+	public void testCreateWithInlineOverrideMissingNestedAnalyzerThrows() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		Map<String, Object> inlineOverride = Map.of("overrides", Arrays.asList(
+				Map.of("columnName", "diagnosis",
+						"analyzer", Map.of("$ref", "biomed-MISSING"))));
+		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("biomed-MISSING")))
+				.thenReturn(Arrays.asList("biomed-MISSING"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+				manager.create(admin, new SearchConfiguration()
+						.setOrganizationName("test-org").setName("MyConfig")
+						.setColumnAnalyzerOverrides(Arrays.asList(inlineOverride))));
+		assertTrue(ex.getMessage().contains("biomed-MISSING"), ex.getMessage());
+		verify(searchConfigurationDao, never()).create(anyLong(), any());
+	}
+
+	@Test
+	public void testCreateWithInlineOverrideHavingNullOverridesListIsTolerated() {
+		// A degenerate inline override with no overrides[] list at all must not NPE in
+		// validateReferencedNames; the recursive walk has nothing to validate.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		Map<String, Object> degenerate = Map.of("organizationName", "biomed", "name", "noop");
+		SearchConfiguration created = new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setColumnAnalyzerOverrides(Arrays.asList(degenerate));
+		when(searchConfigurationDao.create(eq(1L), any())).thenReturn(created.setId("1"));
+
+		// call under test
+		manager.create(admin, created);
+
+		verifyZeroInteractions(textAnalyzerDao);
+		verify(searchConfigurationDao).create(eq(1L), any());
+	}
+
+	@Test
+	public void testCreateWithInlineDefaultAnalyzerSkipsRefExistenceCheck() {
+		// An inline analyzer literal at defaultAnalyzer must pass the shape-conversion check
+		// but is never registered as a saved row, so no findNonExistentNames call is made.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		Map<String, Object> inlineAnalyzer = Map.of(
+				"analyzer", Map.of("default",
+						Map.of("type", "custom", "tokenizer", "standard")));
+		SearchConfiguration created = new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setDefaultAnalyzer(inlineAnalyzer);
+		when(searchConfigurationDao.create(eq(1L), any())).thenReturn(created.setId("1"));
+
+		// call under test
+		manager.create(admin, created);
+
+		verifyZeroInteractions(textAnalyzerDao);
+		verify(searchConfigurationDao).create(eq(1L), any());
+	}
+
+	@Test
+	public void testCreateWithMalformedInlineDefaultAnalyzerThrows() {
+		// The inline analyzer literal must round-trip through the OpenSearch typed
+		// deserializer; an unknown filter type is rejected at create time.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		Map<String, Object> malformedAnalyzer = Map.of(
+				"filter", Map.of("bogus", Map.of("type", "this_filter_does_not_exist")),
+				"analyzer", Map.of("default",
+						Map.of("type", "custom", "tokenizer", "standard", "filter", List.of("bogus"))));
+		SearchConfiguration toCreate = new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setDefaultAnalyzer(malformedAnalyzer);
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> manager.create(admin, toCreate));
+		assertTrue(ex.getMessage().contains("analyzer settings"),
+				"expected typed-deserializer rejection, got: " + ex.getMessage());
+		verifyZeroInteractions(searchConfigurationDao);
+		verifyZeroInteractions(textAnalyzerDao);
+	}
+
+	// --- bindSearchConfigToEntity authorization & user.isAdmin shortcuts ---
+
+	@Test
+	public void testBindSearchConfigToEntityWithNonSageUserThrows() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+		BindSearchConfigToEntityRequest req = new BindSearchConfigToEntityRequest()
+				.setEntityId("syn123").setSearchConfigurationId("42");
+
+		// call under test
+		assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(user, req));
+		verifyZeroInteractions(searchConfigurationDao);
+		verifyZeroInteractions(aclDao);
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithSageNonAdminChecksAcl() {
+		// Sage employee but not admin: ACL check must run against ENTITY/UPDATE.
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
+		BindSearchConfigToEntityRequest req = new BindSearchConfigToEntityRequest()
+				.setEntityId("syn123").setSearchConfigurationId("42");
+		when(aclDao.canAccess(any(UserInfo.class), anyString(), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
+				.thenReturn(AuthorizationStatus.authorized());
+		when(searchConfigurationDao.get("42")).thenReturn(Optional.of(new SearchConfiguration().setId("42")));
+		when(searchConfigurationDao.getSearchConfigBindingForObject(123L, "entity"))
+				.thenReturn(Optional.of(new SearchConfigBinding()));
+
+		// call under test
+		manager.bindSearchConfigToEntity(user, req);
+
+		verify(aclDao).canAccess(any(UserInfo.class), anyString(), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE));
+		verify(searchConfigurationDao).bindSearchConfigToObject(42L, 123L, "entity", 1L);
+	}
+
+	@Test
+	public void testClearSearchConfigBindingWithNonSageUserThrows() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+
+		// call under test
+		assertThrows(UnauthorizedException.class, () -> manager.clearSearchConfigBinding(user, "syn123"));
+		verifyZeroInteractions(searchConfigurationDao);
+		verifyZeroInteractions(aclDao);
+	}
+
+	@Test
+	public void testClearSearchConfigBindingWithSageNonAdminChecksAcl() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
+		when(aclDao.canAccess(any(UserInfo.class), anyString(), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
+				.thenReturn(AuthorizationStatus.authorized());
+
+		// call under test
+		manager.clearSearchConfigBinding(user, "syn123");
+
+		verify(aclDao).canAccess(any(UserInfo.class), anyString(), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE));
+		verify(searchConfigurationDao).clearSearchConfigBinding(123L, "entity");
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityAsAdminSkipsAcl() {
+		// admin → !user.isAdmin() == false → ACL check skipped (covers L137 admin half).
+		UserInfo admin = new UserInfo(true);
+		admin.setId(2L);
+		BindSearchConfigToEntityRequest req = new BindSearchConfigToEntityRequest()
+				.setEntityId("syn123").setSearchConfigurationId("42");
+		when(searchConfigurationDao.get("42")).thenReturn(Optional.of(new SearchConfiguration().setId("42")));
+		when(searchConfigurationDao.getSearchConfigBindingForObject(123L, "entity"))
+				.thenReturn(Optional.of(new SearchConfigBinding()));
+
+		// call under test
+		manager.bindSearchConfigToEntity(admin, req);
+
+		verifyZeroInteractions(aclDao);
+		verify(searchConfigurationDao).bindSearchConfigToObject(42L, 123L, "entity", 2L);
+	}
+
+	@Test
+	public void testClearSearchConfigBindingAsAdminSkipsAcl() {
+		// admin → !user.isAdmin() == false → ACL check skipped (covers L178 admin half).
+		UserInfo admin = new UserInfo(true);
+		admin.setId(2L);
+
+		// call under test
+		manager.clearSearchConfigBinding(admin, "syn123");
+
+		verifyZeroInteractions(aclDao);
+		verify(searchConfigurationDao).clearSearchConfigBinding(123L, "entity");
 	}
 }

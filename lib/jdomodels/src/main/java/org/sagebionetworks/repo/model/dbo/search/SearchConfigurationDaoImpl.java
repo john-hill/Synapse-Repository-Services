@@ -17,7 +17,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_C
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 
 import java.sql.ResultSet;
 import java.util.Date;
@@ -27,7 +26,6 @@ import java.util.Optional;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
-import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
@@ -42,6 +40,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 
+	private static final String DEFAULT_ANALYZER_FIELD = "SearchConfiguration.defaultAnalyzer";
+	private static final String OVERRIDES_FIELD = "SearchConfiguration.columnAnalyzerOverrides";
+
 	private static final RowMapper<SearchConfiguration> ROW_MAPPER = (ResultSet rs, int rowNum) -> {
 		SearchConfiguration config = new SearchConfiguration();
 		config.setId(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_ID)));
@@ -49,9 +50,10 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		config.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
 		config.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
 		config.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
-		config.setDefaultAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER));
-		config.setSynonymSets(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SETS)));
-		config.setColumnAnalyzerOverrides(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES)));
+		config.setDefaultAnalyzer(OpaqueJsonColumnCodecUtil.deserialize(
+				rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER), DEFAULT_ANALYZER_FIELD));
+		config.setColumnAnalyzerOverrides(OpaqueJsonColumnCodecUtil.deserializeList(
+				rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES), OVERRIDES_FIELD));
 		config.setCreatedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY)));
 		config.setCreatedOn(new Date(rs.getTimestamp(COL_SEARCH_CONFIG_CREATED_ON).getTime()));
 		config.setModifiedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_MODIFIED_BY)));
@@ -91,16 +93,15 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		try {
 			jdbcTemplate.update(
 					"INSERT INTO SEARCH_CONFIGURATION (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
-					+ " DEFAULT_ANALYZER, SYNONYM_SETS, COLUMN_ANALYZER_OVERRIDES,"
+					+ " DEFAULT_ANALYZER, COLUMN_ANALYZER_OVERRIDES,"
 					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
 					id,
 					config.getOrganizationName(),
 					config.getName(),
 					config.getDescription(),
-					config.getDefaultAnalyzer(),
-					JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSets()),
-					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
+					OpaqueJsonColumnCodecUtil.serialize(config.getDefaultAnalyzer(), DEFAULT_ANALYZER_FIELD),
+					OpaqueJsonColumnCodecUtil.serialize(config.getColumnAnalyzerOverrides(), OVERRIDES_FIELD),
 					createdBy,
 					createdBy
 			);
@@ -142,13 +143,13 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		try {
 			updated = jdbcTemplate.update(
 					"UPDATE SEARCH_CONFIGURATION SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
-					+ " DEFAULT_ANALYZER = ?, SYNONYM_SETS = ?, COLUMN_ANALYZER_OVERRIDES = ?,"
+					+ " DEFAULT_ANALYZER = ?,"
+					+ " COLUMN_ANALYZER_OVERRIDES = ?,"
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					config.getName(),
 					config.getDescription(),
-					config.getDefaultAnalyzer(),
-					JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSets()),
-					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
+					OpaqueJsonColumnCodecUtil.serialize(config.getDefaultAnalyzer(), DEFAULT_ANALYZER_FIELD),
+					OpaqueJsonColumnCodecUtil.serialize(config.getColumnAnalyzerOverrides(), OVERRIDES_FIELD),
 					modifiedBy,
 					id
 			);

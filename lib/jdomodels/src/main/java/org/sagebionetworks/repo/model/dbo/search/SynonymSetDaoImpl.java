@@ -9,7 +9,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_M
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ORGANIZATION_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_RULES;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_DEFINITION;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,11 +24,10 @@ import java.util.Set;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
-import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
-import org.sagebionetworks.repo.model.search.table.SynonymRule;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,13 +37,15 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class SynonymSetDaoImpl implements SynonymSetDao {
 
+	private static final String DEFINITION_FIELD = "SynonymSet.definition";
+
 	private static final RowMapper<SynonymSet> SYNONYM_SET_ROW_MAPPER = (rs, rowNum) -> new SynonymSet()
 		.setId(String.valueOf(rs.getLong(COL_SYNSET_ID)))
 		.setEtag(rs.getString(COL_SYNSET_ETAG))
 		.setOrganizationName(rs.getString(COL_SYNSET_ORGANIZATION_NAME))
 		.setName(rs.getString(COL_SYNSET_NAME))
 		.setDescription(rs.getString(COL_SYNSET_DESCRIPTION))
-		.setRules(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString(COL_SYNSET_RULES), SynonymRule.class))
+		.setDefinition(OpaqueJsonColumnCodecUtil.deserialize(rs.getString(COL_SYNSET_DEFINITION), DEFINITION_FIELD))
 		.setCreatedBy(String.valueOf(rs.getLong(COL_SYNSET_CREATED_BY)))
 		.setCreatedOn(new Date(rs.getTimestamp(COL_SYNSET_CREATED_ON).getTime()))
 		.setModifiedBy(String.valueOf(rs.getLong(COL_SYNSET_MODIFIED_BY)))
@@ -61,18 +62,20 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	@Override
 	@WriteTransaction
 	public SynonymSet create(Long createdBy, SynonymSet synonymSet) {
+		ValidateArgument.required(synonymSet, "synonymSet");
+		ValidateArgument.required(synonymSet.getDefinition(), "synonymSet.definition");
 		Long id = idGenerator.generateNewId(IdType.SYNONYM_SET_ID);
 
 		try {
 			jdbcTemplate.update(
-					"INSERT INTO SYNONYM_SET (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION, RULES,"
+					"INSERT INTO SYNONYM_SET (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION, DEFINITION,"
 					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
 					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
 					id,
 					synonymSet.getOrganizationName(),
 					synonymSet.getName(),
 					synonymSet.getDescription(),
-					synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
+					OpaqueJsonColumnCodecUtil.serialize(synonymSet.getDefinition(), DEFINITION_FIELD),
 					createdBy,
 					createdBy
 			);
@@ -97,6 +100,9 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	@Override
 	@WriteTransaction
 	public SynonymSet update(Long modifiedBy, SynonymSet synonymSet) {
+		ValidateArgument.required(synonymSet, "synonymSet");
+		ValidateArgument.required(synonymSet.getDefinition(), "synonymSet.definition");
+
 		// Optimistic concurrency check
 		String currentEtag = getCurrentEtagForUpdate(Long.parseLong(synonymSet.getId()));
 		if (!currentEtag.equals(synonymSet.getEtag())) {
@@ -106,11 +112,11 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 		int updated;
 		try {
 			updated = jdbcTemplate.update(
-					"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, RULES = ?,"
+					"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, DEFINITION = ?,"
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					synonymSet.getName(),
 					synonymSet.getDescription(),
-					synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
+					OpaqueJsonColumnCodecUtil.serialize(synonymSet.getDefinition(), DEFINITION_FIELD),
 					modifiedBy,
 					Long.parseLong(synonymSet.getId())
 			);

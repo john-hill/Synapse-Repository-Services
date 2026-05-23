@@ -1,23 +1,20 @@
 package org.sagebionetworks.repo.manager.search;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,6 +26,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
@@ -36,19 +36,21 @@ import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
-import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
-import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * AutoWire integration test for {@link OpenSearchManagerImpl} that hits real AWS OpenSearch.
@@ -63,9 +65,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	private static final long POLL_MAX_MS = 30_000L;
 	private static final long POLL_INTERVAL_MS = 1_000L;
 
-	private static final int VALIDATE_RETRY_MAX = 10;
-	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;
-
 	@Autowired
 	private OpenSearchManager openSearchManager;
 
@@ -73,10 +72,22 @@ public class OpenSearchManagerImplAutoWiredTest {
 	private TextAnalyzerDao textAnalyzerDao;
 
 	@Autowired
+	private SynonymSetDao synonymSetDao;
+
+	@Autowired
 	private TextAnalyzerBootstrap textAnalyzerBootstrap;
 
 	private String indexName;
-	private Map<String, TextAnalyzer> defaultAnalyzers;
+	/** SynonymSet ids created during a test, removed in @AfterEach so each run is hermetic. */
+	private final List<String> createdSynonymSetIds = new ArrayList<>();
+	/**
+	 * Per-test resolved-analyzer map. Each value is the post-{@code SearchOpaqueJsonUtil.resolveAnalyzerSettings}
+	 * settings tree the manager hands to AOSS at index-build time. The bootstrapped analyzers
+	 * contain no {@code $ref}s here, so parsing the stored {@code settings} blob is sufficient —
+	 * synonym tests build their own analyzer entries that splice {@code $ref} entries against
+	 * SynonymSets they create in {@link SynonymSetDao}, mirroring the production resolver path.
+	 */
+	private Map<String, IndexSettingsAnalysis> defaultAnalyzers;
 
 	@BeforeEach
 	public void setUp() {
@@ -95,6 +106,14 @@ public class OpenSearchManagerImplAutoWiredTest {
 				// Best effort cleanup
 			}
 		}
+		for (String id : createdSynonymSetIds) {
+			try {
+				synonymSetDao.delete(id);
+			} catch (Exception e) {
+				// Best effort cleanup
+			}
+		}
+		createdSynonymSetIds.clear();
 	}
 
 	@Test
@@ -106,7 +125,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// call under test
 		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 
 		assertTrue(appliedConfig.isPresent());
 		assertTrue(appliedConfig.get().length() > 0);
@@ -117,7 +136,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		// call under test
@@ -138,12 +157,12 @@ public class OpenSearchManagerImplAutoWiredTest {
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		// call under test — resource_already_exists returns empty Optional
 		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 
 		assertTrue(result.isEmpty());
 	}
@@ -163,7 +182,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("2").setName("count").setColumnType(ColumnType.INTEGER)
 		);
 		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
@@ -207,11 +226,171 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
+	public void testRoundTripWithCuratorDefinedCustomAnalyzer() {
+		// Register a curator-style custom TextAnalyzer (inline english_stop + lowercase chain)
+		// as the index's defaultAnalyzer. Index docs, run a query that exercises the chain
+		// (stop-word removal: searching for "the genome" must match "genome research"
+		// because "the" is dropped before query matching), and verify the analyzer landed.
+		String customQname = "biomed-publications";
+		String customSettings = "{"
+				+ "\"filter\":{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
+					+ "\"tokenizer\":\"standard\","
+					+ "\"filter\":[\"lowercase\",\"english_stop\"]}}}";
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put(customQname,
+				SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(customSettings), q -> null));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING));
+		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns, customQname,
+				Collections.emptyList(), analyzers);
+		assertTrue(appliedConfig.isPresent());
+		// The applied config must register the namespaced filter from the custom analyzer.
+		String aossKey = OpenSearchManagerImpl.toAossKey(customQname);
+		assertTrue(appliedConfig.get().contains(aossKey + "__english_stop"),
+				"Custom analyzer's owned filter must be registered under namespaced key");
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "the genome research")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "lunar lander mission")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		SearchQuery query = new SearchQuery();
+		// "the" is a stop word for the english_stop filter — if the custom analyzer wasn't
+		// applied at search time, "the genome" would also match docs that lack "genome"
+		// (anything containing "the"). Asserting exactly one hit confirms stop-word removal
+		// is in effect.
+		query.setQueryText("the genome");
+		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		query.setLimit(10L);
+		query.setOffset(0L);
+
+		// call under test
+		SearchQueryResults results = waitForSearch(query, columns, 1);
+
+		assertEquals(1L, results.getTotalHits(),
+				"Custom analyzer's english_stop filter must drop 'the' so only 'the genome research' matches");
+		assertEquals(1, results.getHits().size());
+	}
+
+	@Test
+	public void testRoundTripWithColumnAnalyzerOverride() {
+		// Two STRING columns: 'title' (index-default, SCIENTIFIC stemming) and 'tag' (override
+		// to KEYWORD — exact match only). Verify routing: a stemmed query matches 'title' but
+		// not 'tag', and an exact-token query matches 'tag' verbatim.
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("tag").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry override =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
+						.setColumnName("tag")
+						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-KEYWORD"));
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride overrideContainer =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
+						.setOverrides(List.of(override));
+
+		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns,
+				"org.sagebionetworks-SCIENTIFIC", List.of(overrideContainer), defaultAnalyzers);
+		assertTrue(appliedConfig.isPresent());
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				// Use case-mismatched values so KEYWORD's no-lowercasing semantics are
+				// distinguishable from SCIENTIFIC's case-insensitive stemmed matching.
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L,
+						"1", "research papers", "2", "BioMed-Cancer")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L,
+						"1", "biomed papers", "2", "BioMed-Genome")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		// Exact-keyword query against `tag` matches doc 1 only — KEYWORD doesn't lowercase
+		// so the indexed token is the original "BioMed-Cancer", and "biomed-cancer" must NOT
+		// match. Run two queries scoped to the same column to confirm both directions.
+		SearchQuery exactQuery = new SearchQuery();
+		exactQuery.setQueryText("BioMed-Cancer");
+		exactQuery.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		exactQuery.setQueryFields(List.of("tag"));
+		exactQuery.setLimit(10L);
+		exactQuery.setOffset(0L);
+
+		// call under test
+		SearchQueryResults exactResults = waitForSearch(exactQuery, columns, 1);
+		assertEquals(1L, exactResults.getTotalHits(),
+				"KEYWORD override on `tag` must match the exact case-preserving token");
+
+		// Stemmed query against `title` matches doc 2 ("biomed papers" → "biomed paper" stem).
+		SearchQuery stemmedQuery = new SearchQuery();
+		stemmedQuery.setQueryText("paper");
+		stemmedQuery.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		stemmedQuery.setQueryFields(List.of("title"));
+		stemmedQuery.setLimit(10L);
+		stemmedQuery.setOffset(0L);
+
+		// call under test
+		SearchQueryResults stemmedResults = waitForSearch(stemmedQuery, columns, 1);
+		assertTrue(stemmedResults.getTotalHits() >= 1L,
+				"SCIENTIFIC default on `title` must stem 'papers' so 'paper' matches");
+	}
+
+	@Test
+	public void testRoundTripWithAutocompleteBootstrappedAnalyzer() {
+		// AUTOCOMPLETE is the bootstrapped analyzer for prefix-style typeahead. A column bound
+		// to AUTOCOMPLETE (via override) must let an autocomplete() prefix query match docs
+		// even after only a few characters of the indexed term. This is the only round-trip
+		// that exercises the asymmetric default / default_search behavior end-to-end.
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put("org.sagebionetworks-AUTOCOMPLETE",
+				bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("term").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry override =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
+						.setColumnName("term")
+						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-AUTOCOMPLETE"));
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride overrideContainer =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
+						.setOverrides(List.of(override));
+
+		openSearchManager.createIndex(indexName, columns, null,
+				List.of(overrideContainer), analyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "genome")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "microbiome")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		// Autocomplete with prefix "mit" should match "mitochondria"; "microbiome" begins
+		// with "mic", not "mit", so it must NOT match.
+		SearchQuery query = new SearchQuery();
+		query.setQueryText("mit");
+		query.setLimit(8L);
+		query.setOffset(0L);
+
+		// call under test
+		SearchQueryResults results = waitForAutocomplete(query, columns, 1);
+
+		assertNotNull(results);
+		assertTrue(results.getTotalHits() >= 1L,
+				"Autocomplete must surface 'mitochondria' for prefix 'mit'");
+		assertTrue(results.getHits().stream()
+						.flatMap(h -> h.getFields().stream())
+						.anyMatch(f -> "term".equals(f.getName()) && "mitochondria".equals(f.getValue())),
+				"Autocomplete result must include the 'mitochondria' document");
+	}
+
+	@Test
 	public void testSearchWithMatchAllQueryType() {
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
@@ -248,51 +427,67 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// call under test
 		IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
 				openSearchManager.search("nonexistent-" + UUID.randomUUID(), query, columns,
-						null, Collections.emptyList(), defaultAnalyzers, EnumSet.allOf(SearchQueryPart.class)));
+						EnumSet.allOf(SearchQueryPart.class)));
 
 		assertTrue(ex.getMessage().contains("still building"),
 				"Exception message should indicate the index is not ready, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithInvalidTokenizer() throws Exception {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("nonexistent_tokenizer_xyz");
+	public void testValidateAnalyzerSettingsWithInvalidTokenizer() {
+		// Bare built-in tokenizer reference that AOSS doesn't recognize.
+		IndexSettingsAnalysis settings = toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+				+ "\"tokenizer\":\"nonexistent_tokenizer_xyz\"}}}");
 
 		// call under test
-		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
-				assertThrows(IllegalArgumentException.class,
-						() -> openSearchManager.validateAnalyzerSettings(settings)));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> openSearchManager.validateAnalyzerSettings(settings));
 		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithInvalidFilter() throws Exception {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setIndexFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
+	public void testValidateAnalyzerSettingsWithInvalidFilter() {
+		// Built-in tokenizer paired with a filter chain that names a nonexistent built-in filter.
+		IndexSettingsAnalysis settings = toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+				+ "\"tokenizer\":\"standard\","
+				+ "\"filter\":[\"bogus_filter_name_xyz\"]}}}");
 
 		// call under test
-		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
-				assertThrows(IllegalArgumentException.class,
-						() -> openSearchManager.validateAnalyzerSettings(settings)));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> openSearchManager.validateAnalyzerSettings(settings));
 		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithCustomFilters() throws Exception {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}");
-		settings.setIndexFilterOrder(Arrays.asList("my_stop", "lowercase"));
+	public void testValidateAnalyzerSettingsWithInlineFilterRegistry() {
+		// Inline filter registry (my_stop) plus a built-in (lowercase). Exercises the typed
+		// TokenFilterDefinition deserialize path against live AOSS.
+		IndexSettingsAnalysis settings = toAnalysis("{"
+				+ "\"filter\":{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
+				+ "\"tokenizer\":\"standard\","
+				+ "\"filter\":[\"my_stop\",\"lowercase\"]}}}");
 
-		// call under test
-		retryOnAossAnalyzeFlake(() -> {
-			assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
-			return null;
-		});
+		// call under test — must not throw
+		openSearchManager.validateAnalyzerSettings(settings);
+	}
+
+	@Test
+	public void testValidateAnalyzerSettingsWithBootstrappedAnalyzer() {
+		// Round-trip every bootstrapped analyzer's settings through the validate probe so a
+		// regression on any one of them surfaces here. Each analyzer's stored settings is
+		// already a complete OpenSearch settings.analysis tree with no $refs.
+		for (Map.Entry<String, IndexSettingsAnalysis> entry : defaultAnalyzers.entrySet()) {
+			// call under test
+			openSearchManager.validateAnalyzerSettings(entry.getValue());
+		}
+	}
+
+	/** Test helper mirroring SearchOpaqueJsonUtil.resolveAnalyzerSettings() with a no-op resolver. */
+	private static IndexSettingsAnalysis toAnalysis(String json) {
+		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(json), q -> null);
 	}
 
 	/**
@@ -304,33 +499,25 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 */
 	@Test
 	public void testBulkIndexWithAutocompleteAnalyzerOverride() {
-		// Build the same analyzer settings the bootstrapper installs in production.
-		TextAnalyzer autocomplete = bootstrappedAnalyzer(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
-		TextAnalyzer autocompleteSearch = bootstrappedAnalyzer(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID);
-		TextAnalyzer scientific = buildAnalyzer(TextAnalyzerBootstrapper.SCIENTIFIC_ID, "standard");
-
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-AUTOCOMPLETE", autocomplete);
-		analyzers.put("org.sagebionetworks-AUTOCOMPLETE_SEARCH", autocompleteSearch);
-		analyzers.put("org.sagebionetworks-SCIENTIFIC", scientific);
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put("org.sagebionetworks-AUTOCOMPLETE",
+				bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("geneName").setColumnType(ColumnType.STRING));
 
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry entry =
-				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry();
-		entry.setColumnName("geneName");
-		entry.setIndexAnalyzer("org.sagebionetworks-AUTOCOMPLETE");
-		entry.setSearchAnalyzer("org.sagebionetworks-AUTOCOMPLETE_SEARCH");
-
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
+						.setColumnName("geneName")
+						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-AUTOCOMPLETE"));
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride override =
-				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride();
-		override.setName("AUTOCOMPLETE_OVERRIDE");
-		override.setOrganizationName("org.sagebionetworks");
-		override.setOverrides(List.of(entry));
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
+						.setName("AUTOCOMPLETE_OVERRIDE")
+						.setOrganizationName("org.sagebionetworks")
+						.setOverrides(List.of(entry));
 
 		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), List.of(override), analyzers);
+				List.of(override), analyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
@@ -357,22 +544,20 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("synonymAwareBootstrappedAnalyzers")
 	public void testCreateIndexWithBootstrappedSynonymAwareAnalyzerAndSynonyms(String analyzerKey, long bootstrapId) {
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put(analyzerKey, bootstrappedAnalyzer(bootstrapId));
+		String synonymQname = createSynonymSet(
+				"{\"type\":\"synonym_graph\",\"synonyms\":[\"cancer, tumor, neoplasm\"]}");
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put(analyzerKey, synonymAwareAnalyzer(bootstrapId, synonymQname));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("diagnosis").setColumnType(ColumnType.STRING));
-
-		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
-				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
-						new org.sagebionetworks.repo.model.search.table.SynonymRule()
-								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
-								.setTerms(List.of("cancer", "tumor", "neoplasm"))));
+		List<org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride> overrides =
+				List.of(bindColumnToAnalyzer("diagnosis", analyzerKey));
 
 		// call under test — createIndex must succeed. Pre-fix this threw
 		// "Token filter [std_word_delimiter] cannot be used to parse synonyms".
 		openSearchManager.createIndex(indexName, columns, analyzerKey,
-				List.of(synonymSet), Collections.emptyList(), analyzers);
+				overrides, analyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		// Index one doc per synonym term so each query can match via synonym expansion at
@@ -405,8 +590,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return Stream.of(
 				Arguments.of("org.sagebionetworks-SCIENTIFIC", TextAnalyzerBootstrapper.SCIENTIFIC_ID),
 				Arguments.of("org.sagebionetworks-STANDARD", TextAnalyzerBootstrapper.STANDARD_ID),
-				Arguments.of("org.sagebionetworks-IDENTIFIER", TextAnalyzerBootstrapper.IDENTIFIER_ID),
-				Arguments.of("org.sagebionetworks-AUTOCOMPLETE_SEARCH", TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID));
+				Arguments.of("org.sagebionetworks-IDENTIFIER", TextAnalyzerBootstrapper.IDENTIFIER_ID));
 	}
 
 	/**
@@ -419,20 +603,18 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("synonymAwareBootstrappedAnalyzers")
 	public void testBulkIndexWithSynonymsAndWordDelimiterSplittableNeighbors(String analyzerKey, long bootstrapId) {
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put(analyzerKey, bootstrappedAnalyzer(bootstrapId));
+		String synonymQname = createSynonymSet(
+				"{\"type\":\"synonym_graph\",\"synonyms\":[\"mRNA, messenger-RNA, messengerRNA\"]}");
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put(analyzerKey, synonymAwareAnalyzer(bootstrapId, synonymQname));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("description").setColumnType(ColumnType.STRING));
-
-		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
-				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
-						new org.sagebionetworks.repo.model.search.table.SynonymRule()
-								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
-								.setTerms(List.of("mRNA", "messenger-RNA", "messengerRNA"))));
+		List<org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride> overrides =
+				List.of(bindColumnToAnalyzer("description", analyzerKey));
 
 		openSearchManager.createIndex(indexName, columns, analyzerKey,
-				List.of(synonymSet), Collections.emptyList(), analyzers);
+				overrides, analyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
@@ -471,23 +653,21 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 */
 	@Test
 	public void testSearchWithMultiWordAndMixedCaseSynonymQueries() {
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedAnalyzer(TextAnalyzerBootstrapper.STANDARD_ID));
+		String synonymQname = createSynonymSet(
+				"{\"type\":\"synonym_graph\",\"synonyms\":["
+						+ "\"deep learning, DL\","
+						+ "\"electronic health record, EHR\"]}");
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put("org.sagebionetworks-STANDARD",
+				synonymAwareAnalyzer(TextAnalyzerBootstrapper.STANDARD_ID, synonymQname));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("description").setColumnType(ColumnType.STRING));
-
-		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
-				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
-						new org.sagebionetworks.repo.model.search.table.SynonymRule()
-								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
-								.setTerms(List.of("deep learning", "DL")),
-						new org.sagebionetworks.repo.model.search.table.SynonymRule()
-								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
-								.setTerms(List.of("electronic health record", "EHR"))));
+		List<org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride> overrides =
+				List.of(bindColumnToAnalyzer("description", "org.sagebionetworks-STANDARD"));
 
 		openSearchManager.createIndex(indexName, columns, "org.sagebionetworks-STANDARD",
-				List.of(synonymSet), Collections.emptyList(), analyzers);
+				overrides, analyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		// Each doc contains only the abbreviation — a query for the long form (or a
@@ -554,31 +734,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return waitForSearch(query, columns, 1L);
 	}
 
-	@Test
-	public void testBulkIndexWithBootstrappedScientificAnalyzer() {
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-SCIENTIFIC", bootstrappedAnalyzer(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
-
-		List<ColumnModel> columns = List.of(
-				new ColumnModel().setId("1").setName("geneName").setColumnType(ColumnType.STRING));
-
-		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), analyzers);
-		openSearchManager.waitForIndexWritable(indexName);
-
-		List<BulkOperation> operations = List.of(
-				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
-				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "BRCA2")),
-				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "TP53"))
-		);
-
-		// call under test — all 3 docs must be accepted. Pre-fix this returned 3 per-item
-		// errors with "Internal error occurred while processing request".
-		long indexed = openSearchManager.bulkIndex(indexName, operations);
-
-		assertEquals(3L, indexed);
-	}
-
 	/**
 	 * Round-trips one row through every Synapse {@link ColumnType} simultaneously: each fixture
 	 * pairs the raw String value (the form delivered by {@code tableQueryManager.runQueryAsStream})
@@ -604,7 +759,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		}
 
 		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+				Collections.emptyList(), defaultAnalyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		Map<String, Object> doc = new HashMap<>();
@@ -724,42 +879,94 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	/**
-	 * Loads a bootstrapped system analyzer from the database by its id (e.g.
-	 * {@link TextAnalyzerBootstrapper#STANDARD_ID}). Reading the live row from
-	 * {@link TextAnalyzerDao} keeps these tests from drifting away from the real
-	 * configuration emitted by {@link TextAnalyzerBootstrapper}.
+	 * Loads a bootstrapped system analyzer from the database by id and parses its stored
+	 * settings JSON into the typed {@link IndexSettingsAnalysis}. Reading the live row
+	 * keeps these tests from drifting away from the real configuration emitted by
+	 * {@link TextAnalyzerBootstrapper}. The bootstrapped settings carry no $refs, so the
+	 * resolver returns null and the boundary deserializer carries the rest.
 	 */
-	private TextAnalyzer bootstrappedAnalyzer(long id) {
-		return textAnalyzerDao.get(id).orElseThrow(() -> new IllegalStateException(
+	private IndexSettingsAnalysis bootstrappedAnalyzerSettings(long id) {
+		TextAnalyzer ta = textAnalyzerDao.get(id).orElseThrow(() -> new IllegalStateException(
 				"Bootstrapped TextAnalyzer not found for id " + id
 						+ "; TextAnalyzerBootstrapper should have populated it on startup."));
+		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(ta.getSettings()), qname -> null);
 	}
 
-	// ---- Polling helpers ----
+	/**
+	 * Persist a SynonymSet with the given {@code synonym_graph} definition under a
+	 * unique-per-test name in {@code org.sagebionetworks}, register it for cleanup,
+	 * and return its qualified name suitable for a {@code $ref} target.
+	 */
+	private String createSynonymSet(String definition) {
+		String name = "syn_" + UUID.randomUUID().toString().substring(0, 8);
+		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		SynonymSet created = synonymSetDao.create(adminUserId, new SynonymSet()
+				.setOrganizationName("org.sagebionetworks")
+				.setName(name)
+				.setDefinition(definition));
+		createdSynonymSetIds.add(created.getId());
+		return "org.sagebionetworks-" + name;
+	}
 
-	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
-		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {
-			try {
-				return action.call();
-			} catch (IllegalArgumentException e) {
-				if (isAossIndexNotFoundFlake(e)) {
-					throw new RetryException(e);
-				}
-				throw e;
-			} catch (AssertionError ae) {
-				if (ae.getCause() instanceof IllegalArgumentException
-						&& isAossIndexNotFoundFlake((IllegalArgumentException) ae.getCause())) {
-					throw new RetryException(ae.getCause());
-				}
-				throw ae;
+	/**
+	 * Build a synonym-aware variant of a bootstrapped analyzer: clone its stored settings
+	 * JSON, register a top-level {@code filter.synapse_synonyms = {"$ref": <qname>}} slot,
+	 * and add a {@code default_search} chain that runs {@code lowercase → synapse_synonyms}
+	 * BEFORE the default chain's word_delimiter (so the synonym filter sees the un-split
+	 * multi-word LHS — synonym must precede word_delimiter for hyphenated rules to fire).
+	 * Then resolve through {@link SynonymSetDao#getByQualifiedNames} exactly like
+	 * {@link SearchIndexLifecycleManagerImpl#resolveAnalyzers} does in production. Synonym
+	 * expansion runs at search time only — index-time chain stays unchanged so the
+	 * Lucene offset-monotonicity bug from PLFM-9636 cannot recur.
+	 */
+	private IndexSettingsAnalysis synonymAwareAnalyzer(long bootstrapId, String synonymQname) {
+		TextAnalyzer ta = textAnalyzerDao.get(bootstrapId).orElseThrow(() -> new IllegalStateException(
+				"Bootstrapped TextAnalyzer not found for id " + bootstrapId));
+		ObjectNode root = (ObjectNode) SearchOpaqueJsonUtil.parse(ta.getSettings());
+
+		ObjectNode filterMap = root.has("filter") && root.get("filter").isObject()
+				? (ObjectNode) root.get("filter")
+				: root.putObject("filter");
+		ObjectNode ref = filterMap.putObject("synapse_synonyms");
+		ref.put("$ref", synonymQname);
+
+		ObjectNode analyzerMap = (ObjectNode) root.get("analyzer");
+		ObjectNode defaultAnalyzer = (ObjectNode) analyzerMap.get("default");
+		ObjectNode searchAnalyzer = defaultAnalyzer.deepCopy();
+		ArrayNode defaultChain = (ArrayNode) searchAnalyzer.get("filter");
+		ArrayNode rebuilt = defaultChain.arrayNode();
+		rebuilt.add("lowercase");
+		rebuilt.add("synapse_synonyms");
+		for (JsonNode n : defaultChain) {
+			if (!"lowercase".equals(n.asText())) {
+				rebuilt.add(n);
 			}
+		}
+		searchAnalyzer.set("filter", rebuilt);
+		analyzerMap.set("default_search", searchAnalyzer);
+
+		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(root, qname -> {
+			Map<String, SynonymSet> hits = synonymSetDao.getByQualifiedNames(
+					Collections.singletonList(qname));
+			SynonymSet ss = hits.get(qname);
+			return ss == null ? null : SearchOpaqueJsonUtil.parse(ss.getDefinition());
 		});
 	}
 
-	private static boolean isAossIndexNotFoundFlake(IllegalArgumentException e) {
-		String message = e.getMessage();
-		return message != null && message.contains("index_not_found_exception");
+	/**
+	 * STRING columns resolve to SCIENTIFIC by default; synonym tests need to bind the
+	 * test column to the analyzer they configured so its synapse_synonyms filter actually
+	 * runs at search time.
+	 */
+	private static org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride bindColumnToAnalyzer(
+			String columnName, String analyzerQname) {
+		return new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
+				.setOverrides(List.of(new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
+						.setColumnName(columnName)
+						.setAnalyzer(Map.of("$ref", analyzerQname))));
 	}
+
+	// ---- Polling helpers ----
 
 	/**
 	 * Poll until search returns at least {@code expectedMinHits} results.
@@ -771,7 +978,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
 			try {
 				result[0] = openSearchManager.search(indexName, query, columns,
-						null, Collections.emptyList(), defaultAnalyzers, EnumSet.allOf(SearchQueryPart.class));
+						EnumSet.allOf(SearchQueryPart.class));
 				return result[0].getTotalHits() != null && result[0].getTotalHits() >= expectedMinHits;
 			} catch (IllegalStateException e) {
 				// index_not_found — not ready yet
@@ -782,24 +989,30 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return result[0];
 	}
 
-	// ---- Test data helpers ----
-
-	private static Map<String, TextAnalyzer> buildDefaultAnalyzers() {
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-SCIENTIFIC", buildAnalyzer(TextAnalyzerBootstrapper.SCIENTIFIC_ID, "standard"));
-		analyzers.put("org.sagebionetworks-KEYWORD", buildAnalyzer(TextAnalyzerBootstrapper.KEYWORD_ID, "keyword"));
-		analyzers.put("org.sagebionetworks-STANDARD", buildAnalyzer(TextAnalyzerBootstrapper.STANDARD_ID, "standard"));
-		return analyzers;
+	private SearchQueryResults waitForAutocomplete(SearchQuery query, List<ColumnModel> columns,
+			long expectedMinHits) {
+		SearchQueryResults[] result = {null};
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				result[0] = openSearchManager.autocomplete(indexName, query, columns,
+						EnumSet.allOf(SearchQueryPart.class));
+				return result[0].getTotalHits() != null && result[0].getTotalHits() >= expectedMinHits;
+			} catch (IllegalStateException e) {
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for autocomplete results (expected at least " + expectedMinHits + " hits)");
+		return result[0];
 	}
 
-	private static TextAnalyzer buildAnalyzer(Long id, String tokenizer) {
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setId(id.toString());
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer(tokenizer);
-		settings.setIndexFilterOrder(Collections.singletonList("lowercase"));
-		analyzer.setSettings(settings);
-		return analyzer;
+	// ---- Test data helpers ----
+
+	private Map<String, IndexSettingsAnalysis> buildDefaultAnalyzers() {
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>();
+		analyzers.put("org.sagebionetworks-SCIENTIFIC", bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
+		analyzers.put("org.sagebionetworks-KEYWORD", bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.KEYWORD_ID));
+		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.STANDARD_ID));
+		return analyzers;
 	}
 
 	private static BulkOperation buildBulkOp(String indexName, String docId, Map<String, Object> doc) {

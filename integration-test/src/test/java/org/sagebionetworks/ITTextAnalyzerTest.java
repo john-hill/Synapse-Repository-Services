@@ -4,28 +4,36 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
-import org.sagebionetworks.client.exceptions.SynapseBadRequestException;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
-import org.sagebionetworks.util.RetryException;
-import org.sagebionetworks.util.TimeUtils;
 
 @ExtendWith(ITTestExtension.class)
 public class ITTextAnalyzerTest {
 
-	private static final int VALIDATE_RETRY_MAX = 10;
-	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;
+	/**
+	 * Java callers build settings as native JSON objects via {@link JSONObject} /
+	 * {@link JSONArray} — never as pre-stringified JSON. The wire deserializer surfaces
+	 * the same shape on the other side.
+	 */
+	private static JSONObject standardSettings() {
+		return new JSONObject().put(
+				"analyzer", new JSONObject().put(
+						"default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new JSONArray().put("lowercase"))));
+	}
 
 	private final SynapseAdminClient adminSynapse;
 
@@ -39,13 +47,12 @@ public class ITTextAnalyzerTest {
 	}
 
 	@Test
-	public void testCRUDWithTextAnalyzerSettings() throws Exception {
-		// The org.sagebionetworks organization is bootstrapped on startup
-		// List system analyzers to get the organization ID
+	public void testCRUDWithTextAnalyzer() throws Exception {
+		// The org.sagebionetworks organization is bootstrapped on startup.
 		ListTextAnalyzersRequest listRequest = new ListTextAnalyzersRequest();
 		ListTextAnalyzersResponse listResponse = adminSynapse.listTextAnalyzers(listRequest);
 		assertNotNull(listResponse.getResults());
-		// System analyzers are bootstrapped, so there should be at least 6
+		// System analyzers are bootstrapped, so there should be at least 6.
 		assertTrue(listResponse.getResults().size() >= 6);
 
 		String orgName = listResponse.getResults().get(0).getOrganizationName();
@@ -55,13 +62,10 @@ public class ITTextAnalyzerTest {
 		toCreate.setName("IT_TEST_ANALYZER_" + UUID.randomUUID().toString().replace("-", ""));
 		toCreate.setDescription("Integration test analyzer");
 		toCreate.setOrganizationName(orgName);
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setIndexFilterOrder(Arrays.asList("lowercase"));
-		toCreate.setSettings(settings);
+		toCreate.setSettings(standardSettings());
 
 		// call under test
-		TextAnalyzer created = retryOnAossAnalyzeFlake(() -> adminSynapse.createTextAnalyzer(toCreate));
+		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
 		assertEquals(toCreate.getName(), created.getName());
@@ -74,7 +78,7 @@ public class ITTextAnalyzerTest {
 
 		// call under test
 		fetched.setDescription("Updated description");
-		TextAnalyzer updated = retryOnAossAnalyzeFlake(() -> adminSynapse.updateTextAnalyzer(fetched));
+		TextAnalyzer updated = adminSynapse.updateTextAnalyzer(fetched);
 		assertEquals("Updated description", updated.getDescription());
 		assertNotNull(updated.getEtag());
 
@@ -84,20 +88,46 @@ public class ITTextAnalyzerTest {
 		ListTextAnalyzersResponse orgResponse = adminSynapse.listTextAnalyzers(orgRequest);
 		assertNotNull(orgResponse.getResults());
 		assertTrue(orgResponse.getResults().stream().anyMatch(a -> created.getId().equals(a.getId())));
-
 	}
 
-	private static <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
-		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {
-			try {
-				return action.call();
-			} catch (SynapseBadRequestException e) {
-				String message = e.getMessage();
-				if (message != null && message.contains("index_not_found_exception")) {
-					throw new RetryException(e);
-				}
-				throw e;
-			}
-		});
+	@Test
+	public void testCreateWithSynonymRefRoundTrips() throws Exception {
+		// A TextAnalyzer that references a SynonymSet via $ref must round-trip exactly,
+		// confirming the opaque-JSON contract on the wire end-to-end.
+		ListTextAnalyzersRequest listRequest = new ListTextAnalyzersRequest();
+		String orgName = adminSynapse.listTextAnalyzers(listRequest).getResults().get(0)
+				.getOrganizationName();
+		String unique = UUID.randomUUID().toString().replace("-", "");
+
+		SynonymSet syn = adminSynapse.createSynonymSet(new SynonymSet()
+				.setOrganizationName(orgName)
+				.setName("IT_TEST_SYN_" + unique)
+				.setDefinition(new JSONObject()
+						.put("type", "synonym_graph")
+						.put("synonyms", new JSONArray().put("a, b"))));
+		String synQname = orgName + "-" + syn.getName();
+
+		JSONObject settings = new JSONObject()
+				.put("filter", new JSONObject()
+						.put("my_syn", new JSONObject().put("$ref", synQname)))
+				.put("analyzer", new JSONObject()
+						.put("default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new JSONArray().put("lowercase").put("my_syn"))));
+
+		TextAnalyzer toCreate = new TextAnalyzer()
+				.setOrganizationName(orgName)
+				.setName("IT_TEST_REF_" + unique)
+				.setSettings(settings);
+
+		// call under test
+		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
+
+		assertNotNull(created.getId());
+		// JSONObject.equals isn't value-based, so compare semantically via Jackson.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		assertEquals(mapper.readTree(settings.toString()),
+				mapper.readTree(String.valueOf(created.getSettings())));
 	}
 }

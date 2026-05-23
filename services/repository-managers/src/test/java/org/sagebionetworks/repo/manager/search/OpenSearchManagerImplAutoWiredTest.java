@@ -287,7 +287,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry override =
 				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
 						.setColumnName("tag")
-						.setAnalyzer("org.sagebionetworks-KEYWORD");
+						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-KEYWORD"));
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride overrideContainer =
 				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
 						.setOverrides(List.of(override));
@@ -351,7 +351,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry override =
 				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
 						.setColumnName("term")
-						.setAnalyzer("org.sagebionetworks-AUTOCOMPLETE");
+						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-AUTOCOMPLETE"));
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride overrideContainer =
 				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
 						.setOverrides(List.of(override));
@@ -509,7 +509,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry entry =
 				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
 						.setColumnName("geneName")
-						.setAnalyzer("org.sagebionetworks-AUTOCOMPLETE");
+						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-AUTOCOMPLETE"));
 		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride override =
 				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
 						.setName("AUTOCOMPLETE_OVERRIDE")
@@ -963,7 +963,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
 				.setOverrides(List.of(new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
 						.setColumnName(columnName)
-						.setAnalyzer(analyzerQname)));
+						.setAnalyzer(Map.of("$ref", analyzerQname))));
 	}
 
 	// ---- Polling helpers ----

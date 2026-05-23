@@ -49,7 +49,7 @@ public class ITColumnAnalyzerOverrideTest {
 		// CREATE
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("diagnosis");
-		entry.setAnalyzer(analyzerQualifiedName);
+		entry.setAnalyzer(new org.json.JSONObject().put("$ref", analyzerQualifiedName));
 
 		ColumnAnalyzerOverride toCreate = new ColumnAnalyzerOverride();
 		toCreate.setName(name);
@@ -75,7 +75,7 @@ public class ITColumnAnalyzerOverrideTest {
 		fetched.setDescription("Updated description");
 		ColumnAnalyzerOverrideEntry additionalEntry = new ColumnAnalyzerOverrideEntry();
 		additionalEntry.setColumnName("tissue");
-		additionalEntry.setAnalyzer(analyzerQualifiedName);
+		additionalEntry.setAnalyzer(new org.json.JSONObject().put("$ref", analyzerQualifiedName));
 		fetched.setOverrides(Arrays.asList(entry, additionalEntry));
 
 		// call under test

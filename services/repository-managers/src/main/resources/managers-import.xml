@@ -9,5 +9,6 @@
 	<!-- Markdown service -->
 	<import resource="classpath:markdown-dao.spb.xml" />
 	<import resource="classpath:doi-spb.xml" />
+	<import resource="classpath:docusign-spb.xml" />
 
 </beans>

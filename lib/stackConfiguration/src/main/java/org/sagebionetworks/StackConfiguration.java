@@ -370,6 +370,43 @@ public interface StackConfiguration {
 	public String getDoiPrefix();
 
 	/**
+	 * Whether the DocuSign integration (used to support electronic Data Use
+	 * Certificates) is enabled.
+	 */
+	public boolean getDocuSignEnabled();
+
+	/**
+	 * DocuSign integration key (a.k.a. OAuth client ID) used to sign JWT
+	 * assertions when requesting an access token.
+	 */
+	public String getDocuSignIntegrationKey();
+
+	/**
+	 * GUID of the DocuSign user to impersonate via the JWT Bearer Grant.
+	 */
+	public String getDocuSignUserId();
+
+	/**
+	 * DocuSign account ID against which template/envelope APIs are invoked.
+	 */
+	public String getDocuSignAccountId();
+
+	/**
+	 * RSA private key (PEM) used to sign DocuSign JWT assertions.
+	 */
+	public String getDocuSignPrivateKey();
+
+	/**
+	 * Base path for the DocuSign REST API (e.g. https://demo.docusign.net/restapi).
+	 */
+	public String getDocuSignBasePath();
+
+	/**
+	 * Hostname for the DocuSign OAuth token endpoint (e.g. account-d.docusign.com).
+	 */
+	public String getDocuSignOAuthBasePath();
+
+	/**
 	 * The maximum size of a backup batch.
 	 * 
 	 * @return

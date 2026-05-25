@@ -162,6 +162,7 @@ import org.sagebionetworks.repo.model.dataaccess.AccessorGroupResponse;
 import org.sagebionetworks.repo.model.dataaccess.AccessorGroupRevokeRequest;
 import org.sagebionetworks.repo.model.dataaccess.CreateSubmissionRequest;
 import org.sagebionetworks.repo.model.dataaccess.OpenSubmissionPage;
+import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.ResearchProject;
@@ -5784,6 +5785,17 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 			url += "?nextPageToken="+nextPageToken;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, OpenSubmissionPage.class);
+	}
+
+	private static final String EDUC_TEMPLATE = "/eDuc/template";
+
+	@Override
+	public EDucTemplatePage listEDucTemplates(String nextPageToken) throws SynapseException {
+		String url = EDUC_TEMPLATE;
+		if (nextPageToken != null) {
+			url += "?nextPageToken="+nextPageToken;
+		}
+		return getJSONEntity(getRepoEndpoint(), url, EDucTemplatePage.class);
 	}
 
 	@Override

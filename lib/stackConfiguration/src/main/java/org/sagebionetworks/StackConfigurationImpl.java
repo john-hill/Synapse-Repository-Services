@@ -611,6 +611,41 @@ public class StackConfigurationImpl implements StackConfiguration {
 		return configuration.getProperty("org.sagebionetworks.doi.datacite.api.endpoint");
 	}
 
+	@Override
+	public boolean getDocuSignEnabled() {
+		return Boolean.parseBoolean(configuration.getProperty("org.sagebionetworks.docusign.enabled"));
+	}
+
+	@Override
+	public String getDocuSignIntegrationKey() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.docusign.integration.key");
+	}
+
+	@Override
+	public String getDocuSignUserId() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.docusign.user.id");
+	}
+
+	@Override
+	public String getDocuSignAccountId() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.docusign.account.id");
+	}
+
+	@Override
+	public String getDocuSignPrivateKey() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.docusign.private.key");
+	}
+
+	@Override
+	public String getDocuSignBasePath() {
+		return configuration.getProperty("org.sagebionetworks.docusign.api.base.path");
+	}
+
+	@Override
+	public String getDocuSignOAuthBasePath() {
+		return configuration.getProperty("org.sagebionetworks.docusign.oauth.base.path");
+	}
+
 	/**
 	 * The maximum size of a backup batch.
 	 * 

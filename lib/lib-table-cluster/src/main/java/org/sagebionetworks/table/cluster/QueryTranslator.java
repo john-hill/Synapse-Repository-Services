@@ -76,6 +76,11 @@ public class QueryTranslator implements TranslatedQuery {
 	private final boolean includeEntityEtag;
 
 	/**
+	 * Should the query results include the row's benefactorId? True for non-aggregate view queries.
+	 */
+	private final boolean includeBenefactorId;
+
+	/**
 	 * Aggregated results are queries that included one or more aggregation
 	 * functions in the select clause. These query results will not match columns in
 	 * the table. In addition rowIDs and rowVersionNumbers will be null when
@@ -179,6 +184,7 @@ public class QueryTranslator implements TranslatedQuery {
 			// Track if this is an aggregate query.
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
+			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
 			// Build headers that describe how the client should read the results of this
 			// query.
 			this.selectColumns = SQLTranslatorUtils.getSelectColumns(firstPart.getQuerySpecification().getSelectList(), firstPart.getMapper(),
@@ -255,11 +261,16 @@ public class QueryTranslator implements TranslatedQuery {
 
 	/**
 	 * Does this query include ROW_ETAG
-	 * 
+	 *
 	 * @return
 	 */
 	public boolean getIncludeEntityEtag() {
 		return this.includeEntityEtag;
+	}
+
+	@Override
+	public boolean getIncludeBenefactorId() {
+		return this.includeBenefactorId;
 	}
 
 	/**

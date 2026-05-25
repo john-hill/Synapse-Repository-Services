@@ -42,6 +42,10 @@
 		"ownerPrincipalId": {
 			"type": "string",
 			"description": "The principal ID (user or team) that owns this grid session. If the owner is a user, only that user can access the grid. If the owner is a team, all members of that team have equal access to the grid."
+		},
+		"authorizationMode": {
+			"$ref": "org.sagebionetworks.repo.model.grid.AuthorizationMode",
+			"description": "The authorization mode for this grid session."
 		}
 	}
 }

@@ -83,7 +83,7 @@ public class MainQueryTest {
 		MainQuery main = new MainQuery(builder.build());
 		assertNotNull(main);
 		assertNotNull(main.getTranslator());
-		assertEquals("SELECT _C1_, _C2_, _C3_, ROW_ID, ROW_VERSION FROM T123_4 WHERE"
+		assertEquals("SELECT _C1_, _C2_, _C3_, ROW_ID, ROW_VERSION, ROW_BENEFACTOR FROM T123_4 WHERE"
 			// selected facet
 			+ " ( ( ( ( JSON_OVERLAPS(LOWER(_C1_),LOWER(JSON_ARRAY(:b0))) IS TRUE ) ) ) )"
 			// additional filter
@@ -113,7 +113,7 @@ public class MainQueryTest {
 		MainQuery main = new MainQuery(builder.build());
 		assertNotNull(main);
 		assertNotNull(main.getTranslator());
-		assertEquals("SELECT _C1_, _C2_, _C3_, ROW_ID, ROW_VERSION FROM T123_4 WHERE"
+		assertEquals("SELECT _C1_, _C2_, _C3_, ROW_ID, ROW_VERSION, ROW_BENEFACTOR FROM T123_4 WHERE"
 				+ " ROW_BENEFACTOR IN ( :b0, :b1 )" + " LIMIT :b2 OFFSET :b3", main.getTranslator().getOutputSQL());
 		Map<String, Object> expectedParmeters = new HashMap<>();
 		expectedParmeters.put("b0", 11L);
@@ -133,7 +133,7 @@ public class MainQueryTest {
 		MainQuery main = new MainQuery(builder.build());
 		assertNotNull(main);
 		assertNotNull(main.getTranslator());
-		assertEquals("SELECT _C2_, ROW_ID, ROW_VERSION FROM T123_4 WHERE _C2_ = :b0 LIMIT :b1 OFFSET :b2",
+		assertEquals("SELECT _C2_, ROW_ID, ROW_VERSION, ROW_BENEFACTOR FROM T123_4 WHERE _C2_ = :b0 LIMIT :b1 OFFSET :b2",
 				main.getTranslator().getOutputSQL());
 		Map<String, Object> expectedParmeters = new HashMap<>();
 		expectedParmeters.put("b0", userId);
@@ -152,7 +152,7 @@ public class MainQueryTest {
 		MainQuery main = new MainQuery(builder.build());
 		assertNotNull(main);
 		assertNotNull(main.getTranslator());
-		assertEquals("SELECT _C2_, ROW_ID, ROW_VERSION, ROW_ETAG FROM T123_4 LIMIT :b0 OFFSET :b1",
+		assertEquals("SELECT _C2_, ROW_ID, ROW_VERSION, ROW_ETAG, ROW_BENEFACTOR FROM T123_4 LIMIT :b0 OFFSET :b1",
 				main.getTranslator().getOutputSQL());
 		Map<String, Object> expectedParmeters = new HashMap<>();
 		expectedParmeters.put("b0", 5000000L);

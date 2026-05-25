@@ -60,6 +60,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	private final JsonSchemaManager jsonSchemaManager;
 	private final AnnotationsTranslator annotationsTranslator;
 	private final List<String> errorMessages;
+	private final Set<Long> collectedBenefactorIds;
 	private List<ColumnModel> schema;
 	private List<DiskPointer> diskPointers;
 	private File tempFile;
@@ -80,6 +81,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 		this.jsonSchemaManager = jsonSchemaManager;
 		this.annotationsTranslator = annotationsTranslator;
 		this.errorMessages = new ArrayList<>();
+		this.collectedBenefactorIds = new HashSet<>();
 		initialize();
 	}
 
@@ -113,6 +115,9 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	RowSourceItem createSynchRow(Row row) {
+		if (row.getBenefactorId() != null) {
+			collectedBenefactorIds.add(row.getBenefactorId());
+		}
 		String key = IdAndVersion.newBuilder().setId(row.getRowId()).build().toString();
 		TreeMap<String, ConValue> data = new TreeMap<>();
 		for (int i = 0; i < schema.size(); i++) {
@@ -123,6 +128,11 @@ public class EntityViewSourceHandler implements SourceHandler {
 		}
 		return new RowSourceItem(data, key, new SynapseRow().setRowId(row.getRowId())
 				.setVersionNumber(row.getVersionNumber()).setEtag(row.getEtag()));
+	}
+
+	@Override
+	public Set<Long> getBenefactorIds() {
+		return collectedBenefactorIds;
 	}
 
 	@Override

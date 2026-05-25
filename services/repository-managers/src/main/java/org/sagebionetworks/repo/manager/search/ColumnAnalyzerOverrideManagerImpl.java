@@ -146,19 +146,33 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
 	}
 
+	/**
+	 * Each entry's {@code analyzer} field is the unified inline-or-{@code $ref} shape: either
+	 * a {@code {"$ref": "{org}-{name}"}} reference to a saved TextAnalyzer or an inline
+	 * bare OpenSearch {@code settings.analysis} block. Refs are batched and existence-checked;
+	 * inline literals are round-tripped through the typed deserializer to verify shape.
+	 */
 	private void validateEntryAnalyzerNames(ColumnAnalyzerOverride override) {
 		if (override.getOverrides() == null || override.getOverrides().isEmpty()) {
 			return;
 		}
 		List<String> qualifiedNames = new ArrayList<>();
 		for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
-			if (entry.getIndexAnalyzer() != null) {
-				SearchResourceConstants.validateQualifiedNameFormat(entry.getIndexAnalyzer(), "indexAnalyzer");
-				qualifiedNames.add(entry.getIndexAnalyzer());
+			Object analyzer = entry.getAnalyzer();
+			if (analyzer == null) {
+				continue;
 			}
-			if (entry.getSearchAnalyzer() != null) {
-				SearchResourceConstants.validateQualifiedNameFormat(entry.getSearchAnalyzer(), "searchAnalyzer");
-				qualifiedNames.add(entry.getSearchAnalyzer());
+			String ref = SearchOpaqueJsonUtil.readRef(analyzer);
+			if (ref != null) {
+				SearchResourceConstants.validateQualifiedNameFormat(ref, "analyzer");
+				qualifiedNames.add(ref);
+			} else {
+				// Inline analyzer literal: a bare OpenSearch settings.analysis block.
+				// Round-trip through the OpenSearch typed deserializer so curator-supplied
+				// JSON is rejected at create / update time if its analyzer / token-filter
+				// shape is malformed. The null resolver rejects any nested $ref entries
+				// (refs inside an inline-literal slot are not a supported feature).
+				SearchOpaqueJsonUtil.toInlineAnalyzerSettings(analyzer, qname -> null);
 			}
 		}
 		if (!qualifiedNames.isEmpty()) {

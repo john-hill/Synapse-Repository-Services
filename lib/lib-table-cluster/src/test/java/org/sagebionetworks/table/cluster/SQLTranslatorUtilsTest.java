@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.table.TableConstants.ROW_BENEFACTOR;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ETAG;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ID;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_VERSION;
@@ -851,10 +852,11 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = true;
 		boolean withEtag = true;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
 		verify(mockResultSet).getLong(ROW_ID);
 		verify(mockResultSet).getLong(ROW_VERSION);
 		verify(mockResultSet).getString(ROW_ETAG);
+		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
 		assertNotNull(result);
 		assertEquals(rowId, result.getRowId());
 		assertEquals(rowVersion, result.getVersionNumber());
@@ -863,7 +865,7 @@ public class SQLTranslatorUtilsTest {
 		assertEquals("aString", result.getValues().get(0));
 		assertEquals(Boolean.TRUE.toString(), result.getValues().get(1));
 	}
-	
+
 	@Test
 	public void testReadWithoutHeadersWithEtagRow() throws SQLException{
 		when(mockResultSet.getString(1)).thenReturn("aString");
@@ -871,10 +873,11 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = false;
 		boolean withEtag = true;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
 		verify(mockResultSet, never()).getLong(ROW_ID);
 		verify(mockResultSet, never()).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
+		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
 		assertNotNull(result);
 		assertEquals(null, result.getRowId());
 		assertEquals(null, result.getVersionNumber());
@@ -883,7 +886,7 @@ public class SQLTranslatorUtilsTest {
 		assertEquals("aString", result.getValues().get(0));
 		assertEquals(Boolean.TRUE.toString(), result.getValues().get(1));
 	}
-	
+
 	@Test
 	public void testReadWithoutHeadersWithoutEtagRow() throws SQLException{
 		when(mockResultSet.getString(1)).thenReturn("aString");
@@ -891,10 +894,11 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = false;
 		boolean withEtag = false;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
 		verify(mockResultSet, never()).getLong(ROW_ID);
 		verify(mockResultSet, never()).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
+		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
 		assertNotNull(result);
 		assertEquals(null, result.getRowId());
 		assertEquals(null, result.getVersionNumber());
@@ -903,7 +907,7 @@ public class SQLTranslatorUtilsTest {
 		assertEquals("aString", result.getValues().get(0));
 		assertEquals(Boolean.TRUE.toString(), result.getValues().get(1));
 	}
-	
+
 	@Test
 	public void testReadWithHeadersWithoutEtagRow() throws SQLException{
 		when(mockResultSet.getLong(ROW_ID)).thenReturn(rowId);
@@ -913,10 +917,11 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = true;
 		boolean withEtag = false;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
 		verify(mockResultSet).getLong(ROW_ID);
 		verify(mockResultSet).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
+		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
 		assertNotNull(result);
 		assertEquals(rowId, result.getRowId());
 		assertEquals(rowVersion, result.getVersionNumber());
@@ -924,6 +929,38 @@ public class SQLTranslatorUtilsTest {
 		assertEquals(2, result.getValues().size());
 		assertEquals("aString", result.getValues().get(0));
 		assertEquals(Boolean.TRUE.toString(), result.getValues().get(1));
+	}
+
+	@Test
+	public void testReadRowWithBenefactorId() throws SQLException {
+		long benefactorId = 99L;
+		when(mockResultSet.getLong(ROW_ID)).thenReturn(rowId);
+		when(mockResultSet.getLong(ROW_VERSION)).thenReturn(rowVersion);
+		when(mockResultSet.getLong(ROW_BENEFACTOR)).thenReturn(benefactorId);
+		when(mockResultSet.getString(1)).thenReturn("aString");
+		when(mockResultSet.getString(2)).thenReturn("true");
+		// call under test
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, true, infoArray);
+		verify(mockResultSet).getLong(ROW_ID);
+		verify(mockResultSet).getLong(ROW_VERSION);
+		verify(mockResultSet, never()).getString(ROW_ETAG);
+		verify(mockResultSet).getLong(ROW_BENEFACTOR);
+		assertEquals(rowId, result.getRowId());
+		assertEquals(rowVersion, result.getVersionNumber());
+		assertEquals(benefactorId, result.getBenefactorId());
+		assertNull(result.getEtag());
+	}
+
+	@Test
+	public void testReadRowWithoutBenefactorId() throws SQLException {
+		when(mockResultSet.getLong(ROW_ID)).thenReturn(rowId);
+		when(mockResultSet.getLong(ROW_VERSION)).thenReturn(rowVersion);
+		when(mockResultSet.getString(1)).thenReturn("aString");
+		when(mockResultSet.getString(2)).thenReturn("true");
+		// call under test
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, false, infoArray);
+		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
+		assertNull(result.getBenefactorId());
 	}	
 	
 	@Test

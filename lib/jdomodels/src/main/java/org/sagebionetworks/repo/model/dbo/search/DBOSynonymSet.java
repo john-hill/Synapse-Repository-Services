@@ -9,7 +9,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_M
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ORGANIZATION_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_RULES;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_DEFINITION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SYNONYM_SET;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SYNONYM_SET;
 
@@ -22,9 +22,9 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
-import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.sagebionetworks.util.TemporaryCode;
 
 public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DBOSynonymSet> {
 
@@ -33,7 +33,7 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 	private String organizationName;
 	private String name;
 	private String description;
-	private String rules;
+	private String definition;
 	private Long createdBy;
 	private Timestamp createdOn;
 	private Long modifiedBy;
@@ -45,7 +45,7 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 		new FieldColumn("organizationName", COL_SYNSET_ORGANIZATION_NAME),
 		new FieldColumn("name", COL_SYNSET_NAME),
 		new FieldColumn("description", COL_SYNSET_DESCRIPTION),
-		new FieldColumn("rules", COL_SYNSET_RULES),
+		new FieldColumn("definition", COL_SYNSET_DEFINITION),
 		new FieldColumn("createdBy", COL_SYNSET_CREATED_BY),
 		new FieldColumn("createdOn", COL_SYNSET_CREATED_ON),
 		new FieldColumn("modifiedBy", COL_SYNSET_MODIFIED_BY),
@@ -61,7 +61,7 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 			dbo.setOrganizationName(rs.getString(COL_SYNSET_ORGANIZATION_NAME));
 			dbo.setName(rs.getString(COL_SYNSET_NAME));
 			dbo.setDescription(rs.getString(COL_SYNSET_DESCRIPTION));
-			dbo.setRules(rs.getString(COL_SYNSET_RULES));
+			dbo.setDefinition(rs.getString(COL_SYNSET_DEFINITION));
 			dbo.setCreatedBy(rs.getLong(COL_SYNSET_CREATED_BY));
 			dbo.setCreatedOn(rs.getTimestamp(COL_SYNSET_CREATED_ON));
 			dbo.setModifiedBy(rs.getLong(COL_SYNSET_MODIFIED_BY));
@@ -90,7 +90,38 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 		}
 	};
 
-	private static final BasicMigratableTableTranslation<DBOSynonymSet> MIGRATION_TRANSLATOR = new BasicMigratableTableTranslation<>();
+	// Migration bridge:a valid (empty) OpenSearch synonym_graph token-filter definition.
+	// Written into the DEFINITION column for any row whose backup carries the legacy
+	// <rules> shape, so the NOT NULL constraint passes on restore. Curators are expected to
+	// DELETE & re-POST these rows through the SynonymSet REST API after migration.
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
+	static final String PLACEHOLDER_DEFINITION = "{\"type\":\"synonym_graph\",\"synonyms\":[]}";
+
+	// Migration bridge:production backups still serialize the legacy <rules> XML element
+	// (a JSON array of {ruleType, ...} entries). Catch it here so deserialization does not
+	// fail. The translator below discards the value and writes PLACEHOLDER_DEFINITION into
+	// the new DEFINITION column. No FieldColumn entry — this field is never read from or
+	// written to the database.
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
+	private String rules;
+
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Replace with BasicMigratableTableTranslation after legacy <rules> backups can no longer arrive.")
+	private static final MigratableTableTranslation<DBOSynonymSet, DBOSynonymSet> MIGRATION_TRANSLATOR =
+			new MigratableTableTranslation<DBOSynonymSet, DBOSynonymSet>() {
+		@Override
+		public DBOSynonymSet createDatabaseObjectFromBackup(DBOSynonymSet backup) {
+			if (backup.getDefinition() == null) {
+				backup.setDefinition(PLACEHOLDER_DEFINITION);
+			}
+			backup.setRules(null);
+			return backup;
+		}
+
+		@Override
+		public DBOSynonymSet createBackupFromDatabaseObject(DBOSynonymSet dbo) {
+			return dbo;
+		}
+	};
 
 	@Override
 	public TableMapping<DBOSynonymSet> getTableMapping() {
@@ -167,10 +198,21 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 		return this;
 	}
 
+	public String getDefinition() {
+		return definition;
+	}
+
+	public DBOSynonymSet setDefinition(String definition) {
+		this.definition = definition;
+		return this;
+	}
+
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
 	public String getRules() {
 		return rules;
 	}
 
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
 	public DBOSynonymSet setRules(String rules) {
 		this.rules = rules;
 		return this;
@@ -214,7 +256,7 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(createdBy, createdOn, description, etag, id, modifiedBy, modifiedOn, name, organizationName, rules);
+		return Objects.hash(createdBy, createdOn, description, etag, id, modifiedBy, modifiedOn, name, organizationName, definition);
 	}
 
 	@Override
@@ -230,13 +272,13 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 				&& Objects.equals(description, other.description) && Objects.equals(etag, other.etag)
 				&& Objects.equals(id, other.id) && Objects.equals(modifiedBy, other.modifiedBy)
 				&& Objects.equals(modifiedOn, other.modifiedOn) && Objects.equals(name, other.name)
-				&& Objects.equals(organizationName, other.organizationName) && Objects.equals(rules, other.rules);
+				&& Objects.equals(organizationName, other.organizationName) && Objects.equals(definition, other.definition);
 	}
 
 	@Override
 	public String toString() {
 		return "DBOSynonymSet [id=" + id + ", etag=" + etag + ", organizationName=" + organizationName + ", name=" + name
-				+ ", description=" + description + ", rules=" + rules + ", createdBy=" + createdBy + ", createdOn="
+				+ ", description=" + description + ", definition=" + definition + ", createdBy=" + createdBy + ", createdOn="
 				+ createdOn + ", modifiedBy=" + modifiedBy + ", modifiedOn=" + modifiedOn + "]";
 	}
 

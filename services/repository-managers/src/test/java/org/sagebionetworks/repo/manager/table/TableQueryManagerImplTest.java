@@ -2736,6 +2736,40 @@ public class TableQueryManagerImplTest {
 		rowSet.setRows(rows);
 		return rowSet;
 	}
-	
+
+	@Test
+	public void testQuerySinglePageWithViewReturnsBenefactorId() throws Exception {
+		IndexDescription indexDescription = new ViewIndexDescription(idAndVersion, TableType.entityview, -1L);
+		when(mockTableManagerSupport.getTableStatusOrCreateIfNotExists(idAndVersion)).thenReturn(status);
+		setupNonExclusiveLock();
+		when(mockTableManagerSupport.getTableSchemaCount(any())).thenReturn((long) models.size());
+		when(mockTableManagerSupport.getTableSchema(idAndVersion)).thenReturn(models);
+		when(mockTableConnectionFactory.getConnection(idAndVersion)).thenReturn(mockTableIndexDAO);
+		when(mockTableManagerSupport.getIndexDescription(any())).thenReturn(indexDescription);
+		when(mockTableManagerSupport.getColumnModel(any())).thenReturn(models.get(0));
+		when(mockTableIndexDAO.getDistinctLongValues(any(), any())).thenReturn(benfactors);
+		when(mockTableManagerSupport.getAccessibleBenefactors(any(), any(), any())).thenReturn(subSet);
+
+		long benefactorId = 444L;
+		addRowIdAndVersionToRows();
+		rows.forEach(r -> r.setBenefactorId(benefactorId));
+
+		ArgumentCaptor<QueryTranslator> queryCaptor = ArgumentCaptor.forClass(QueryTranslator.class);
+		when(mockTableIndexDAO.query(queryCaptor.capture())).thenReturn(rowSet);
+
+		Query query = new Query();
+		query.setSql("select * from " + tableId);
+		queryOptions = new QueryOptions().withRunQuery(true).withRunCount(false).withReturnFacets(false);
+
+		// call under test
+		QueryResultBundle result = manager.querySinglePage(mockProgressCallbackVoid, user, query, queryOptions);
+
+		assertNotNull(result);
+		List<Row> resultRows = result.getQueryResult().getQueryResults().getRows();
+		assertNotNull(resultRows);
+		resultRows.forEach(r -> assertEquals(benefactorId, r.getBenefactorId()));
+		assertTrue(queryCaptor.getValue().getIncludeBenefactorId());
+	}
+
 }
 

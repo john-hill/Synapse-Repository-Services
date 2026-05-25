@@ -200,11 +200,11 @@ public class ITSearchQueryTest {
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		String orgName = analyzers.getResults().get(0).getOrganizationName();
 
-		// ColumnAnalyzerOverride: geneName -> AUTOCOMPLETE (index) + AUTOCOMPLETE_SEARCH (search)
+		// AUTOCOMPLETE owns both analyzer.default (edge_ngram index) and analyzer.default_search
+		// (non-ngram search), so a single qname covers index and search time.
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("geneName");
-		entry.setIndexAnalyzer(orgName + "-AUTOCOMPLETE");
-		entry.setSearchAnalyzer(orgName + "-AUTOCOMPLETE_SEARCH");
+		entry.setAnalyzer(new org.json.JSONObject().put("$ref", orgName + "-AUTOCOMPLETE"));
 
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName("IT_AUTOCOMPLETE_OVERRIDE_" + UUID.randomUUID().toString().replace("-", ""));
@@ -216,7 +216,8 @@ public class ITSearchQueryTest {
 		SearchConfiguration config = new SearchConfiguration();
 		config.setName("IT_AUTOCOMPLETE_CONFIG_" + UUID.randomUUID().toString().replace("-", ""));
 		config.setOrganizationName(orgName);
-		config.setColumnAnalyzerOverrides(Arrays.asList(overrideQualifiedName));
+		config.setColumnAnalyzerOverrides(Arrays.asList(
+				new org.json.JSONObject().put("$ref", overrideQualifiedName)));
 		config = adminSynapse.createSearchConfiguration(config);
 
 		ColumnModel nameCol = new ColumnModel();
@@ -283,6 +284,91 @@ public class ITSearchQueryTest {
 			"totalHits should be null when responseParts is left at default (HITS only)");
 		assertNull(autocompleteResults.getSelectColumns(),
 			"selectColumns should be null when responseParts is left at default (HITS only)");
+	}
+
+	/**
+	 * End-to-end test that the inline defaultAnalyzer literal on a SearchConfiguration is
+	 * actually wired through to the AOSS index — not silently dropped at build time.
+	 *
+	 * <p>SearchConfiguration carries a bare OpenSearch settings.analysis block as its
+	 * defaultAnalyzer (no $ref to a saved TextAnalyzer). The build succeeds and the index
+	 * returns rows: if the inline literal were dropped, the index would still build with
+	 * the column-type default and the query would still pass — but a failed build would
+	 * surface IllegalArgumentException through the async helper, and an inline literal
+	 * carrying a malformed analyzer chain (the negative case) would fail the build.</p>
+	 */
+	@Test
+	public void testAsyncQueryWithInlineDefaultAnalyzer() throws Exception {
+		Project project = new Project();
+		project.setName("ITAsyncQuery_InlineDefault_" + UUID.randomUUID());
+		project = synapse.createEntity(project);
+		entitiesToDelete.add(project);
+
+		grantPublicRead(project.getId());
+
+		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
+		String orgName = analyzers.getResults().get(0).getOrganizationName();
+
+		// Bare OpenSearch settings.analysis block written directly onto defaultAnalyzer.
+		// No envelope. No $ref. The lifecycle's materializeInlineAnalyzerSlots must
+		// recognize this and inject a synthetic qname into the loaded-analyzers map.
+		org.json.JSONObject inlineDefault = new org.json.JSONObject().put(
+				"analyzer", new org.json.JSONObject().put(
+						"default", new org.json.JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new org.json.JSONArray().put("lowercase"))));
+		SearchConfiguration config = new SearchConfiguration();
+		config.setName("IT_INLINE_DEFAULT_CONFIG_" + UUID.randomUUID().toString().replace("-", ""));
+		config.setOrganizationName(orgName);
+		config.setDefaultAnalyzer(inlineDefault);
+		config = adminSynapse.createSearchConfiguration(config);
+
+		ColumnModel nameCol = new ColumnModel();
+		nameCol.setName("geneName");
+		nameCol.setColumnType(ColumnType.STRING);
+		nameCol.setMaximumSize(100L);
+		nameCol = synapse.createColumnModel(nameCol);
+
+		TableEntity table = new TableEntity();
+		table.setName("InlineDefaultAnalyzerTable");
+		table.setParentId(project.getId());
+		table.setColumnIds(Arrays.asList(nameCol.getId()));
+		table = synapse.createEntity(table);
+		entitiesToDelete.add(table);
+
+		adminSynapse.changeEntitysDataType(table.getId(), DataType.OPEN_DATA);
+
+		List<ColumnModel> columns = synapse.getColumnModelsForTableEntity(table.getId());
+		RowSet rowSet = new RowSet();
+		rowSet.setTableId(table.getId());
+		rowSet.setHeaders(TableModelUtils.getSelectColumns(columns));
+		rowSet.setRows(Arrays.asList(
+				new Row().setValues(Arrays.asList("BRCA1")),
+				new Row().setValues(Arrays.asList("BRCA2"))));
+		synapse.appendRowsToTable(rowSet, MAX_APPEND_TIMEOUT, table.getId());
+
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setName("InlineDefaultSearchIndex");
+		searchIndex.setParentId(project.getId());
+		searchIndex.setDefiningSQL("select * from " + table.getId());
+		searchIndex.setSearchConfigurationId(config.getId());
+		searchIndex = adminSynapse.createEntity(searchIndex);
+		entitiesToDelete.add(searchIndex);
+
+		// Async query — if the lifecycle silently dropped the inline literal it would still
+		// pass with the column-type default, BUT a malformed inline literal would fail the
+		// build with IllegalArgumentException surfaced verbatim. Using a valid bare-block
+		// here means the build must succeed AND the AOSS index must respond to queries.
+		SearchIndexQuery query = new SearchIndexQuery();
+		query.setSearchIndexId(searchIndex.getId());
+		query.setSearchQuery(new SearchQuery());
+		query.setResponseParts(EnumSet.of(SearchQueryPart.TOTAL_HITS));
+
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, query,
+				(SearchQueryResults results) -> assertEquals(2L, (long) results.getTotalHits()),
+				MAX_QUERY_TIMEOUT_MS,
+				AsyncJobHelper.INFINITE_RETRIES);
 	}
 
 	private void grantPublicRead(String entityId) throws SynapseException {

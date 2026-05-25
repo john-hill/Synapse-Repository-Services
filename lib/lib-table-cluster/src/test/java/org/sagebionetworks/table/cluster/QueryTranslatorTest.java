@@ -1224,7 +1224,7 @@ public class QueryTranslatorTest {
 		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
 				.indexDescription(new ViewIndexDescription(idAndVersion, TableType.entityview, -1L))
 				.includeEntityEtag(null).build();
-		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION FROM T123", query.getOutputSQL());
+		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION, ROW_BENEFACTOR FROM T123", query.getOutputSQL());
 		assertFalse(query.getIncludeEntityEtag());
 	}
 
@@ -1249,7 +1249,7 @@ public class QueryTranslatorTest {
 		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
 				.includeEntityEtag(true)
 				.indexDescription(new ViewIndexDescription(idAndVersion, TableType.entityview, -1L)).build();
-		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION, ROW_ETAG FROM T123", query.getOutputSQL());
+		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION, ROW_ETAG, ROW_BENEFACTOR FROM T123", query.getOutputSQL());
 		assertTrue(query.getIncludeEntityEtag());
 	}
 
@@ -1262,7 +1262,7 @@ public class QueryTranslatorTest {
 		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
 				.includeEntityEtag(false)
 				.indexDescription(new ViewIndexDescription(idAndVersion, TableType.entityview, -1L)).build();
-		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION FROM T123", query.getOutputSQL());
+		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION, ROW_BENEFACTOR FROM T123", query.getOutputSQL());
 		assertFalse(query.getIncludeEntityEtag());
 	}
 
@@ -1287,6 +1287,42 @@ public class QueryTranslatorTest {
 		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
 				.indexDescription(new ViewIndexDescription(idAndVersion, TableType.entityview, -1L)).build();
 		assertEquals("SELECT COUNT(*) FROM T123", query.getOutputSQL());
+	}
+
+	@Test
+	public void testViewQueryIncludesBenefactorId() throws ParseException {
+
+		when(mockSchemaProvider.getTableSchema(any())).thenReturn(schema);
+		setupGetColumns(schema);
+
+		// call under test
+		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
+				.indexDescription(new ViewIndexDescription(idAndVersion, TableType.entityview, -1L)).build();
+		assertTrue(query.getIncludeBenefactorId());
+	}
+
+	@Test
+	public void testViewAggregateQueryDoesNotIncludeBenefactorId() throws ParseException {
+
+		when(mockSchemaProvider.getTableSchema(any())).thenReturn(schema);
+
+		sql = "select count(*) from syn123";
+		// call under test
+		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
+				.indexDescription(new ViewIndexDescription(idAndVersion, TableType.entityview, -1L)).build();
+		assertFalse(query.getIncludeBenefactorId());
+	}
+
+	@Test
+	public void testTableQueryDoesNotIncludeBenefactorId() throws ParseException {
+
+		when(mockSchemaProvider.getTableSchema(any())).thenReturn(schema);
+		setupGetColumns(schema);
+
+		// call under test
+		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
+				.indexDescription(new TableIndexDescription(idAndVersion)).build();
+		assertFalse(query.getIncludeBenefactorId());
 	}
 
 	/**

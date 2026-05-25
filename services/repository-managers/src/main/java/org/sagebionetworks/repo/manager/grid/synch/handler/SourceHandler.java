@@ -1,8 +1,10 @@
 package org.sagebionetworks.repo.manager.grid.synch.handler;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
@@ -143,5 +145,17 @@ public interface SourceHandler extends AutoCloseable {
 	 * @return
 	 */
 	List<String> getErrorMessages();
+
+	/**
+	 * Returns the set of benefactor IDs collected from the source rows during
+	 * initialization. For view-based sources this is the distinct set of benefactor
+	 * IDs from the rows the action user can edit. Non-view sources return an empty
+	 * set by default.
+	 *
+	 * @return the set of benefactor IDs, never null
+	 */
+	default Set<Long> getBenefactorIds() {
+		return Collections.emptySet();
+	}
 
 }

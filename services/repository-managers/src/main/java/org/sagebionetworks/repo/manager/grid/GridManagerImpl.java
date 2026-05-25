@@ -15,9 +15,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.StackConfiguration;
@@ -37,6 +40,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryEl
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterTranslation;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
+import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -97,6 +101,9 @@ import com.amazonaws.services.s3.transfer.model.UploadResult;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiAsyncClient;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.DeleteConnectionRequest;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.GoneException;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.auth.aws.signer.AwsV4FamilyHttpSigner.AuthLocation;
@@ -111,6 +118,8 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @Service
 public class GridManagerImpl implements GridManager {
 
+	private static final Logger log = LogManager.getLogger(GridManagerImpl.class);
+
 	public static final String GRID_REPLICA_NOT_FOUND = "Grid replica not found.";
 	public static final String GRID_SESSION_NOT_FOUND = "Grid session not found.";
 
@@ -124,6 +133,8 @@ public class GridManagerImpl implements GridManager {
 	private final InternalReplicaToHubEventPublisher internalEventPublisher;
 	private final List<CreateGridHandler> createGridHandlers;
 	private final GridAuthorizationManager gridAuthorizationManager;
+	private final UserManager userManager;
+	private final ApiGatewayManagementApiAsyncClient apiGatewayManagmentClient;
 	private final TransferManager transferManager;
 	private final TransactionalMessenger transactionalMessenger;
 	private final GridReplicaViewManager gridReplicaViewManager;
@@ -133,7 +144,8 @@ public class GridManagerImpl implements GridManager {
 	@Autowired
 	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
 	   StackConfiguration config, S3Client s3Client, SynapseS3Client synapseS3Client, InternalReplicaToHubEventPublisher internalEventPublisher,
-	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager, TransferManager transferManager,
+	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager, UserManager userManager,
+	   ApiGatewayManagementApiAsyncClient apiGatewayManagmentClient, TransferManager transferManager,
 	   TransactionalMessenger transactionalMessenger, GridReplicaViewManager gridReplicaViewManager,
 	   PatchBuilderPublisher patchBuilderPublisher, SetValueProcessorFactory setValueProcessorFactory) {
 		super();
@@ -147,6 +159,8 @@ public class GridManagerImpl implements GridManager {
 		this.internalEventPublisher = internalEventPublisher;
 		this.createGridHandlers = createHandlers;
 		this.gridAuthorizationManager = gridAuthorizationManager;
+		this.userManager = userManager;
+		this.apiGatewayManagmentClient = apiGatewayManagmentClient;
 		this.transferManager = transferManager;
 		this.transactionalMessenger = transactionalMessenger;
 		this.gridReplicaViewManager = gridReplicaViewManager;
@@ -172,12 +186,14 @@ public class GridManagerImpl implements GridManager {
 			.orElseThrow(() -> new IllegalArgumentException("Cannot find a handler for: " + request));
 		
 		CreateGridHandlerResult result = handler.createGrid(callback, user, request, this);
-		
+
 		if (result == null || result.getGridSession() == null) {
 			throw new IllegalStateException("Handler must provide a grid session");
 		}
-		
+
 		GridSession session = result.getGridSession();
+
+		gridDao.updateSessionBenefactorIds(session.getSessionId(), result.getBenefactorIds());
 		
 		if (result.getGridReplica() != null) {
 			GridReplica replica = result.getGridReplica();
@@ -344,6 +360,55 @@ public class GridManagerImpl implements GridManager {
 	public void removeReplicaConnection(String connectionId) {
 		ValidateArgument.required(connectionId, "connectionId");
 		gridDao.removeConnection(connectionId);
+	}
+
+	@Override
+	public void updateSessionBenefactorIds(String sessionId, Set<Long> benefactorIds) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(benefactorIds, "benefactorIds");
+		gridDao.updateSessionBenefactorIds(sessionId, benefactorIds);
+		evictUnauthorizedConnections(sessionId);
+	}
+
+	@Override
+	public void evictUnauthorizedConnections(String sessionId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		gridDao.listConnections(sessionId).stream()
+				.filter(c -> EventSource.WEBSOCKET.equals(c.getSource()))
+				.forEach(c -> {
+					try {
+						UserInfo user = userManager.getUserInfo(c.getCreatedBy());
+						if (!gridAuthorizationManager.hasGridSessionAccess(user, sessionId).isAuthorized()) {
+							deleteConnection(c.getConnectionId());
+						}
+					} catch (NotFoundException e) {
+						// User no longer exists — force-close the stale connection
+						deleteConnection(c.getConnectionId());
+					}
+				});
+	}
+
+	/**
+	 * Force-closes a WebSocket connection via the AWS API Gateway management API.
+	 * AWS fires the $disconnect route which triggers GridEventListener.onDisconnected()
+	 * for cleanup. If the connection is already gone, removes it from the DB directly.
+	 */
+	private void deleteConnection(String connectionId) {
+		try {
+			apiGatewayManagmentClient.deleteConnection(
+					DeleteConnectionRequest.builder().connectionId(connectionId).build())
+					.join();
+		} catch (Exception e) {
+			Throwable cause = e.getCause() != null ? e.getCause() : e;
+			if (cause instanceof GoneException) {
+				// Connection already gone — clean up DB directly since $disconnect won't fire
+				gridDao.removeConnection(connectionId);
+			} else {
+				// Unexpected error — log and continue since eviction is best-effort
+				log.warn("Failed to delete WebSocket connection '{}' during eviction: {}", connectionId,
+						cause.getMessage(), cause);
+			}
+		}
 	}
 
 	@Override

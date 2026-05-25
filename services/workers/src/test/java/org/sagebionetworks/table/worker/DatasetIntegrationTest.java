@@ -149,17 +149,18 @@ public class DatasetIntegrationTest {
 			
 			assertEquals(3L, result.getQueryCount());
 			
+			Long projectBenefactorId = KeyFactory.stringToKey(project.getId());
 			List<Row> rows = result.getQueryResult().getQueryResults().getRows();
 			assertEquals(3, rows.size());
 			// one
 			assertEquals(new Row().setRowId(KeyFactory.stringToKey(fileOne.getId())).setVersionNumber(1L).setEtag(fileOne.getEtag())
-					.setValues(Arrays.asList("v-1")), rows.get(0));
+					.setBenefactorId(projectBenefactorId).setValues(Arrays.asList("v-1")), rows.get(0));
 			// two
 			assertEquals(new Row().setRowId(KeyFactory.stringToKey(fileTwo.getId())).setVersionNumber(2L).setEtag(fileTwo.getEtag())
-					.setValues(Arrays.asList("v-2")), rows.get(1));
+					.setBenefactorId(projectBenefactorId).setValues(Arrays.asList("v-2")), rows.get(1));
 			// three
 			assertEquals(new Row().setRowId(KeyFactory.stringToKey(fileThree.getId())).setVersionNumber(3L).setEtag(fileThree.getEtag())
-					.setValues(Arrays.asList("v-3")), rows.get(2));
+					.setBenefactorId(projectBenefactorId).setValues(Arrays.asList("v-3")), rows.get(2));
 		}, MAX_WAIT);
 		
 		dataset.setItems(items.subList(0, 2));
@@ -172,14 +173,15 @@ public class DatasetIntegrationTest {
 			// The count query cache should be invalidated (see https://sagebionetworks.jira.com/browse/PLFM-8326)
 			assertEquals(2L, result.getQueryCount());
 			
+			Long projectBenefactorId = KeyFactory.stringToKey(project.getId());
 			List<Row> rows = result.getQueryResult().getQueryResults().getRows();
 			assertEquals(2, rows.size());
 			// one
 			assertEquals(new Row().setRowId(KeyFactory.stringToKey(fileOne.getId())).setVersionNumber(1L).setEtag(fileOne.getEtag())
-					.setValues(Arrays.asList("v-1")), rows.get(0));
+					.setBenefactorId(projectBenefactorId).setValues(Arrays.asList("v-1")), rows.get(0));
 			// two
 			assertEquals(new Row().setRowId(KeyFactory.stringToKey(fileTwo.getId())).setVersionNumber(2L).setEtag(fileTwo.getEtag())
-					.setValues(Arrays.asList("v-2")), rows.get(1));
+					.setBenefactorId(projectBenefactorId).setValues(Arrays.asList("v-2")), rows.get(1));
 		}, MAX_WAIT);
 		
 	}
@@ -254,22 +256,22 @@ public class DatasetIntegrationTest {
 				.setName("aDataset")
 				.setColumnIds(Arrays.asList(stringColumn.getId()))
 				.setItems(items));
-		
-		
+
 		// Query the dataset
 		Query query = new Query();
 		query.setSql("select * from " + dataset.getId());
 		query.setIncludeEntityEtag(true);
-		
+
+		Long projectBenefactorIdOne = KeyFactory.stringToKey(project.getId());
 		List<Row> expectedRows = Arrays.asList(
-			new Row().setRowId(KeyFactory.stringToKey(fileOne.getId())).setVersionNumber(1L).setEtag(fileOne.getEtag()).setValues(Arrays.asList("v-1")),
-			new Row().setRowId(KeyFactory.stringToKey(fileTwo.getId())).setVersionNumber(2L).setEtag(fileTwo.getEtag()).setValues(Arrays.asList("v-2"))
+			new Row().setRowId(KeyFactory.stringToKey(fileOne.getId())).setVersionNumber(1L).setEtag(fileOne.getEtag()).setBenefactorId(projectBenefactorIdOne).setValues(Arrays.asList("v-1")),
+			new Row().setRowId(KeyFactory.stringToKey(fileTwo.getId())).setVersionNumber(2L).setEtag(fileTwo.getEtag()).setBenefactorId(projectBenefactorIdOne).setValues(Arrays.asList("v-2"))
 		);
-		
+
 		asyncHelper.assertQueryResult(userInfo, "SELECT * FROM " + dataset.getId(), (QueryResultBundle result) -> {
 			assertEquals(expectedRows, result.getQueryResult().getQueryResults().getRows());
 		}, MAX_WAIT);
-		
+
 		AddToDownloadListRequest addToDownloadListrequest = new AddToDownloadListRequest()
 				.setQuery(query)
 				.setUseVersionNumber(true);
@@ -323,15 +325,16 @@ public class DatasetIntegrationTest {
 		query.setSql("select * from " + dataset.getId());
 		query.setIncludeEntityEtag(true);
 		
+		Long projectBenefactorIdTwo = KeyFactory.stringToKey(project.getId());
 		List<Row> expectedRows = Arrays.asList(
-			new Row().setRowId(KeyFactory.stringToKey(fileOne.getId())).setVersionNumber(1L).setEtag(fileOne.getEtag()).setValues(Arrays.asList("v-1")),
-			new Row().setRowId(KeyFactory.stringToKey(fileTwo.getId())).setVersionNumber(2L).setEtag(fileTwo.getEtag()).setValues(Arrays.asList("v-2"))
+			new Row().setRowId(KeyFactory.stringToKey(fileOne.getId())).setVersionNumber(1L).setEtag(fileOne.getEtag()).setBenefactorId(projectBenefactorIdTwo).setValues(Arrays.asList("v-1")),
+			new Row().setRowId(KeyFactory.stringToKey(fileTwo.getId())).setVersionNumber(2L).setEtag(fileTwo.getEtag()).setBenefactorId(projectBenefactorIdTwo).setValues(Arrays.asList("v-2"))
 		);
-		
+
 		asyncHelper.assertQueryResult(userInfo, "SELECT * FROM " + dataset.getId(), (QueryResultBundle result) -> {
 			assertEquals(expectedRows, result.getQueryResult().getQueryResults().getRows());
 		}, MAX_WAIT);
-		
+
 		AddToDownloadListRequest addToDownloadListrequest = new AddToDownloadListRequest()
 				.setQuery(query)
 				.setUseVersionNumber(false);

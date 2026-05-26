@@ -168,7 +168,9 @@ public class SearchIndexLifecycleWorkerAutowireTest {
 
         SearchIndexQuery query = new SearchIndexQuery();
         query.setSearchIndexId(searchIndex.getId());
-        query.setSearchQuery(new SearchQuery());
+        // Opaque match_all clause — required since query.query was made non-null.
+        query.setSearchQuery(new SearchQuery()
+                .setQuery(java.util.Map.of("match_all", Collections.emptyMap())));
         query.setResponseParts(EnumSet.of(
                 SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 

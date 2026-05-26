@@ -89,6 +89,13 @@ public class ITSearchQueryTest {
 		}
 	}
 
+	/** Build a SearchQuery wrapping an opaque {@code match_all} clause — the catalog-style
+	 * minimum payload now that {@code SearchQuery.query} is required. */
+	private static SearchQuery matchAllQuery() {
+		return new SearchQuery()
+				.setQuery(java.util.Map.of("match_all", java.util.Collections.emptyMap()));
+	}
+
 	/**
 	 * Async query path against an index built with the platform default analyzer (no
 	 * ColumnAnalyzerOverride). Verifies the start-job/poll-job round trip plus the
@@ -143,7 +150,7 @@ public class ITSearchQueryTest {
 		// Async query with all opt-in parts.
 		SearchIndexQuery fullQuery = new SearchIndexQuery();
 		fullQuery.setSearchIndexId(searchIndex.getId());
-		fullQuery.setSearchQuery(new SearchQuery());
+		fullQuery.setSearchQuery(matchAllQuery());
 		fullQuery.setResponseParts(EnumSet.of(
 				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 
@@ -165,7 +172,7 @@ public class ITSearchQueryTest {
 		// Async query with responseParts left null — defaults to HITS only, the rest must be null.
 		SearchIndexQuery defaultPartsQuery = new SearchIndexQuery();
 		defaultPartsQuery.setSearchIndexId(searchIndex.getId());
-		defaultPartsQuery.setSearchQuery(new SearchQuery());
+		defaultPartsQuery.setSearchQuery(matchAllQuery());
 
 		// call under test — async path, default response parts
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, defaultPartsQuery,
@@ -260,7 +267,7 @@ public class ITSearchQueryTest {
 		// below would otherwise time out without context.
 		SearchIndexQuery waitIndexQuery = new SearchIndexQuery();
 		waitIndexQuery.setSearchIndexId(searchIndex.getId());
-		waitIndexQuery.setSearchQuery(new SearchQuery());
+		waitIndexQuery.setSearchQuery(matchAllQuery());
 		waitIndexQuery.setResponseParts(EnumSet.of(SearchQueryPart.TOTAL_HITS));
 
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, waitIndexQuery,
@@ -271,7 +278,11 @@ public class ITSearchQueryTest {
 
 		SearchIndexQuery autocompleteIndexQuery = new SearchIndexQuery();
 		autocompleteIndexQuery.setSearchIndexId(searchIndex.getId());
-		autocompleteIndexQuery.setSearchQuery(new SearchQuery().setQueryText("BRC"));
+		// Autocomplete now requires the caller to pick the prefix-style clause; the column
+		// is bound to the AUTOCOMPLETE analyzer chain so a `match` clause against it does
+		// the edge-ngram work at index time.
+		autocompleteIndexQuery.setSearchQuery(new SearchQuery()
+				.setQuery(java.util.Map.of("match", java.util.Map.of("geneName", "BRC"))));
 
 		// call under test
 		SearchQueryResults autocompleteResults = synapse.searchAutocomplete(autocompleteIndexQuery);
@@ -362,7 +373,7 @@ public class ITSearchQueryTest {
 		// here means the build must succeed AND the AOSS index must respond to queries.
 		SearchIndexQuery query = new SearchIndexQuery();
 		query.setSearchIndexId(searchIndex.getId());
-		query.setSearchQuery(new SearchQuery());
+		query.setSearchQuery(matchAllQuery());
 		query.setResponseParts(EnumSet.of(SearchQueryPart.TOTAL_HITS));
 
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, query,

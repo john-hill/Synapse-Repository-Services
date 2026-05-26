@@ -256,7 +256,8 @@ final class SearchFieldRewriter {
 
 	/**
 	 * Rename every immediate-child key of {@code obj} that maps via {@code nameToId},
-	 * preserving the value. Does nothing if a child key is not in the map.
+	 * preserving the value. Same {@code .keyword} / {@code .searchable} sub-field handling
+	 * as {@link #rewriteFieldRef}; unknown keys pass through unchanged.
 	 */
 	private static void renameObjectKeys(ObjectNode obj,
 			java.util.function.Function<String, String> nameToId) {
@@ -265,9 +266,8 @@ final class SearchFieldRewriter {
 		boolean changed = false;
 		while (fields.hasNext()) {
 			Map.Entry<String, JsonNode> entry = fields.next();
-			String mapped = nameToId.apply(entry.getKey());
-			String key = (mapped != null && !mapped.equals(entry.getKey())) ? mapped : entry.getKey();
-			if (mapped != null && !mapped.equals(entry.getKey())) {
+			String key = rewriteFieldRef(entry.getKey(), nameToId);
+			if (!key.equals(entry.getKey())) {
 				changed = true;
 			}
 			rebuilt.set(key, entry.getValue());
@@ -282,10 +282,8 @@ final class SearchFieldRewriter {
 			java.util.function.Function<String, String> nameToId) {
 		JsonNode existing = obj.get(fieldKey);
 		if (existing != null && existing.isTextual()) {
-			String mapped = nameToId.apply(existing.asText());
-			if (mapped != null) {
-				obj.set(fieldKey, new TextNode(mapped));
-			}
+			String rewritten = rewriteFieldRef(existing.asText(), nameToId);
+			obj.set(fieldKey, new TextNode(rewritten));
 		}
 	}
 
@@ -300,17 +298,11 @@ final class SearchFieldRewriter {
 		for (JsonNode element : existing) {
 			if (element.isTextual()) {
 				String raw = element.asText();
-				// Preserve "field^boost" suffix if present.
-				int caret = raw.indexOf('^');
-				String namePart = caret >= 0 ? raw.substring(0, caret) : raw;
-				String boostPart = caret >= 0 ? raw.substring(caret) : "";
-				String mapped = nameToId.apply(namePart);
-				if (mapped != null && !mapped.equals(namePart)) {
-					rebuilt.add(new TextNode(mapped + boostPart));
+				String rewritten = rewriteFieldRef(raw, nameToId);
+				if (!rewritten.equals(raw)) {
 					changed = true;
-				} else {
-					rebuilt.add(element);
 				}
+				rebuilt.add(new TextNode(rewritten));
 			} else {
 				rebuilt.add(element);
 			}
@@ -318,5 +310,42 @@ final class SearchFieldRewriter {
 		if (changed) {
 			obj.set(fieldsKey, rebuilt);
 		}
+	}
+
+	/**
+	 * Rewrite a single field-reference string (column name plus any of the suffixes a caller
+	 * might attach: a {@code .keyword} or {@code .searchable} sub-field selector, and/or a
+	 * {@code ^boost} multi_match boost) to the column-id form, preserving suffixes.
+	 *
+	 * <p>If the bare-name segment isn't in {@code nameToId}, the input is returned unchanged
+	 * (the existing relaxed-name behavior — unknown references go to AOSS as-is so error
+	 * messages surface the typo).</p>
+	 */
+	static String rewriteFieldRef(String raw,
+			java.util.function.Function<String, String> nameToId) {
+		// Split off ^boost first so the dot-handling below sees only "namepart[.suffix]".
+		int caret = raw.indexOf('^');
+		String head = caret >= 0 ? raw.substring(0, caret) : raw;
+		String boost = caret >= 0 ? raw.substring(caret) : "";
+
+		// Split off .keyword / .searchable sub-field selectors (the only sub-fields the index
+		// emits today). A column name itself may legally contain dots, so the split is the
+		// last dot rather than the first.
+		int dot = head.lastIndexOf('.');
+		String namePart = head;
+		String subField = "";
+		if (dot > 0) {
+			String suffix = head.substring(dot + 1);
+			if ("keyword".equals(suffix) || "searchable".equals(suffix)) {
+				namePart = head.substring(0, dot);
+				subField = "." + suffix;
+			}
+		}
+
+		String mapped = nameToId.apply(namePart);
+		if (mapped == null || mapped.equals(namePart)) {
+			return raw;
+		}
+		return mapped + subField + boost;
 	}
 }

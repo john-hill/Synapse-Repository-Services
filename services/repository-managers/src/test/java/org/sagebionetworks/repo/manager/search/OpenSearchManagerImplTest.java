@@ -2023,4 +2023,75 @@ public class OpenSearchManagerImplTest {
 		assertFalse(desc.contains("shardFailures="),
 				"no shardFailures section when shards.failures is empty: " + desc);
 	}
+
+	// ===================== opaque-DSL handlers =====================
+
+	@Test
+	public void testBuildOpaqueQueryWithAllowedClauseRewritesNameToId() {
+		// Caller-supplied match clause references the column by name; the manager rewrites
+		// the field reference to the column id before deserializing into the typed Query.
+		Map<String, String> nameToId = Map.of("title", "100");
+
+		// call under test
+		org.opensearch.client.opensearch._types.query_dsl.Query q = manager.buildOpaqueQuery(
+				"{\"match\":{\"title\":\"amyloid\"}}", nameToId);
+
+		assertTrue(q.isMatch());
+		assertEquals("100", q.match().field());
+	}
+
+	@Test
+	public void testBuildOpaqueQueryWithDisallowedClauseRejected() {
+		// `script` is not allowlisted — must be rejected with HTTP 400 before reaching AOSS.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> manager.buildOpaqueQuery("{\"script\":{\"script\":\"doc['x'].value\"}}",
+						Collections.emptyMap()));
+	}
+
+	@Test
+	public void testBuildOpaqueAggregationsWithAllowedAggsRewritesNameToId() {
+		Map<String, String> nameToId = Map.of("year", "300");
+
+		// call under test
+		Map<String, org.opensearch.client.opensearch._types.aggregations.Aggregation> aggs =
+				manager.buildOpaqueAggregations("{\"by_year\":{\"terms\":{\"field\":\"year\"}}}",
+						nameToId);
+
+		assertNotNull(aggs.get("by_year"));
+		assertEquals("300", aggs.get("by_year").terms().field());
+	}
+
+	@Test
+	public void testBuildOpaqueAggregationsWithDisallowedAggsRejected() {
+		// scripted_metric is not allowlisted.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> manager.buildOpaqueAggregations(
+						"{\"x\":{\"scripted_metric\":{\"init_script\":\"\"}}}",
+						Collections.emptyMap()));
+	}
+
+	@Test
+	public void testBuildOpaqueSuggestWithAllowedSuggesterRewritesNameToId() {
+		Map<String, String> nameToId = Map.of("title", "100");
+
+		// call under test
+		org.opensearch.client.opensearch.core.search.Suggester suggester = manager.buildOpaqueSuggest(
+				"{\"did_you_mean\":{\"text\":\"amiloid\",\"term\":{\"field\":\"title\"}}}",
+				nameToId);
+
+		assertNotNull(suggester);
+		assertTrue(suggester.suggesters().containsKey("did_you_mean"));
+	}
+
+	@Test
+	public void testBuildOpaqueSuggestWithDisallowedSuggesterRejected() {
+		// `completion` is allowlisted but `phrase` carrying a script is not.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> manager.buildOpaqueSuggest(
+						"{\"x\":{\"phrase\":{\"field\":\"title\",\"collate\":{\"script\":\"x\"}}}}",
+						Collections.emptyMap()));
+	}
 }

@@ -30,7 +30,6 @@ import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
-import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
@@ -40,9 +39,6 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.repo.model.table.FacetColumnResult;
-import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
-import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -196,14 +192,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		assertEquals(3L, indexed);
 
-		SearchQuery query = new SearchQuery();
-		query.setQueryText("mitochondria");
-		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		query.setLimit(10L);
-		query.setOffset(0L);
-
 		// call under test — poll for search results (AOSS eventual consistency)
-		SearchQueryResults results = waitForSearch(query, columns, 2);
+		SearchQueryResults results = waitForSearch(simpleQueryStringQuery("mitochondria"), columns, 2);
 
 		assertNotNull(results);
 		assertEquals(2L, results.getTotalHits());
@@ -257,18 +247,12 @@ public class OpenSearchManagerImplAutoWiredTest {
 				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "lunar lander mission")));
 		openSearchManager.bulkIndex(indexName, operations);
 
-		SearchQuery query = new SearchQuery();
 		// "the" is a stop word for the english_stop filter — if the custom analyzer wasn't
 		// applied at search time, "the genome" would also match docs that lack "genome"
 		// (anything containing "the"). Asserting exactly one hit confirms stop-word removal
 		// is in effect.
-		query.setQueryText("the genome");
-		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		query.setLimit(10L);
-		query.setOffset(0L);
-
 		// call under test
-		SearchQueryResults results = waitForSearch(query, columns, 1);
+		SearchQueryResults results = waitForSearch(simpleQueryStringQuery("the genome"), columns, 1);
 
 		assertEquals(1L, results.getTotalHits(),
 				"Custom analyzer's english_stop filter must drop 'the' so only 'the genome research' matches");
@@ -309,28 +293,16 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// Exact-keyword query against `tag` matches doc 1 only — KEYWORD doesn't lowercase
 		// so the indexed token is the original "BioMed-Cancer", and "biomed-cancer" must NOT
 		// match. Run two queries scoped to the same column to confirm both directions.
-		SearchQuery exactQuery = new SearchQuery();
-		exactQuery.setQueryText("BioMed-Cancer");
-		exactQuery.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		exactQuery.setQueryFields(List.of("tag"));
-		exactQuery.setLimit(10L);
-		exactQuery.setOffset(0L);
-
 		// call under test
-		SearchQueryResults exactResults = waitForSearch(exactQuery, columns, 1);
+		SearchQueryResults exactResults = waitForSearch(
+				simpleQueryStringQuery("BioMed-Cancer", List.of("tag")), columns, 1);
 		assertEquals(1L, exactResults.getTotalHits(),
 				"KEYWORD override on `tag` must match the exact case-preserving token");
 
 		// Stemmed query against `title` matches doc 2 ("biomed papers" → "biomed paper" stem).
-		SearchQuery stemmedQuery = new SearchQuery();
-		stemmedQuery.setQueryText("paper");
-		stemmedQuery.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		stemmedQuery.setQueryFields(List.of("title"));
-		stemmedQuery.setLimit(10L);
-		stemmedQuery.setOffset(0L);
-
 		// call under test
-		SearchQueryResults stemmedResults = waitForSearch(stemmedQuery, columns, 1);
+		SearchQueryResults stemmedResults = waitForSearch(
+				simpleQueryStringQuery("paper", List.of("title")), columns, 1);
 		assertTrue(stemmedResults.getTotalHits() >= 1L,
 				"SCIENTIFIC default on `title` must stem 'papers' so 'paper' matches");
 	}
@@ -367,11 +339,17 @@ public class OpenSearchManagerImplAutoWiredTest {
 		openSearchManager.bulkIndex(indexName, operations);
 
 		// Autocomplete with prefix "mit" should match "mitochondria"; "microbiome" begins
-		// with "mic", not "mit", so it must NOT match.
-		SearchQuery query = new SearchQuery();
-		query.setQueryText("mit");
-		query.setLimit(8L);
-		query.setOffset(0L);
+		// with "mic", not "mit", so it must NOT match. The opaque `multi_match` with
+		// type=bool_prefix is the prefix-style clause callers reach for in the new API; the
+		// manager just clamps page size for autocomplete.
+		Map<String, Object> multiMatch = new HashMap<>();
+		multiMatch.put("query", "mit");
+		multiMatch.put("type", "bool_prefix");
+		multiMatch.put("fields", List.of("term"));
+		SearchQuery query = new SearchQuery()
+				.setQuery(Map.of("multi_match", multiMatch))
+				.setLimit(8L)
+				.setOffset(0L);
 
 		// call under test
 		SearchQueryResults results = waitForAutocomplete(query, columns, 1);
@@ -399,13 +377,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 		);
 		openSearchManager.bulkIndex(indexName, operations);
 
-		SearchQuery query = new SearchQuery();
-		query.setQueryType(SearchQueryType.MATCH_ALL);
-		query.setLimit(10L);
-		query.setOffset(0L);
-
 		// call under test
-		SearchQueryResults results = waitForSearch(query, columns, 2);
+		SearchQueryResults results = waitForSearch(matchAllQuery(), columns, 2);
 
 		assertNotNull(results);
 		assertEquals(2L, results.getTotalHits());
@@ -415,11 +388,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testSearchWithNonExistentIndex() {
-		SearchQuery query = new SearchQuery();
-		query.setQueryText("anything");
-		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		query.setLimit(10L);
-		query.setOffset(0L);
+		SearchQuery query = simpleQueryStringQuery("anything");
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
@@ -570,13 +539,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
 
 		// Querying for any one term must match all three docs via the EQUIVALENT synonym rule.
-		SearchQuery query = new SearchQuery();
-		query.setQueryText("cancer");
-		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		query.setLimit(10L);
-		query.setOffset(0L);
-
-		SearchQueryResults results = waitForSearch(query, columns, 3);
+		SearchQueryResults results = waitForSearch(simpleQueryStringQuery("cancer"), columns, 3);
 		assertEquals(3L, results.getTotalHits(),
 				"Query for 'cancer' must return all three docs via EQUIVALENT synonym expansion");
 	}
@@ -632,13 +595,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// id_word_delimiter), where the search-side synonym graph for a single-token
 		// LHS does not consistently reach a doc whose `mRNA` neighbor is itself the
 		// only synonym source — see PLFM-9636 review for diagnostic detail.
-		SearchQuery query = new SearchQuery();
-		query.setQueryText("messenger-RNA");
-		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
-		query.setLimit(10L);
-		query.setOffset(0L);
-
-		SearchQueryResults results = waitForSearch(query, columns, 3);
+		SearchQueryResults results = waitForSearch(simpleQueryStringQuery("messenger-RNA"), columns, 3);
 		assertEquals(3L, results.getTotalHits(),
 				"Query for 'messenger-RNA' must match all three docs via EQUIVALENT synonym expansion at search time");
 	}
@@ -725,12 +682,30 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.getValue();
 	}
 
+	/**
+	 * Convert the legacy {@code (queryType, text)} pair to the equivalent opaque clause and
+	 * run a search. The synonym-coverage test below exercises both code paths
+	 * ({@code simple_query_string} and {@code multi_match}) — keeping the helper makes the
+	 * call sites read identically to before.
+	 */
 	private SearchQueryResults runQuery(SearchQueryType queryType, String text, List<ColumnModel> columns) {
-		SearchQuery query = new SearchQuery();
-		query.setQueryText(text);
-		query.setQueryType(queryType);
-		query.setLimit(10L);
-		query.setOffset(0L);
+		Map<String, Object> body = new HashMap<>();
+		body.put("query", text);
+		String clause;
+		switch (queryType) {
+			case SIMPLE_QUERY_STRING:
+				clause = "simple_query_string";
+				break;
+			case MULTI_MATCH:
+				clause = "multi_match";
+				break;
+			default:
+				throw new AssertionError("runQuery is only used for SIMPLE_QUERY_STRING / MULTI_MATCH");
+		}
+		SearchQuery query = new SearchQuery()
+				.setQuery(Map.of(clause, body))
+				.setLimit(10L)
+				.setOffset(0L);
 		return waitForSearch(query, columns, 1L);
 	}
 
@@ -780,21 +755,32 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		assertEquals(1L, indexed);
 
-		// Request facets on every terms-aggregable column in the same call so the
-		// numeric (lterms / dterms) and text (sterms) bucket-key paths all run
-		// against live AOSS — regression for PLFM-9673 (lterms.keyAsString() is
-		// null without an explicit `format`, so INTEGER facets came back with
-		// null `value`).
-		List<FacetRequest> facetRequests = columns.stream()
-				.filter(c -> casesByType.get(c.getColumnType()).expectedFacetValues != null)
-				.map(c -> new FacetRequest().setColumnName(c.getName()))
-				.collect(Collectors.toList());
+		// Request a terms aggregation on every terms-aggregable column in the same call so
+		// the numeric / text bucket-key paths all run against live AOSS — regression for
+		// PLFM-9673 (long-terms keys came back null on INTEGER facets without explicit
+		// formatting). Each aggregation is keyed by column name so the response asserts
+		// can find them after AOSS rewrites the field references back to names.
+		Map<String, Object> aggsDsl = new LinkedHashMap<>();
+		for (ColumnModel column : columns) {
+			if (casesByType.get(column.getColumnType()).expectedFacetValues == null) {
+				continue;
+			}
+			// Text-typed columns are mapped as `text` for full-text search and aren't doc-values
+			// candidates by default; aggregating against the bare field would require fielddata=true.
+			// The mapping always emits a `.keyword` sub-field for text/link columns, so a caller-
+			// supplied terms aggregation against a text column must reference that sub-field
+			// explicitly. Numeric / keyword / list types take the bare column name.
+			ColumnType colType = column.getColumnType();
+			boolean isTextLike = colType == ColumnType.STRING
+					|| colType == ColumnType.MEDIUMTEXT
+					|| colType == ColumnType.LARGETEXT
+					|| colType == ColumnType.LINK;
+			String fieldRef = isTextLike ? column.getName() + ".keyword" : column.getName();
+			aggsDsl.put(column.getName(),
+					Map.of("terms", Map.of("field", fieldRef)));
+		}
 
-		SearchQuery query = new SearchQuery();
-		query.setQueryType(SearchQueryType.MATCH_ALL);
-		query.setLimit(10L);
-		query.setOffset(0L);
-		query.setFacetRequests(facetRequests);
+		SearchQuery query = matchAllQuery().setAggregations(aggsDsl);
 		SearchQueryResults results = waitForSearch(query, columns, 1L);
 
 		assertEquals(1L, results.getTotalHits());
@@ -816,22 +802,36 @@ public class OpenSearchManagerImplAutoWiredTest {
 					"round-trip mismatch for " + type);
 		}
 
-		Map<String, FacetColumnResultValues> facetsByColumn = results.getFacets().stream()
-				.collect(Collectors.toMap(FacetColumnResult::getColumnName,
-						f -> (FacetColumnResultValues) f));
+		// Parse the opaque aggregations response. Each top-level key is the caller's
+		// aggregation name; under it AOSS returns {"buckets":[{"key":..., "doc_count":...}, ...]}
+		// (or sometimes "key_as_string" for typed buckets — accept both).
+		assertNotNull(results.getAggregationResults(), "aggregations were requested");
+		JsonNode aggResults;
+		try {
+			aggResults = new com.fasterxml.jackson.databind.ObjectMapper()
+					.readTree(results.getAggregationResults());
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			throw new AssertionError("aggregationResults must be valid JSON", e);
+		}
 		for (ColumnModel column : columns) {
 			ColumnType type = column.getColumnType();
 			Set<String> expectedValues = casesByType.get(type).expectedFacetValues;
 			if (expectedValues == null) {
 				continue;
 			}
-			FacetColumnResultValues facet = facetsByColumn.get(column.getName());
-			assertNotNull(facet, "missing facet result for " + type);
-			Set<String> actualValues = facet.getFacetValues().stream()
-					.map(FacetColumnResultValueCount::getValue)
-					.collect(Collectors.toSet());
+			JsonNode bucketsNode = aggResults.path(column.getName()).path("buckets");
+			assertTrue(bucketsNode.isArray(),
+					"missing aggregation buckets for " + type + ": " + results.getAggregationResults());
+			Set<String> actualValues = new java.util.HashSet<>();
+			for (JsonNode bucket : bucketsNode) {
+				String value = bucket.path("key_as_string").asText(null);
+				if (value == null || value.isEmpty()) {
+					value = bucket.path("key").asText();
+				}
+				actualValues.add(value);
+			}
 			assertEquals(expectedValues, actualValues,
-					"facet bucket values for " + type + " must match (PLFM-9673: null on "
+					"aggregation bucket values for " + type + " must match (PLFM-9673: null on "
 							+ "numeric types prior to fix)");
 		}
 	}
@@ -1006,6 +1006,37 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Test data helpers ----
+
+	/**
+	 * Build a {@link SearchQuery} with a single OpenSearch {@code simple_query_string} clause
+	 * — the most common shape across these tests (the legacy SIMPLE_QUERY_STRING + queryText
+	 * + optional queryFields combo). Pass {@code null} for {@code fields} to let OpenSearch
+	 * search every indexed text-bearing field.
+	 */
+	private static SearchQuery simpleQueryStringQuery(String text, List<String> fields) {
+		Map<String, Object> sqs = new HashMap<>();
+		sqs.put("query", text);
+		if (fields != null && !fields.isEmpty()) {
+			sqs.put("fields", fields);
+		}
+		return new SearchQuery()
+				.setQuery(Map.of("simple_query_string", sqs))
+				.setLimit(10L)
+				.setOffset(0L);
+	}
+
+	/** Convenience overload without per-field restriction. */
+	private static SearchQuery simpleQueryStringQuery(String text) {
+		return simpleQueryStringQuery(text, null);
+	}
+
+	/** Build a SearchQuery wrapping an opaque {@code match_all} clause. */
+	private static SearchQuery matchAllQuery() {
+		return new SearchQuery()
+				.setQuery(Map.of("match_all", Collections.emptyMap()))
+				.setLimit(10L)
+				.setOffset(0L);
+	}
 
 	private Map<String, IndexSettingsAnalysis> buildDefaultAnalyzers() {
 		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>();

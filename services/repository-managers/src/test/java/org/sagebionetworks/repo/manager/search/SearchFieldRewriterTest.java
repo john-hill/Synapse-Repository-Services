@@ -217,13 +217,25 @@ public class SearchFieldRewriterTest {
 
 	@Test
 	public void testRewriteFieldRefPassesThroughForeignSubField() {
-		// Only `.keyword` and `.searchable` are recognized sub-field selectors. Anything else
-		// is treated as part of the column name (and therefore stays unmapped).
+		// Only `.keyword` is a recognized sub-field selector. Anything else — including the
+		// historical `.searchable` from pre-DSL highlight code — is treated as part of the
+		// column name (and therefore stays unmapped).
 		String raw = "title.unknown_subfield";
 		// call under test
 		String result = SearchFieldRewriter.rewriteFieldRef(raw, RESOLVE);
 		// "title.unknown_subfield" has no `nameToId` mapping → unchanged.
 		assertEquals(raw, result);
 		assertFalse(result.contains("100"));
+	}
+
+	@Test
+	public void testRewriteFieldRefDoesNotRecognizeSearchableSuffix() {
+		// `.searchable` was an internal sub-field of the legacy highlight code path. With the
+		// DSL-pass-through query API in PLFM-9682 highlighting is deferred (PLFM-9683) and
+		// nothing in the index emits .searchable any more, so the rewriter must not treat
+		// it as a sub-field selector — `title.searchable` reads as a (nonexistent) column
+		// name and passes through unmapped.
+		String result = SearchFieldRewriter.rewriteFieldRef("title.searchable", RESOLVE);
+		assertEquals("title.searchable", result);
 	}
 }

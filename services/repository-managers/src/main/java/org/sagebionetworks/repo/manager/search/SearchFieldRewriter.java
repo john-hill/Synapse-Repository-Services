@@ -256,7 +256,7 @@ final class SearchFieldRewriter {
 
 	/**
 	 * Rename every immediate-child key of {@code obj} that maps via {@code nameToId},
-	 * preserving the value. Same {@code .keyword} / {@code .searchable} sub-field handling
+	 * preserving the value. Same {@code .keyword} sub-field and {@code ^boost} preservation
 	 * as {@link #rewriteFieldRef}; unknown keys pass through unchanged.
 	 */
 	private static void renameObjectKeys(ObjectNode obj,
@@ -313,13 +313,17 @@ final class SearchFieldRewriter {
 	}
 
 	/**
-	 * Rewrite a single field-reference string (column name plus any of the suffixes a caller
-	 * might attach: a {@code .keyword} or {@code .searchable} sub-field selector, and/or a
-	 * {@code ^boost} multi_match boost) to the column-id form, preserving suffixes.
+	 * Rewrite a single field-reference string (column name plus optional {@code .keyword}
+	 * sub-field selector, and/or a {@code ^boost} multi_match boost) to the column-id form,
+	 * preserving the suffixes verbatim.
+	 *
+	 * <p>The caller is responsible for choosing whether to address the bare column or its
+	 * {@code .keyword} sub-field — see the SearchQuery JSON schema for guidance on which
+	 * clauses need {@code .keyword} (terms / sort / aggregations on text-typed columns) and
+	 * which work on the bare column (match / multi_match / simple_query_string).</p>
 	 *
 	 * <p>If the bare-name segment isn't in {@code nameToId}, the input is returned unchanged
-	 * (the existing relaxed-name behavior — unknown references go to AOSS as-is so error
-	 * messages surface the typo).</p>
+	 * — unknown references go to AOSS as-is so the error message surfaces the typo.</p>
 	 */
 	static String rewriteFieldRef(String raw,
 			java.util.function.Function<String, String> nameToId) {
@@ -328,18 +332,15 @@ final class SearchFieldRewriter {
 		String head = caret >= 0 ? raw.substring(0, caret) : raw;
 		String boost = caret >= 0 ? raw.substring(caret) : "";
 
-		// Split off .keyword / .searchable sub-field selectors (the only sub-fields the index
-		// emits today). A column name itself may legally contain dots, so the split is the
-		// last dot rather than the first.
+		// Split off the .keyword sub-field selector (the only one the index emits). A column
+		// name itself may legally contain dots, so the split is the last dot rather than the
+		// first — and we only recognize the literal "keyword" suffix.
 		int dot = head.lastIndexOf('.');
 		String namePart = head;
 		String subField = "";
-		if (dot > 0) {
-			String suffix = head.substring(dot + 1);
-			if ("keyword".equals(suffix) || "searchable".equals(suffix)) {
-				namePart = head.substring(0, dot);
-				subField = "." + suffix;
-			}
+		if (dot > 0 && "keyword".equals(head.substring(dot + 1))) {
+			namePart = head.substring(0, dot);
+			subField = ".keyword";
 		}
 
 		String mapped = nameToId.apply(namePart);

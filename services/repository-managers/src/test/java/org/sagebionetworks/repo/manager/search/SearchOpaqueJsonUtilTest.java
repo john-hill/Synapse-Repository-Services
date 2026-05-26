@@ -870,4 +870,35 @@ public class SearchOpaqueJsonUtilTest {
 		// constant ever drifts, every analyzer $ref splice in the project breaks.
 		assertEquals("filter", SearchOpaqueJsonUtil.FILTER_KEY);
 	}
+
+	@Test
+	public void testFromJsonpTreeDeserializesTypedQuery() throws Exception {
+		JsonNode node = new ObjectMapper().readTree("{\"match\":{\"abstract\":\"amyloid\"}}");
+		// call under test
+		org.opensearch.client.opensearch._types.query_dsl.Query query = SearchOpaqueJsonUtil.fromJsonpTree(
+				node, org.opensearch.client.opensearch._types.query_dsl.Query._DESERIALIZER);
+		assertTrue(query.isMatch());
+		assertEquals("abstract", query.match().field());
+	}
+
+	@Test
+	public void testToJsonpTreeSerializesTypedValue() {
+		org.opensearch.client.opensearch._types.FieldValue value =
+				org.opensearch.client.opensearch._types.FieldValue.of(42L);
+		// call under test
+		JsonNode node = SearchOpaqueJsonUtil.toJsonpTree(value);
+		assertEquals(42L, node.asLong());
+	}
+
+	@Test
+	public void testJsonpTreeRoundTrips() {
+		org.opensearch.client.opensearch._types.aggregations.Aggregation agg =
+				org.opensearch.client.opensearch._types.aggregations.Aggregation.of(a -> a.avg(av -> av.field("score")));
+		// call under test — serialize then deserialize back through the typed bridge
+		JsonNode node = SearchOpaqueJsonUtil.toJsonpTree(agg);
+		org.opensearch.client.opensearch._types.aggregations.Aggregation back = SearchOpaqueJsonUtil.fromJsonpTree(
+				node, org.opensearch.client.opensearch._types.aggregations.Aggregation._DESERIALIZER);
+		assertTrue(back.isAvg());
+		assertEquals("score", back.avg().field());
+	}
 }

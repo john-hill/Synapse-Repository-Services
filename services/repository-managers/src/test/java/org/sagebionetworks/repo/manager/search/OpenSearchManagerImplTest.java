@@ -164,20 +164,6 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
 	}
 
-	// --- stripBoost ---
-
-	@ParameterizedTest(name = "stripBoost(''{0}'') = ''{1}''")
-	@CsvSource({
-			"geneName^2,   geneName",   // trailing boost suffix is removed
-			"geneName,     geneName",   // no boost — passthrough
-			"^foo,         ^foo",       // leading caret preserved (split only when caretIndex > 0)
-			"a^1^2,        a"           // first caret wins (substring(0, caretIndex))
-	})
-	public void testStripBoost(String input, String expected) {
-		// call under test
-		assertEquals(expected, manager.stripBoost(input));
-	}
-
 	// --- toLong ---
 
 	@ParameterizedTest(name = "toLong({0}) = {1}")
@@ -365,24 +351,6 @@ public class OpenSearchManagerImplTest {
 		assertTrue(result.endsWith(OpenSearchManagerImpl.TRUNCATION_MARKER));
 	}
 
-	// --- longBucketKeyToString ---
-
-	@Test
-	public void testLongBucketKeyToStringPrefersKeyAsStringWhenPresent() {
-		// keyAsString is populated for boolean/date fields with an implicit format and should
-		// be used verbatim — that's what makes booleans render as "true"/"false" rather than
-		// "1"/"0".
-		LongTermsBucketKey signed = LongTermsBucketKey.of(b -> b.signed(1L));
-		assertEquals("true", OpenSearchManagerImpl.longBucketKeyToString("true", signed));
-	}
-
-	@Test
-	public void testLongBucketKeyToStringFallsBackToSignedKey() {
-		// keyAsString is null for plain LONG fields — fall back to the typed key.
-		LongTermsBucketKey signed = LongTermsBucketKey.of(b -> b.signed(42L));
-		assertEquals("42", OpenSearchManagerImpl.longBucketKeyToString(null, signed));
-	}
-
 	// --- buildOverrideMap ---
 
 	@Test
@@ -495,165 +463,6 @@ public class OpenSearchManagerImplTest {
 		assertEquals("333", manager.getFilterFieldName("333", columnMap));
 	}
 
-	// --- getSearchFieldName ---
-
-	@Test
-	public void testGetSearchFieldNameReturnsBareId() {
-		// Search-path always uses the analyzed primary field; .keyword sub-field is filter-only.
-		assertEquals("111", manager.getSearchFieldName("111"));
-	}
-
-	// --- resolveQueryFields ---
-
-	@ParameterizedTest(name = "resolveQueryFields({0}) = null")
-	@MethodSource("resolveQueryFieldsNullProvider")
-	public void testResolveQueryFieldsWithNullOrEmpty(String description, List<String> input) {
-		// call under test — null/empty input is a signal to let OpenSearch use its default fields
-		assertNull(manager.resolveQueryFields(input, Collections.emptyList(), true));
-	}
-
-	static Stream<Arguments> resolveQueryFieldsNullProvider() {
-		return Stream.of(
-				Arguments.of("null",  null),
-				Arguments.of("empty", Collections.emptyList()));
-	}
-
-	@Test
-	public void testResolveQueryFieldsTranslatesNamesToIds() {
-		List<ColumnModel> columns = Arrays.asList(
-				new ColumnModel().setId("111").setName("geneName").setColumnType(ColumnType.STRING));
-
-		// call under test — "geneName" translates to id "111"
-		List<String> fields = manager.resolveQueryFields(
-				Collections.singletonList("geneName"), columns, true);
-
-		assertEquals(Collections.singletonList("111"), fields);
-	}
-
-	@Test
-	public void testResolveQueryFieldsPreservesBoostSuffix() {
-		List<ColumnModel> columns = Arrays.asList(
-				new ColumnModel().setId("111").setName("geneName").setColumnType(ColumnType.STRING));
-
-		// call under test — "geneName^3" → "111^3"
-		List<String> fields = manager.resolveQueryFields(
-				Collections.singletonList("geneName^3"), columns, true);
-
-		assertEquals(Collections.singletonList("111^3"), fields);
-	}
-
-	@Test
-	public void testResolveQueryFieldsForFilterUsesKeywordSubField() {
-		List<ColumnModel> columns = Collections.singletonList(
-				new ColumnModel().setId("111").setName("name").setColumnType(ColumnType.STRING));
-
-		// call under test — filter side routes text fields through .keyword.
-		List<String> resolved = manager.resolveQueryFields(
-				Collections.singletonList("name"), columns, false);
-
-		assertEquals(Collections.singletonList("111.keyword"), resolved);
-	}
-
-	// --- buildMainQuery (per SearchQueryType arm) ---
-
-	@Test
-	public void testBuildMainQueryWithSimpleQueryString() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.SIMPLE_QUERY_STRING, "alice",
-				Arrays.asList("111", "222"), null);
-
-		assertTrue(q.isSimpleQueryString());
-		assertEquals("alice", q.simpleQueryString().query());
-		assertEquals(Arrays.asList("111", "222"), q.simpleQueryString().fields());
-	}
-
-	@Test
-	public void testBuildMainQueryWithMatch() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.MATCH, "alice",
-				Collections.singletonList("111^3"), null);
-
-		assertTrue(q.isMatch());
-		// stripBoost applied → the match field is just "111" without the caret
-		assertEquals("111", q.match().field());
-	}
-
-	@Test
-	public void testBuildMainQueryWithMatchAndFuzziness() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.MATCH, "alice",
-				Collections.singletonList("111"), "AUTO");
-
-		assertTrue(q.isMatch());
-		assertEquals("AUTO", q.match().fuzziness());
-	}
-
-	/**
-	 * MATCH, MATCH_PHRASE, and WILDCARD all call {@code stripBoost(fields.get(0))}, so they
-	 * each require a non-empty {@code fields} list. The other query types tolerate null/empty
-	 * fields and therefore aren't included in this parameterized test.
-	 */
-	@ParameterizedTest(name = "buildMainQuery({0}, null fields) → IllegalArgumentException")
-	@EnumSource(value = SearchQueryType.class, names = {"MATCH", "MATCH_PHRASE", "WILDCARD"})
-	public void testBuildMainQueryRequiresFields(SearchQueryType type) {
-		// call under test
-		assertThrows(IllegalArgumentException.class,
-				() -> manager.buildMainQuery(type, "alice", null, null));
-	}
-
-	@Test
-	public void testBuildMainQueryWithMultiMatch() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.MULTI_MATCH, "alice",
-				Arrays.asList("111", "222"), "AUTO");
-
-		assertTrue(q.isMultiMatch());
-		assertEquals("alice", q.multiMatch().query());
-		assertEquals(Arrays.asList("111", "222"), q.multiMatch().fields());
-		assertEquals("AUTO", q.multiMatch().fuzziness());
-	}
-
-	@Test
-	public void testBuildMainQueryWithMatchPhrase() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.MATCH_PHRASE, "alice smith",
-				Collections.singletonList("111"), null);
-
-		assertTrue(q.isMatchPhrase());
-		assertEquals("111", q.matchPhrase().field());
-	}
-
-	@Test
-	public void testBuildMainQueryWithPrefixRoutesToBoolPrefix() {
-		// PREFIX uses multi_match with TextQueryType.BoolPrefix under the hood
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.PREFIX, "alic",
-				Arrays.asList("111", "222"), null);
-
-		assertTrue(q.isMultiMatch());
-		assertEquals(TextQueryType.BoolPrefix, q.multiMatch().type());
-	}
-
-	@Test
-	public void testBuildMainQueryWithWildcard() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.WILDCARD, "al*",
-				Collections.singletonList("111^2"), null);
-
-		assertTrue(q.isWildcard());
-		// stripBoost applied
-		assertEquals("111", q.wildcard().field());
-	}
-
-	@Test
-	public void testBuildMainQueryWithMatchAll() {
-		// call under test
-		Query q = manager.buildMainQuery(SearchQueryType.MATCH_ALL, null,
-				null, null);
-
-		assertTrue(q.isMatchAll());
-	}
-
 	// --- buildSortOptions ---
 
 	@Test
@@ -698,145 +507,9 @@ public class OpenSearchManagerImplTest {
 		assertEquals(SortOrder.Asc, sorted.get(0).field().order());
 	}
 
-	// --- buildHighlightFields ---
-
-	@Test
-	public void testBuildHighlightFieldsSkipsNonTextNonLinkColumns() {
-		List<ColumnModel> columns = Arrays.asList(
-				new ColumnModel().setId("111").setName("name").setColumnType(ColumnType.STRING),
-				new ColumnModel().setId("222").setName("age").setColumnType(ColumnType.INTEGER),
-				new ColumnModel().setId("333").setName("flag").setColumnType(ColumnType.BOOLEAN));
-
-		// call under test
-		Map<String, HighlightField> fields = manager.buildHighlightFields(columns);
-
-		assertEquals(Collections.singleton("111"), fields.keySet());
-	}
-
-	@Test
-	public void testBuildHighlightFieldsIncludesLinkColumnUnderBareId() {
-		List<ColumnModel> columns = Collections.singletonList(
-				new ColumnModel().setId("222").setName("link").setColumnType(ColumnType.LINK));
-
-		// call under test — LINK shares the TEXT mapping; highlight field is the bare id.
-		Map<String, HighlightField> fields = manager.buildHighlightFields(columns);
-
-		assertEquals(Collections.singleton("222"), fields.keySet());
-	}
-
-	// --- buildAggregations ---
-
-	@ParameterizedTest(name = "buildAggregations({0}) → empty")
-	@MethodSource("buildAggregationsEmptyProvider")
-	public void testBuildAggregationsWithNullOrEmpty(String description, List<FacetRequest> input) {
-		// call under test
-		assertTrue(manager.buildAggregations(input,
-				Collections.emptyMap(), Collections.emptyMap()).isEmpty());
-	}
-
-	static Stream<Arguments> buildAggregationsEmptyProvider() {
-		return Stream.of(
-				Arguments.of("null",  null),
-				Arguments.of("empty", Collections.emptyList()));
-	}
-
-	@Test
-	public void testBuildAggregationsWithSingleFacetUsesKeywordSubField() {
-		Map<String, ColumnModel> columnMap = new HashMap<>();
-		columnMap.put("111",
-				new ColumnModel().setId("111").setName("name").setColumnType(ColumnType.STRING));
-		Map<String, String> nameToId = new HashMap<>();
-		nameToId.put("name", "111");
-		FacetRequest facet = new FacetRequest().setColumnName("name").setMaxValueCount(5L)
-				.setSortField(FacetSortField.COUNT).setSortDirection(SortDirection.DESC);
-
-		// call under test
-		Map<String, Aggregation> aggs = manager.buildAggregations(
-				Collections.singletonList(facet), columnMap, nameToId);
-
-		// keyed by column id
-		assertNotNull(aggs.get("111"));
-		assertEquals("111.keyword", aggs.get("111").terms().field());
-		assertEquals(5, aggs.get("111").terms().size());
-	}
-
-	// --- buildFacetResult / buildFacetValueCount ---
-
-	@Test
-	public void testBuildFacetValueCount() {
-		// call under test
-		FacetColumnResultValueCount vc = manager.buildFacetValueCount("cancer", 42L);
-
-		assertEquals("cancer", vc.getValue());
-		assertEquals(Long.valueOf(42), vc.getCount());
-		assertEquals(Boolean.FALSE, vc.getIsSelected());
-	}
-
-	@Test
-	public void testBuildFacetResult() {
-		List<FacetColumnResultValueCount> values = Arrays.asList(
-				new FacetColumnResultValueCount().setValue("cancer").setCount(10L).setIsSelected(false),
-				new FacetColumnResultValueCount().setValue("tumor").setCount(5L).setIsSelected(false));
-
-		// call under test
-		FacetColumnResultValues result = manager.buildFacetResult("diagnosis", values);
-
-		assertEquals("diagnosis", result.getColumnName());
-		assertEquals(FacetType.enumeration, result.getFacetType());
-		assertEquals(values, result.getFacetValues());
-	}
-
-	// --- convertHighlights ---
-
-	@Test
-	public void testConvertHighlightsTranslatesIdToName() {
-		Map<String, List<String>> highlightMap = new HashMap<>();
-		highlightMap.put("111", Arrays.asList("<em>Alice</em>"));
-		Map<String, String> idToName = new HashMap<>();
-		idToName.put("111", "name");
-
-		// call under test
-		List<?> highlights = manager.convertHighlights(highlightMap, idToName);
-
-		assertEquals(1, highlights.size());
-		org.sagebionetworks.repo.model.search.SearchFieldValue hv =
-				(org.sagebionetworks.repo.model.search.SearchFieldValue) highlights.get(0);
-		assertEquals("name", hv.getName());
-		assertEquals("<em>Alice</em>", hv.getValue());
-	}
-
-	@Test
-	public void testConvertHighlightsJoinsMultipleFragmentsWithEllipsis() {
-		Map<String, List<String>> highlightMap = new HashMap<>();
-		highlightMap.put("111", Arrays.asList("<em>Alice</em>", "<em>Smith</em>"));
-		Map<String, String> idToName = new HashMap<>();
-		idToName.put("111", "name");
-
-		// call under test
-		org.sagebionetworks.repo.model.search.SearchFieldValue hv =
-				manager.convertHighlights(highlightMap, idToName).get(0);
-
-		assertEquals("<em>Alice</em> ... <em>Smith</em>", hv.getValue());
-	}
-
-	@Test
-	public void testConvertHighlightsPreservesUnmappedKey() {
-		// When key isn't in idToName, it's returned as-is.
-		Map<String, List<String>> highlightMap = new HashMap<>();
-		highlightMap.put("unknown", Collections.singletonList("hit"));
-
-		// call under test
-		org.sagebionetworks.repo.model.search.SearchFieldValue hv =
-				manager.convertHighlights(highlightMap, Collections.emptyMap()).get(0);
-
-		assertEquals("unknown", hv.getName());
-	}
-
-	// Note: convertResponse, convertHit, and convertAggregations each consume OpenSearch client
-	// value types (SearchResponse<Map>, Hit<Map>, Aggregate) that must be constructed through
-	// the client's builder API. Those helpers are exercised end-to-end by the AutoWired IT;
-	// convertHighlights above covers the only branch with non-trivial logic that isn't
-	// exclusively OpenSearch-client plumbing.
+	// Note: convertResponse and convertHit each consume OpenSearch client value types
+	// (SearchResponse<Map>, Hit<Map>) that must be constructed through the client's builder
+	// API. Those helpers are exercised end-to-end by the AutoWired IT.
 
 	// convertFieldValue stringifies a single AOSS _source value for SearchFieldValue.value.
 	// Lists and maps (the *_LIST and JSON column types) must be written as canonical JSON so
@@ -1607,9 +1280,9 @@ public class OpenSearchManagerImplTest {
 
 		// call under test
 		manager.callSearchApi("my-index", new BoolQuery.Builder(),
-				0, 10, Collections.emptyMap(), null, null,
+				0, 10, Collections.emptyMap(), null /* suggester */, null /* returnFields */,
 				Collections.emptyList(), Collections.emptyMap(),
-				EnumSet.of(SearchQueryPart.TOTAL_HITS));
+				EnumSet.of(SearchQueryPart.TOTAL_HITS), null /* searchAfter */);
 
 		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(openSearchClient).search(captor.capture(), eq(Map.class));
@@ -1626,9 +1299,9 @@ public class OpenSearchManagerImplTest {
 
 		// call under test
 		manager.callSearchApi("my-index", new BoolQuery.Builder(),
-				0, 10, Collections.emptyMap(), null, null,
+				0, 10, Collections.emptyMap(), null /* suggester */, null /* returnFields */,
 				Collections.emptyList(), Collections.emptyMap(),
-				EnumSet.of(SearchQueryPart.HITS));
+				EnumSet.of(SearchQueryPart.HITS), null /* searchAfter */);
 
 		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(openSearchClient).search(captor.capture(), eq(Map.class));
@@ -2073,310 +1746,18 @@ public class OpenSearchManagerImplTest {
 		verify(openSearchClient, times(2)).bulk(argThat((BulkRequest req) -> req != null));
 	}
 
-	// --- toTermsFilterValue ---
-	//
-	// Filter values are received as strings on the wire but must be sent to AOSS as the typed
-	// FieldValue variant (Long/Double/Boolean/String) matching the column's scalar type. _LIST
-	// columns use the non-list scalar type because the bulk indexer writes each list element with
-	// that type. Without the right variant, INTEGER_LIST / DOUBLE_LIST / BOOLEAN_LIST terms filters
-	// silently miss rows.
-
-	/**
-	 * Per-ColumnType raw filter input + the FieldValue variant the converter is expected to produce.
-	 * EnumSet.allOf coverage guard fails if a new ColumnType is added without a fixture.
-	 */
-	private static Map<ColumnType, TermsFilterCase> termsFilterCases() {
-		Map<ColumnType, TermsFilterCase> cases = new LinkedHashMap<>();
-		// Text-y columns → String variant
-		cases.put(ColumnType.STRING,        new TermsFilterCase("alpha",        FieldValue.Kind.String,  "alpha"));
-		cases.put(ColumnType.STRING_LIST,   new TermsFilterCase("alpha",        FieldValue.Kind.String,  "alpha"));
-		cases.put(ColumnType.MEDIUMTEXT,    new TermsFilterCase("alpha beta",   FieldValue.Kind.String,  "alpha beta"));
-		cases.put(ColumnType.LARGETEXT,     new TermsFilterCase("alpha beta",   FieldValue.Kind.String,  "alpha beta"));
-		cases.put(ColumnType.LINK,          new TermsFilterCase("https://x",    FieldValue.Kind.String,  "https://x"));
-		// JSON column type — parser canonicalizes a JSON object string. The terms-filter use case
-		// for a JSON column is degenerate, but the converter must still pick a variant; document it.
-		cases.put(ColumnType.JSON,          new TermsFilterCase("{\"a\":1}",    FieldValue.Kind.String,  "{\"a\":1}"));
-		// Long-backed numeric / id columns → Long variant
-		cases.put(ColumnType.INTEGER,       new TermsFilterCase("123",          FieldValue.Kind.Long,    123L));
-		cases.put(ColumnType.INTEGER_LIST,  new TermsFilterCase("123",          FieldValue.Kind.Long,    123L));
-		cases.put(ColumnType.FILEHANDLEID,  new TermsFilterCase("9876543",      FieldValue.Kind.Long,    9876543L));
-		cases.put(ColumnType.SUBMISSIONID,  new TermsFilterCase("555",          FieldValue.Kind.Long,    555L));
-		cases.put(ColumnType.EVALUATIONID,  new TermsFilterCase("777",          FieldValue.Kind.Long,    777L));
-		cases.put(ColumnType.USERID,        new TermsFilterCase("3412396",      FieldValue.Kind.Long,    3412396L));
-		cases.put(ColumnType.USERID_LIST,   new TermsFilterCase("3412396",      FieldValue.Kind.Long,    3412396L));
-		// EntityId — KeyFactory strips the "syn" prefix and returns Long
-		cases.put(ColumnType.ENTITYID,      new TermsFilterCase("syn123456",    FieldValue.Kind.Long,    123456L));
-		cases.put(ColumnType.ENTITYID_LIST, new TermsFilterCase("syn123456",    FieldValue.Kind.Long,    123456L));
-		// Date — epoch-ms wire format → Long variant
-		cases.put(ColumnType.DATE,          new TermsFilterCase("1609459200000", FieldValue.Kind.Long,   1609459200000L));
-		cases.put(ColumnType.DATE_LIST,     new TermsFilterCase("1609459200000", FieldValue.Kind.Long,   1609459200000L));
-		// Double / Boolean
-		cases.put(ColumnType.DOUBLE,        new TermsFilterCase("1.5",          FieldValue.Kind.Double,  1.5));
-		cases.put(ColumnType.BOOLEAN,       new TermsFilterCase("true",         FieldValue.Kind.Boolean, Boolean.TRUE));
-		cases.put(ColumnType.BOOLEAN_LIST,  new TermsFilterCase("false",        FieldValue.Kind.Boolean, Boolean.FALSE));
-		return cases;
-	}
-
-	private static final class TermsFilterCase {
-		final String raw;
-		final FieldValue.Kind expectedKind;
-		final Object expectedValue;
-		TermsFilterCase(String raw, FieldValue.Kind expectedKind, Object expectedValue) {
-			this.raw = raw;
-			this.expectedKind = expectedKind;
-			this.expectedValue = expectedValue;
-		}
-	}
-
-	@Test
-	public void testToTermsFilterValueWithEveryColumnType() {
-		Map<ColumnType, TermsFilterCase> cases = termsFilterCases();
-		assertEquals(EnumSet.allOf(ColumnType.class), cases.keySet(),
-				"Every Synapse ColumnType must be represented in this round-trip test");
-
-		for (Map.Entry<ColumnType, TermsFilterCase> entry : cases.entrySet()) {
-			ColumnType type = entry.getKey();
-			TermsFilterCase tc = entry.getValue();
-			ColumnModel column = new ColumnModel().setId("1").setName("c").setColumnType(type);
-
-			// call under test
-			FieldValue fv = OpenSearchManagerImpl.toTermsFilterValue(tc.raw, column);
-
-			assertEquals(tc.expectedKind, fv._kind(), "kind for " + type);
-			assertEquals(tc.expectedValue, fv._get(), "value for " + type);
-		}
-	}
-
-	@Test
-	public void testToTermsFilterValueWithNullColumnReturnsRawString() {
-		// Relaxed-name path: filter key isn't on the schema → fall through as raw String.
-		// call under test
-		FieldValue fv = OpenSearchManagerImpl.toTermsFilterValue("anything", null);
-
-		assertEquals(FieldValue.Kind.String, fv._kind());
-		assertEquals("anything", fv.stringValue());
-	}
-
-	@Test
-	public void testToTermsFilterValueWithDateAcceptsAllThreeWireFormats() {
-		// DATE schema accepts epoch-ms, SQL date, or ISO-8601. All three must normalize to the
-		// same Long on the wire so a UI sending any format hits the indexed term.
-		ColumnModel column = new ColumnModel().setId("1").setName("d").setColumnType(ColumnType.DATE);
-		long expectedMs = 1609459200000L;
-
-		// call under test (epoch-ms)
-		FieldValue epoch = OpenSearchManagerImpl.toTermsFilterValue("1609459200000", column);
-		// call under test (SQL date)
-		FieldValue sqlDate = OpenSearchManagerImpl.toTermsFilterValue("2021-01-01 00:00:00.000", column);
-		// call under test (ISO-8601)
-		FieldValue iso = OpenSearchManagerImpl.toTermsFilterValue("2021-01-01T00:00:00.000Z", column);
-
-		assertEquals(FieldValue.Kind.Long, epoch._kind());
-		assertEquals(FieldValue.Kind.Long, sqlDate._kind());
-		assertEquals(FieldValue.Kind.Long, iso._kind());
-		assertEquals(expectedMs, epoch.longValue());
-		assertEquals(expectedMs, sqlDate.longValue());
-		assertEquals(expectedMs, iso.longValue());
-	}
-
-	// --- toRangeBound ---
-	//
-	// KeyRange.min / .max are strings on the wire but must reach OpenSearch as JSON numbers for
-	// numeric / date columns; otherwise OS may lex-compare on the keyword sub-field (e.g. "10" < "9").
-
-	@Test
-	public void testToRangeBoundWithEveryColumnType() {
-		// Reuse the terms-filter fixture: range bounds run through the same parser, so the
-		// underlying scalar must be the parsed value for every column type. Coverage guard via
-		// EnumSet.allOf ensures any new ColumnType is forced to declare its expected behavior.
-		Map<ColumnType, TermsFilterCase> cases = termsFilterCases();
-		assertEquals(EnumSet.allOf(ColumnType.class), cases.keySet(),
-				"Every Synapse ColumnType must be represented in this round-trip test");
-
-		for (Map.Entry<ColumnType, TermsFilterCase> entry : cases.entrySet()) {
-			ColumnType type = entry.getKey();
-			TermsFilterCase tc = entry.getValue();
-			ColumnModel column = new ColumnModel().setId("1").setName("c").setColumnType(type);
-			ColumnType scalar = ColumnTypeListMappings.isList(type)
-					? ColumnTypeListMappings.nonListType(type)
-					: type;
-			Object expectedParsed = ColumnTypeInfo.getInfoForType(scalar)
-					.parseValueForDatabaseWrite(tc.raw);
-
-			// call under test
-			JsonData bound = OpenSearchManagerImpl.toRangeBound(tc.raw, column);
-
-			// JsonData.of(value) keeps the underlying object for plain Java types; toString()
-			// delegates to the wrapped value, so equals on string form is a stable assertion.
-			assertEquals(String.valueOf(expectedParsed), bound.toString(),
-					"range bound for " + type);
-		}
-	}
-
-	@Test
-	public void testToRangeBoundWithNullColumnReturnsRawString() {
-		// call under test
-		JsonData bound = OpenSearchManagerImpl.toRangeBound("anything", null);
-
-		assertEquals("anything", bound.toString());
-	}
-
-	@Test
-	public void testToRangeBoundWithDateAcceptsAllThreeWireFormats() {
-		ColumnModel column = new ColumnModel().setId("1").setName("d").setColumnType(ColumnType.DATE);
-		String expectedMs = "1609459200000";
-
-		// call under test (epoch-ms)
-		assertEquals(expectedMs,
-				OpenSearchManagerImpl.toRangeBound("1609459200000", column).toString());
-		// call under test (SQL date)
-		assertEquals(expectedMs,
-				OpenSearchManagerImpl.toRangeBound("2021-01-01 00:00:00.000", column).toString());
-		// call under test (ISO-8601)
-		assertEquals(expectedMs,
-				OpenSearchManagerImpl.toRangeBound("2021-01-01T00:00:00.000Z", column).toString());
-	}
-
-	// --- search(): terms filter shape on the wire ---
-
-	private static SearchQuery searchQueryWithTermsFilter(String columnName, List<String> values) {
-		KeyValues kvs = new KeyValues().setKey(columnName).setValues(values);
-		return new SearchQuery()
-				.setQueryType(SearchQueryType.MATCH_ALL)
-				.setQueryText("")
-				.setOffset(0L).setLimit(10L)
-				.setTermsFilters(Collections.singletonList(kvs));
-	}
-
-	private static TermsQuery extractSingleTermsFilter(SearchRequest captured) {
-		BoolQuery bool = captured.query().bool();
-		Query filter = bool.filter().get(0);
-		assertTrue(filter.isTerms(), "expected terms filter, got " + filter._kind());
-		return filter.terms();
-	}
-
-	@Test
-	public void testSearchWithTermsFilterOnIntegerListColumnSendsLongFieldValue() throws IOException {
-		// Regression: INTEGER_LIST cells are indexed as longs, so a string "123" filter would
-		// silently miss. The terms-filter value must reach AOSS as Kind.Long.
-		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
-				.thenReturn(emptySearchResponse());
-		List<ColumnModel> columns = Collections.singletonList(
-				new ColumnModel().setId("111").setName("ages").setColumnType(ColumnType.INTEGER_LIST));
-
-		// call under test
-		manager.search("search-index-syn1",
-				searchQueryWithTermsFilter("ages", Arrays.asList("123", "456")),
-				columns, EnumSet.of(SearchQueryPart.HITS));
-
-		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
-		verify(openSearchClient).search(captor.capture(), eq(Map.class));
-		TermsQuery terms = extractSingleTermsFilter(captor.getValue());
-		assertEquals("111", terms.field(), "list columns filter on the bare id, no .keyword");
-		List<FieldValue> values = terms.terms().value();
-		assertEquals(2, values.size());
-		assertEquals(FieldValue.Kind.Long, values.get(0)._kind());
-		assertEquals(123L, values.get(0).longValue());
-		assertEquals(FieldValue.Kind.Long, values.get(1)._kind());
-		assertEquals(456L, values.get(1).longValue());
-	}
-
-	@Test
-	public void testSearchWithTermsFilterOnUnknownColumnFallsBackToString() throws IOException {
-		// Relaxed-name path: filter key isn't on the schema. Behavior must be the pre-typing
-		// fallback — raw String FieldValue against the bare key — so old clients still work.
-		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
-				.thenReturn(emptySearchResponse());
-
-		// call under test
-		manager.search("search-index-syn1",
-				searchQueryWithTermsFilter("not_in_schema", Collections.singletonList("anything")),
-				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
-
-		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
-		verify(openSearchClient).search(captor.capture(), eq(Map.class));
-		TermsQuery terms = extractSingleTermsFilter(captor.getValue());
-		assertEquals("not_in_schema", terms.field());
-		List<FieldValue> values = terms.terms().value();
-		assertEquals(1, values.size());
-		assertEquals(FieldValue.Kind.String, values.get(0)._kind());
-		assertEquals("anything", values.get(0).stringValue());
-	}
-
-	// --- search(): range filter shape on the wire ---
-
-	@Test
-	public void testSearchWithRangeFilterOnIntegerColumnSendsNumericBound() throws IOException {
-		// Regression: KeyRange.min/max are strings; without typed parsing AOSS may lex-compare
-		// against a keyword sub-field, producing "10" < "9". The bound must reach the wire as a
-		// JSON number. JsonData wraps the parsed Long, so toString() of the bound is "10".
-		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
-				.thenReturn(emptySearchResponse());
-		List<ColumnModel> columns = Collections.singletonList(
-				new ColumnModel().setId("111").setName("age").setColumnType(ColumnType.INTEGER));
-		KeyRange kr = new KeyRange().setKey("age").setMin("10").setMax("99");
-		SearchQuery query = new SearchQuery()
-				.setQueryType(SearchQueryType.MATCH_ALL)
-				.setQueryText("")
-				.setOffset(0L).setLimit(10L)
-				.setRangeFilters(Collections.singletonList(kr));
-
-		// call under test
-		manager.search("search-index-syn1", query, columns, EnumSet.of(SearchQueryPart.HITS));
-
-		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
-		verify(openSearchClient).search(captor.capture(), eq(Map.class));
-		Query filter = captor.getValue().query().bool().filter().get(0);
-		assertTrue(filter.isRange(), "expected range filter, got " + filter._kind());
-		RangeQuery range = filter.range();
-		assertEquals("111", range.field());
-		assertEquals("10", range.gte().toString(), "lower bound must be JSON number, not quoted string");
-		assertEquals("99", range.lte().toString(), "upper bound must be JSON number, not quoted string");
-	}
-
-	// --- buildAggregations: JSON column rejection ---
-
-	@Test
-	public void testBuildAggregationsWithJsonColumnRejected() {
-		// JSON columns map to `object`/`dynamic`, not a leaf doc-values field, so a `terms` agg
-		// returns zero buckets silently. Reject up-front rather than confusing the caller.
-		Map<String, ColumnModel> columnMap = new HashMap<>();
-		columnMap.put("111",
-				new ColumnModel().setId("111").setName("blob").setColumnType(ColumnType.JSON));
-		Map<String, String> nameToId = new HashMap<>();
-		nameToId.put("blob", "111");
-		FacetRequest facet = new FacetRequest().setColumnName("blob");
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> manager.buildAggregations(Collections.singletonList(facet), columnMap, nameToId));
-
-		assertTrue(ex.getMessage().contains("Cannot facet on JSON column"), ex.getMessage());
-		assertTrue(ex.getMessage().contains("blob"), ex.getMessage());
-		verifyZeroInteractions(openSearchClient);
-	}
-
-	@Test
-	public void testBuildAggregationsWithUnknownColumnAllowed() {
-		// Relaxed-name path: column isn't on the schema. Don't synthesize a JSON-rejection — the
-		// guard only fires when we *know* the column is JSON-typed.
-		FacetRequest facet = new FacetRequest().setColumnName("not_in_schema").setMaxValueCount(5L)
-				.setSortField(FacetSortField.COUNT).setSortDirection(SortDirection.DESC);
-
-		// call under test
-		Map<String, Aggregation> aggs = manager.buildAggregations(
-				Collections.singletonList(facet), Collections.emptyMap(), Collections.emptyMap());
-
-		assertNotNull(aggs.get("not_in_schema"));
-		assertEquals("not_in_schema", aggs.get("not_in_schema").terms().field());
-	}
-
 	// --- search(): offset / limit validation ---
 
+	/**
+	 * Build a minimal valid SearchQuery: an opaque {@code match_all} clause is required by
+	 * executeSearch's up-front gate; the offset/limit tests then mutate offset or limit and
+	 * exercise the validation branches.
+	 */
 	private static SearchQuery matchAllQuery() {
+		Map<String, Object> queryDsl = new HashMap<>();
+		queryDsl.put("match_all", Collections.emptyMap());
 		return new SearchQuery()
-				.setQueryType(SearchQueryType.MATCH_ALL)
-				.setQueryText("")
+				.setQuery(queryDsl)
 				.setOffset(0L).setLimit(10L);
 	}
 
@@ -2572,68 +1953,15 @@ public class OpenSearchManagerImplTest {
 
 	// ===================== branch coverage: describeBulkItemFailure =====================
 
-	// ===================== branch coverage: addExistsFilters =====================
-
-	@Test
-	public void testAddExistsFiltersWithNullFieldsIsNoop() {
-		// fields == null short-circuit — no filter / mustNot calls on the BoolQuery.Builder.
-		BoolQuery.Builder b = new BoolQuery.Builder();
-
-		manager.addExistsFilters(b, null, Collections.emptyMap(), false);
-
-		BoolQuery q = b.build();
-		assertTrue(q.filter().isEmpty(), "no fields → no filters");
-		assertTrue(q.mustNot().isEmpty(), "no fields → no mustNot");
-	}
-
-	@Test
-	public void testAddExistsFiltersAddsFilterWhenNotNegated() {
-		// negate=false branch routes the exists query into filter().
-		BoolQuery.Builder b = new BoolQuery.Builder();
-		Map<String, String> nameToId = Collections.singletonMap("title", "100");
-
-		manager.addExistsFilters(b, Arrays.asList("title"), nameToId, false);
-
-		BoolQuery q = b.build();
-		assertEquals(1, q.filter().size());
-		assertTrue(q.mustNot().isEmpty());
-	}
-
-	@Test
-	public void testAddExistsFiltersAddsMustNotWhenNegated() {
-		// negate=true branch routes the exists query into mustNot().
-		BoolQuery.Builder b = new BoolQuery.Builder();
-		Map<String, String> nameToId = Collections.singletonMap("title", "100");
-
-		manager.addExistsFilters(b, Arrays.asList("title"), nameToId, true);
-
-		BoolQuery q = b.build();
-		assertEquals(1, q.mustNot().size());
-		assertTrue(q.filter().isEmpty());
-	}
-
-	@Test
-	public void testAddExistsFiltersFallsBackToRawNameWhenNotInMap() {
-		// nameToId.getOrDefault branch — when the field name isn't in the map, the field
-		// name itself is used as the field id (legacy migration path).
-		BoolQuery.Builder b = new BoolQuery.Builder();
-
-		manager.addExistsFilters(b, Arrays.asList("unmappedField"), Collections.emptyMap(), false);
-
-		BoolQuery q = b.build();
-		assertEquals(1, q.filter().size());
-	}
-
 	// ===================== branch coverage: autocomplete limit clamp =====================
 
 	@Test
 	public void testAutocompleteWithNullLimitClampsToMax() throws Exception {
-		// limit == null branch clamps to AUTOCOMPLETE_MAX_LIMIT (8).
+		// limit == null branch clamps to AUTOCOMPLETE_MAX_LIMIT (8). Caller picks the prefix-
+		// style clause (here multi_match with type=bool_prefix); the manager only clamps size.
 		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
 				.thenReturn(emptySearchResponse());
-		SearchQuery query = new SearchQuery()
-				.setQueryText("foo")
-				.setQueryType(SearchQueryType.PREFIX); // limit unset
+		SearchQuery query = matchAllQuery().setLimit(null);
 
 		manager.autocomplete("search-index-syn1", query,
 				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
@@ -2649,10 +1977,7 @@ public class OpenSearchManagerImplTest {
 		// limit > AUTOCOMPLETE_MAX_LIMIT branch — same clamp.
 		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
 				.thenReturn(emptySearchResponse());
-		SearchQuery query = new SearchQuery()
-				.setQueryText("foo")
-				.setQueryType(SearchQueryType.PREFIX)
-				.setLimit(50L);
+		SearchQuery query = matchAllQuery().setLimit(50L);
 
 		manager.autocomplete("search-index-syn1", query,
 				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
@@ -2668,10 +1993,7 @@ public class OpenSearchManagerImplTest {
 		// limit <= AUTOCOMPLETE_MAX_LIMIT — no clamp.
 		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
 				.thenReturn(emptySearchResponse());
-		SearchQuery query = new SearchQuery()
-				.setQueryText("foo")
-				.setQueryType(SearchQueryType.PREFIX)
-				.setLimit(5L);
+		SearchQuery query = matchAllQuery().setLimit(5L);
 
 		manager.autocomplete("search-index-syn1", query,
 				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
@@ -2679,24 +2001,6 @@ public class OpenSearchManagerImplTest {
 		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
 		verify(openSearchClient).search(captor.capture(), eq(Map.class));
 		assertEquals(Integer.valueOf(5), captor.getValue().size());
-	}
-
-	@Test
-	public void testAutocompleteForcesPrefixQueryTypeRegardlessOfInput() throws Exception {
-		// query.setQueryType(SearchQueryType.PREFIX) is unconditional — even an input that
-		// arrives with a different queryType is overwritten before executeSearch runs.
-		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
-				.thenReturn(emptySearchResponse());
-		SearchQuery query = new SearchQuery()
-				.setQueryText("foo")
-				.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING)
-				.setLimit(3L);
-
-		manager.autocomplete("search-index-syn1", query,
-				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
-
-		assertEquals(SearchQueryType.PREFIX, query.getQueryType(),
-				"autocomplete must always force PREFIX queryType");
 	}
 
 	@Test

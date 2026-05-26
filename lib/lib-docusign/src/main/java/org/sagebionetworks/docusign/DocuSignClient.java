@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.ServiceUnavailableException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.docusign.esign.api.TemplatesApi;
@@ -43,6 +44,7 @@ public class DocuSignClient {
 	private volatile long cachedAccessTokenExpiryMillis;
 	private final Object tokenLock = new Object();
 
+	@Autowired
 	public DocuSignClient(DocuSignClientConfig config) {
 		this(config, new DefaultTemplatesApiFactory());
 	}

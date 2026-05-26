@@ -25,7 +25,6 @@ import org.opensearch.client.opensearch._types.ShardSearchFailure;
 import org.opensearch.client.opensearch._types.ShardStatistics;
 import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
-import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
@@ -70,11 +69,7 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * Wraps the OpenSearch Java client for all AOSS index lifecycle (create / delete /
@@ -1285,67 +1280,27 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		// string. Always populate when the response carried aggregations (the request
 		// already gated whether to ask for them).
 		if (response.aggregations() != null && !response.aggregations().isEmpty()) {
-			results.setAggregationResults(serializeAggregations(response.aggregations(), idToName));
+			results.setAggregationResults(SearchOpaqueJsonUtil.serializeAggregations(
+					response.aggregations(), id -> idToName.getOrDefault(id, id)));
 		}
 
 		// Suggest: same shape, opaque JSON string with column ids rewritten back.
 		if (response.suggest() != null && !response.suggest().isEmpty()) {
-			results.setSuggestResults(serializeSuggest(response.suggest(), idToName));
+			results.setSuggestResults(SearchOpaqueJsonUtil.serializeSuggest(
+					response.suggest(), id -> idToName.getOrDefault(id, id)));
 		}
 
 		// Pagination cursor: when hits are requested and the page is full, emit the last
 		// hit's sort values as the next-page cursor; null when the page is short or empty.
 		if (options.contains(SearchQueryPart.HITS) && hits != null && !hits.isEmpty()) {
-			Hit<Map> last = hits.get(hits.size() - 1);
-			List<FieldValue> sortValues = last.sort();
+			List<FieldValue> sortValues = hits.get(hits.size() - 1).sort();
 			if (sortValues != null && !sortValues.isEmpty()) {
-				List<Object> cursor = new ArrayList<>(sortValues.size());
-				for (FieldValue value : sortValues) {
-					JsonNode tree = SearchOpaqueJsonUtil.toJsonpTree(value);
-					cursor.add(SearchOpaqueJsonUtil.fromJsonString(tree.toString()));
-				}
-				results.setNextSearchAfter(cursor);
+				results.setNextSearchAfter(SearchOpaqueJsonUtil.toSearchAfterCursor(sortValues));
 			}
 		}
 
 		return results;
 	}
-
-	/**
-	 * Serialize the typed aggregation response into the opaque JSON string returned as
-	 * {@code aggregationResults}, with column ids rewritten back to column names so the
-	 * caller sees the schema they queried with.
-	 */
-	@SuppressWarnings("rawtypes")
-	String serializeAggregations(Map<String, Aggregate> aggregations, Map<String, String> idToName) {
-		ObjectNode root = JSON_MAPPER.createObjectNode();
-		for (Map.Entry<String, Aggregate> entry : aggregations.entrySet()) {
-			root.set(entry.getKey(), SearchOpaqueJsonUtil.toJsonpTree(entry.getValue()));
-		}
-		SearchFieldRewriter.rewriteAggregationResults(root, id -> idToName.getOrDefault(id, id));
-		return root.toString();
-	}
-
-	/**
-	 * Serialize the typed suggest response into the opaque JSON string returned as
-	 * {@code suggestResults}: a map of suggestion name to its list of options.
-	 */
-	@SuppressWarnings("rawtypes")
-	String serializeSuggest(Map<String, List<org.opensearch.client.opensearch.core.search.Suggest<Map>>> suggest,
-			Map<String, String> idToName) {
-		ObjectNode root = JSON_MAPPER.createObjectNode();
-		for (Map.Entry<String, List<org.opensearch.client.opensearch.core.search.Suggest<Map>>> entry : suggest.entrySet()) {
-			ArrayNode array = JSON_MAPPER.createArrayNode();
-			for (org.opensearch.client.opensearch.core.search.Suggest<Map> suggestion : entry.getValue()) {
-				array.add(SearchOpaqueJsonUtil.toJsonpTree(suggestion));
-			}
-			root.set(entry.getKey(), array);
-		}
-		SearchFieldRewriter.rewriteSuggestResults(root, id -> idToName.getOrDefault(id, id));
-		return root.toString();
-	}
-
-	private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	SearchHit convertHit(Hit<Map> hit, Map<String, String> idToName) {
@@ -1378,24 +1333,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * so clients can parse them back; scalars use {@link String#valueOf(Object)} so a raw {@code String}
 	 * column is not double-quoted in the response. Mirrors the pattern at {@code SQLUtils#bindListColumns}
 	 * (lib-table-cluster) which serializes typed Java lists for the table index DB the same way.
-	 *
-	 * <p>Jackson is used (not {@code org.json}) because the latter coerces every numeric value
-	 * through {@code double}, silently truncating long ids past 2^53 — a real problem for
-	 * Synapse entity / file-handle ids, which sit comfortably above that bound.</p>
 	 */
-	private static final ObjectMapper FIELD_VALUE_MAPPER = new ObjectMapper();
-
 	static String convertFieldValue(Object value) {
 		if (value == null) {
 			return null;
 		}
 		if (value instanceof Collection || value instanceof Map) {
-			try {
-				return FIELD_VALUE_MAPPER.writeValueAsString(value);
-			} catch (JsonProcessingException e) {
-				throw new IllegalStateException(
-						"Failed to serialize search field value: " + value, e);
-			}
+			return SearchOpaqueJsonUtil.writeValueAsString(value, "Failed to serialize search field value");
 		}
 		return String.valueOf(value);
 	}

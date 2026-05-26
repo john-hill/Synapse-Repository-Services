@@ -192,6 +192,103 @@ public final class SearchOpaqueJsonUtil {
 		}
 	}
 
+	// ---------- Jackson tree-construction helpers ----------
+
+	/**
+	 * Empty {@link ObjectNode} backed by the shared {@link #MAPPER}. Callers building up an
+	 * opaque-JSON response (e.g. the aggregations / suggest result envelopes) should reach
+	 * for this rather than instantiating their own {@code ObjectMapper}.
+	 */
+	public static ObjectNode objectNode() {
+		return MAPPER.createObjectNode();
+	}
+
+	/**
+	 * Empty {@link com.fasterxml.jackson.databind.node.ArrayNode} backed by the shared
+	 * {@link #MAPPER}. Same rationale as {@link #objectNode()}.
+	 */
+	public static com.fasterxml.jackson.databind.node.ArrayNode arrayNode() {
+		return MAPPER.createArrayNode();
+	}
+
+	/**
+	 * Render an arbitrary Java value to JSON via the shared {@link #MAPPER}, wrapping any
+	 * {@link JsonProcessingException} as an {@link IllegalStateException} with a contextual
+	 * message. Used for stringifying response values (collections / maps from a search hit's
+	 * {@code _source}, hand-built {@link ObjectNode} envelopes, etc.).
+	 *
+	 * <p>Jackson is preferred over {@code org.json} here because the latter coerces every
+	 * numeric value through {@code double}, silently truncating long ids past 2^53 — a real
+	 * problem for Synapse entity / file-handle ids, which sit comfortably above that bound.</p>
+	 *
+	 * @param value           the value to serialize
+	 * @param contextMessage  human-readable hint included in the wrapped exception when
+	 *                        serialization fails
+	 */
+	public static String writeValueAsString(Object value, String contextMessage) {
+		try {
+			return MAPPER.writeValueAsString(value);
+		} catch (JsonProcessingException e) {
+			throw new IllegalStateException(contextMessage + ": " + value, e);
+		}
+	}
+
+	// ---------- OpenSearch search-response serializers ----------
+
+	/**
+	 * Serialize the typed aggregation response (the {@code aggregations} block from
+	 * {@code SearchResponse}) into an opaque JSON string with column ids rewritten back
+	 * to column names. Each top-level entry is a caller-chosen aggregation name (left
+	 * unchanged); embedded {@code "field"} references are rewritten via {@code idToName}.
+	 */
+	public static String serializeAggregations(
+			Map<String, ? extends JsonpSerializable> aggregations,
+			java.util.function.Function<String, String> idToName) {
+		ObjectNode root = objectNode();
+		for (Map.Entry<String, ? extends JsonpSerializable> entry : aggregations.entrySet()) {
+			root.set(entry.getKey(), toJsonpTree(entry.getValue()));
+		}
+		SearchFieldRewriter.rewriteAggregationResults(root, idToName);
+		return root.toString();
+	}
+
+	/**
+	 * Serialize the typed suggester response into an opaque JSON string with column ids
+	 * rewritten back to column names. Top-level keys are caller-chosen suggestion names;
+	 * each value is a list of typed {@link JsonpSerializable} suggestion options.
+	 */
+	public static String serializeSuggest(
+			Map<String, ? extends java.util.List<? extends JsonpSerializable>> suggest,
+			java.util.function.Function<String, String> idToName) {
+		ObjectNode root = objectNode();
+		for (Map.Entry<String, ? extends java.util.List<? extends JsonpSerializable>> entry : suggest.entrySet()) {
+			com.fasterxml.jackson.databind.node.ArrayNode array = arrayNode();
+			for (JsonpSerializable suggestion : entry.getValue()) {
+				array.add(toJsonpTree(suggestion));
+			}
+			root.set(entry.getKey(), array);
+		}
+		SearchFieldRewriter.rewriteSuggestResults(root, idToName);
+		return root.toString();
+	}
+
+	/**
+	 * Convert a list of typed sort values from the last hit of a results page into the
+	 * opaque cursor list emitted as {@code SearchQueryResults.nextSearchAfter}. Each
+	 * {@link JsonpSerializable} sort value is serialized via {@link #toJsonpTree} and then
+	 * round-tripped to a generic Java tree (so the cursor list contains plain
+	 * {@link Number} / {@link String} / etc. that the schema-to-pojo wire serializer accepts).
+	 */
+	public static java.util.List<Object> toSearchAfterCursor(
+			java.util.List<? extends JsonpSerializable> sortValues) {
+		java.util.List<Object> cursor = new java.util.ArrayList<>(sortValues.size());
+		for (JsonpSerializable value : sortValues) {
+			JsonNode tree = toJsonpTree(value);
+			cursor.add(fromJsonString(tree.toString()));
+		}
+		return cursor;
+	}
+
 	// ---------- reference detection ----------
 
 	/**

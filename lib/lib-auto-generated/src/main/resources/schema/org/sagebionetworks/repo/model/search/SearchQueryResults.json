@@ -24,11 +24,19 @@
 				"$ref": "org.sagebionetworks.repo.model.table.SelectColumn"
 			}
 		},
-		"facets": {
+		"aggregationResults": {
+			"type": "string",
+			"description": "The raw OpenSearch aggregations response as a JSON string &mdash; the contents of the <code>aggregations</code> key returned by AOSS, with field references rewritten back to column names. Populated when SearchQuery.aggregations was supplied. Returned as an opaque JSON string because the OpenSearch DSL produces a wide variety of bucket shapes (per-aggregation-type and per-sub-aggregation); typing each shape would re-introduce the structured-to-DSL translation layer this surface replaces."
+		},
+		"suggestResults": {
+			"type": "string",
+			"description": "The raw OpenSearch suggester response as a JSON string &mdash; the contents of the <code>suggest</code> key returned by AOSS, with field references rewritten back to column names. Populated when SearchQuery.suggest was supplied."
+		},
+		"nextSearchAfter": {
 			"type": "array",
-			"description": "Facet aggregation results. Populated when SearchQueryPart.FACETS is requested. Autocomplete never produces facets regardless of this part being requested.",
+			"description": "Opaque cursor for the next page when the request used <code>searchAfter</code> (or asked for hits with a sort that produced a full page). Pass back unchanged on the next request as <code>SearchQuery.searchAfter</code>. Null when there are no further pages.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.FacetColumnResult"
+				"type": "object"
 			}
 		},
 		"offset": {

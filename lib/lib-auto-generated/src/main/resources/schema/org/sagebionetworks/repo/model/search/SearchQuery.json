@@ -1,58 +1,23 @@
 {
-	"description": "A structured search query against a Synapse SearchIndex, composed of a main full-text query, zero or more structured filters, optional facet aggregations, and response-shaping options (sort, highlight, pagination). Most callers will set at least queryText (or leave it empty for a catalog-style MATCH_ALL browse) and possibly queryType + queryFields. Filters, facets, sort, and returnFields are independent layers — any combination is valid. Filters run in non-scoring context: they narrow the result set without influencing relevance.",
+	"description": "<p>A search query against a Synapse SearchIndex. The body of the request is the OpenSearch query DSL (the same shape OpenSearch's <code>POST /{index}/_search</code> accepts), allowlist-validated server-side and submitted to AOSS. The opaque <code>query</code>, <code>aggregations</code>, and <code>suggest</code> payloads are pass-through; the typed <code>returnFields</code> / <code>sort</code> / <code>offset</code> / <code>limit</code> / <code>searchAfter</code> properties are Synapse-specific concerns layered on top.</p><p><b>Field references use column names</b> in every shape (DSL clauses, aggregation <code>field</code>, suggester <code>field</code>, <code>sort</code>, <code>returnFields</code>). The server resolves names to internal column ids before sending to OpenSearch, and rewrites them back to column names on response so callers see their original schema.</p><p><b>One of <code>query</code> or <code>searchAfter</code> is required.</b> An empty request (neither set) is rejected with HTTP 400.</p>",
 	"properties": {
-		"queryType": {
-			"description": "The full-text query model applied to queryText. Default: SIMPLE_QUERY_STRING (safe for untrusted user input). See SearchQueryType for a per-value explanation of scoring model, accepted parameters, and when to use each. When queryText is null or empty, queryType is automatically coerced to MATCH_ALL regardless of this setting.",
-			"$ref": "org.sagebionetworks.repo.model.search.SearchQueryType"
+		"query": {
+			"type": "object",
+			"description": "<p>An OpenSearch query DSL clause &mdash; the contents of the <code>query</code> key. Supports compound (<code>bool</code> / <code>dis_max</code> / <code>constant_score</code> / <code>boosting</code>) and leaf (<code>match</code> / <code>multi_match</code> / <code>match_phrase</code> / <code>match_phrase_prefix</code> / <code>match_bool_prefix</code> / <code>term</code> / <code>terms</code> / <code>range</code> / <code>exists</code> / <code>prefix</code> / <code>wildcard</code> / <code>fuzzy</code> / <code>ids</code> / <code>simple_query_string</code> / <code>match_all</code>) clauses. The server wraps the supplied subtree as a <code>must</code> clause inside its own <code>bool</code> so future server-side filter clauses can layer on without re-architecting.</p><p><b>Disallowed</b>: <code>script</code>, <code>script_score</code>, <code>function_score</code>, <code>more_like_this</code>, <code>geo_shape</code>/<code>shape</code> with an indexed shape, <code>has_child</code>/<code>has_parent</code>, <code>terms</code>-lookup form, <code>percolate</code>, <code>wrapper</code>. Embedded <code>script</code> or <code>indexed_shape</code> anywhere in the subtree is rejected. Depth and total-clause caps bound query cost.</p><p><b>Example</b> &mdash; full-text on the <code>title</code> column with a filter on <code>year</code>:</p><pre><code>\"query\": {\n  \"bool\": {\n    \"must\":   [ { \"match\":  { \"title\": \"amyloid\" } } ],\n    \"filter\": [ { \"range\":  { \"year\":  { \"gte\": 2010 } } } ]\n  }\n}</code></pre>"
 		},
-		"queryText": {
-			"type": "string",
-			"description": "The text to search for. Interpretation depends on queryType: SIMPLE_QUERY_STRING parses operators like +, -, |, \"...\", ~, *, (); MATCH / MULTI_MATCH analyze it into tokens and run each against the indexed tokens; MATCH_PHRASE treats it as an ordered phrase; PREFIX treats the final token as a prefix; WILDCARD treats * and ? as glob wildcards. Null or empty triggers MATCH_ALL."
+		"aggregations": {
+			"type": "object",
+			"description": "<p>Optional. An OpenSearch aggregations object &mdash; the contents of the <code>aggregations</code> (or <code>aggs</code>) key, a map of aggregation name to definition. Supports <code>terms</code> / <code>histogram</code> / <code>date_histogram</code> / <code>range</code> / <code>date_range</code> / <code>min</code> / <code>max</code> / <code>avg</code> / <code>sum</code> / <code>stats</code> / <code>extended_stats</code> / <code>value_count</code> / <code>cardinality</code> / <code>missing</code>, with nested sub-aggregations.</p><p><b>Disallowed</b>: scripted aggregations, pipeline aggregations, embedded <code>script</code>. Depth and per-request count caps bound cost.</p><p>Field references use column names. The raw aggregation result is returned as a JSON string on <code>SearchQueryResults.aggregationResults</code> with field references rewritten back to column names.</p><p><b>Example</b> &mdash; one terms-by-year bucket count plus a top average score:</p><pre><code>\"aggregations\": {\n  \"by_year\":   { \"terms\": { \"field\": \"year\" } },\n  \"avg_score\": { \"avg\":   { \"field\": \"score\" } }\n}</code></pre>"
 		},
-		"queryFields": {
+		"suggest": {
+			"type": "object",
+			"description": "<p>Optional. An OpenSearch suggesters object &mdash; the contents of the <code>suggest</code> key (a map of suggestion name to suggester definition, optionally alongside a top-level <code>text</code>). Returns query-assistance suggestions (did-you-mean / completion) as a JSON string in <code>SearchQueryResults.suggestResults</code>.</p><p><b>Allowlisted suggester types only</b>: <code>term</code>, <code>phrase</code>, <code>completion</code>. Other suggesters and any embedded <code>script</code> (e.g. a phrase <code>collate</code> script) are rejected.</p><p>Field references use column names; results come back with the field reference reported as the column name.</p><p><b>Example</b> &mdash; did-you-mean over the title column:</p><pre><code>\"suggest\": {\n  \"did_you_mean\": { \"text\": \"amiloid\", \"term\": { \"field\": \"title\" } }\n}</code></pre>"
+		},
+		"searchAfter": {
 			"type": "array",
-			"description": "Columns to search, with optional per-field boost using 'field^N' syntax (e.g. 'title^3' weighs title matches three times as much as unboosted fields). Empty or null means all indexed fields. Required for MATCH, MATCH_PHRASE, and WILDCARD (single field); optional for MULTI_MATCH and PREFIX (multi-field); ignored by SIMPLE_QUERY_STRING when empty (searches every indexed field).",
+			"description": "Opaque cursor for deep pagination. Pass back the <code>nextSearchAfter</code> value returned by the previous page to retrieve the next page; cursors are stable as long as the underlying sort is unchanged. Mutually exclusive with <code>offset</code> &mdash; when supplied, the server pins <code>from=0</code> and uses <code>search_after</code>. The cursor escapes the ~10,000-row offset window for browse / export.",
 			"items": {
-				"type": "string"
-			}
-		},
-		"termsFilters": {
-			"type": "array",
-			"description": "Multi-value IN-clause filters. Each entry restricts a column to a specified set of values; set 'not: true' on an entry to express NOT IN. Runs in non-scoring context against the column's keyword sub-field, so filter values must match stored tokens exactly (case-sensitive for text columns analyzed with lowercase filters — compare your values to what the analyzer produced).",
-			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.KeyValues"
-			}
-		},
-		"rangeFilters": {
-			"type": "array",
-			"description": "Inclusive range filters on numeric or date columns. Each entry restricts a column to min <= value <= max; either bound may be omitted for open-ended ranges. Values are strings and are parsed per the column type (integer, double, date). Runs in non-scoring context.",
-			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.KeyRange"
-			}
-		},
-		"existsFilters": {
-			"type": "array",
-			"description": "Column names that must have a non-null value in the matched documents. Useful for narrowing to rows that have been fully annotated. Runs in non-scoring context.",
-			"items": {
-				"type": "string"
-			}
-		},
-		"notExistsFilters": {
-			"type": "array",
-			"description": "Column names that must be null or missing in the matched documents. Inverse of existsFilters; useful for surfacing under-annotated rows. Runs in non-scoring context.",
-			"items": {
-				"type": "string"
-			}
-		},
-		"fuzziness": {
-			"type": "string",
-			"description": "Typo tolerance expressed as a Levenshtein edit distance. Accepted values: 'AUTO' (recommended — 0 edits for tokens <=2 chars, 1 edit for 3-5 chars, 2 edits for >=6 chars), '0' (disabled, exact), '1', '2'. Only meaningful for queryType=MATCH or MULTI_MATCH — OpenSearch silently ignores fuzziness on other query types. See SearchQueryType for the right alternative per type (e.g. per-term '~' syntax in queryText for SIMPLE_QUERY_STRING, or an edge-ngram analyzer for PREFIX autocomplete)."
-		},
-		"facetRequests": {
-			"type": "array",
-			"description": "Columns to aggregate as facet buckets alongside the primary hit results. Each entry produces one terms aggregation; use maxValueCount to cap the bucket count, and sortField/sortDirection to order buckets by count or by key. Returned in SearchQueryResults.facets only when the caller opts into the FACETS response part.",
-			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.FacetRequest"
+				"type": "object"
 			}
 		},
 		"returnFields": {
@@ -64,22 +29,18 @@
 		},
 		"sort": {
 			"type": "array",
-			"description": "Result ordering. Each entry specifies a column name (or the special '_score' pseudo-column, which sorts by relevance) and an ASC/DESC direction. When omitted, results are sorted by relevance descending (_score DESC). Sort columns must be stored as keyword or numeric sub-fields — for text columns this is handled automatically by routing through the keyword sub-field.",
+			"description": "Result ordering. Each entry specifies a column name (or the special '_score' pseudo-column, which sorts by relevance) and an ASC/DESC direction. When omitted, results are sorted by relevance descending (_score DESC). Sort columns must be stored as keyword or numeric sub-fields &mdash; for text columns this is handled automatically by routing through the keyword sub-field.",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.search.SortField"
 			}
 		},
-		"highlight": {
-			"type": "boolean",
-			"description": "When true, each hit's field list includes HTML-tagged excerpts showing where the query matched. Uses OpenSearch's default highlighter with <em> tags around matched terms. Default: false. Ignored by autocomplete endpoint."
-		},
 		"offset": {
 			"type": "integer",
-			"description": "Zero-based pagination offset into the hit list. Default: 0. For deep pagination (offset > ~10,000), prefer reshaping the query with filters and sort to narrow the result set rather than scrolling."
+			"description": "Zero-based pagination offset into the hit list. Default: 0. Maximum: ~10,000 (the OpenSearch <code>from</code> + <code>size</code> ceiling). For deeper pagination use <code>searchAfter</code>."
 		},
 		"limit": {
 			"type": "integer",
-			"description": "Maximum number of hits to return per page. Default: 25. Maximum: 100 (larger values are silently capped). Set to 0 in combination with FACETS-only response parts to retrieve only aggregate counts."
+			"description": "Maximum number of hits to return per page. Default: 25. Maximum: 100 (larger values are silently capped). Set to 0 in combination with FACETS-only response parts to retrieve only aggregation counts."
 		}
 	}
 }

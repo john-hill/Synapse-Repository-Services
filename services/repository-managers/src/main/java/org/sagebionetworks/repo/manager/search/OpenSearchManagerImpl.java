@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,28 +53,17 @@ import org.opensearch.client.opensearch.indices.AnalyzeRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
-import org.sagebionetworks.repo.model.search.FacetRequest;
-import org.sagebionetworks.repo.model.search.FacetSortField;
-import org.sagebionetworks.repo.model.search.KeyRange;
-import org.sagebionetworks.repo.model.search.KeyValues;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
-import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.SortDirection;
 import org.sagebionetworks.repo.model.search.SortField;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.repo.model.table.FacetColumnResult;
-import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
-import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
-import org.sagebionetworks.repo.model.table.FacetType;
-import org.sagebionetworks.table.cluster.ColumnTypeInfo;
-import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
@@ -81,7 +71,10 @@ import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * Wraps the OpenSearch Java client for all AOSS index lifecycle (create / delete /
@@ -1024,7 +1017,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
-		query.setQueryType(SearchQueryType.PREFIX);
+		// Autocomplete just clamps the page size — the caller chooses the prefix-style
+		// clause inside `query` (typically multi_match with type=bool_prefix or a prefix /
+		// match_phrase_prefix clause).
 		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
 			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
 		}
@@ -1035,15 +1030,16 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
+		ValidateArgument.requirement(query.getQuery() != null,
+				"SearchQuery.query is required (use {\"match_all\":{}} for a catalog-style browse)");
 
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
+		Map<String, String> idToName = columns.stream()
+				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 		Map<String, ColumnModel> columnMap = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
 
-		SearchQueryType queryType = query.getQueryType() != null ? query.getQueryType()
-				: SearchQueryType.SIMPLE_QUERY_STRING;
-		String queryText = query.getQueryText();
 		// SearchQuery.offset / .limit are Long; OpenSearch's `from` / `size` are int.
 		// Validate up-front instead of letting Long.intValue() silently wrap a value
 		// past Integer.MAX_VALUE into a negative int that AOSS interprets unpredictably.
@@ -1055,60 +1051,51 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		long limitLong = query.getLimit() != null ? query.getLimit() : DEFAULT_LIMIT;
 		ValidateArgument.requirement(limitLong >= 0L, "limit must be non-negative");
 		int limit = (int) Math.min(limitLong, MAX_LIMIT);
-		String fuzziness = query.getFuzziness();
 
-		if (queryText == null || queryText.trim().isEmpty()) {
-			queryType = SearchQueryType.MATCH_ALL;
-		}
+		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
+		// any future server-side filter clauses (e.g. row-level filters) can layer on
+		// without re-architecting. SearchIndex content is currently public so no filters
+		// are added today; the envelope is still here as a hook.
+		Query mainQuery = buildOpaqueQuery(query.getQuery(), nameToId);
+		BoolQuery.Builder boolBuilder = new BoolQuery.Builder().must(mainQuery);
 
-		final SearchQueryType finalQueryType = queryType;
-		final String finalQueryText = queryText;
-
-		List<String> resolvedQueryFields = resolveQueryFields(query.getQueryFields(), columns, true);
-
-		BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
-
-		Query mainQuery = buildMainQuery(finalQueryType, finalQueryText, resolvedQueryFields, fuzziness);
-		boolBuilder.must(mainQuery);
-
-		addFilters(boolBuilder, query, columnMap, nameToId);
-
-		// Skip aggregation construction entirely when the caller didn't ask for FACETS.
-		Map<String, Aggregation> aggregations = options.contains(SearchQueryPart.FACETS)
-				? buildAggregations(query.getFacetRequests(), columnMap, nameToId)
+		Map<String, Aggregation> aggregations = query.getAggregations() != null
+				? buildOpaqueAggregations(query.getAggregations(), nameToId)
 				: Collections.emptyMap();
 
-		Map<String, HighlightField> highlightFields = null;
-		if (options.contains(SearchQueryPart.HITS) && Boolean.TRUE.equals(query.getHighlight())) {
-			highlightFields = buildHighlightFields(columns);
-		}
+		org.opensearch.client.opensearch.core.search.Suggester suggester = query.getSuggest() != null
+				? buildOpaqueSuggest(query.getSuggest(), nameToId)
+				: null;
 
-		List<String> returnFields = query.getReturnFields();
+		List<String> returnFields = resolveReturnFieldsAsIds(query.getReturnFields(), nameToId);
 
 		List<SortOptions> sortOptions = options.contains(SearchQueryPart.HITS)
 				? buildSortOptions(query.getSort(), columnMap, nameToId)
 				: Collections.emptyList();
 
-		Map<String, String> idToName = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
+		List<FieldValue> searchAfter = parseSearchAfter(query.getSearchAfter());
 
 		return callSearchApi(indexName, boolBuilder, offset, limit, aggregations,
-				highlightFields, returnFields, sortOptions, idToName, options);
+				suggester, returnFields, sortOptions, idToName, options, searchAfter);
 	}
 
 	@SuppressWarnings("rawtypes")
 	SearchQueryResults callSearchApi(String indexName, BoolQuery.Builder boolBuilder,
 			int offset, int limit, Map<String, Aggregation> aggregations,
-			Map<String, HighlightField> highlightFields, List<String> returnFields,
-			List<SortOptions> sortOptions, Map<String, String> idToName,
-			Set<SearchQueryPart> options) {
+			org.opensearch.client.opensearch.core.search.Suggester suggester,
+			List<String> returnFields, List<SortOptions> sortOptions,
+			Map<String, String> idToName, Set<SearchQueryPart> options,
+			List<FieldValue> searchAfter) {
 		boolean returnHits = options.contains(SearchQueryPart.HITS);
 		boolean returnTotalHits = options.contains(SearchQueryPart.TOTAL_HITS);
+		boolean usingCursor = searchAfter != null && !searchAfter.isEmpty();
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
 				req.query(q -> q.bool(boolBuilder.build()));
-				req.from(offset);
+				// `from` and `searchAfter` are mutually exclusive; pin from=0 when a cursor is
+				// supplied so AOSS uses the cursor for pagination.
+				req.from(usingCursor ? 0 : offset);
 				// size=0 when hits aren't requested — saves source fetch + transport cost
 				req.size(returnHits ? limit : 0);
 				if (returnTotalHits) {
@@ -1121,16 +1108,20 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				if (!aggregations.isEmpty()) {
 					req.aggregations(aggregations);
 				}
-				// Highlights and source filters are meaningless without hits.
+				if (suggester != null) {
+					// Suggesters return their own response section, independent of hits.
+					req.suggest(suggester);
+				}
+				// Source filters and sort are meaningless without hits.
 				if (returnHits) {
-					if (highlightFields != null && !highlightFields.isEmpty()) {
-						req.highlight(h -> h.fields(highlightFields));
-					}
 					if (returnFields != null && !returnFields.isEmpty()) {
 						req.source(src -> src.filter(f -> f.includes(returnFields)));
 					}
 					if (!sortOptions.isEmpty()) {
 						req.sort(sortOptions);
+					}
+					if (usingCursor) {
+						req.searchAfter(searchAfter);
 					}
 				}
 
@@ -1149,222 +1140,86 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
-	Query buildMainQuery(SearchQueryType queryType, String queryText, List<String> fields, String fuzziness) {
-		switch (queryType) {
-			case SIMPLE_QUERY_STRING:
-				return Query.of(q -> q.simpleQueryString(sqs -> {
-					sqs.query(queryText);
-					if (fields != null && !fields.isEmpty()) {
-						sqs.fields(fields);
-					}
-					return sqs;
-				}));
-			case MATCH:
-				ValidateArgument.requiredNotEmpty(fields, "fields for MATCH query");
-				String matchField = stripBoost(fields.get(0));
-				return Query.of(q -> q.match(m -> {
-					m.field(matchField).query(FieldValue.of(queryText));
-					if (fuzziness != null) {
-						m.fuzziness(fuzziness);
-					}
-					return m;
-				}));
-			case MULTI_MATCH:
-				return Query.of(q -> q.multiMatch(mm -> {
-					mm.query(queryText);
-					if (fields != null && !fields.isEmpty()) {
-						mm.fields(fields);
-					}
-					if (fuzziness != null) {
-						mm.fuzziness(fuzziness);
-					}
-					return mm;
-				}));
-			case MATCH_PHRASE:
-				ValidateArgument.requiredNotEmpty(fields, "fields for MATCH_PHRASE query");
-				String phraseField = stripBoost(fields.get(0));
-				return Query.of(q -> q.matchPhrase(mp -> mp.field(phraseField).query(queryText)));
-			case PREFIX:
-				return Query.of(q -> q.multiMatch(mm -> {
-					mm.query(queryText);
-					mm.type(TextQueryType.BoolPrefix);
-					if (fields != null && !fields.isEmpty()) {
-						mm.fields(fields);
-					}
-					return mm;
-				}));
-			case WILDCARD:
-				ValidateArgument.requiredNotEmpty(fields, "fields for WILDCARD query");
-				String wildcardField = stripBoost(fields.get(0));
-				return Query.of(q -> q.wildcard(w -> w.field(wildcardField).value(queryText)));
-			case MATCH_ALL:
-				return Query.of(q -> q.matchAll(m -> m));
-			default:
-				throw new IllegalArgumentException("Unsupported query type: " + queryType);
-		}
-	}
-
-	private void addFilters(BoolQuery.Builder boolBuilder, SearchQuery query,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		addTermsFilters(boolBuilder, query.getTermsFilters(), columnMap, nameToId);
-		addRangeFilters(boolBuilder, query.getRangeFilters(), columnMap, nameToId);
-		addExistsFilters(boolBuilder, query.getExistsFilters(), nameToId, false);
-		addExistsFilters(boolBuilder, query.getNotExistsFilters(), nameToId, true);
-	}
-
-	private void addTermsFilters(BoolQuery.Builder boolBuilder, List<KeyValues> termsFilters,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (termsFilters == null) {
-			return;
-		}
-		for (KeyValues kvs : termsFilters) {
-			String columnId = nameToId.getOrDefault(kvs.getKey(), kvs.getKey());
-			ColumnModel column = columnMap.get(columnId);
-			String fieldName = getFilterFieldName(columnId, columnMap);
-			List<FieldValue> fieldValues = kvs.getValues().stream()
-					.map(v -> toTermsFilterValue(v, column))
-					.collect(Collectors.toList());
-			Query termsQuery = Query.of(q -> q.terms(t -> t
-					.field(fieldName)
-					.terms(tv -> tv.value(fieldValues))));
-			if (Boolean.TRUE.equals(kvs.getNot())) {
-				boolBuilder.mustNot(termsQuery);
-			} else {
-				boolBuilder.filter(termsQuery);
-			}
-		}
+	/**
+	 * Convert a caller-supplied opaque OpenSearch query DSL into a typed {@link Query}.
+	 * Steps: parse the JSON shape into a {@link JsonNode} via SearchOpaqueJsonUtil, run
+	 * the allowlist (rejecting scripts / cross-index reach / depth-cap exceeded with
+	 * HTTP 400), rewrite every column-name field reference to its column id, then
+	 * deserialize the cleared subtree through OpenSearch's typed {@code Query} deserializer.
+	 */
+	Query buildOpaqueQuery(Object opaqueQueryDsl, Map<String, String> nameToId) {
+		JsonNode dsl = SearchOpaqueJsonUtil.parse(opaqueQueryDsl);
+		SearchQueryDslAllowlist.validate(dsl);
+		SearchFieldRewriter.rewriteQuery(dsl, name -> nameToId.getOrDefault(name, name));
+		return SearchOpaqueJsonUtil.fromJsonpTree(dsl, Query._DESERIALIZER);
 	}
 
 	/**
-	 * Wrap a terms-filter string in the typed {@link FieldValue} variant matching the
-	 * column's scalar type. Each element of a {@code _LIST} column carries the list's
-	 * non-list type, so single-value matches against the list field hit AOSS's term
-	 * dictionary in the same shape the indexer wrote (long, double, boolean) instead
-	 * of relying on AOSS's string→number coercion.
+	 * Convert a caller-supplied opaque OpenSearch aggregations object into a typed
+	 * map of aggregation name to typed {@link Aggregation}, after allowlist validation
+	 * and column-name → column-id rewriting.
 	 */
-	static FieldValue toTermsFilterValue(String raw, ColumnModel column) {
-		if (column == null) {
-			return FieldValue.of(raw);
+	Map<String, Aggregation> buildOpaqueAggregations(Object opaqueAggsDsl, Map<String, String> nameToId) {
+		JsonNode dsl = SearchOpaqueJsonUtil.parse(opaqueAggsDsl);
+		SearchAggregationDslAllowlist.validate(dsl);
+		SearchFieldRewriter.rewriteAggregations(dsl, name -> nameToId.getOrDefault(name, name));
+		Map<String, Aggregation> result = new HashMap<>();
+		Iterator<Map.Entry<String, JsonNode>> entries = dsl.fields();
+		while (entries.hasNext()) {
+			Map.Entry<String, JsonNode> entry = entries.next();
+			result.put(entry.getKey(),
+					SearchOpaqueJsonUtil.fromJsonpTree(entry.getValue(), Aggregation._DESERIALIZER));
 		}
-		ColumnType scalarType = ColumnTypeListMappings.isList(column.getColumnType())
-				? ColumnTypeListMappings.nonListType(column.getColumnType())
-				: column.getColumnType();
-		Object parsed = ColumnTypeInfo.getInfoForType(scalarType).parseValueForDatabaseWrite(raw);
-		if (parsed instanceof Long) {
-			return FieldValue.of((Long) parsed);
-		}
-		if (parsed instanceof Double) {
-			return FieldValue.of((Double) parsed);
-		}
-		if (parsed instanceof Boolean) {
-			return FieldValue.of((Boolean) parsed);
-		}
-		return FieldValue.of(String.valueOf(parsed));
-	}
-
-	private void addRangeFilters(BoolQuery.Builder boolBuilder, List<KeyRange> rangeFilters,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (rangeFilters == null) {
-			return;
-		}
-		for (KeyRange kr : rangeFilters) {
-			String columnId = nameToId.getOrDefault(kr.getKey(), kr.getKey());
-			ColumnModel column = columnMap.get(columnId);
-			String fieldName = getFilterFieldName(columnId, columnMap);
-			Query rangeQuery = Query.of(q -> q.range(r -> {
-				r.field(fieldName);
-				if (kr.getMin() != null) {
-					r.gte(toRangeBound(kr.getMin(), column));
-				}
-				if (kr.getMax() != null) {
-					r.lte(toRangeBound(kr.getMax(), column));
-				}
-				return r;
-			}));
-			boolBuilder.filter(rangeQuery);
-		}
+		return result;
 	}
 
 	/**
-	 * Parse a range bound string into a typed {@link JsonData} matching the column's
-	 * scalar type. KeyRange values arrive as strings per the schema, but a numeric
-	 * column wants a JSON number on the wire (otherwise OpenSearch may fall back to
-	 * lexicographic comparison on a keyword field, e.g. "10" &lt; "9"). Delegates to
-	 * the same {@link ColumnTypeInfo} parser the table API uses, which handles all
-	 * three accepted DATE wire formats (epoch-ms, SQL date, ISO-8601). Unknown columns
-	 * fall through as raw strings so the existing relaxed-name behavior is preserved.
+	 * Convert a caller-supplied opaque suggesters object into a typed
+	 * {@link org.opensearch.client.opensearch.core.search.Suggester}, after allowlist
+	 * validation and column-name → column-id rewriting.
 	 */
-	static JsonData toRangeBound(String raw, ColumnModel column) {
-		if (column == null) {
-			return JsonData.of(raw);
-		}
-		ColumnType scalarType = ColumnTypeListMappings.isList(column.getColumnType())
-				? ColumnTypeListMappings.nonListType(column.getColumnType())
-				: column.getColumnType();
-		Object parsed = ColumnTypeInfo.getInfoForType(scalarType).parseValueForDatabaseWrite(raw);
-		return JsonData.of(parsed);
+	org.opensearch.client.opensearch.core.search.Suggester buildOpaqueSuggest(Object opaqueSuggestDsl,
+			Map<String, String> nameToId) {
+		JsonNode dsl = SearchOpaqueJsonUtil.parse(opaqueSuggestDsl);
+		SearchSuggestDslAllowlist.validate(dsl);
+		SearchFieldRewriter.rewriteSuggest(dsl, name -> nameToId.getOrDefault(name, name));
+		return SearchOpaqueJsonUtil.fromJsonpTree(dsl,
+				org.opensearch.client.opensearch.core.search.Suggester._DESERIALIZER);
 	}
 
-	// Package-private for branch-coverage tests.
-	void addExistsFilters(BoolQuery.Builder boolBuilder, List<String> fields,
-			Map<String, String> nameToId, boolean negate) {
-		if (fields == null) {
-			return;
+	/**
+	 * Translate a list of caller-supplied user-facing column names to their column ids
+	 * for the OpenSearch {@code _source.includes} filter. Unknown names pass through
+	 * unchanged (the existing relaxed-name behavior).
+	 */
+	private static List<String> resolveReturnFieldsAsIds(List<String> returnFields,
+			Map<String, String> nameToId) {
+		if (returnFields == null || returnFields.isEmpty()) {
+			return null;
 		}
-		for (String fieldName : fields) {
-			String fieldId = nameToId.getOrDefault(fieldName, fieldName);
-			Query existsQuery = Query.of(q -> q.exists(e -> e.field(fieldId)));
-			if (negate) {
-				boolBuilder.mustNot(existsQuery);
-			} else {
-				boolBuilder.filter(existsQuery);
-			}
+		List<String> resolved = new ArrayList<>(returnFields.size());
+		for (String name : returnFields) {
+			resolved.add(nameToId.getOrDefault(name, name));
 		}
+		return resolved;
 	}
 
-	Map<String, Aggregation> buildAggregations(List<FacetRequest> facetRequests,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (facetRequests == null || facetRequests.isEmpty()) {
-			return Collections.emptyMap();
+	/**
+	 * Parse an opaque {@code searchAfter} cursor (a list of JSON-typed sort values, the
+	 * same shape we emit on {@code nextSearchAfter}) into the typed
+	 * {@link FieldValue} list OpenSearch expects. Returns {@code null} when no cursor was
+	 * supplied so the caller can branch on the cursor presence.
+	 */
+	private static List<FieldValue> parseSearchAfter(List<Object> searchAfter) {
+		if (searchAfter == null || searchAfter.isEmpty()) {
+			return null;
 		}
-
-		Map<String, Aggregation> aggregations = new HashMap<>();
-		for (FacetRequest facet : facetRequests) {
-			String columnId = nameToId.getOrDefault(facet.getColumnName(), facet.getColumnName());
-			ColumnModel column = columnMap.get(columnId);
-			// JSON columns are mapped as `object`/`dynamic`, not as a leaf doc-values field, so
-			// a `terms` aggregation against them silently returns zero buckets. Reject up-front
-			// rather than handing the caller an empty facet result they can't explain.
-			ValidateArgument.requirement(
-					column == null || !ColumnTypeToOpenSearchMapping.isJsonType(column.getColumnType()),
-					"Cannot facet on JSON column: " + facet.getColumnName());
-			String fieldName = getFilterFieldName(columnId, columnMap);
-			int maxValues = facet.getMaxValueCount() != null ? facet.getMaxValueCount().intValue() : DEFAULT_FACET_SIZE;
-
-			String sortField = facet.getSortField() == FacetSortField.KEY ? "_key" : "_count";
-			SortOrder sortOrder = (facet.getSortDirection() != null && facet.getSortDirection() == SortDirection.ASC)
-					? SortOrder.Asc : SortOrder.Desc;
-			final String finalSortField = sortField;
-			final SortOrder finalSortOrder = sortOrder;
-
-			aggregations.put(columnId, Aggregation.of(a -> a
-					.terms(t -> t.field(fieldName).size(maxValues)
-							.order(List.of(Map.of(finalSortField, finalSortOrder))))));
+		List<FieldValue> values = new ArrayList<>(searchAfter.size());
+		for (Object element : searchAfter) {
+			JsonNode node = SearchOpaqueJsonUtil.parse(element);
+			values.add(SearchOpaqueJsonUtil.fromJsonpTree(node, FieldValue._DESERIALIZER));
 		}
-		return aggregations;
-	}
-
-	Map<String, HighlightField> buildHighlightFields(List<ColumnModel> columns) {
-		Map<String, HighlightField> highlightFields = new HashMap<>();
-		for (ColumnModel column : columns) {
-			String columnId = column.getId();
-			ColumnType colType = column.getColumnType();
-			if (!ColumnTypeToOpenSearchMapping.isTextType(colType) && !ColumnTypeToOpenSearchMapping.isLinkType(colType)) {
-				continue;
-			}
-			highlightFields.put(columnId, HighlightField.of(h -> h));
-		}
-		return highlightFields;
+		return values;
 	}
 
 	List<SortOptions> buildSortOptions(List<SortField> sortFields,
@@ -1406,41 +1261,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return columnId;
 	}
 
-	String getSearchFieldName(String columnId) {
-		// Search-path fields use the main analyzed field for TEXT/LINK; the `.keyword`
-		// sub-field is only consulted by filter / sort code paths above.
-		return columnId;
-	}
-
-	List<String> resolveQueryFields(List<String> queryFields, List<ColumnModel> columns,
-			boolean forSearch) {
-		if (queryFields == null || queryFields.isEmpty()) {
-			return null;
-		}
-
-		Map<String, ColumnModel> columnMap = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
-		Map<String, String> nameToIdLocal = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-
-		return queryFields.stream()
-				.map(field -> {
-					String boost = null;
-					String fieldName = field;
-					int caretIndex = field.indexOf('^');
-					if (caretIndex > 0) {
-						fieldName = field.substring(0, caretIndex);
-						boost = field.substring(caretIndex);
-					}
-					String columnId = nameToIdLocal.getOrDefault(fieldName, fieldName);
-					String resolved = forSearch
-							? getSearchFieldName(columnId)
-							: getFilterFieldName(columnId, columnMap);
-					return boost != null ? resolved + boost : resolved;
-				})
-				.collect(Collectors.toList());
-	}
-
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	SearchQueryResults convertResponse(SearchResponse<Map> response, String indexName, int offset,
 			Map<String, String> idToName, Set<SearchQueryPart> options) {
@@ -1451,21 +1271,81 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			results.setTotalHits(response.hits().total() != null ? response.hits().total().value() : 0L);
 		}
 
+		List<Hit<Map>> hits = response.hits().hits();
 		if (options.contains(SearchQueryPart.HITS)) {
-			List<SearchHit> hits = new ArrayList<>();
-			for (Hit<Map> hit : response.hits().hits()) {
-				hits.add(convertHit(hit, idToName));
+			List<SearchHit> converted = new ArrayList<>();
+			for (Hit<Map> hit : hits) {
+				converted.add(convertHit(hit, idToName));
 			}
-			results.setHits(hits);
+			results.setHits(converted);
 		}
 
-		if (options.contains(SearchQueryPart.FACETS)
-				&& response.aggregations() != null && !response.aggregations().isEmpty()) {
-			results.setFacets(convertAggregations(response.aggregations(), idToName));
+		// Aggregations: serialize the raw response block to JSON, rewrite column-id field
+		// references back to column names, and surface as the opaque aggregationResults
+		// string. Always populate when the response carried aggregations (the request
+		// already gated whether to ask for them).
+		if (response.aggregations() != null && !response.aggregations().isEmpty()) {
+			results.setAggregationResults(serializeAggregations(response.aggregations(), idToName));
+		}
+
+		// Suggest: same shape, opaque JSON string with column ids rewritten back.
+		if (response.suggest() != null && !response.suggest().isEmpty()) {
+			results.setSuggestResults(serializeSuggest(response.suggest(), idToName));
+		}
+
+		// Pagination cursor: when hits are requested and the page is full, emit the last
+		// hit's sort values as the next-page cursor; null when the page is short or empty.
+		if (options.contains(SearchQueryPart.HITS) && hits != null && !hits.isEmpty()) {
+			Hit<Map> last = hits.get(hits.size() - 1);
+			List<FieldValue> sortValues = last.sort();
+			if (sortValues != null && !sortValues.isEmpty()) {
+				List<Object> cursor = new ArrayList<>(sortValues.size());
+				for (FieldValue value : sortValues) {
+					JsonNode tree = SearchOpaqueJsonUtil.toJsonpTree(value);
+					cursor.add(SearchOpaqueJsonUtil.fromJsonString(tree.toString()));
+				}
+				results.setNextSearchAfter(cursor);
+			}
 		}
 
 		return results;
 	}
+
+	/**
+	 * Serialize the typed aggregation response into the opaque JSON string returned as
+	 * {@code aggregationResults}, with column ids rewritten back to column names so the
+	 * caller sees the schema they queried with.
+	 */
+	@SuppressWarnings("rawtypes")
+	String serializeAggregations(Map<String, Aggregate> aggregations, Map<String, String> idToName) {
+		ObjectNode root = JSON_MAPPER.createObjectNode();
+		for (Map.Entry<String, Aggregate> entry : aggregations.entrySet()) {
+			root.set(entry.getKey(), SearchOpaqueJsonUtil.toJsonpTree(entry.getValue()));
+		}
+		SearchFieldRewriter.rewriteAggregationResults(root, id -> idToName.getOrDefault(id, id));
+		return root.toString();
+	}
+
+	/**
+	 * Serialize the typed suggest response into the opaque JSON string returned as
+	 * {@code suggestResults}: a map of suggestion name to its list of options.
+	 */
+	@SuppressWarnings("rawtypes")
+	String serializeSuggest(Map<String, List<org.opensearch.client.opensearch.core.search.Suggest<Map>>> suggest,
+			Map<String, String> idToName) {
+		ObjectNode root = JSON_MAPPER.createObjectNode();
+		for (Map.Entry<String, List<org.opensearch.client.opensearch.core.search.Suggest<Map>>> entry : suggest.entrySet()) {
+			ArrayNode array = JSON_MAPPER.createArrayNode();
+			for (org.opensearch.client.opensearch.core.search.Suggest<Map> suggestion : entry.getValue()) {
+				array.add(SearchOpaqueJsonUtil.toJsonpTree(suggestion));
+			}
+			root.set(entry.getKey(), array);
+		}
+		SearchFieldRewriter.rewriteSuggestResults(root, id -> idToName.getOrDefault(id, id));
+		return root.toString();
+	}
+
+	private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	SearchHit convertHit(Hit<Map> hit, Map<String, String> idToName) {
@@ -1487,10 +1367,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					})
 					.collect(Collectors.toList());
 			searchHit.setFields(fields);
-		}
-
-		if (hit.highlight() != null && !hit.highlight().isEmpty()) {
-			searchHit.setHighlights(convertHighlights(hit.highlight(), idToName));
 		}
 
 		return searchHit;
@@ -1522,75 +1398,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 		}
 		return String.valueOf(value);
-	}
-
-	List<SearchFieldValue> convertHighlights(Map<String, List<String>> highlightMap,
-			Map<String, String> idToName) {
-		List<SearchFieldValue> highlights = new ArrayList<>();
-		for (Map.Entry<String, List<String>> entry : highlightMap.entrySet()) {
-			String fieldName = idToName.getOrDefault(entry.getKey(), entry.getKey());
-			SearchFieldValue hv = new SearchFieldValue();
-			hv.setName(fieldName);
-			hv.setValue(String.join(" ... ", entry.getValue()));
-			highlights.add(hv);
-		}
-		return highlights;
-	}
-
-	List<FacetColumnResult> convertAggregations(Map<String, Aggregate> aggregations,
-			Map<String, String> idToName) {
-		List<FacetColumnResult> facets = new ArrayList<>();
-		for (Map.Entry<String, Aggregate> entry : aggregations.entrySet()) {
-			String columnName = idToName.getOrDefault(entry.getKey(), entry.getKey());
-			Aggregate aggregate = entry.getValue();
-
-			if (aggregate.isSterms()) {
-				List<FacetColumnResultValueCount> valueCounts = aggregate.sterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(bucket.key(), bucket.docCount()))
-						.collect(Collectors.toList());
-				facets.add(buildFacetResult(columnName, valueCounts));
-			} else if (aggregate.isLterms()) {
-				List<FacetColumnResultValueCount> valueCounts = aggregate.lterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(
-								longBucketKeyToString(bucket.keyAsString(), bucket.key()), bucket.docCount()))
-						.collect(Collectors.toList());
-				facets.add(buildFacetResult(columnName, valueCounts));
-			} else if (aggregate.isDterms()) {
-				List<FacetColumnResultValueCount> valueCounts = aggregate.dterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(String.valueOf(bucket.key()), bucket.docCount()))
-						.collect(Collectors.toList());
-				facets.add(buildFacetResult(columnName, valueCounts));
-			}
-		}
-		return facets;
-	}
-
-	FacetColumnResultValues buildFacetResult(String columnName, List<FacetColumnResultValueCount> valueCounts) {
-		FacetColumnResultValues result = new FacetColumnResultValues();
-		result.setColumnName(columnName);
-		result.setFacetType(FacetType.enumeration);
-		result.setFacetValues(valueCounts);
-		return result;
-	}
-
-	FacetColumnResultValueCount buildFacetValueCount(String key, long docCount) {
-		FacetColumnResultValueCount vc = new FacetColumnResultValueCount();
-		vc.setValue(key);
-		vc.setCount(docCount);
-		vc.setIsSelected(false);
-		return vc;
-	}
-
-	// LongTermsBucket.keyAsString() is populated for fields with an implicit format
-	// (BOOLEAN → "true"/"false", date → ISO string) but is null for plain LONG fields
-	// because we don't set an explicit `format` on the terms aggregation. Prefer it
-	// when present so booleans render as "true"/"false" rather than "1"/"0", and fall
-	// back to the typed key for the LONG case.
-	static String longBucketKeyToString(String keyAsString, LongTermsBucketKey key) {
-		if (keyAsString != null) {
-			return keyAsString;
-		}
-		return key.isSigned() ? String.valueOf(key.signed()) : key.unsigned();
 	}
 
 	/**
@@ -1692,11 +1499,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 		}
 		return map;
-	}
-
-	String stripBoost(String fieldSpec) {
-		int caretIndex = fieldSpec.indexOf('^');
-		return caretIndex > 0 ? fieldSpec.substring(0, caretIndex) : fieldSpec;
 	}
 
 	Long toLong(Object value) {

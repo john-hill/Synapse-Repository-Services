@@ -31,11 +31,22 @@
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>lib-models</artifactId>
 		</dependency>
+		<!--
+		    Marked `optional` so the maven-shade-plugin still bundles the DocuSign
+		    classes into this module's output JAR (with org/json/** stripped — see
+		    the build section), but Maven does not propagate the original DocuSign
+		    artifact as a transitive dependency to downstream modules. Without this,
+		    multi-module reactor builds resolve lib-docusign via its original pom
+		    (not the dependency-reduced pom), which would put the un-stripped
+		    DocuSign shaded jar back on the downstream classpath and reintroduce
+		    the org.json conflict with Synapse's `org.json:JSON-Java`.
+		-->
 		<dependency>
 			<groupId>com.docusign</groupId>
 			<artifactId>docusign-esign-java</artifactId>
 			<version>6.2.0</version>
 			<classifier>shaded</classifier>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -90,4 +101,47 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+			<!--
+			    The DocuSign "shaded" artifact bundles its own copy of common libraries.
+			    Most of those (Jackson, Jersey w/ jakarta APIs, Bouncycastle, etc.) live
+			    in package namespaces that do not collide with Synapse's classpath, but
+			    `org/json/**` does — and the version DocuSign bundles rejects the
+			    Boolean→String coercion that Synapse's existing OAuth2 parsing relies on.
+			    DocuSign's own source has no `import org.json` statements, so we can
+			    safely strip those classes from the artifact when packaging this module.
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>3.5.0</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<createDependencyReducedPom>true</createDependencyReducedPom>
+							<artifactSet>
+								<includes>
+									<include>com.docusign:docusign-esign-java</include>
+								</includes>
+							</artifactSet>
+							<filters>
+								<filter>
+									<artifact>com.docusign:docusign-esign-java</artifact>
+									<excludes>
+										<exclude>org/json/**</exclude>
+									</excludes>
+								</filter>
+							</filters>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

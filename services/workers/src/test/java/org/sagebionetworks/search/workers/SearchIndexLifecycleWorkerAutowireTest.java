@@ -32,7 +32,6 @@ import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
-import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
@@ -168,9 +167,9 @@ public class SearchIndexLifecycleWorkerAutowireTest {
 
         SearchIndexQuery query = new SearchIndexQuery();
         query.setSearchIndexId(searchIndex.getId());
-        // Opaque match_all clause — required since query.query was made non-null.
-        query.setSearchQuery(new SearchQuery()
-                .setQuery(java.util.Map.of("match_all", Collections.emptyMap())));
+        // Opaque match_all clause — required since body.query is required.
+        query.setSearchQuery(java.util.Map.of("query",
+                java.util.Map.of("match_all", Collections.emptyMap())));
         query.setResponseParts(EnumSet.of(
                 SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 

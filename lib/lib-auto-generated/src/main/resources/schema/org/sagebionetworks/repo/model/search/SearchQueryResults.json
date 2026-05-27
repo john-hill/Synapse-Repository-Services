@@ -19,22 +19,22 @@
 		},
 		"selectColumns": {
 			"type": "array",
-			"description": "The columns represented in each hit's fields, in SELECT-clause order. Populated when SearchQueryPart.SELECT_COLUMNS is requested. When SearchQuery.returnFields is non-empty, this is the subset of columns matching those names.",
+			"description": "The columns represented in each hit's fields, in SELECT-clause order. Populated when SearchQueryPart.SELECT_COLUMNS is requested. When <code>body._source.includes</code> is non-empty, this is the subset of columns matching those names.",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.table.SelectColumn"
 			}
 		},
 		"aggregationResults": {
-			"type": "string",
-			"description": "The raw OpenSearch aggregations response as a JSON string &mdash; the contents of the <code>aggregations</code> key returned by AOSS, with field references rewritten back to column names. Populated when SearchQuery.aggregations was supplied. Returned as an opaque JSON string because the OpenSearch DSL produces a wide variety of bucket shapes (per-aggregation-type and per-sub-aggregation); typing each shape would re-introduce the structured-to-DSL translation layer this surface replaces."
+			"type": "object",
+			"description": "The raw OpenSearch aggregations response &mdash; the contents of the <code>aggregations</code> key returned by AOSS, with field references rewritten back to column names. Populated when <code>body.aggregations</code> (or <code>body.aggs</code>) was supplied. Returned as an opaque JSON object because the OpenSearch DSL produces a wide variety of bucket shapes per aggregation type and per sub-aggregation."
 		},
 		"suggestResults": {
-			"type": "string",
-			"description": "The raw OpenSearch suggester response as a JSON string &mdash; the contents of the <code>suggest</code> key returned by AOSS, with field references rewritten back to column names. Populated when SearchQuery.suggest was supplied."
+			"type": "object",
+			"description": "The raw OpenSearch suggester response &mdash; the contents of the <code>suggest</code> key returned by AOSS, with field references rewritten back to column names. Populated when <code>body.suggest</code> was supplied."
 		},
 		"nextSearchAfter": {
 			"type": "array",
-			"description": "Opaque cursor for the next page when the request used <code>searchAfter</code> (or asked for hits with a sort that produced a full page). Pass back unchanged on the next request as <code>SearchQuery.searchAfter</code>. Null when there are no further pages.",
+			"description": "Opaque cursor for the next page. Populated whenever the response carries hits and the underlying sort yielded sort values for the last hit. Pass back unchanged on the next request as <code>body.search_after</code>. Null when there are no further pages.",
 			"items": {
 				"type": "object"
 			}

@@ -1,9 +1,13 @@
 package org.sagebionetworks.repo.manager.search;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,322 +15,407 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 /**
- * In-place column-name → column-id rewriter for caller-supplied opaque OpenSearch DSL
- * payloads. The structured query surface used to do this with typed traversals; with the
- * DSL-pass-through query API, the same translation has to happen on the {@link JsonNode}
- * tree before the body is deserialized into OpenSearch's typed model.
- *
- * <p>Three kinds of payloads are rewritten by separate entry points so each can target the
- * field-bearing keys for its own DSL. The traversal is allowlist-driven (it only ever
- * descends into clauses the corresponding {@code *DslAllowlist} would have admitted) so
- * unfamiliar keys are left alone rather than silently rewritten.</p>
- *
+ * Column-name &harr; column-id rewriter for the opaque OpenSearch DSL JSON envelopes Synapse
+ * carries on its search APIs. Operates on a Jackson tree in both directions:
  * <ul>
- *   <li>{@link #rewriteQuery(JsonNode, java.util.function.Function)} — the contents of the
- *       OpenSearch <code>query</code> key (a single clause object).</li>
- *   <li>{@link #rewriteAggregations(JsonNode, java.util.function.Function)} — a map of
- *       aggregation name to definition.</li>
- *   <li>{@link #rewriteSuggest(JsonNode, java.util.function.Function)} — a map of suggest
- *       name to suggester definition (plus an optional top-level <code>text</code>).</li>
+ *   <li>Request side: {@link #rewriteRequestFields(JsonNode, RoutingContext, Surface)} mutates
+ *       an inbound {@code query} / {@code aggregations} / {@code suggest} tree, rewriting
+ *       caller column names to column ids and routing text-typed columns through their
+ *       {@code .keyword} sub-field on operations that need it (term-family, range,
+ *       aggregations, sort-equivalent clauses).</li>
+ *   <li>Response side: {@link #rewriteAggregationResults} and {@link #rewriteSuggestResults}
+ *       walk the AOSS response envelope, rewrite embedded column ids back to column names,
+ *       and strip the {@code .keyword} suffix so the caller sees their original bare column
+ *       name even when the server auto-routed.</li>
  * </ul>
  *
- * <p>Each entry point also has an inverse — {@link #rewriteAggregationResults(JsonNode, java.util.function.Function)}
- * and {@link #rewriteSuggestResults(JsonNode, java.util.function.Function)} — for rewriting
- * column ids back to column names on the response side. The inverse traversals walk the
- * shape AOSS produces (aggregation results carry the agg name keyed by the caller, but the
- * field references need rewriting where they appear).</p>
+ * <p>Both directions assume {@code "field"} string values and {@code "fields"} string-array
+ * values are column references. The OpenSearch DSL areas where {@code "field"} is not a
+ * column reference (script bodies, runtime mappings, geo-shape {@code indexed_shape}, ...)
+ * are rejected upstream by {@link SearchDslValidator}'s forbidden-key scan, so the rewriter
+ * never sees them.</p>
+ *
+ * <p><b>Auto-routing.</b> Text-typed columns (STRING, STRING_LIST, MEDIUMTEXT, LARGETEXT,
+ * LINK) are dual-mapped in the index as a tokenized text field under the bare column name
+ * and a raw keyword field under {@code {column}.keyword}. Operations that require doc values
+ * (aggregations, sort) or exact match against the original value (term / terms / prefix /
+ * wildcard / fuzzy / range / match_phrase_prefix) need the {@code .keyword} sub-field; the
+ * relevance-scored match-family clauses use the bare tokenized field. The routing is
+ * decided per clause kind via the static maps below and applied in
+ * {@link #rewriteFieldRef(String, RoutingContext, RoutingMode)}. Callers who supply
+ * {@code .keyword} explicitly are unaffected &mdash; the suffix is detected and preserved.</p>
  */
 final class SearchFieldRewriter {
+
+	/** Caller's clause kind for routing. {@code KEYWORD_FOR_TEXT} forces {@code .keyword} on
+	 * text/link columns; {@code BARE} leaves the reference alone. */
+	enum RoutingMode {
+		BARE,
+		KEYWORD_FOR_TEXT
+	}
+
+	/** Which top-level surface the walker is operating on; selects the per-surface kind map. */
+	enum Surface {
+		QUERY,
+		AGGREGATIONS,
+		SUGGESTER,
+		HIGHLIGHT,
+		COLLAPSE
+	}
+
+	// ---------- sort and _source surfaces (top-level body keys) ----------
+
+	/**
+	 * Rewrite a {@code sort} subtree in place: caller column names &rarr; column ids, with
+	 * {@code .keyword} auto-routing for text-typed columns (sort needs doc values).
+	 *
+	 * <p>Accepted OpenSearch sort shapes:</p>
+	 * <ul>
+	 *   <li>A string &mdash; the column name (or {@code _score}).</li>
+	 *   <li>An object whose only key is the column name, value is {@code "asc"} / {@code "desc"}
+	 *       or a sort options object.</li>
+	 *   <li>An array of any of the above.</li>
+	 * </ul>
+	 *
+	 * <p>The pseudo-column {@code _score} passes through unchanged. Unknown column names pass
+	 * through unchanged so AOSS surfaces the typo.</p>
+	 */
+	static void rewriteSortFields(JsonNode node, RoutingContext ctx) {
+		if (node == null) {
+			return;
+		}
+		if (node.isArray()) {
+			ArrayNode array = (ArrayNode) node;
+			for (int i = 0; i < array.size(); i++) {
+				JsonNode element = array.get(i);
+				if (element.isTextual()) {
+					String original = element.asText();
+					if (!"_score".equals(original)) {
+						array.set(i, new TextNode(rewriteFieldRef(original, ctx, RoutingMode.KEYWORD_FOR_TEXT)));
+					}
+				} else if (element.isObject()) {
+					rewriteSortObjectKeys((ObjectNode) element, ctx);
+				}
+			}
+		} else if (node.isObject()) {
+			rewriteSortObjectKeys((ObjectNode) node, ctx);
+		} else if (node.isTextual()) {
+			// A bare string sort value at the top level can't be replaced via JsonNode mutation;
+			// the caller (SearchOpaqueJsonUtil) handles the singleton-string case before calling
+			// this method.
+		}
+	}
+
+	private static void rewriteSortObjectKeys(ObjectNode obj, RoutingContext ctx) {
+		List<String> originalKeys = new ArrayList<>();
+		Iterator<String> names = obj.fieldNames();
+		while (names.hasNext()) {
+			originalKeys.add(names.next());
+		}
+		for (String key : originalKeys) {
+			if ("_score".equals(key)) {
+				continue;
+			}
+			String rewritten = rewriteFieldRef(key, ctx, RoutingMode.KEYWORD_FOR_TEXT);
+			if (!key.equals(rewritten)) {
+				JsonNode value = obj.get(key);
+				obj.remove(key);
+				obj.set(rewritten, value);
+			}
+		}
+	}
+
+	/**
+	 * Rewrite a {@code _source} subtree in place: caller column names &rarr; column ids on
+	 * the {@code includes} / {@code excludes} arrays (or the top-level array shorthand).
+	 * Boolean-shape source filters and unknown names pass through unchanged.
+	 *
+	 * <p>Routing is {@link RoutingMode#BARE} &mdash; {@code _source} reads the document body's
+	 * stored fields, not the doc-values keyword side.</p>
+	 */
+	static void rewriteSourceFields(JsonNode node, RoutingContext ctx) {
+		if (node == null) {
+			return;
+		}
+		if (node.isArray()) {
+			rewriteSourceArrayInPlace((ArrayNode) node, ctx);
+		} else if (node.isObject()) {
+			ObjectNode obj = (ObjectNode) node;
+			JsonNode includes = obj.get("includes");
+			if (includes != null && includes.isArray()) {
+				rewriteSourceArrayInPlace((ArrayNode) includes, ctx);
+			}
+			JsonNode excludes = obj.get("excludes");
+			if (excludes != null && excludes.isArray()) {
+				rewriteSourceArrayInPlace((ArrayNode) excludes, ctx);
+			}
+		}
+	}
+
+	private static void rewriteSourceArrayInPlace(ArrayNode array, RoutingContext ctx) {
+		for (int i = 0; i < array.size(); i++) {
+			JsonNode element = array.get(i);
+			if (element.isTextual()) {
+				array.set(i, new TextNode(rewriteFieldRef(element.asText(), ctx, RoutingMode.BARE)));
+			}
+		}
+	}
+
+	/**
+	 * Provides name &rarr; id mapping and the column-type-derived "is this a text-like column"
+	 * predicate used by the auto-router. The id passed to {@link #isTextLike(String)} is the
+	 * mapped id, not the caller's name.
+	 */
+	interface RoutingContext {
+		/** Map a caller-supplied column name to its column id. Return the input unchanged when
+		 * the name is not in the schema (so AOSS errors surface the typo). */
+		String mapName(String name);
+
+		/** True iff the column with this id is text-typed (STRING / STRING_LIST / MEDIUMTEXT /
+		 * LARGETEXT / LINK) — the dual-mapped category that has a {@code .keyword} sub-field. */
+		boolean isTextLike(String columnId);
+
+		/** Context for paths that need name-only rewriting and never auto-route. */
+		static RoutingContext bareNameMapping(Function<String, String> nameToId) {
+			return new RoutingContext() {
+				@Override public String mapName(String name) {
+					String mapped = nameToId.apply(name);
+					return mapped == null ? name : mapped;
+				}
+				@Override public boolean isTextLike(String columnId) { return false; }
+			};
+		}
+	}
+
+	// OpenSearch leaf-query kinds that accept a "shorthand" form where the inner object's
+	// single key is the field name itself rather than an explicit "field" property.
+	// Example: {"match": {"title": "amyloid"}} ↔ {"match": {"field": "title", "query": "amyloid"}}.
+	// The typed deserializer canonicalizes the two forms; on the JsonNode tree we must
+	// recognize the shorthand and rewrite the key. multi_match and simple_query_string
+	// have no shorthand — they always carry an explicit "fields" array.
+	private static final Set<String> SHORTHAND_FIELD_KEYED_KINDS = new HashSet<>(Arrays.asList(
+			"match", "match_phrase", "match_phrase_prefix", "match_bool_prefix",
+			"term", "terms", "range", "prefix", "wildcard", "fuzzy"));
+
+	// Per-surface routing tables: key is the OpenSearch clause/agg/suggester kind name;
+	// value is the routing mode that applies to the immediate `field` / `fields` /
+	// shorthand-key reference inside that body. Keys not in a table default to BARE.
+
+	private static final Map<String, RoutingMode> QUERY_KIND_MODES = Map.ofEntries(
+			// match-family — bare tokenized text field
+			Map.entry("match", RoutingMode.BARE),
+			Map.entry("match_phrase", RoutingMode.BARE),
+			Map.entry("match_bool_prefix", RoutingMode.BARE),
+			Map.entry("multi_match", RoutingMode.BARE),
+			Map.entry("simple_query_string", RoutingMode.BARE),
+			Map.entry("exists", RoutingMode.BARE),
+			// term-family + range / prefix / wildcard / fuzzy / match_phrase_prefix —
+			// need the raw keyword sub-field on text columns.
+			Map.entry("match_phrase_prefix", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("term", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("terms", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("range", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("prefix", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("wildcard", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("fuzzy", RoutingMode.KEYWORD_FOR_TEXT));
+
+	// Aggregations all need doc values; AOSS rejects bare-text aggregations outright with
+	// "Text fields are not optimised for operations that require per-document field data".
+	private static final Map<String, RoutingMode> AGG_KIND_MODES = Map.ofEntries(
+			Map.entry("terms", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("histogram", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("date_histogram", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("range", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("date_range", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("missing", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("min", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("max", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("avg", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("sum", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("stats", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("extended_stats", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("value_count", RoutingMode.KEYWORD_FOR_TEXT),
+			Map.entry("cardinality", RoutingMode.KEYWORD_FOR_TEXT));
+
+	// Term and phrase suggesters operate on the analyzed (bare) field — their job is to
+	// suggest tokens. Completion uses a dedicated completion sub-field but the index emits
+	// it under the bare column name today; no .keyword routing.
+	private static final Map<String, RoutingMode> SUGGESTER_KIND_MODES = Map.of(
+			"term", RoutingMode.BARE,
+			"phrase", RoutingMode.BARE,
+			"completion", RoutingMode.BARE);
+
+	// The highlight surface has no leaf-clause kinds with their own field references; the
+	// only field reference is the highlight.fields map's KEYS, handled directly in walk().
+	private static final Map<String, RoutingMode> HIGHLIGHT_KIND_MODES = Map.of();
+
+	// Collapse has a single top-level "field" reference; needs doc values, so route text
+	// columns through .keyword. Mode is applied via the default branch on the "field" key
+	// at the root of the collapse subtree (no enclosing kind name).
+	private static final Map<String, RoutingMode> COLLAPSE_KIND_MODES = Map.of();
 
 	private SearchFieldRewriter() {
 	}
 
-	/**
-	 * Field keys that nest a query clause inside another clause. The values are arrays
-	 * of clauses, an object mapping name to clause, or a single clause object — all walked
-	 * recursively.
-	 */
-	private static final Set<String> NESTED_QUERY_KEYS = setOf(
-			"must", "should", "must_not", "filter",   // bool
-			"queries",                                  // dis_max
-			"positive", "negative",                     // boosting
-			"query"                                     // constant_score
-	);
-
-	/**
-	 * Leaf clauses where the single inner key is the field name. The shape is
-	 * {@code {"<clause>": {"<field>": ...}}} so the rewriter walks the clause's child
-	 * object keys and rewrites each one.
-	 */
-	private static final Set<String> FIELD_KEYED_CLAUSES = setOf(
-			"match", "match_phrase", "match_phrase_prefix", "match_bool_prefix",
-			"term", "terms", "range", "prefix", "wildcard", "fuzzy"
-	);
-
-	/**
-	 * Clauses where the field reference is a {@code "field"} string property (or a
-	 * {@code "fields"} array of strings).
-	 */
-	private static final Set<String> FIELD_STRING_CLAUSES = setOf("exists");
-	private static final Set<String> FIELDS_ARRAY_CLAUSES = setOf("multi_match", "simple_query_string");
-
-	private static Set<String> setOf(String... values) {
-		Set<String> set = new LinkedHashSet<>();
-		for (String v : values) {
-			set.add(v);
-		}
-		return set;
-	}
-
-	// ---------- request-side rewrites ----------
-
-	/**
-	 * Rewrite every column-name field reference inside a {@code query} subtree to its
-	 * column id, using the supplied resolver. Unknown names are passed through unchanged
-	 * (the existing structured-surface posture).
-	 */
-	static void rewriteQuery(JsonNode node, java.util.function.Function<String, String> nameToId) {
-		if (node == null || !node.isObject() || node.size() != 1) {
-			return;
-		}
-		String clause = node.fieldNames().next();
-		JsonNode body = node.get(clause);
-		if (body == null) {
-			return;
-		}
-		if (NESTED_QUERY_KEYS.contains(clause)) {
-			// Shouldn't happen at the top of a query subtree, but defensive
-			recurseQueryChildren(body, nameToId);
-			return;
-		}
-		if ("bool".equals(clause) || "dis_max".equals(clause) || "boosting".equals(clause)
-				|| "constant_score".equals(clause)) {
-			recurseCompound(body, nameToId);
-			return;
-		}
-		if (FIELD_KEYED_CLAUSES.contains(clause) && body.isObject()) {
-			renameObjectKeys((ObjectNode) body, nameToId);
-			return;
-		}
-		if (FIELD_STRING_CLAUSES.contains(clause) && body.isObject()) {
-			renameFieldString((ObjectNode) body, "field", nameToId);
-			return;
-		}
-		if (FIELDS_ARRAY_CLAUSES.contains(clause) && body.isObject()) {
-			renameFieldsArray((ObjectNode) body, "fields", nameToId);
-			return;
-		}
-		// match_all, ids, and any clause with no field reference: nothing to rewrite.
-	}
-
-	private static void recurseCompound(JsonNode body, java.util.function.Function<String, String> nameToId) {
-		if (body == null || !body.isObject()) {
-			return;
-		}
-		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
-		while (fields.hasNext()) {
-			Map.Entry<String, JsonNode> e = fields.next();
-			if (NESTED_QUERY_KEYS.contains(e.getKey())) {
-				recurseQueryChildren(e.getValue(), nameToId);
-			}
+	private static Map<String, RoutingMode> kindMapFor(Surface surface) {
+		switch (surface) {
+		case QUERY: return QUERY_KIND_MODES;
+		case AGGREGATIONS: return AGG_KIND_MODES;
+		case SUGGESTER: return SUGGESTER_KIND_MODES;
+		case HIGHLIGHT: return HIGHLIGHT_KIND_MODES;
+		case COLLAPSE: return COLLAPSE_KIND_MODES;
+		default: throw new IllegalStateException("unknown surface: " + surface);
 		}
 	}
 
-	private static void recurseQueryChildren(JsonNode value, java.util.function.Function<String, String> nameToId) {
-		if (value == null) {
-			return;
-		}
-		if (value.isArray()) {
-			for (JsonNode element : value) {
-				rewriteQuery(element, nameToId);
-			}
-		} else if (value.isObject()) {
-			rewriteQuery(value, nameToId);
-		}
+	// ---------- Request-side rewrite (column name → column id, with auto-routing) ----------
+
+	/**
+	 * Walks the inbound DSL tree and rewrites every column-name reference to its column id
+	 * via {@code ctx}, applying clause-kind-specific {@code .keyword} routing for text-typed
+	 * columns. Mutates {@code node} in place.
+	 *
+	 * <p>Three reference shapes are recognized:</p>
+	 * <ul>
+	 *   <li>A {@code "field"} string property (long-form leaf queries, aggregations,
+	 *       suggesters, exists).</li>
+	 *   <li>A {@code "fields"} string-array property (multi_match, simple_query_string).</li>
+	 *   <li>The single key of the inner object of a shorthand leaf query
+	 *       (e.g. {@code {"match": {"<column>": "value"}}}).</li>
+	 * </ul>
+	 *
+	 * <p>The routing mode is set when the walker descends into a child whose key matches an
+	 * allowlisted clause kind on {@code surface}; otherwise it resets to {@link RoutingMode#BARE}.
+	 * The mode applies only to the immediate {@code field} / {@code fields} / shorthand-key
+	 * reference inside that clause body.</p>
+	 */
+	static void rewriteRequestFields(JsonNode node, RoutingContext ctx, Surface surface) {
+		// Collapse has no enclosing clause kind to drive routing — the top-level "field" key
+		// is the reference. Seed the walker with KEYWORD_FOR_TEXT so the auto-router routes
+		// text columns through .keyword (collapse needs doc values, like aggregations).
+		RoutingMode initialMode = (surface == Surface.COLLAPSE)
+				? RoutingMode.KEYWORD_FOR_TEXT : RoutingMode.BARE;
+		walk(node, ctx, surface, initialMode);
 	}
 
 	/**
-	 * Rewrite every column-name field reference inside an aggregations object. Walks each
-	 * aggregation's {@code field} string and recurses into nested {@code aggs} /
-	 * {@code aggregations}.
+	 * Walks the tree using only the name &rarr; id mapping, with no column-type-aware
+	 * routing. Behaviorally identical to the routed walker on a schema where every column
+	 * is non-text.
 	 */
-	static void rewriteAggregations(JsonNode node, java.util.function.Function<String, String> nameToId) {
-		if (node == null || !node.isObject()) {
-			return;
-		}
-		Iterator<Map.Entry<String, JsonNode>> aggs = node.fields();
-		while (aggs.hasNext()) {
-			rewriteAggregationDef(aggs.next().getValue(), nameToId);
-		}
+	static void rewriteRequestFields(JsonNode node, Function<String, String> nameToId) {
+		walk(node, RoutingContext.bareNameMapping(nameToId), Surface.QUERY, RoutingMode.BARE);
 	}
 
-	private static void rewriteAggregationDef(JsonNode def, java.util.function.Function<String, String> nameToId) {
-		if (def == null || !def.isObject()) {
-			return;
-		}
-		Iterator<Map.Entry<String, JsonNode>> fields = def.fields();
-		while (fields.hasNext()) {
-			Map.Entry<String, JsonNode> entry = fields.next();
-			String key = entry.getKey();
-			JsonNode value = entry.getValue();
-			if ("aggs".equals(key) || "aggregations".equals(key)) {
-				rewriteAggregations(value, nameToId);
-			} else if (value != null && value.isObject()) {
-				// Inside any aggregation type body, rewrite a `field` string if present.
-				renameFieldString((ObjectNode) value, "field", nameToId);
-			}
-		}
-	}
-
-	/**
-	 * Rewrite every column-name field reference inside a suggesters object (the contents
-	 * of the {@code suggest} key). Each suggester definition's inner term/phrase/completion
-	 * body has a {@code field} string.
-	 */
-	static void rewriteSuggest(JsonNode node, java.util.function.Function<String, String> nameToId) {
-		if (node == null || !node.isObject()) {
-			return;
-		}
-		Iterator<Map.Entry<String, JsonNode>> entries = node.fields();
-		while (entries.hasNext()) {
-			Map.Entry<String, JsonNode> entry = entries.next();
-			if ("text".equals(entry.getKey())) {
-				continue;
-			}
-			JsonNode def = entry.getValue();
-			if (def == null || !def.isObject()) {
-				continue;
-			}
-			Iterator<Map.Entry<String, JsonNode>> defFields = def.fields();
-			while (defFields.hasNext()) {
-				Map.Entry<String, JsonNode> field = defFields.next();
-				JsonNode body = field.getValue();
-				if (body != null && body.isObject()) {
-					renameFieldString((ObjectNode) body, "field", nameToId);
-				}
-			}
-		}
-	}
-
-	// ---------- response-side rewrites ----------
-
-	/**
-	 * Inverse of {@link #rewriteAggregations}: walks the AOSS response's aggregation block
-	 * and rewrites any embedded column-id field reference back to its column name. The
-	 * caller's aggregation-name keys are unchanged (those are caller-chosen labels, not
-	 * field references).
-	 */
-	static void rewriteAggregationResults(JsonNode node, java.util.function.Function<String, String> idToName) {
+	private static void walk(JsonNode node, RoutingContext ctx, Surface surface, RoutingMode mode) {
 		if (node == null) {
 			return;
 		}
 		if (node.isObject()) {
 			ObjectNode obj = (ObjectNode) node;
-			Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
-			while (fields.hasNext()) {
-				Map.Entry<String, JsonNode> entry = fields.next();
-				if ("field".equals(entry.getKey()) && entry.getValue().isTextual()) {
-					String mapped = idToName.apply(entry.getValue().asText());
-					if (mapped != null) {
-						obj.set("field", new TextNode(mapped));
+			Map<String, RoutingMode> kindMap = kindMapFor(surface);
+			// Snapshot the entries before mutating, since rewriteShorthandKey replaces an
+			// entry in-place and the live iterator can't see the swap.
+			List<Map.Entry<String, JsonNode>> entries = new ArrayList<>();
+			Iterator<Map.Entry<String, JsonNode>> it = obj.fields();
+			while (it.hasNext()) {
+				entries.add(it.next());
+			}
+			for (Map.Entry<String, JsonNode> entry : entries) {
+				String key = entry.getKey();
+				JsonNode value = entry.getValue();
+				if ("field".equals(key) && value.isTextual()) {
+					obj.set("field", new TextNode(rewriteFieldRef(value.asText(), ctx, mode)));
+				} else if ("fields".equals(key) && value.isArray()) {
+					ArrayNode array = (ArrayNode) value;
+					for (int i = 0; i < array.size(); i++) {
+						JsonNode element = array.get(i);
+						if (element.isTextual()) {
+							array.set(i, new TextNode(rewriteFieldRef(element.asText(), ctx, mode)));
+						}
 					}
+				} else if (surface == Surface.HIGHLIGHT && "fields".equals(key) && value.isObject()) {
+					// highlight.fields is { columnName: { ...field options... } } — rewrite each
+					// key as a column-name reference, then recurse into the inner option block so
+					// any nested highlight_query is reachable.
+					rewriteHighlightFieldsMap((ObjectNode) value, ctx);
+					walk(value, ctx, surface, RoutingMode.BARE);
+				} else if (surface == Surface.HIGHLIGHT && "highlight_query".equals(key) && value.isObject()) {
+					// A highlight_query body is a full Query subtree — switch surfaces so the
+					// query allowlist + auto-routing applies inside.
+					walk(value, ctx, Surface.QUERY, RoutingMode.BARE);
 				} else {
-					rewriteAggregationResults(entry.getValue(), idToName);
+					RoutingMode childMode = kindMap.getOrDefault(key, RoutingMode.BARE);
+					if (SHORTHAND_FIELD_KEYED_KINDS.contains(key) && value.isObject()) {
+						rewriteShorthandKey((ObjectNode) value, ctx, childMode);
+					}
+					walk(value, ctx, surface, childMode);
 				}
 			}
 		} else if (node.isArray()) {
 			for (JsonNode element : node) {
-				rewriteAggregationResults(element, idToName);
+				walk(element, ctx, surface, mode);
 			}
 		}
 	}
 
 	/**
-	 * Inverse of {@link #rewriteSuggest}: same shape as {@link #rewriteAggregationResults}
-	 * — any embedded {@code "field"} string in the suggest response gets remapped back to
-	 * the caller's column name.
+	 * Rewrite each key of a highlight {@code fields} map (a column-name reference) to its
+	 * column-id form. Highlighted fields are bound to the analyzer at index time, so the
+	 * reference goes to the bare tokenized field — no {@code .keyword} routing.
 	 */
-	static void rewriteSuggestResults(JsonNode node, java.util.function.Function<String, String> idToName) {
-		// Same generic walk works for the suggest response; the only field-bearing key is
-		// the same `field` string.
-		rewriteAggregationResults(node, idToName);
+	private static void rewriteHighlightFieldsMap(ObjectNode fieldsObj, RoutingContext ctx) {
+		List<String> originalKeys = new ArrayList<>();
+		Iterator<String> names = fieldsObj.fieldNames();
+		while (names.hasNext()) {
+			originalKeys.add(names.next());
+		}
+		for (String key : originalKeys) {
+			String rewritten = rewriteFieldRef(key, ctx, RoutingMode.BARE);
+			if (!key.equals(rewritten)) {
+				JsonNode value = fieldsObj.get(key);
+				fieldsObj.remove(key);
+				fieldsObj.set(rewritten, value);
+			}
+		}
 	}
-
-	// ---------- low-level field helpers ----------
 
 	/**
-	 * Rename every immediate-child key of {@code obj} that maps via {@code nameToId},
-	 * preserving the value. Same {@code .keyword} sub-field and {@code ^boost} preservation
-	 * as {@link #rewriteFieldRef}; unknown keys pass through unchanged.
+	 * Detect and rewrite a shorthand leaf-query key. If {@code inner} has exactly one entry
+	 * and its key is not the literal {@code "field"} (which would mark long-form), the key
+	 * is the field name &mdash; replace it via {@link #rewriteFieldRef}. Long-form objects
+	 * (multiple keys, or a single {@code "field"} key) are left alone for the leaf rule.
 	 */
-	private static void renameObjectKeys(ObjectNode obj,
-			java.util.function.Function<String, String> nameToId) {
-		ObjectNode rebuilt = obj.objectNode();
-		Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
-		boolean changed = false;
-		while (fields.hasNext()) {
-			Map.Entry<String, JsonNode> entry = fields.next();
-			String key = rewriteFieldRef(entry.getKey(), nameToId);
-			if (!key.equals(entry.getKey())) {
-				changed = true;
-			}
-			rebuilt.set(key, entry.getValue());
-		}
-		if (changed) {
-			obj.removeAll();
-			obj.setAll(rebuilt);
-		}
-	}
-
-	private static void renameFieldString(ObjectNode obj, String fieldKey,
-			java.util.function.Function<String, String> nameToId) {
-		JsonNode existing = obj.get(fieldKey);
-		if (existing != null && existing.isTextual()) {
-			String rewritten = rewriteFieldRef(existing.asText(), nameToId);
-			obj.set(fieldKey, new TextNode(rewritten));
-		}
-	}
-
-	private static void renameFieldsArray(ObjectNode obj, String fieldsKey,
-			java.util.function.Function<String, String> nameToId) {
-		JsonNode existing = obj.get(fieldsKey);
-		if (existing == null || !existing.isArray()) {
+	private static void rewriteShorthandKey(ObjectNode inner, RoutingContext ctx, RoutingMode mode) {
+		if (inner.size() != 1) {
 			return;
 		}
-		ArrayNode rebuilt = obj.arrayNode();
-		boolean changed = false;
-		for (JsonNode element : existing) {
-			if (element.isTextual()) {
-				String raw = element.asText();
-				String rewritten = rewriteFieldRef(raw, nameToId);
-				if (!rewritten.equals(raw)) {
-					changed = true;
-				}
-				rebuilt.add(new TextNode(rewritten));
-			} else {
-				rebuilt.add(element);
-			}
+		String key = inner.fieldNames().next();
+		if ("field".equals(key)) {
+			return;
 		}
-		if (changed) {
-			obj.set(fieldsKey, rebuilt);
+		String rewritten = rewriteFieldRef(key, ctx, mode);
+		if (!key.equals(rewritten)) {
+			JsonNode value = inner.get(key);
+			inner.remove(key);
+			inner.set(rewritten, value);
 		}
 	}
 
 	/**
 	 * Rewrite a single field-reference string (column name plus optional {@code .keyword}
-	 * sub-field selector, and/or a {@code ^boost} multi_match boost) to the column-id form,
-	 * preserving the suffixes verbatim.
+	 * sub-field selector, and/or a {@code ^boost} multi_match boost) to the column-id form.
+	 * Preserves any explicit {@code .keyword} the caller supplied. When {@code mode} is
+	 * {@link RoutingMode#KEYWORD_FOR_TEXT} and the resolved column is text-like, appends
+	 * {@code .keyword} on behalf of the caller.
 	 *
-	 * <p>The caller is responsible for choosing whether to address the bare column or its
-	 * {@code .keyword} sub-field — see the SearchQuery JSON schema for guidance on which
-	 * clauses need {@code .keyword} (terms / sort / aggregations on text-typed columns) and
-	 * which work on the bare column (match / multi_match / simple_query_string).</p>
-	 *
-	 * <p>If the bare-name segment isn't in {@code nameToId}, the input is returned unchanged
-	 * — unknown references go to AOSS as-is so the error message surfaces the typo.</p>
+	 * <p>If the bare-name segment isn't in the schema, the input is returned unchanged
+	 * &mdash; unknown references go to AOSS as-is so the error message surfaces the typo.</p>
 	 */
-	static String rewriteFieldRef(String raw,
-			java.util.function.Function<String, String> nameToId) {
+	static String rewriteFieldRef(String raw, RoutingContext ctx, RoutingMode mode) {
+		if (raw == null) {
+			return null;
+		}
 		// Split off ^boost first so the dot-handling below sees only "namepart[.suffix]".
 		int caret = raw.indexOf('^');
 		String head = caret >= 0 ? raw.substring(0, caret) : raw;
@@ -343,10 +432,99 @@ final class SearchFieldRewriter {
 			subField = ".keyword";
 		}
 
-		String mapped = nameToId.apply(namePart);
+		String mapped = ctx.mapName(namePart);
+		boolean nameResolved = mapped != null && !mapped.equals(namePart);
+
+		// Auto-route: append .keyword on text-like columns when the clause requires it and
+		// the caller didn't already supply a sub-field. Only fires when we were able to
+		// resolve the name to an id (otherwise we don't know the column type).
+		if (subField.isEmpty()
+				&& mode == RoutingMode.KEYWORD_FOR_TEXT
+				&& nameResolved
+				&& ctx.isTextLike(mapped)) {
+			subField = ".keyword";
+		}
+
 		if (mapped == null || mapped.equals(namePart)) {
-			return raw;
+			// Unknown name and no auto-routing — preserve the caller's exact spelling.
+			return subField.isEmpty() ? raw : namePart + subField + boost;
 		}
 		return mapped + subField + boost;
+	}
+
+	/** Legacy two-arg form retained for tests and the autocomplete validator pre-pass. Always
+	 *  routes in {@link RoutingMode#BARE} (no auto-keyword). */
+	static String rewriteFieldRef(String raw, Function<String, String> nameToId) {
+		return rewriteFieldRef(raw, RoutingContext.bareNameMapping(nameToId), RoutingMode.BARE);
+	}
+
+	// ---------- Response-side rewrite (column id → column name, strip .keyword) ----------
+
+	/**
+	 * Walks the AOSS response's aggregation block and rewrites any embedded column-id
+	 * {@code "field"} reference back to its column name, stripping a {@code .keyword}
+	 * suffix the auto-router may have appended. The caller's aggregation-name keys are
+	 * unchanged (those are caller-chosen labels, not field references).
+	 */
+	static void rewriteAggregationResults(JsonNode node, Function<String, String> idToName) {
+		if (node == null) {
+			return;
+		}
+		if (node.isObject()) {
+			ObjectNode obj = (ObjectNode) node;
+			Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
+			while (fields.hasNext()) {
+				Map.Entry<String, JsonNode> entry = fields.next();
+				if ("field".equals(entry.getKey()) && entry.getValue().isTextual()) {
+					String mapped = rewriteIdRefStrippingKeyword(entry.getValue().asText(), idToName);
+					if (mapped != null) {
+						obj.set("field", new TextNode(mapped));
+					}
+				} else {
+					rewriteAggregationResults(entry.getValue(), idToName);
+				}
+			}
+		} else if (node.isArray()) {
+			for (JsonNode element : node) {
+				rewriteAggregationResults(element, idToName);
+			}
+		}
+	}
+
+	/**
+	 * Same shape as {@link #rewriteAggregationResults} &mdash; the suggest response also
+	 * embeds a {@code "field"} string anywhere a typed sub-object would have one.
+	 */
+	static void rewriteSuggestResults(JsonNode node, Function<String, String> idToName) {
+		rewriteAggregationResults(node, idToName);
+	}
+
+	/**
+	 * Inverse of the request-side leaf rewrite: parse {@code {id}[.keyword][^boost]} into its
+	 * parts, map id back to the caller's column name, and emit just {@code {name}[^boost]}.
+	 * Drops the {@code .keyword} so the caller sees their original bare column name even when
+	 * the server auto-routed during the request.
+	 *
+	 * <p>Returns the input unchanged when the bare id segment is not in {@code idToName}, so
+	 * non-column ids (the literal {@code _score}, {@code _id}, etc., or values produced by
+	 * AOSS that don't correspond to any column) pass through.</p>
+	 */
+	private static String rewriteIdRefStrippingKeyword(String raw, Function<String, String> idToName) {
+		if (raw == null) {
+			return null;
+		}
+		int caret = raw.indexOf('^');
+		String head = caret >= 0 ? raw.substring(0, caret) : raw;
+		String boost = caret >= 0 ? raw.substring(caret) : "";
+		int dot = head.lastIndexOf('.');
+		String idPart = head;
+		if (dot > 0 && "keyword".equals(head.substring(dot + 1))) {
+			idPart = head.substring(0, dot);
+		}
+		String mapped = idToName.apply(idPart);
+		if (mapped == null) {
+			return raw;
+		}
+		return mapped + boost;
 	}
 }

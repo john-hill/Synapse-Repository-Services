@@ -901,4 +901,255 @@ public class SearchOpaqueJsonUtilTest {
 		assertTrue(back.isAvg());
 		assertEquals("score", back.avg().field());
 	}
+
+	// ===================== buildTypedQuery =====================
+
+	@Test
+	public void testBuildTypedQueryWithAllowedClauseRewritesNameToId() {
+		// Caller supplies the column by name; the util validates, rewrites to column id,
+		// and hands back the typed Query.
+		SearchFieldRewriter.RoutingContext ctx = SearchFieldRewriter.RoutingContext.bareNameMapping(
+				name -> "title".equals(name) ? "100" : name);
+
+		// call under test
+		org.opensearch.client.opensearch._types.query_dsl.Query q = SearchOpaqueJsonUtil.buildTypedQuery(
+				"{\"match\":{\"title\":\"amyloid\"}}", ctx);
+
+		assertTrue(q.isMatch());
+		assertEquals("100", q.match().field());
+	}
+
+	@Test
+	public void testBuildTypedQueryWithDisallowedClauseRejected() {
+		// `script` is not allowlisted — must be rejected with HTTP 400 before reaching AOSS.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedQuery(
+						"{\"script\":{\"script\":\"doc['x'].value\"}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	// ===================== buildTypedAggregations =====================
+
+	@Test
+	public void testBuildTypedAggregationsWithAllowedAggsRewritesNameToId() {
+		SearchFieldRewriter.RoutingContext ctx = SearchFieldRewriter.RoutingContext.bareNameMapping(
+				name -> "year".equals(name) ? "300" : name);
+
+		// call under test
+		Map<String, org.opensearch.client.opensearch._types.aggregations.Aggregation> aggs =
+				SearchOpaqueJsonUtil.buildTypedAggregations(
+						"{\"by_year\":{\"terms\":{\"field\":\"year\"}}}", ctx);
+
+		assertNotNull(aggs.get("by_year"));
+		assertEquals("300", aggs.get("by_year").terms().field());
+	}
+
+	@Test
+	public void testBuildTypedAggregationsWithDisallowedAggsRejected() {
+		// scripted_metric is not allowlisted.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedAggregations(
+						"{\"x\":{\"scripted_metric\":{\"init_script\":\"\"}}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	@Test
+	public void testBuildTypedAggregationsRoutesTextColumnsThroughKeyword() {
+		// Year is text-like — auto-router must append .keyword for the aggregation.
+		SearchFieldRewriter.RoutingContext ctx = new SearchFieldRewriter.RoutingContext() {
+			@Override public String mapName(String name) {
+				return "year".equals(name) ? "300" : name;
+			}
+			@Override public boolean isTextLike(String columnId) {
+				return "300".equals(columnId);
+			}
+		};
+
+		// call under test
+		Map<String, org.opensearch.client.opensearch._types.aggregations.Aggregation> aggs =
+				SearchOpaqueJsonUtil.buildTypedAggregations(
+						"{\"by_year\":{\"terms\":{\"field\":\"year\"}}}", ctx);
+
+		assertEquals("300.keyword", aggs.get("by_year").terms().field());
+	}
+
+	// ===================== buildTypedSuggester =====================
+
+	@Test
+	public void testBuildTypedSuggesterWithAllowedSuggesterRewritesNameToId() {
+		SearchFieldRewriter.RoutingContext ctx = SearchFieldRewriter.RoutingContext.bareNameMapping(
+				name -> "title".equals(name) ? "100" : name);
+
+		// call under test
+		org.opensearch.client.opensearch.core.search.Suggester suggester =
+				SearchOpaqueJsonUtil.buildTypedSuggester(
+						"{\"did_you_mean\":{\"text\":\"amiloid\",\"term\":{\"field\":\"title\"}}}",
+						ctx);
+
+		assertNotNull(suggester);
+		assertTrue(suggester.suggesters().containsKey("did_you_mean"));
+		assertEquals("100", suggester.suggesters().get("did_you_mean").term().field());
+	}
+
+	@Test
+	public void testBuildTypedSuggesterWithDisallowedSuggesterRejected() {
+		// `phrase` carrying a `collate` script is rejected.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedSuggester(
+						"{\"x\":{\"phrase\":{\"field\":\"title\",\"collate\":{\"script\":\"x\"}}}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	// ===================== buildTypedHighlight =====================
+
+	@Test
+	public void testBuildTypedHighlightWithFieldsRewritesKeyToId() {
+		SearchFieldRewriter.RoutingContext ctx = SearchFieldRewriter.RoutingContext.bareNameMapping(
+				name -> "title".equals(name) ? "100" : name);
+
+		// call under test
+		org.opensearch.client.opensearch.core.search.Highlight highlight =
+				SearchOpaqueJsonUtil.buildTypedHighlight(
+						"{\"fields\":{\"title\":{}}}",
+						ctx);
+
+		assertNotNull(highlight);
+		assertTrue(highlight.fields().containsKey("100"));
+		assertTrue(!highlight.fields().containsKey("title"));
+	}
+
+	@Test
+	public void testBuildTypedHighlightWithSemanticTypeRejected() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedHighlight(
+						"{\"type\":\"semantic\",\"fields\":{\"title\":{}}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	@Test
+	public void testBuildTypedHighlightWithEmbeddedScriptRejected() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedHighlight(
+						"{\"fields\":{\"title\":{\"script\":{}}}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	// ===================== buildTypedFieldCollapse =====================
+
+	@Test
+	public void testBuildTypedFieldCollapseRewritesNameToId() {
+		SearchFieldRewriter.RoutingContext ctx = SearchFieldRewriter.RoutingContext.bareNameMapping(
+				name -> "projectId".equals(name) ? "200" : name);
+
+		// call under test
+		org.opensearch.client.opensearch.core.search.FieldCollapse collapse =
+				SearchOpaqueJsonUtil.buildTypedFieldCollapse(
+						"{\"field\":\"projectId\"}", ctx);
+
+		assertEquals("200", collapse.field());
+	}
+
+	@Test
+	public void testBuildTypedFieldCollapseRoutesTextColumnsThroughKeyword() {
+		// Collapse needs doc values, like aggregations — text columns must auto-route
+		// through .keyword.
+		SearchFieldRewriter.RoutingContext ctx = new SearchFieldRewriter.RoutingContext() {
+			@Override public String mapName(String name) {
+				return "tag".equals(name) ? "300" : name;
+			}
+			@Override public boolean isTextLike(String columnId) {
+				return "300".equals(columnId);
+			}
+		};
+
+		// call under test
+		org.opensearch.client.opensearch.core.search.FieldCollapse collapse =
+				SearchOpaqueJsonUtil.buildTypedFieldCollapse(
+						"{\"field\":\"tag\"}", ctx);
+
+		assertEquals("300.keyword", collapse.field());
+	}
+
+	@Test
+	public void testBuildTypedFieldCollapseWithInnerHitsRejected() {
+		// inner_hits is not surfaced on SearchQueryResults today.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedFieldCollapse(
+						"{\"field\":\"projectId\",\"inner_hits\":{\"name\":\"latest\",\"size\":3}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	// ===================== buildTypedRescore =====================
+
+	@Test
+	public void testBuildTypedRescoreRewritesInnerQueryNameToId() {
+		// rescore_query is a full Query subtree — field references inside must be rewritten
+		// the same way as the top-level query.
+		SearchFieldRewriter.RoutingContext ctx = SearchFieldRewriter.RoutingContext.bareNameMapping(
+				name -> "title".equals(name) ? "100" : name);
+
+		// call under test
+		org.opensearch.client.opensearch.core.search.Rescore rescore =
+				SearchOpaqueJsonUtil.buildTypedRescore(
+						"{\"window_size\":50,\"query\":{\"rescore_query\":{\"match_phrase\":{\"title\":\"alzheimers\"}}}}",
+						ctx);
+
+		assertEquals(50, rescore.windowSize().intValue());
+		assertEquals("100", rescore.query().rescoreQuery().matchPhrase().field());
+	}
+
+	@Test
+	public void testBuildTypedRescoreWithDisallowedInnerClauseRejected() {
+		// script_score inside rescore_query must be rejected by the same allowlist as
+		// the top-level query.
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedRescore(
+						"{\"window_size\":50,\"query\":{\"rescore_query\":{\"script_score\":{\"query\":{\"match_all\":{}},\"script\":\"x\"}}}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	@Test
+	public void testBuildTypedRescoreWithExcessiveWindowSizeRejected() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.buildTypedRescore(
+						"{\"window_size\":5000,\"query\":{\"rescore_query\":{\"match_all\":{}}}}",
+						SearchFieldRewriter.RoutingContext.bareNameMapping(Function.identity())));
+	}
+
+	// ===================== buildTypedSearchAfter =====================
+
+	@Test
+	public void testBuildTypedSearchAfterWithNullReturnsEmpty() {
+		// call under test
+		assertTrue(SearchOpaqueJsonUtil.buildTypedSearchAfter(null).isEmpty());
+	}
+
+	@Test
+	public void testBuildTypedSearchAfterWithEmptyReturnsEmpty() {
+		// call under test
+		assertTrue(SearchOpaqueJsonUtil.buildTypedSearchAfter(Collections.emptyList()).isEmpty());
+	}
+
+	@Test
+	public void testBuildTypedSearchAfterWithMixedScalarsRoundTrips() {
+		// Mixed shape: long sort key plus string sort key — same shape we emit on
+		// nextSearchAfter for a multi-field sort.
+		List<Object> cursor = Arrays.<Object>asList(42L, "syn123");
+
+		// call under test
+		List<org.opensearch.client.opensearch._types.FieldValue> typed =
+				SearchOpaqueJsonUtil.buildTypedSearchAfter(cursor);
+
+		assertEquals(2, typed.size());
+		assertEquals(42L, typed.get(0).longValue());
+		assertEquals("syn123", typed.get(1).stringValue());
+	}
 }

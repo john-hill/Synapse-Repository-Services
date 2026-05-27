@@ -17,6 +17,7 @@ import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
@@ -804,28 +805,16 @@ public class SearchManagementController {
 	 * <p>
 	 * The request wraps a
 	 * <a href="${org.sagebionetworks.repo.model.search.SearchQuery}">SearchQuery</a>
-	 * — see that schema for the full set of available knobs. Highlights:
+	 * — an opaque OpenSearch query DSL pass-through (allowlist-validated server-side) plus
+	 * typed Synapse-specific fields (<code>returnFields</code>, <code>sort</code>,
+	 * <code>offset</code>, <code>limit</code>, <code>searchAfter</code>). See that schema for
+	 * the full description of each field, the per-clause allowlist, and the
+	 * <code>.keyword</code> sub-field cheatsheet for text-typed columns. Optional
+	 * <code>aggregations</code> and <code>suggest</code> objects are passed through to
+	 * OpenSearch unchanged. The caller may also opt in to additional response parts
+	 * (<code>TOTAL_HITS</code>, <code>FACETS</code>, <code>SELECT_COLUMNS</code>) via
+	 * <code>responseParts</code>; the default is <code>HITS</code> only.
 	 * </p>
-	 * <ul>
-	 *   <li><b>queryType</b> — the full-text query model. See
-	 *       <a href="${org.sagebionetworks.repo.model.search.SearchQueryType}">SearchQueryType</a>
-	 *       for the per-type explanation of scoring, accepted parameters, and when to use each.
-	 *       Default is <code>SIMPLE_QUERY_STRING</code>. An empty or null <code>queryText</code>
-	 *       automatically selects <code>MATCH_ALL</code>.</li>
-	 *   <li><b>queryFields</b> — restrict the search to specific columns, with optional per-field
-	 *       boost using <code>column^N</code> syntax (e.g. <code>"title^3"</code>). Empty means
-	 *       all indexed fields.</li>
-	 *   <li><b>Filters</b> — <code>termsFilters</code>, <code>rangeFilters</code>,
-	 *       <code>existsFilters</code>, and <code>notExistsFilters</code> narrow the result set.
-	 *       All filters run in non-scoring context (yes/no matching, cacheable) — they do not
-	 *       contribute to relevance.</li>
-	 *   <li><b>Facets</b> — <code>facetRequests</code> produce bucket aggregations per column.
-	 *       Sort by <code>COUNT</code> or <code>KEY</code> in either direction; cap each facet
-	 *       with <code>maxValueCount</code>.</li>
-	 *   <li><b>Response tuning</b> — <code>returnFields</code>, <code>sort</code> (including the
-	 *       special <code>_score</code> pseudo-column), <code>offset</code>,
-	 *       <code>limit</code> (capped at 100), and <code>highlight</code>.</li>
-	 * </ul>
 	 * <p>
 	 * Results are returned as a
 	 * <a href="${org.sagebionetworks.repo.model.search.SearchQueryResults}">SearchQueryResults</a>.
@@ -885,29 +874,31 @@ public class SearchManagementController {
 	 * Perform a synchronous autocomplete search query against a
 	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.
 	 * <p>
-	 * This endpoint is purpose-built for type-ahead input: it overrides any supplied
-	 * <code>queryType</code> with <code>PREFIX</code> (see
-	 * <a href="${org.sagebionetworks.repo.model.search.SearchQueryType}">SearchQueryType</a>
-	 * for the full description) and caps <code>limit</code> at 8 to keep responses small
-	 * and latency low. Caller-supplied <code>facetRequests</code> and
-	 * <code>highlight</code> are ignored — autocomplete returns matching hits only.
+	 * Purpose-built for type-ahead input. The request shape is deliberately narrow: the
+	 * caller supplies a target <code>searchIndexId</code>, a prefix-flavored DSL
+	 * <code>query</code> clause (one of <code>prefix</code>, <code>match_phrase_prefix</code>,
+	 * or <code>match_bool_prefix</code>), and an optional <code>returnFields</code> list.
+	 * The response is always {@code hits}-only and is capped at 8 entries server-side.
 	 * </p>
 	 * <p>
-	 * For anything that needs scored relevance, faceting, or result counts, use the async
+	 * For anything that needs scored relevance, faceting, totals, deep pagination, sort,
+	 * suggesters, or aggregations, use the async
 	 * <a href="${POST.search.query.async.start}">POST /search/query/async/start</a> endpoint
+	 * with <a href="${org.sagebionetworks.repo.model.search.table.SearchIndexQuery}">SearchIndexQuery</a>
 	 * instead.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
-	 * @param request The search query request including the <code>searchIndexId</code>.
-	 * @return The autocomplete results (up to 8 hits).
+	 * @param request The autocomplete request including the <code>searchIndexId</code> and
+	 *                a prefix-flavored DSL clause.
+	 * @return The autocomplete hits (up to 8).
 	 */
 	@RequiredScope({ view })
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.SEARCH_AUTOCOMPLETE, method = RequestMethod.POST)
 	public @ResponseBody SearchQueryResults autocomplete(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestBody SearchIndexQuery request) {
+			@RequestBody SearchAutocompleteRequest request) {
 		return searchIndexQueryService.autocomplete(userId, request);
 	}
 }

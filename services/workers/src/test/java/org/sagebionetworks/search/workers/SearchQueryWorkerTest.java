@@ -16,7 +16,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.search.SearchIndexQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.search.SearchQuery;
+import java.util.Map;
+
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -35,7 +36,6 @@ public class SearchQueryWorkerTest {
 
 	private UserInfo user;
 	private SearchIndexQuery request;
-	private SearchQuery searchQuery;
 	private String searchIndexId;
 	private String jobId;
 
@@ -44,10 +44,9 @@ public class SearchQueryWorkerTest {
 		user = new UserInfo(false);
 		user.setId(123L);
 		searchIndexId = "syn456";
-		searchQuery = new SearchQuery();
 		request = new SearchIndexQuery();
 		request.setSearchIndexId(searchIndexId);
-		request.setSearchQuery(searchQuery);
+		request.setSearchQuery(Map.of("query", Map.of("match_all", Map.of())));
 		jobId = "job-1";
 	}
 

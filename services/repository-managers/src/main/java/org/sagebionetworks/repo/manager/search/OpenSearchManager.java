@@ -9,7 +9,6 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -125,25 +124,27 @@ public interface OpenSearchManager {
 	 * routes each field through its own configured search analyzer automatically.</p>
 	 *
 	 * @param indexName  The OpenSearch index name.
-	 * @param query      The search query.
+	 * @param body       The OpenSearch {@code _search} request body, in any of the JSON shapes
+	 *                   {@link SearchOpaqueJsonUtil#parse(Object)} accepts.
 	 * @param columns    The column models for field routing (user-facing names).
 	 * @param options    The response options requested; must be non-null and non-empty.
 	 * @return The search results — only fields corresponding to requested options are populated.
 	 */
-	SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
+	SearchQueryResults search(String indexName, Object body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options);
 
 	/**
-	 * Execute an autocomplete query. Forces PREFIX query type and caps size at 8.
-	 * Autocomplete never produces facets regardless of the {@code options} set.
+	 * Execute an autocomplete query against the OpenSearch index. The body's allowlist is
+	 * narrowed to the autocomplete subset (prefix-flavored {@code query} plus optional
+	 * {@code _source}); page size is capped at the autocomplete server-side limit.
 	 *
 	 * @param indexName  The OpenSearch index name.
-	 * @param query      The search query (queryType is overridden to PREFIX).
+	 * @param body       The autocomplete request body.
 	 * @param columns    The column models for field routing (user-facing names).
 	 * @param options    The response options requested; must be non-null and non-empty.
 	 * @return The autocomplete results.
 	 */
-	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
+	SearchQueryResults autocomplete(String indexName, Object body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options);
 
 	/**

@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,15 +16,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.ErrorCause;
-import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.Refresh;
 import org.opensearch.client.opensearch._types.ShardSearchFailure;
 import org.opensearch.client.opensearch._types.ShardStatistics;
-import org.opensearch.client.opensearch._types.SortOptions;
-import org.opensearch.client.opensearch._types.SortOrder;
-import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.CharFilter;
@@ -34,8 +29,6 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
-import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
-import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -46,19 +39,16 @@ import org.opensearch.client.opensearch.core.IndexRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
-import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.indices.AnalyzeRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
+import org.sagebionetworks.repo.model.search.SearchHighlight;
 import org.sagebionetworks.repo.model.search.SearchHit;
-import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
-import org.sagebionetworks.repo.model.search.SortDirection;
-import org.sagebionetworks.repo.model.search.SortField;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -69,13 +59,9 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 /**
  * Wraps the OpenSearch Java client for all AOSS index lifecycle (create / delete /
  * writability probe), bulk-document indexing, and query execution (search and autocomplete).
- * Static helpers (component-reference rewriting, error classification, bulk-failure message
- * building) are package-private for unit testing.
  *
  * <p>Each {@link #createIndex} call receives a map of qualified-name &rarr; resolved analyzer
  * JSON; the manager merges every analyzer's owned components and analyzer entries into a
@@ -141,9 +127,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
 	private static final String SUB_FIELD_KEYWORD = "keyword";
 	private static final String INDEX_NOT_FOUND_EXCEPTION = "index_not_found_exception";
-	// AOSS reports a concurrent index-delete attempt with a reason text containing
-	// "concurrent deletes". Package-visible so callers can recognize and translate
-	// it into a recoverable SQS retry.
+	// Reason-text fragment AOSS includes when a concurrent index-delete is in flight;
+	// callers translate this into a recoverable SQS retry.
 	static final String CONCURRENT_DELETES_MARKER = "concurrent deletes";
 	/**
 	 * OpenSearch reserved analyzer name. The SearchConfiguration's primary TextAnalyzer
@@ -190,7 +175,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final int DEFAULT_LIMIT = 25;
 	private static final int MAX_LIMIT = 100;
 	private static final int AUTOCOMPLETE_MAX_LIMIT = 8;
-	private static final int DEFAULT_FACET_SIZE = 25;
 
 	private final OpenSearchClient openSearchClient;
 
@@ -1004,126 +988,67 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
+	public SearchQueryResults search(String indexName, Object body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
-		return executeSearch(indexName, query, columns, options);
+		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false);
 	}
 
 	@Override
-	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
+	public SearchQueryResults autocomplete(String indexName, Object body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
-		// Autocomplete just clamps the page size — the caller chooses the prefix-style
-		// clause inside `query` (typically multi_match with type=bool_prefix or a prefix /
-		// match_phrase_prefix clause).
-		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
-			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
-		}
-		return executeSearch(indexName, query, columns, options);
+		// Autocomplete does not accept a caller-supplied size; force the server cap as both
+		// default and ceiling.
+		return executeSearch(indexName, body, columns, options,
+				AUTOCOMPLETE_MAX_LIMIT, AUTOCOMPLETE_MAX_LIMIT, true);
 	}
 
 	// ---- Private helpers ----
 
-	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
-			Set<SearchQueryPart> options) {
-		ValidateArgument.requirement(query.getQuery() != null,
-				"SearchQuery.query is required (use {\"match_all\":{}} for a catalog-style browse)");
-
+	/**
+	 * Build the column-name &rarr; column-id routing context for the target index.
+	 */
+	private static SearchFieldRewriter.RoutingContext routingContextFor(List<ColumnModel> columns) {
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-		Map<String, String> idToName = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 		Map<String, ColumnModel> columnMap = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
-
-		// SearchQuery.offset / .limit are Long; OpenSearch's `from` / `size` are int.
-		// Validate up-front instead of letting Long.intValue() silently wrap a value
-		// past Integer.MAX_VALUE into a negative int that AOSS interprets unpredictably.
-		long offsetLong = query.getOffset() != null ? query.getOffset() : 0L;
-		ValidateArgument.requirement(offsetLong >= 0L && offsetLong <= Integer.MAX_VALUE,
-				"offset must be between 0 and " + Integer.MAX_VALUE);
-		int offset = (int) offsetLong;
-
-		long limitLong = query.getLimit() != null ? query.getLimit() : DEFAULT_LIMIT;
-		ValidateArgument.requirement(limitLong >= 0L, "limit must be non-negative");
-		int limit = (int) Math.min(limitLong, MAX_LIMIT);
-
-		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
-		// any future server-side filter clauses (e.g. row-level filters) can layer on
-		// without re-architecting. SearchIndex content is currently public so no filters
-		// are added today; the envelope is still here as a hook.
-		Query mainQuery = buildOpaqueQuery(query.getQuery(), nameToId);
-		BoolQuery.Builder boolBuilder = new BoolQuery.Builder().must(mainQuery);
-
-		Map<String, Aggregation> aggregations = query.getAggregations() != null
-				? buildOpaqueAggregations(query.getAggregations(), nameToId)
-				: Collections.emptyMap();
-
-		org.opensearch.client.opensearch.core.search.Suggester suggester = query.getSuggest() != null
-				? buildOpaqueSuggest(query.getSuggest(), nameToId)
-				: null;
-
-		List<String> returnFields = resolveReturnFieldsAsIds(query.getReturnFields(), nameToId);
-
-		List<SortOptions> sortOptions = options.contains(SearchQueryPart.HITS)
-				? buildSortOptions(query.getSort(), columnMap, nameToId)
-				: Collections.emptyList();
-
-		List<FieldValue> searchAfter = parseSearchAfter(query.getSearchAfter());
-
-		return callSearchApi(indexName, boolBuilder, offset, limit, aggregations,
-				suggester, returnFields, sortOptions, idToName, options, searchAfter);
+		return new SearchFieldRewriter.RoutingContext() {
+			@Override public String mapName(String name) {
+				return nameToId.getOrDefault(name, name);
+			}
+			@Override public boolean isTextLike(String columnId) {
+				ColumnModel column = columnMap.get(columnId);
+				if (column == null) {
+					return false;
+				}
+				ColumnType colType = column.getColumnType();
+				return ColumnTypeToOpenSearchMapping.isTextType(colType)
+						|| ColumnTypeToOpenSearchMapping.isLinkType(colType);
+			}
+		};
 	}
 
 	@SuppressWarnings("rawtypes")
-	SearchQueryResults callSearchApi(String indexName, BoolQuery.Builder boolBuilder,
-			int offset, int limit, Map<String, Aggregation> aggregations,
-			org.opensearch.client.opensearch.core.search.Suggester suggester,
-			List<String> returnFields, List<SortOptions> sortOptions,
-			Map<String, String> idToName, Set<SearchQueryPart> options,
-			List<FieldValue> searchAfter) {
-		boolean returnHits = options.contains(SearchQueryPart.HITS);
-		boolean returnTotalHits = options.contains(SearchQueryPart.TOTAL_HITS);
-		boolean usingCursor = searchAfter != null && !searchAfter.isEmpty();
+	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete) {
+		Map<String, String> idToName = columns.stream()
+				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
+		SearchFieldRewriter.RoutingContext ctx = routingContextFor(columns);
+		// One-element holder: the request builder lambda can't return a value, so
+		// applyBodyToRequest reports the resolved `from` through this slot.
+		int[] effectiveFrom = new int[1];
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
-				req.query(q -> q.bool(boolBuilder.build()));
-				// `from` and `searchAfter` are mutually exclusive; pin from=0 when a cursor is
-				// supplied so AOSS uses the cursor for pagination.
-				req.from(usingCursor ? 0 : offset);
-				// size=0 when hits aren't requested — saves source fetch + transport cost
-				req.size(returnHits ? limit : 0);
-				if (returnTotalHits) {
-					// Use a count value instead of enabled(true) — the boolean form caps at 10k
-					req.trackTotalHits(t -> t.count(Integer.MAX_VALUE));
-				} else {
-					req.trackTotalHits(t -> t.enabled(false));
-				}
-
-				if (!aggregations.isEmpty()) {
-					req.aggregations(aggregations);
-				}
-				if (suggester != null) {
-					// Suggesters return their own response section, independent of hits.
-					req.suggest(suggester);
-				}
-				// Source filters and sort are meaningless without hits.
-				if (returnHits) {
-					if (returnFields != null && !returnFields.isEmpty()) {
-						req.source(src -> src.filter(f -> f.includes(returnFields)));
-					}
-					if (!sortOptions.isEmpty()) {
-						req.sort(sortOptions);
-					}
-					if (usingCursor) {
-						req.searchAfter(searchAfter);
-					}
-				}
-
+				req.timeout("30");
+				effectiveFrom[0] = autocomplete
+						? SearchOpaqueJsonUtil.applyAutocompleteBodyToRequest(
+								body, ctx, req, options, defaultSize)
+						: SearchOpaqueJsonUtil.applyBodyToRequest(
+								body, ctx, req, options, defaultSize, maxSize);
 				return req;
 			}, Map.class);
-
-			return convertResponse(response, indexName, offset, idToName, options);
+			return convertResponse(response, indexName, effectiveFrom[0], idToName, options);
 		} catch (OpenSearchException e) {
 			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
 				throw new IllegalStateException("Search index is still building. Please try again later.", e);
@@ -1133,127 +1058,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to execute search on search index: " + indexName, e);
 		}
-	}
-
-	/**
-	 * Convert a caller-supplied opaque OpenSearch query DSL into a typed {@link Query}.
-	 * Steps: parse the JSON shape into a {@link JsonNode} via SearchOpaqueJsonUtil, run
-	 * the allowlist (rejecting scripts / cross-index reach / depth-cap exceeded with
-	 * HTTP 400), rewrite every column-name field reference to its column id, then
-	 * deserialize the cleared subtree through OpenSearch's typed {@code Query} deserializer.
-	 */
-	Query buildOpaqueQuery(Object opaqueQueryDsl, Map<String, String> nameToId) {
-		JsonNode dsl = SearchOpaqueJsonUtil.parse(opaqueQueryDsl);
-		SearchQueryDslAllowlist.validate(dsl);
-		SearchFieldRewriter.rewriteQuery(dsl, name -> nameToId.getOrDefault(name, name));
-		return SearchOpaqueJsonUtil.fromJsonpTree(dsl, Query._DESERIALIZER);
-	}
-
-	/**
-	 * Convert a caller-supplied opaque OpenSearch aggregations object into a typed
-	 * map of aggregation name to typed {@link Aggregation}, after allowlist validation
-	 * and column-name → column-id rewriting.
-	 */
-	Map<String, Aggregation> buildOpaqueAggregations(Object opaqueAggsDsl, Map<String, String> nameToId) {
-		JsonNode dsl = SearchOpaqueJsonUtil.parse(opaqueAggsDsl);
-		SearchAggregationDslAllowlist.validate(dsl);
-		SearchFieldRewriter.rewriteAggregations(dsl, name -> nameToId.getOrDefault(name, name));
-		Map<String, Aggregation> result = new HashMap<>();
-		Iterator<Map.Entry<String, JsonNode>> entries = dsl.fields();
-		while (entries.hasNext()) {
-			Map.Entry<String, JsonNode> entry = entries.next();
-			result.put(entry.getKey(),
-					SearchOpaqueJsonUtil.fromJsonpTree(entry.getValue(), Aggregation._DESERIALIZER));
-		}
-		return result;
-	}
-
-	/**
-	 * Convert a caller-supplied opaque suggesters object into a typed
-	 * {@link org.opensearch.client.opensearch.core.search.Suggester}, after allowlist
-	 * validation and column-name → column-id rewriting.
-	 */
-	org.opensearch.client.opensearch.core.search.Suggester buildOpaqueSuggest(Object opaqueSuggestDsl,
-			Map<String, String> nameToId) {
-		JsonNode dsl = SearchOpaqueJsonUtil.parse(opaqueSuggestDsl);
-		SearchSuggestDslAllowlist.validate(dsl);
-		SearchFieldRewriter.rewriteSuggest(dsl, name -> nameToId.getOrDefault(name, name));
-		return SearchOpaqueJsonUtil.fromJsonpTree(dsl,
-				org.opensearch.client.opensearch.core.search.Suggester._DESERIALIZER);
-	}
-
-	/**
-	 * Translate a list of caller-supplied user-facing column names to their column ids
-	 * for the OpenSearch {@code _source.includes} filter. Unknown names pass through
-	 * unchanged (the existing relaxed-name behavior).
-	 */
-	private static List<String> resolveReturnFieldsAsIds(List<String> returnFields,
-			Map<String, String> nameToId) {
-		if (returnFields == null || returnFields.isEmpty()) {
-			return null;
-		}
-		List<String> resolved = new ArrayList<>(returnFields.size());
-		for (String name : returnFields) {
-			resolved.add(nameToId.getOrDefault(name, name));
-		}
-		return resolved;
-	}
-
-	/**
-	 * Parse an opaque {@code searchAfter} cursor (a list of JSON-typed sort values, the
-	 * same shape we emit on {@code nextSearchAfter}) into the typed
-	 * {@link FieldValue} list OpenSearch expects. Returns {@code null} when no cursor was
-	 * supplied so the caller can branch on the cursor presence.
-	 */
-	private static List<FieldValue> parseSearchAfter(List<Object> searchAfter) {
-		if (searchAfter == null || searchAfter.isEmpty()) {
-			return null;
-		}
-		List<FieldValue> values = new ArrayList<>(searchAfter.size());
-		for (Object element : searchAfter) {
-			JsonNode node = SearchOpaqueJsonUtil.parse(element);
-			values.add(SearchOpaqueJsonUtil.fromJsonpTree(node, FieldValue._DESERIALIZER));
-		}
-		return values;
-	}
-
-	List<SortOptions> buildSortOptions(List<SortField> sortFields,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (sortFields == null || sortFields.isEmpty()) {
-			return Collections.singletonList(
-				SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field("_score").order(SortOrder.Desc))))
-			);
-		}
-		return sortFields.stream()
-				.map(sf -> {
-					String sortField;
-					if ("_score".equals(sf.getColumnName())) {
-						sortField = "_score";
-					} else {
-						String columnId = nameToId.getOrDefault(sf.getColumnName(), sf.getColumnName());
-						sortField = getFilterFieldName(columnId, columnMap);
-					}
-					SortOrder order = (sf.getDirection() == SortDirection.ASC) ? SortOrder.Asc : SortOrder.Desc;
-					return SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field(sortField).order(order))));
-				})
-				.collect(Collectors.toList());
-	}
-
-	String getFilterFieldName(String columnId, Map<String, ColumnModel> columnMap) {
-		ColumnModel column = columnMap.get(columnId);
-		if (column == null) {
-			return columnId;
-		}
-
-		ColumnType colType = column.getColumnType();
-
-		// TEXT and LINK both map to text fields with a `.keyword` sub-field for exact match.
-		if (ColumnTypeToOpenSearchMapping.isTextType(colType)
-				|| ColumnTypeToOpenSearchMapping.isLinkType(colType)) {
-			return columnId + "." + SUB_FIELD_KEYWORD;
-		}
-
-		return columnId;
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -1322,6 +1126,16 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					})
 					.collect(Collectors.toList());
 			searchHit.setFields(fields);
+		}
+
+		Map<String, List<String>> rawHighlights = hit.highlight();
+		if (rawHighlights != null && !rawHighlights.isEmpty()) {
+			List<SearchHighlight> highlights = rawHighlights.entrySet().stream()
+					.map(e -> new SearchHighlight()
+							.setName(idToName.getOrDefault(e.getKey(), e.getKey()))
+							.setSnippets(e.getValue()))
+					.collect(Collectors.toList());
+			searchHit.setHighlights(highlights);
 		}
 
 		return searchHit;

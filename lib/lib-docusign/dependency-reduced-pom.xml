@@ -31,6 +31,8 @@
                   <artifact>com.docusign:docusign-esign-java</artifact>
                   <excludes>
                     <exclude>org/json/**</exclude>
+                    <exclude>com/fasterxml/jackson/**</exclude>
+                    <exclude>META-INF/versions/*/com/fasterxml/jackson/**</exclude>
                   </excludes>
                 </filter>
               </filters>

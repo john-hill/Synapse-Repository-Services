@@ -106,12 +106,14 @@
 		<plugins>
 			<!--
 			    The DocuSign "shaded" artifact bundles its own copy of common libraries.
-			    Most of those (Jackson, Jersey w/ jakarta APIs, Bouncycastle, etc.) live
-			    in package namespaces that do not collide with Synapse's classpath, but
-			    `org/json/**` does — and the version DocuSign bundles rejects the
-			    Boolean→String coercion that Synapse's existing OAuth2 parsing relies on.
-			    DocuSign's own source has no `import org.json` statements, so we can
-			    safely strip those classes from the artifact when packaging this module.
+			    Most of those (Jersey w/ jakarta APIs, Bouncycastle, etc.) live in
+			    package namespaces that do not collide with Synapse's classpath, but
+			    `org/json/**` and `com/fasterxml/jackson/**` do — the bundled Jackson
+			    2.14.2 conflicts with Synapse's 2.20.0 (missing StreamReadConstraints
+			    constructor breaks OpenSearch), and the bundled org.json rejects the
+			    Boolean→String coercion that Synapse's OAuth2 parsing relies on.
+			    We strip both; Synapse's own versions satisfy the DocuSign API at
+			    runtime.
 			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -135,6 +137,8 @@
 									<artifact>com.docusign:docusign-esign-java</artifact>
 									<excludes>
 										<exclude>org/json/**</exclude>
+										<exclude>com/fasterxml/jackson/**</exclude>
+										<exclude>META-INF/versions/*/com/fasterxml/jackson/**</exclude>
 									</excludes>
 								</filter>
 							</filters>

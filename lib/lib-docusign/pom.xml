@@ -139,6 +139,8 @@
 										<exclude>org/json/**</exclude>
 										<exclude>com/fasterxml/jackson/**</exclude>
 										<exclude>META-INF/versions/*/com/fasterxml/jackson/**</exclude>
+										<exclude>META-INF/services/com.fasterxml.jackson.*</exclude>
+										<exclude>META-INF/maven/com.fasterxml.jackson*/**</exclude>
 									</excludes>
 								</filter>
 							</filters>

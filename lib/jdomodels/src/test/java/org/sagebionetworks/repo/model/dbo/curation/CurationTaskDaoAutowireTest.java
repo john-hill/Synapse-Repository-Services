@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -218,92 +217,6 @@ class CurationTaskDaoAutowireTest {
         // Delete
         dao.deleteCurationTask(created.getTaskId());
         assertTrue(dao.getCurationTask(created.getTaskId()).isEmpty());
-    }
-
-    @Test
-    public void testCRUDWithSuggestedAuthorizationModeFileBasedTask() {
-        FileBasedMetadataTaskProperties propsWithMode = new FileBasedMetadataTaskProperties()
-                .setFileViewId(fileViewId)
-                .setUploadFolderId(uploadFolderId)
-                .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
-
-        CurationTask toCreate = new CurationTask()
-                .setProjectId(project1.getId())
-                .setDataType("fastq")
-                .setTaskProperties(propsWithMode);
-
-        // Create
-        CurationTask created = dao.createCurationTask(userId, toCreate);
-        assertEquals(propsWithMode, created.getTaskProperties());
-
-        // Read — verify round-trip
-        CurationTask fetched = dao.getCurationTask(created.getTaskId()).get();
-        assertTrue(fetched.getTaskProperties() instanceof FileBasedMetadataTaskProperties);
-        assertEquals(AuthorizationMode.SOURCE_BENEFACTOR,
-                ((FileBasedMetadataTaskProperties) fetched.getTaskProperties()).getSuggestedAuthorizationMode());
-
-        // Update — change to SESSION_OWNER
-        FileBasedMetadataTaskProperties updatedProps = new FileBasedMetadataTaskProperties()
-                .setFileViewId(fileViewId)
-                .setUploadFolderId(uploadFolderId)
-                .setSuggestedAuthorizationMode(AuthorizationMode.SESSION_OWNER);
-        fetched.setTaskProperties(updatedProps);
-
-        // call under test
-        dao.updateCurationTask(modifiedByUserId, fetched);
-        CurationTask afterUpdate = dao.getCurationTask(created.getTaskId()).get();
-
-        assertEquals(AuthorizationMode.SESSION_OWNER,
-                ((FileBasedMetadataTaskProperties) afterUpdate.getTaskProperties()).getSuggestedAuthorizationMode());
-
-        // Update — clear the mode (back to legacy/null)
-        FileBasedMetadataTaskProperties clearedProps = new FileBasedMetadataTaskProperties()
-                .setFileViewId(fileViewId)
-                .setUploadFolderId(uploadFolderId);
-        afterUpdate.setTaskProperties(clearedProps);
-
-        // call under test
-        dao.updateCurationTask(modifiedByUserId, afterUpdate);
-        CurationTask afterClear = dao.getCurationTask(created.getTaskId()).get();
-
-        assertNull(((FileBasedMetadataTaskProperties) afterClear.getTaskProperties()).getSuggestedAuthorizationMode());
-
-        dao.deleteCurationTask(created.getTaskId());
-    }
-
-    @Test
-    public void testCRUDWithSuggestedAuthorizationModeRecordBasedTask() {
-        RecordBasedMetadataTaskProperties propsWithMode = new RecordBasedMetadataTaskProperties()
-                .setRecordSetId(recordSetId)
-                .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
-
-        CurationTask toCreate = new CurationTask()
-                .setProjectId(project1.getId())
-                .setDataType("rnaseq")
-                .setTaskProperties(propsWithMode);
-
-        // Create
-        CurationTask created = dao.createCurationTask(userId, toCreate);
-        assertEquals(propsWithMode, created.getTaskProperties());
-
-        // Read — verify round-trip
-        CurationTask fetched = dao.getCurationTask(created.getTaskId()).get();
-        assertTrue(fetched.getTaskProperties() instanceof RecordBasedMetadataTaskProperties);
-        assertEquals(AuthorizationMode.SOURCE_BENEFACTOR,
-                ((RecordBasedMetadataTaskProperties) fetched.getTaskProperties()).getSuggestedAuthorizationMode());
-
-        // Update — clear the mode (back to legacy/null)
-        RecordBasedMetadataTaskProperties clearedProps = new RecordBasedMetadataTaskProperties()
-                .setRecordSetId(recordSetId);
-        fetched.setTaskProperties(clearedProps);
-
-        // call under test
-        dao.updateCurationTask(modifiedByUserId, fetched);
-        CurationTask afterClear = dao.getCurationTask(created.getTaskId()).get();
-
-        assertNull(((RecordBasedMetadataTaskProperties) afterClear.getTaskProperties()).getSuggestedAuthorizationMode());
-
-        dao.deleteCurationTask(created.getTaskId());
     }
 
     @Test
@@ -710,9 +623,13 @@ class CurationTaskDaoAutowireTest {
     private CurationTaskProperties createTaskProperties(CurationTaskPropertiesType taskType) {
         switch (taskType) {
             case FILE_BASED:
-                return new FileBasedMetadataTaskProperties().setFileViewId(fileViewId).setUploadFolderId(uploadFolderId);
+                return new FileBasedMetadataTaskProperties().setFileViewId(fileViewId).setUploadFolderId(uploadFolderId)
+                        .setCollaboratorPrincipalIds(List.of(userId.toString()))
+                        .setSuggestedAuthorizationMode(AuthorizationMode.SESSION_OWNER);
             case RECORD_BASED:
-                return new RecordBasedMetadataTaskProperties().setRecordSetId(recordSetId);
+                return new RecordBasedMetadataTaskProperties().setRecordSetId(recordSetId)
+                        .setCollaboratorPrincipalIds(List.of(userId.toString()))
+                        .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
             default:
                 throw new IllegalArgumentException("Unknown task type: " + taskType);
         }

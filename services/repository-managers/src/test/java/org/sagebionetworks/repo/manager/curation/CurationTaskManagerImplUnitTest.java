@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.curation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -9,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -29,6 +31,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
@@ -73,6 +76,7 @@ public class CurationTaskManagerImplUnitTest {
     @Mock
     private AuthorizationStatus mockAuthorizationStatus;
 
+    @Spy
     @InjectMocks
     CurationTaskManagerImpl curationTaskManager;
 
@@ -176,6 +180,36 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
+    public void testHasAuthorizationModeChangedWithBothNull() {
+        // call under test
+        assertFalse(curationTaskManager.hasAuthorizationModeChanged(null, null));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithNullToPresent() {
+        // call under test
+        assertTrue(curationTaskManager.hasAuthorizationModeChanged(null, AuthorizationMode.SOURCE_BENEFACTOR));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithPresentToNull() {
+        // call under test
+        assertTrue(curationTaskManager.hasAuthorizationModeChanged(AuthorizationMode.SOURCE_BENEFACTOR, null));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithSameValue() {
+        // call under test
+        assertFalse(curationTaskManager.hasAuthorizationModeChanged(AuthorizationMode.SOURCE_BENEFACTOR, AuthorizationMode.SOURCE_BENEFACTOR));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithNewValue() {
+        // call under test
+        assertTrue(curationTaskManager.hasAuthorizationModeChanged(AuthorizationMode.SOURCE_BENEFACTOR, AuthorizationMode.SESSION_OWNER));
+    }
+
+    @Test
     public void testUpdateCurationTaskWithSuggestedAuthorizationModeChangeClearsActiveSession() {
         // Existing task has no suggestedAuthorizationMode (null = legacy)
         CurationTask existing = createCurationTask(CurationTaskPropertiesType.FILE_BASED).setTaskId(taskId);
@@ -199,10 +233,12 @@ public class CurationTaskManagerImplUnitTest {
         when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
         when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(existing));
         when(mockCurationTaskDao.updateCurationTask(eq(userId), eq(toUpdate))).thenReturn(updated);
+        doReturn(true).when(curationTaskManager).hasAuthorizationModeChanged(any(), any());
 
-        // Call under test
+        // call under test
         curationTaskManager.updateCurationTask(userInfo, toUpdate);
 
+        verify(curationTaskManager).hasAuthorizationModeChanged(any(), any());
         verify(mockCurationTaskDao).clearActiveSessionId(taskId);
     }
 
@@ -229,58 +265,13 @@ public class CurationTaskManagerImplUnitTest {
         when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
         when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(existing));
         when(mockCurationTaskDao.updateCurationTask(eq(userId), eq(toUpdate))).thenReturn(updated);
+        doReturn(false).when(curationTaskManager).hasAuthorizationModeChanged(any(), any());
 
-        // Call under test
+        // call under test
         curationTaskManager.updateCurationTask(userInfo, toUpdate);
 
+        verify(curationTaskManager).hasAuthorizationModeChanged(any(), any());
         verify(mockCurationTaskDao, never()).clearActiveSessionId(any());
-    }
-
-    @Test
-    public void testUpdateCurationTaskWithRecordBasedInvalidSuggestedAuthorizationMode() {
-        // SESSION_OWNER is not valid for record-based tasks
-        RecordBasedMetadataTaskProperties props = new RecordBasedMetadataTaskProperties()
-                .setRecordSetId(recordSetId)
-                .setSuggestedAuthorizationMode(AuthorizationMode.SESSION_OWNER);
-        CurationTask toUpdate = new CurationTask()
-                .setTaskId(taskId)
-                .setProjectId(projectId)
-                .setDataType("fastq")
-                .setTaskProperties(props);
-
-        // Call under test
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> curationTaskManager.updateCurationTask(userInfo, toUpdate));
-        assertTrue(ex.getMessage().contains("SOURCE_BENEFACTOR"));
-
-        verifyZeroInteractions(mockCurationTaskDao);
-    }
-
-    @Test
-    public void testUpdateCurationTaskWithRecordBasedSourceBenefactorModeSucceeds() {
-        RecordBasedMetadataTaskProperties existingProps = new RecordBasedMetadataTaskProperties()
-                .setRecordSetId(recordSetId);
-        CurationTask existing = new CurationTask().setTaskId(taskId).setProjectId(projectId).setDataType("fastq").setTaskProperties(existingProps);
-
-        RecordBasedMetadataTaskProperties newProps = new RecordBasedMetadataTaskProperties()
-                .setRecordSetId(recordSetId)
-                .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
-        CurationTask toUpdate = new CurationTask().setTaskId(taskId).setProjectId(projectId).setDataType("fastq").setTaskProperties(newProps);
-
-        CurationTask updated = new CurationTask().setTaskId(taskId);
-
-        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
-        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE))).thenReturn(mockAuthorizationStatus);
-        when(mockEntityManager.getEntityType(eq(userInfo), eq(recordSetId))).thenReturn(EntityType.recordset);
-        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(existing));
-        when(mockCurationTaskDao.updateCurationTask(eq(userId), eq(toUpdate))).thenReturn(updated);
-
-        // Call under test
-        CurationTask result = curationTaskManager.updateCurationTask(userInfo, toUpdate);
-
-        assertSame(updated, result);
-        // mode changed (null -> SOURCE_BENEFACTOR), so active session should be cleared
-        verify(mockCurationTaskDao).clearActiveSessionId(taskId);
     }
 
     @Test

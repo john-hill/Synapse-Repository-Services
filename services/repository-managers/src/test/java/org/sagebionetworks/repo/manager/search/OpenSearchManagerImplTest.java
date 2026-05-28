@@ -46,6 +46,7 @@ import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.ErrorResponse;
+import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.ShardSearchFailure;
 import org.opensearch.client.opensearch._types.ShardStatistics;
@@ -71,9 +72,12 @@ import org.opensearch.client.opensearch.core.search.TrackHits;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchHighlight;
 import org.sagebionetworks.repo.model.search.SearchHit;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -1694,16 +1698,15 @@ public class OpenSearchManagerImplTest {
 	// --- search(): offset / limit validation ---
 
 	/**
-	 * Build a minimal valid opaque body Map: a {@code match_all} {@code query} clause plus
-	 * the OpenSearch-wire {@code from} / {@code size} keys. Tests then mutate the map (or
-	 * add other top-level keys) and pass it to {@code search()}.
+	 * Build a minimal valid {@link SearchQuery} envelope: a {@code match_all} {@code query}
+	 * clause plus default {@code from} / {@code size}. Tests then mutate the envelope (or
+	 * set other top-level slots) and pass it to {@code search()}.
 	 */
-	private static Object matchAllBody() {
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", Map.of("match_all", Map.of()));
-		body.put("from", 0);
-		body.put("size", 10);
-		return body;
+	private static SearchQuery matchAllBody() {
+		return new SearchQuery()
+				.setQuery(Map.of("match_all", Map.of()))
+				.setFrom(0L)
+				.setSize(10L);
 	}
 
 	/**
@@ -1711,21 +1714,14 @@ public class OpenSearchManagerImplTest {
 	 * allowlist, so use a prefix-flavored clause. The autocomplete path forces the size
 	 * server-side, so the body never carries one.
 	 */
-	private static Object matchPrefixBody() {
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", Map.of("match_bool_prefix", Map.of("name", "te")));
-		return body;
-	}
-
-	@SuppressWarnings("unchecked")
-	private static Map<String, Object> mutableBody(Object body) {
-		return (Map<String, Object>) body;
+	private static SearchAutocompleteBody matchPrefixBody() {
+		return new SearchAutocompleteBody()
+				.setQuery(Map.of("match_bool_prefix", Map.of("name", "te")));
 	}
 
 	@Test
 	public void testSearchWithNegativeOffsetThrows() throws IOException {
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("from", -1);
+		SearchQuery body = matchAllBody().setFrom(-1L);
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -1738,8 +1734,7 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testSearchWithOffsetAboveIntMaxThrows() throws IOException {
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("from", (long) Integer.MAX_VALUE + 1L);
+		SearchQuery body = matchAllBody().setFrom((long) Integer.MAX_VALUE + 1L);
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -1752,8 +1747,7 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testSearchWithNegativeLimitThrows() throws IOException {
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("size", -1);
+		SearchQuery body = matchAllBody().setSize(-1L);
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -1770,8 +1764,7 @@ public class OpenSearchManagerImplTest {
 		// preserved — the new validation only rejects negative sizes.
 		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
 				.thenReturn(emptySearchResponse());
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("size", 10_000);
+		SearchQuery body = matchAllBody().setSize(10_000L);
 
 		// call under test
 		manager.search("search-index-syn1", body,
@@ -1792,8 +1785,8 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("post_filter", Map.of("term", Map.of("status.keyword", "ACTIVE")));
+		SearchQuery body = matchAllBody()
+				.setPost_filter(Map.of("term", Map.of("status.keyword", "ACTIVE")));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1816,8 +1809,8 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("post_filter", Map.of("term", Map.of("status", "ACTIVE")));
+		SearchQuery body = matchAllBody()
+				.setPost_filter(Map.of("term", Map.of("status", "ACTIVE")));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1840,8 +1833,8 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("aggregations", Map.of("by_status", Map.of("terms", Map.of("field", "status"))));
+		SearchQuery body = matchAllBody()
+				.setAggregations(Map.of("by_status", Map.of("terms", Map.of("field", "status"))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1861,8 +1854,8 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("200").setName("score").setColumnType(ColumnType.DOUBLE));
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("aggregations", Map.of("avg_score", Map.of("avg", Map.of("field", "score"))));
+		SearchQuery body = matchAllBody()
+				.setAggregations(Map.of("avg_score", Map.of("avg", Map.of("field", "score"))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1898,8 +1891,7 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("projectId").setColumnType(ColumnType.STRING));
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("collapse", Map.of("field", "projectId"));
+		SearchQuery body = matchAllBody().setCollapse(Map.of("field", "projectId"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1919,8 +1911,7 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
-		Map<String, Object> body = mutableBody(matchAllBody());
-		body.put("rescore", Map.of(
+		SearchQuery body = matchAllBody().setRescore(Map.of(
 				"window_size", 50,
 				"query", Map.of("rescore_query",
 						Map.of("match_phrase", Map.of("title", "alzheimers")))));
@@ -2131,4 +2122,107 @@ public class OpenSearchManagerImplTest {
 				"no shardFailures section when shards.failures is empty: " + desc);
 	}
 
+	// ===================== branch coverage: convertResponse parts gating =====================
+
+	/**
+	 * One-document search response wrapping the same fixture across every parts test below.
+	 * total = 5 so TOTAL_HITS is observably non-zero, one Hit so the cursor/hits paths run,
+	 * and one sort value so the next-search-after path fires when HITS is requested.
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private SearchResponse<Map> oneHitSearchResponse() {
+		Map<String, Object> source = new LinkedHashMap<>();
+		source.put("_row_id", 7L);
+		source.put("_row_version", 1L);
+		Hit<Map> hit = (Hit<Map>) (Hit) Hit.of(b -> b
+				.index("idx").id("d1").score(1.5)
+				.source(source)
+				.sort(Arrays.asList(FieldValue.of(7L))));
+		TotalHits total = TotalHits.of(t -> t.value(5L).relation(TotalHitsRelation.Eq));
+		HitsMetadata<Map> hits = HitsMetadata.of(h -> h.total(total).hits(Arrays.asList(hit)));
+		return SearchResponse.searchResponseOf(r -> r
+				.took(0L)
+				.timedOut(false)
+				.shards(s -> s.total(1).successful(1).failed(0))
+				.hits(hits));
+	}
+
+	@Test
+	public void testSearchWithHitsOnlyPopulatesHitsAndOffsetButNotTotalHits() throws IOException {
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(oneHitSearchResponse());
+
+		// call under test
+		SearchQueryResults results =
+				manager.search("my-index", matchAllBody(), Collections.emptyList(),
+						EnumSet.of(SearchQueryPart.HITS));
+
+		assertNotNull(results.getHits(), "HITS requested → hits populated");
+		assertEquals(1, results.getHits().size());
+		assertNull(results.getTotalHits(), "TOTAL_HITS absent → totalHits null");
+		assertNotNull(results.getOffset(), "offset is always populated");
+		// nextSearchAfter is populated when HITS is requested and the page carries sort values.
+		assertNotNull(results.getNextSearchAfter(),
+				"nextSearchAfter populated when last hit carries sort values");
+	}
+
+	@Test
+	public void testSearchWithTotalHitsOnlyPopulatesTotalHitsButNotHits() throws IOException {
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(oneHitSearchResponse());
+
+		// call under test
+		SearchQueryResults results =
+				manager.search("my-index", matchAllBody(), Collections.emptyList(),
+						EnumSet.of(SearchQueryPart.TOTAL_HITS));
+
+		assertEquals(Long.valueOf(5L), results.getTotalHits(), "TOTAL_HITS → totalHits set");
+		assertNull(results.getHits(), "HITS absent → hits null");
+		assertNull(results.getNextSearchAfter(),
+				"nextSearchAfter only fires when HITS is requested");
+	}
+
+	@Test
+	public void testSearchWithEveryPartCombinationHonoursGate() throws IOException {
+		// Coverage guard for SearchQueryPart: iterate every subset (8 subsets for 3 parts).
+		// Asserts each gate is a strict if/else on the part bit so a future enum addition
+		// or a regression that swaps gate logic surfaces here.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(oneHitSearchResponse(),
+						oneHitSearchResponse(), oneHitSearchResponse(),
+						oneHitSearchResponse(), oneHitSearchResponse(),
+						oneHitSearchResponse(), oneHitSearchResponse(),
+						oneHitSearchResponse());
+
+		EnumSet<SearchQueryPart> guard = EnumSet.noneOf(SearchQueryPart.class);
+		for (int mask = 0; mask < (1 << SearchQueryPart.values().length); mask++) {
+			EnumSet<SearchQueryPart> parts = EnumSet.noneOf(SearchQueryPart.class);
+			SearchQueryPart[] all = SearchQueryPart.values();
+			for (int b = 0; b < all.length; b++) {
+				if ((mask & (1 << b)) != 0) {
+					parts.add(all[b]);
+					guard.add(all[b]);
+				}
+			}
+			// call under test
+			SearchQueryResults results =
+					manager.search("my-index", matchAllBody(), Collections.emptyList(), parts);
+
+			assertEquals(parts.contains(SearchQueryPart.HITS),
+					results.getHits() != null, "HITS gate, mask=" + mask);
+			assertEquals(parts.contains(SearchQueryPart.TOTAL_HITS),
+					results.getTotalHits() != null, "TOTAL_HITS gate, mask=" + mask);
+			// nextSearchAfter is downstream of HITS — only set when HITS is requested AND
+			// the page carries sort values (the fixture always provides one).
+			assertEquals(parts.contains(SearchQueryPart.HITS),
+					results.getNextSearchAfter() != null,
+					"nextSearchAfter follows HITS, mask=" + mask);
+			// SELECT_COLUMNS is shaped at the manager (SearchIndexQueryManagerImpl) — not at
+			// this layer. OpenSearchManagerImpl.convertResponse never touches selectColumns.
+			assertNull(results.getSelectColumns(),
+					"SELECT_COLUMNS shaping happens at SearchIndexQueryManagerImpl, not here");
+		}
+		assertEquals(EnumSet.allOf(SearchQueryPart.class), guard,
+				"every SearchQueryPart must be exercised across the powerset");
+	}
 }

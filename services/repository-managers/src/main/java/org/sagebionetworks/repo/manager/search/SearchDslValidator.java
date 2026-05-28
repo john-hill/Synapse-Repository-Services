@@ -441,18 +441,11 @@ final class SearchDslValidator {
 		if (type == null) {
 			return;
 		}
-		if (type.isBuiltin()) {
-			String jsonValue = type.builtin().jsonValue();
-			if (FORBIDDEN_HIGHLIGHTER_TYPE_SEMANTIC.equalsIgnoreCase(jsonValue)) {
-				throw new IllegalArgumentException(label
-						+ " 'semantic' is not allowed (requires a deployed ML model)");
-			}
-		} else if (type.isCustom()) {
-			String custom = type.custom();
-			if (FORBIDDEN_HIGHLIGHTER_TYPE_SEMANTIC.equalsIgnoreCase(custom)) {
-				throw new IllegalArgumentException(label
-						+ " 'semantic' is not allowed (requires a deployed ML model)");
-			}
+		String name = type.isBuiltin() ? type.builtin().jsonValue()
+				: type.isCustom() ? type.custom() : null;
+		if (FORBIDDEN_HIGHLIGHTER_TYPE_SEMANTIC.equalsIgnoreCase(name)) {
+			throw new IllegalArgumentException(label
+					+ " 'semantic' is not allowed (requires a deployed ML model)");
 		}
 	}
 

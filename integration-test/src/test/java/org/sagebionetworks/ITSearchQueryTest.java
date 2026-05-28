@@ -39,6 +39,8 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
@@ -89,10 +91,10 @@ public class ITSearchQueryTest {
 		}
 	}
 
-	/** Build a search-request body wrapping an opaque {@code match_all} clause — the
-	 * catalog-style minimum payload now that {@code body.query} is required. */
-	private static java.util.Map<String, Object> matchAllBody() {
-		return java.util.Map.of("query",
+	/** Build a SearchQuery wrapping an opaque {@code match_all} clause — the
+	 * catalog-style minimum payload now that {@code query} is required. */
+	private static SearchQuery matchAllBody() {
+		return new SearchQuery().setQuery(
 				java.util.Map.of("match_all", java.util.Collections.emptyMap()));
 	}
 
@@ -247,19 +249,19 @@ public class ITSearchQueryTest {
 		// Pass bare column names — server auto-routes the text column through .keyword for
 		// the terms aggregation and the term post-filter. This is the round-trip proof that
 		// the routing happens end-to-end (request → AOSS → response).
-		java.util.Map<String, Object> body = java.util.Map.of(
-				"query", java.util.Map.of("match_all", java.util.Collections.emptyMap()),
-				"aggregations", java.util.Map.of(
+		SearchQuery body = new SearchQuery()
+				.setQuery(java.util.Map.of("match_all", java.util.Collections.emptyMap()))
+				.setAggregations(java.util.Map.of(
 						"by_status", java.util.Map.of(
-								"terms", java.util.Map.of("field", "status"))),
-				"post_filter", java.util.Map.of(
+								"terms", java.util.Map.of("field", "status"))))
+				.setPost_filter(java.util.Map.of(
 						"term", java.util.Map.of("status", "ACTIVE")));
 
 		SearchIndexQuery query = new SearchIndexQuery();
 		query.setSearchIndexId(searchIndex.getId());
 		query.setSearchQuery(body);
 		query.setResponseParts(EnumSet.of(
-				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.FACETS));
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
 
 		// call under test — postFilter narrows hits but not aggregations
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, query,
@@ -275,7 +277,7 @@ public class ITSearchQueryTest {
 				// aggregationResults is now an opaque JSON object (Map at the wire layer);
 				// no JSON.parse wrapping needed.
 				Object aggResults = results.getAggregationResults();
-				assertNotNull(aggResults, "aggregationResults must be populated when FACETS requested");
+				assertNotNull(aggResults, "aggregationResults must be populated whenever the body supplied aggregations");
 				@SuppressWarnings("unchecked")
 				java.util.Map<String, Object> root = (java.util.Map<String, Object>) aggResults;
 				@SuppressWarnings("unchecked")
@@ -391,8 +393,8 @@ public class ITSearchQueryTest {
 		// the edge-ngram work at index time.
 		SearchAutocompleteRequest autocompleteRequest = new SearchAutocompleteRequest()
 				.setSearchIndexId(searchIndex.getId())
-				.setBody(java.util.Map.of("query",
-						java.util.Map.of("match_bool_prefix",
+				.setBody(new SearchAutocompleteBody()
+						.setQuery(java.util.Map.of("match_bool_prefix",
 								java.util.Map.of("geneName", "BRC"))));
 
 		// call under test
@@ -548,9 +550,9 @@ public class ITSearchQueryTest {
 
 		// match query against the analyzed text column; highlight asks for fragments back on
 		// that same column. Bare column names — server resolves and rewrites both directions.
-		java.util.Map<String, Object> body = java.util.Map.of(
-				"query", java.util.Map.of("match", java.util.Map.of("geneName", "tumor")),
-				"highlight", java.util.Map.of("fields",
+		SearchQuery body = new SearchQuery()
+				.setQuery(java.util.Map.of("match", java.util.Map.of("geneName", "tumor")))
+				.setHighlight(java.util.Map.of("fields",
 						java.util.Map.of("geneName", java.util.Collections.emptyMap())));
 
 		SearchIndexQuery query = new SearchIndexQuery();
@@ -657,10 +659,10 @@ public class ITSearchQueryTest {
 		// Base match on 'amyloid' — every row matches. Rescore boosts hits whose title
 		// contains the exact phrase 'amyloid plaques'. Collapse on projectId groups so
 		// only one hit per project is returned.
-		java.util.Map<String, Object> body = java.util.Map.of(
-				"query", java.util.Map.of("match", java.util.Map.of("title", "amyloid")),
-				"collapse", java.util.Map.of("field", "projectId"),
-				"rescore", java.util.Map.of(
+		SearchQuery body = new SearchQuery()
+				.setQuery(java.util.Map.of("match", java.util.Map.of("title", "amyloid")))
+				.setCollapse(java.util.Map.of("field", "projectId"))
+				.setRescore(java.util.Map.of(
 						"window_size", 50,
 						"query", java.util.Map.of(
 								"rescore_query", java.util.Map.of(

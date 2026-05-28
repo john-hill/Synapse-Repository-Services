@@ -4,17 +4,17 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
@@ -60,13 +60,12 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
 
 		String searchIndexId = request.getSearchIndexId();
-		Object body = request.getSearchQuery();
+		SearchQuery body = request.getSearchQuery();
 		Set<SearchQueryPart> parts = resolveRequestedParts(request.getResponseParts());
 
 		preflightAndCheckIndex(user, searchIndexId);
 		QueryMetadata metadata = buildQueryMetadata(IdAndVersion.parse(searchIndexId));
 
-		// Snapshot _source.includes before OpenSearchManager mutates the body in place.
 		List<String> originalReturnFields = parts.contains(SearchQueryPart.SELECT_COLUMNS)
 				? extractSourceIncludes(body)
 				: null;
@@ -121,10 +120,9 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		if (parts.contains(SearchQueryPart.TOTAL_HITS)) {
 			results.setTotalHits(rawResults.getTotalHits());
 		}
-		if (parts.contains(SearchQueryPart.FACETS)) {
-			results.setAggregationResults(rawResults.getAggregationResults());
-		}
-		// Suggesters are scoped by the caller supplying body.suggest, not a SearchQueryPart bit.
+		// Aggregations and suggesters are scoped by the caller supplying body.aggregations /
+		// body.suggest, not a SearchQueryPart bit. Raw fields are null when not requested.
+		results.setAggregationResults(rawResults.getAggregationResults());
 		results.setSuggestResults(rawResults.getSuggestResults());
 		if (parts.contains(SearchQueryPart.SELECT_COLUMNS)) {
 			results.setSelectColumns(filterSelectColumnsForReturnFields(
@@ -150,25 +148,19 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	 * shorthand) as a list of column names. Returns null when no source filter is supplied,
 	 * when {@code _source} is a boolean, or when there are no includes.
 	 */
-	static List<String> extractSourceIncludes(Object body) {
-		JsonNode root;
-		try {
-			root = SearchOpaqueJsonUtil.parse(body);
-		} catch (IllegalArgumentException e) {
+	static List<String> extractSourceIncludes(SearchQuery body) {
+		Object source = body == null ? null : body.get_source();
+		if (!(source instanceof List) && !(source instanceof Map)) {
 			return null;
 		}
-		JsonNode source = root.get("_source");
-		if (source == null || source.isNull() || source.isBoolean()) {
+		Object includes = source instanceof List ? source : ((Map<?, ?>) source).get("includes");
+		if (!(includes instanceof List)) {
 			return null;
 		}
-		JsonNode includes = source.isArray() ? source : source.get("includes");
-		if (includes == null || !includes.isArray() || includes.size() == 0) {
-			return null;
-		}
-		List<String> names = new ArrayList<>(includes.size());
-		for (JsonNode element : includes) {
-			if (element.isTextual()) {
-				names.add(element.asText());
+		List<String> names = new ArrayList<>();
+		for (Object element : (List<?>) includes) {
+			if (element instanceof String) {
+				names.add((String) element);
 			}
 		}
 		return names.isEmpty() ? null : names;

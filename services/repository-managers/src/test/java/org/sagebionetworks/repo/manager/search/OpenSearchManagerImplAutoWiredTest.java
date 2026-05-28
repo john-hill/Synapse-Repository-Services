@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,12 +27,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
@@ -339,14 +344,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// Autocomplete with prefix "mit" should match "mitochondria"; "microbiome" begins
 		// with "mic", not "mit", so it must NOT match. The manager clamps page size for
-		// autocomplete.
-		Map<String, Object> multiMatch = new HashMap<>();
-		multiMatch.put("query", "mit");
-		multiMatch.put("type", "bool_prefix");
-		multiMatch.put("fields", List.of("term"));
-		// Autocomplete body: only `query` and `_source` are accepted at the top level.
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", Map.of("multi_match", multiMatch));
+		// autocomplete. The autocomplete top-level allowlist accepts
+		// {prefix, match_phrase_prefix, match_bool_prefix} only — match_bool_prefix is the
+		// direct equivalent of the legacy multi_match{type:bool_prefix} shape.
+		SearchAutocompleteBody body = new SearchAutocompleteBody()
+				.setQuery(Map.of("match_bool_prefix", Map.of("term", "mit")));
 
 		// call under test
 		SearchQueryResults results = waitForAutocomplete(body, columns, 1);
@@ -385,7 +387,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testSearchWithNonExistentIndex() {
-		Object body = simpleQueryStringBody("anything");
+		SearchQuery body = simpleQueryStringBody("anything");
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
@@ -685,8 +687,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * {@code multi_match}.
 	 */
 	private SearchQueryResults runQuery(SearchQueryType queryType, String text, List<ColumnModel> columns) {
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", text);
+		Map<String, Object> clauseBody = new HashMap<>();
+		clauseBody.put("query", text);
 		String clause;
 		switch (queryType) {
 			case SIMPLE_QUERY_STRING:
@@ -698,11 +700,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 			default:
 				throw new AssertionError("runQuery is only used for SIMPLE_QUERY_STRING / MULTI_MATCH");
 		}
-		Map<String, Object> reqBody = new HashMap<>();
-		reqBody.put("query", Map.of(clause, body));
-		reqBody.put("size", 10);
-		reqBody.put("from", 0);
-		return waitForSearch(reqBody, columns, 1L);
+		SearchQuery body = new SearchQuery()
+				.setQuery(Map.of(clause, clauseBody))
+				.setSize(10L)
+				.setFrom(0L);
+		return waitForSearch(body, columns, 1L);
 	}
 
 	/**
@@ -776,8 +778,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 					Map.of("terms", Map.of("field", fieldRef)));
 		}
 
-		Map<String, Object> body = matchAllBody();
-		body.put("aggregations", aggsDsl);
+		SearchQuery body = matchAllBody().setAggregations(aggsDsl);
 		SearchQueryResults results = waitForSearch(body, columns, 1L);
 
 		assertEquals(1L, results.getTotalHits());
@@ -963,7 +964,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * Poll until search returns at least {@code expectedMinHits} results.
 	 * AOSS is eventually consistent — documents may not be visible immediately after indexing.
 	 */
-	private SearchQueryResults waitForSearch(Object body, List<ColumnModel> columns,
+	private SearchQueryResults waitForSearch(SearchQuery body, List<ColumnModel> columns,
 			long expectedMinHits) {
 		SearchQueryResults[] result = {null};
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
@@ -980,7 +981,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return result[0];
 	}
 
-	private SearchQueryResults waitForAutocomplete(Object body, List<ColumnModel> columns,
+	private SearchQueryResults waitForAutocomplete(SearchAutocompleteBody body, List<ColumnModel> columns,
 			long expectedMinHits) {
 		SearchQueryResults[] result = {null};
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
@@ -1003,31 +1004,29 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * clause &mdash; the most common shape across these tests. Pass {@code null} for
 	 * {@code fields} to let OpenSearch search every indexed text-bearing field.
 	 */
-	private static Map<String, Object> simpleQueryStringBody(String text, List<String> fields) {
+	private static SearchQuery simpleQueryStringBody(String text, List<String> fields) {
 		Map<String, Object> sqs = new HashMap<>();
 		sqs.put("query", text);
 		if (fields != null && !fields.isEmpty()) {
 			sqs.put("fields", fields);
 		}
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", Map.of("simple_query_string", sqs));
-		body.put("size", 10);
-		body.put("from", 0);
-		return body;
+		return new SearchQuery()
+				.setQuery(Map.of("simple_query_string", sqs))
+				.setSize(10L)
+				.setFrom(0L);
 	}
 
 	/** Convenience overload without per-field restriction. */
-	private static Map<String, Object> simpleQueryStringBody(String text) {
+	private static SearchQuery simpleQueryStringBody(String text) {
 		return simpleQueryStringBody(text, null);
 	}
 
 	/** Build a body wrapping an opaque {@code match_all} clause. */
-	private static Map<String, Object> matchAllBody() {
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", Map.of("match_all", Collections.emptyMap()));
-		body.put("size", 10);
-		body.put("from", 0);
-		return body;
+	private static SearchQuery matchAllBody() {
+		return new SearchQuery()
+				.setQuery(Map.of("match_all", Collections.emptyMap()))
+				.setSize(10L)
+				.setFrom(0L);
 	}
 
 	private Map<String, IndexSettingsAnalysis> buildDefaultAnalyzers() {
@@ -1044,5 +1043,163 @@ public class OpenSearchManagerImplAutoWiredTest {
 						.index(indexName)
 						.id(docId)
 						.document(doc)));
+	}
+
+	/**
+	 * Single live-AOSS round trip exercising every kind in
+	 * {@link SearchDslValidator#ALLOWED_QUERY_KINDS}. Each kind is wrapped in its own
+	 * caller-supplied body and dispatched at AOSS; the EnumSet coverage guard at the bottom
+	 * fails the test if a future allowlist relaxation adds a kind without a fixture row.
+	 *
+	 * <p>The fixture columns have one numeric (year) and one text (title) column so kinds
+	 * that need numeric ranges and kinds that need string operations both have a real
+	 * column to point at. Each query is run as a {@code SearchQuery.body} wrapping the kind
+	 * envelope plus the standard {@code from}/{@code size}.</p>
+	 */
+	@Test
+	public void testSearchWithEveryAllowedQueryKindRoundTrips() {
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("year").setColumnType(ColumnType.INTEGER));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L,
+						"1", "amyloid plaques", "2", "2024")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L,
+						"1", "tau tangles", "2", "2023")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		// Wait until both docs are visible, then issue every kind without re-polling.
+		waitForSearch(matchAllBody(), columns, 2);
+
+		Map<Query.Kind, Supplier<SearchQuery>> queries = new LinkedHashMap<>();
+		queries.put(Query.Kind.Match,
+				() -> queryBody(Map.of("match", Map.of("title", "amyloid"))));
+		queries.put(Query.Kind.MultiMatch,
+				() -> queryBody(Map.of("multi_match", Map.of("query", "amyloid", "fields", List.of("title")))));
+		queries.put(Query.Kind.MatchPhrase,
+				() -> queryBody(Map.of("match_phrase", Map.of("title", "amyloid plaques"))));
+		// MatchPhrasePrefix is omitted: the field rewriter auto-routes text columns to
+		// .keyword for term-family clauses (per the production routing table), but AOSS
+		// rejects phrase-prefix on keyword fields with "Can only use phrase prefix queries
+		// on text fields". Phrase-prefix is only valid against an analyzer-bound text
+		// column — already covered end-to-end by
+		// testRoundTripWithAutocompleteBootstrappedAnalyzer (with an AUTOCOMPLETE override).
+		queries.put(Query.Kind.MatchBoolPrefix,
+				() -> queryBody(Map.of("match_bool_prefix", Map.of("title", "amyloid pla"))));
+		queries.put(Query.Kind.Term,
+				() -> queryBody(Map.of("term", Map.of("year", 2024))));
+		queries.put(Query.Kind.Terms,
+				() -> queryBody(Map.of("terms", Map.of("year", List.of(2023, 2024)))));
+		queries.put(Query.Kind.Range,
+				() -> queryBody(Map.of("range", Map.of("year", Map.of("gte", 2024)))));
+		queries.put(Query.Kind.Exists,
+				() -> queryBody(Map.of("exists", Map.of("field", "title"))));
+		queries.put(Query.Kind.Prefix,
+				() -> queryBody(Map.of("prefix", Map.of("title", "amyl"))));
+		queries.put(Query.Kind.Wildcard,
+				() -> queryBody(Map.of("wildcard", Map.of("title", "amyloid*"))));
+		queries.put(Query.Kind.Fuzzy,
+				() -> queryBody(Map.of("fuzzy", Map.of("title", Map.of("value", "amyloid")))));
+		queries.put(Query.Kind.Ids,
+				() -> queryBody(Map.of("ids", Map.of("values", List.of("1", "2")))));
+		queries.put(Query.Kind.SimpleQueryString,
+				() -> queryBody(Map.of("simple_query_string", Map.of("query", "amyloid"))));
+		queries.put(Query.Kind.MatchAll,
+				() -> matchAllBody());
+		queries.put(Query.Kind.Bool,
+				() -> queryBody(Map.of("bool",
+						Map.of("must", List.of(Map.of("match_all", Map.of())),
+								"filter", List.of(Map.of("term", Map.of("year", 2024)))))));
+		queries.put(Query.Kind.DisMax,
+				() -> queryBody(Map.of("dis_max",
+						Map.of("queries", List.of(Map.of("match", Map.of("title", "amyloid")),
+								Map.of("term", Map.of("year", 2024)))))));
+		queries.put(Query.Kind.ConstantScore,
+				() -> queryBody(Map.of("constant_score",
+						Map.of("filter", Map.of("term", Map.of("year", 2024))))));
+		queries.put(Query.Kind.Boosting,
+				() -> queryBody(Map.of("boosting",
+						Map.of("positive", Map.of("match", Map.of("title", "amyloid")),
+								"negative", Map.of("term", Map.of("year", 2023)),
+								"negative_boost", 0.5))));
+
+		EnumSet<Query.Kind> covered = EnumSet.noneOf(Query.Kind.class);
+		for (Map.Entry<Query.Kind, Supplier<SearchQuery>> entry : queries.entrySet()) {
+			SearchQuery body = entry.getValue().get();
+			// call under test — every kind must round-trip without throwing
+			SearchQueryResults result = openSearchManager.search(indexName, body, columns,
+					EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+			assertNotNull(result, "kind " + entry.getKey() + " produced null result");
+			assertNotNull(result.getTotalHits(), "kind " + entry.getKey() + " missing totalHits");
+			covered.add(entry.getKey());
+		}
+
+		// Coverage guard: every allowlisted kind must appear in this round-trip except
+		// MatchPhrasePrefix (covered by testRoundTripWithAutocompleteBootstrappedAnalyzer).
+		EnumSet<Query.Kind> expected = EnumSet.copyOf(SearchDslValidator.ALLOWED_QUERY_KINDS);
+		expected.remove(Query.Kind.MatchPhrasePrefix);
+		assertEquals(expected, covered,
+				"every allowlisted query kind (except MatchPhrasePrefix) must appear in this round-trip");
+	}
+
+	/**
+	 * Single live-AOSS round trip exercising every part in
+	 * {@link SearchQueryPart} (singly and combined). Asserts each part bit causes the
+	 * corresponding response field to be populated and absent when the bit is off.
+	 * Coverage guard against {@code SearchQueryPart.values()} at the bottom.
+	 */
+	@Test
+	public void testSearchWithEverySearchQueryPartCombination() {
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+		openSearchManager.bulkIndex(indexName, List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "amyloid"))));
+		// Wait once for visibility; subsequent searches reuse the same indexed doc.
+		waitForSearch(matchAllBody(), columns, 1);
+
+		EnumSet<SearchQueryPart> guard = EnumSet.noneOf(SearchQueryPart.class);
+		SearchQueryPart[] all = SearchQueryPart.values();
+		for (int mask = 0; mask < (1 << all.length); mask++) {
+			EnumSet<SearchQueryPart> parts = EnumSet.noneOf(SearchQueryPart.class);
+			for (int b = 0; b < all.length; b++) {
+				if ((mask & (1 << b)) != 0) {
+					parts.add(all[b]);
+					guard.add(all[b]);
+				}
+			}
+			// call under test
+			SearchQueryResults r = openSearchManager.search(indexName, matchAllBody(), columns, parts);
+
+			assertEquals(parts.contains(SearchQueryPart.HITS), r.getHits() != null,
+					"HITS gate, mask=" + mask);
+			assertEquals(parts.contains(SearchQueryPart.TOTAL_HITS), r.getTotalHits() != null,
+					"TOTAL_HITS gate, mask=" + mask);
+			// SELECT_COLUMNS shaping happens at SearchIndexQueryManagerImpl, not at this
+			// layer — the OpenSearchManager itself never touches selectColumns.
+			assertNull(r.getSelectColumns(),
+					"SELECT_COLUMNS shaping is not at this layer, mask=" + mask);
+		}
+		assertEquals(EnumSet.allOf(SearchQueryPart.class), guard,
+				"every SearchQueryPart must be exercised across the powerset");
+	}
+
+	/**
+	 * Build a {@code SearchQuery} body wrapping an arbitrary opaque OpenSearch DSL query
+	 * clause as the {@code query} slot, with default {@code size}/{@code from} and no other
+	 * top-level keys. Used by {@link #testSearchWithEveryAllowedQueryKindRoundTrips} to
+	 * vary the inner clause shape per kind without rebuilding the rest of the envelope.
+	 */
+	private static SearchQuery queryBody(Map<String, Object> queryClause) {
+		return new SearchQuery()
+				.setQuery(queryClause)
+				.setSize(10L)
+				.setFrom(0L);
 	}
 }

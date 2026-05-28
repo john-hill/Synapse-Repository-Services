@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.search;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -23,10 +24,11 @@ import com.fasterxml.jackson.databind.node.TextNode;
  *       caller column names to column ids and routing text-typed columns through their
  *       {@code .keyword} sub-field on operations that need it (term-family, range,
  *       aggregations, sort-equivalent clauses).</li>
- *   <li>Response side: {@link #rewriteAggregationResults} and {@link #rewriteSuggestResults}
- *       walk the AOSS response envelope, rewrite embedded column ids back to column names,
- *       and strip the {@code .keyword} suffix so the caller sees their original bare column
- *       name even when the server auto-routed.</li>
+ *   <li>Response side: {@link #rewriteAggregationResults} walks the AOSS response envelope
+ *       (aggregations and suggest blocks share the same {@code "field"}-string shape),
+ *       rewrites embedded column ids back to column names, and strips the {@code .keyword}
+ *       suffix so the caller sees their original bare column name even when the server
+ *       auto-routed.</li>
  * </ul>
  *
  * <p>Both directions assume {@code "field"} string values and {@code "fields"} string-array
@@ -174,17 +176,6 @@ final class SearchFieldRewriter {
 		/** True iff the column with this id is text-typed (STRING / STRING_LIST / MEDIUMTEXT /
 		 * LARGETEXT / LINK) — the dual-mapped category that has a {@code .keyword} sub-field. */
 		boolean isTextLike(String columnId);
-
-		/** Context for paths that need name-only rewriting and never auto-route. */
-		static RoutingContext bareNameMapping(Function<String, String> nameToId) {
-			return new RoutingContext() {
-				@Override public String mapName(String name) {
-					String mapped = nameToId.apply(name);
-					return mapped == null ? name : mapped;
-				}
-				@Override public boolean isTextLike(String columnId) { return false; }
-			};
-		}
 	}
 
 	// OpenSearch leaf-query kinds that accept a "shorthand" form where the inner object's
@@ -245,25 +236,19 @@ final class SearchFieldRewriter {
 			"phrase", RoutingMode.BARE,
 			"completion", RoutingMode.BARE);
 
-	// The highlight surface has no leaf-clause kinds with their own field references; the
-	// only field reference is the highlight.fields map's KEYS, handled directly in walk().
-	private static final Map<String, RoutingMode> HIGHLIGHT_KIND_MODES = Map.of();
-
-	// Collapse has a single top-level "field" reference; needs doc values, so route text
-	// columns through .keyword. Mode is applied via the default branch on the "field" key
-	// at the root of the collapse subtree (no enclosing kind name).
-	private static final Map<String, RoutingMode> COLLAPSE_KIND_MODES = Map.of();
-
 	private SearchFieldRewriter() {
 	}
 
+	// HIGHLIGHT and COLLAPSE have no nested clause-kind names that drive routing —
+	// HIGHLIGHT routes via its `fields` map keys (handled inline in walk()), and COLLAPSE
+	// routes its single top-level `field` via the seed mode passed to the walker.
 	private static Map<String, RoutingMode> kindMapFor(Surface surface) {
 		switch (surface) {
 		case QUERY: return QUERY_KIND_MODES;
 		case AGGREGATIONS: return AGG_KIND_MODES;
 		case SUGGESTER: return SUGGESTER_KIND_MODES;
-		case HIGHLIGHT: return HIGHLIGHT_KIND_MODES;
-		case COLLAPSE: return COLLAPSE_KIND_MODES;
+		case HIGHLIGHT:
+		case COLLAPSE: return Collections.emptyMap();
 		default: throw new IllegalStateException("unknown surface: " + surface);
 		}
 	}
@@ -296,15 +281,6 @@ final class SearchFieldRewriter {
 		RoutingMode initialMode = (surface == Surface.COLLAPSE)
 				? RoutingMode.KEYWORD_FOR_TEXT : RoutingMode.BARE;
 		walk(node, ctx, surface, initialMode);
-	}
-
-	/**
-	 * Walks the tree using only the name &rarr; id mapping, with no column-type-aware
-	 * routing. Behaviorally identical to the routed walker on a schema where every column
-	 * is non-text.
-	 */
-	static void rewriteRequestFields(JsonNode node, Function<String, String> nameToId) {
-		walk(node, RoutingContext.bareNameMapping(nameToId), Surface.QUERY, RoutingMode.BARE);
 	}
 
 	private static void walk(JsonNode node, RoutingContext ctx, Surface surface, RoutingMode mode) {
@@ -452,12 +428,6 @@ final class SearchFieldRewriter {
 		return mapped + subField + boost;
 	}
 
-	/** Legacy two-arg form retained for tests and the autocomplete validator pre-pass. Always
-	 *  routes in {@link RoutingMode#BARE} (no auto-keyword). */
-	static String rewriteFieldRef(String raw, Function<String, String> nameToId) {
-		return rewriteFieldRef(raw, RoutingContext.bareNameMapping(nameToId), RoutingMode.BARE);
-	}
-
 	// ---------- Response-side rewrite (column id → column name, strip .keyword) ----------
 
 	/**
@@ -489,14 +459,6 @@ final class SearchFieldRewriter {
 				rewriteAggregationResults(element, idToName);
 			}
 		}
-	}
-
-	/**
-	 * Same shape as {@link #rewriteAggregationResults} &mdash; the suggest response also
-	 * embeds a {@code "field"} string anywhere a typed sub-object would have one.
-	 */
-	static void rewriteSuggestResults(JsonNode node, Function<String, String> idToName) {
-		rewriteAggregationResults(node, idToName);
 	}
 
 	/**

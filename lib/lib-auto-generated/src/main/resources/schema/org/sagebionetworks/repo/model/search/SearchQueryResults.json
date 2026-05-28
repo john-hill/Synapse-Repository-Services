@@ -26,7 +26,7 @@
 		},
 		"aggregationResults": {
 			"type": "object",
-			"description": "The raw OpenSearch aggregations response &mdash; the contents of the <code>aggregations</code> key returned by AOSS, with field references rewritten back to column names. Populated when <code>body.aggregations</code> (or <code>body.aggs</code>) was supplied. Returned as an opaque JSON object because the OpenSearch DSL produces a wide variety of bucket shapes per aggregation type and per sub-aggregation."
+			"description": "The raw OpenSearch aggregations response &mdash; the contents of the <code>aggregations</code> key returned by AOSS, with field references rewritten back to column names. Populated whenever the request supplied <code>body.aggregations</code> (or <code>body.aggs</code>); not gated by SearchQueryPart. Returned as an opaque JSON object because the OpenSearch DSL produces a wide variety of bucket shapes per aggregation type and per sub-aggregation."
 		},
 		"suggestResults": {
 			"type": "object",

@@ -4,6 +4,7 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -51,11 +52,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *
  * <p>Four concerns:</p>
  * <ol>
- *   <li><b>Shape conversion.</b> {@link #parse(Object)} / {@link #toJsonString(Object)}
- *       / {@link #fromJsonString(String)} bridge the four shapes a curator-supplied
- *       value can take (raw JSON {@link String}, {@link JSONObject} / {@link JSONArray},
- *       {@link JSONObjectAdapter}, Jackson-friendly {@link Map} / {@link java.util.Collection}
- *       / scalar) to the canonical forms the pipeline needs.</li>
+ *   <li><b>Shape conversion.</b> {@link #parse(Object)} / {@link #fromJsonString(String)}
+ *       bridge the four shapes a curator-supplied value can take (raw JSON {@link String},
+ *       {@link JSONObject} / {@link JSONArray}, {@link JSONObjectAdapter},
+ *       Jackson-friendly {@link Map} / {@link java.util.Collection} / scalar) to the
+ *       canonical forms the pipeline needs.</li>
  *   <li><b>Reference detection.</b> {@link #readRef(Object)} /
  *       {@link #readRef(JsonNode)} surface the qualified-name string from a
  *       {@code {"$ref": "{org}-{name}"}} reference object, regardless of whether the
@@ -94,7 +95,7 @@ public final class SearchOpaqueJsonUtil {
 	 * {@code settings} blob. Per the schema, {@code $ref} is only permitted as the value
 	 * of an entry inside this map.
 	 */
-	public static final String FILTER_KEY = "filter";
+	private static final String FILTER_KEY = "filter";
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -130,17 +131,6 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	/**
-	 * Render an opaque-JSON value to its canonical JSON-string form for persistence.
-	 * Returns {@code null} when {@code json} is {@code null}.
-	 */
-	public static String toJsonString(Object json) {
-		if (json == null) {
-			return null;
-		}
-		return asJsonString(json);
-	}
-
-	/**
 	 * Render any of the supported opaque-JSON value shapes to a JSON string. See the
 	 * class javadoc for the accepted shapes. Package-private so each branch is
 	 * independently testable.
@@ -167,7 +157,7 @@ public final class SearchOpaqueJsonUtil {
 	 * (typically a {@link Map} for an object, a {@link java.util.List} for an array, or
 	 * a scalar). {@code null} passes through.
 	 */
-	public static Object fromJsonString(String json) {
+	static Object fromJsonString(String json) {
 		if (json == null) {
 			return null;
 		}
@@ -226,28 +216,6 @@ public final class SearchOpaqueJsonUtil {
 	 */
 	public static com.fasterxml.jackson.databind.node.ArrayNode arrayNode() {
 		return MAPPER.createArrayNode();
-	}
-
-	/**
-	 * Render an arbitrary Java value to JSON via the shared {@link #MAPPER}, wrapping any
-	 * {@link JsonProcessingException} as an {@link IllegalStateException} with a contextual
-	 * message. Used for stringifying response values (collections / maps from a search hit's
-	 * {@code _source}, hand-built {@link ObjectNode} envelopes, etc.).
-	 *
-	 * <p>Jackson is preferred over {@code org.json} here because the latter coerces every
-	 * numeric value through {@code double}, silently truncating long ids past 2^53 — a real
-	 * problem for Synapse entity / file-handle ids, which sit comfortably above that bound.</p>
-	 *
-	 * @param value           the value to serialize
-	 * @param contextMessage  human-readable hint included in the wrapped exception when
-	 *                        serialization fails
-	 */
-	public static String writeValueAsString(Object value, String contextMessage) {
-		try {
-			return MAPPER.writeValueAsString(value);
-		} catch (JsonProcessingException e) {
-			throw new IllegalStateException(contextMessage + ": " + value, e);
-		}
 	}
 
 	// ---------- caller-DSL → typed OpenSearch model ----------
@@ -397,7 +365,9 @@ public final class SearchOpaqueJsonUtil {
 		SearchDslValidator.scanAggregationsForbiddenKeys(node);
 		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.AGGREGATIONS);
 		Map<String, Aggregation> result = new LinkedHashMap<>();
-		for (Map.Entry<String, JsonNode> entry : iterable(node.fields())) {
+		Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+		while (fields.hasNext()) {
+			Map.Entry<String, JsonNode> entry = fields.next();
 			result.put(entry.getKey(), fromJsonpTree(entry.getValue(), Aggregation._DESERIALIZER));
 		}
 		SearchDslValidator.validateAggregations(result);
@@ -535,11 +505,6 @@ public final class SearchOpaqueJsonUtil {
 		return parseQuery(parse(opaque), ctx, false);
 	}
 
-	/** Autocomplete variant: enforces the narrowed top-level autocomplete query allowlist. */
-	static Query buildTypedAutocompleteQuery(Object opaque, SearchFieldRewriter.RoutingContext ctx) {
-		return parseQuery(parse(opaque), ctx, true);
-	}
-
 	/** See {@link #buildTypedQuery}. */
 	static Map<String, Aggregation> buildTypedAggregations(Object opaque,
 			SearchFieldRewriter.RoutingContext ctx) {
@@ -629,7 +594,8 @@ public final class SearchOpaqueJsonUtil {
 			}
 			root.set(entry.getKey(), array);
 		}
-		SearchFieldRewriter.rewriteSuggestResults(root, idToName);
+		// Suggest envelope embeds the same "field" string shape as aggregations.
+		SearchFieldRewriter.rewriteAggregationResults(root, idToName);
 		return fromJsonString(root.toString());
 	}
 
@@ -775,57 +741,6 @@ public final class SearchOpaqueJsonUtil {
 		return resolveAnalyzerSettings(parse(value), resolver);
 	}
 
-	// ---------- $ref splicing ----------
-
-	/**
-	 * Splice every {@code {"$ref": "<qname>"}} entry inside the {@code root.filter} map
-	 * with the JSON returned by {@code resolver.apply(qname)}. Mutates {@code root} in
-	 * place.
-	 *
-	 * <p>Per the schema contract, {@code $ref} is only permitted as a direct value of an
-	 * entry in the top-level {@code filter} map of an analyzer's settings &mdash; that's
-	 * why the splice is a single non-recursive pass over that map.</p>
-	 *
-	 * @param root          The settings tree; mutated in place.
-	 * @param filterKey     The key of the top-level filter map (e.g. {@code "filter"}).
-	 * @param resolver      Returns the JSON node to splice in for a given qname, or
-	 *                      {@code null} if the target does not exist.
-	 * @throws IllegalArgumentException when a {@code $ref} target does not resolve.
-	 */
-	public static void spliceRefsInFilterMap(JsonNode root, String filterKey,
-			java.util.function.Function<String, JsonNode> resolver) {
-		if (root == null) {
-			return;
-		}
-		JsonNode filterMap = root.get(filterKey);
-		if (filterMap == null || !filterMap.isObject()) {
-			return;
-		}
-		ObjectNode filterObj = (ObjectNode) filterMap;
-		for (Map.Entry<String, JsonNode> entry : iterable(filterObj.fields())) {
-			String ref = readRef(entry.getValue());
-			if (ref == null) {
-				continue;
-			}
-			JsonNode target = resolver.apply(ref);
-			if (target == null) {
-				throw new IllegalArgumentException(
-						"Unresolved $ref: '" + ref + "' at /" + filterKey + "/" + entry.getKey());
-			}
-			filterObj.set(entry.getKey(), target);
-		}
-	}
-
-	/**
-	 * Snapshot an iterator into a one-shot iterable so callers can iterate it with
-	 * an enhanced-for loop while still safely mutating the underlying collection.
-	 */
-	private static <T> Iterable<T> iterable(java.util.Iterator<T> it) {
-		java.util.List<T> list = new java.util.ArrayList<>();
-		it.forEachRemaining(list::add);
-		return list;
-	}
-
 	// ---------- analyzer-typed splice + deserialize ----------
 
 	/**
@@ -833,6 +748,10 @@ public final class SearchOpaqueJsonUtil {
 	 * #FILTER_KEY} map with the JSON returned by {@code resolver.apply(qname)}, then
 	 * deserialize the resulting tree into the OpenSearch typed
 	 * {@link IndexSettingsAnalysis}. Mutates {@code root} in place during the splice.
+	 *
+	 * <p>Per the schema contract, {@code $ref} is only permitted as a direct value of an
+	 * entry in the top-level {@code filter} map of an analyzer's settings &mdash; the
+	 * splice is therefore a single non-recursive pass over that map.</p>
 	 *
 	 * <p>Downstream callers use typed accessors ({@link IndexSettingsAnalysis#analyzer()},
 	 * {@link IndexSettingsAnalysis#filter()}, etc.) instead of re-walking the JSON
@@ -851,7 +770,27 @@ public final class SearchOpaqueJsonUtil {
 		if (root == null) {
 			return null;
 		}
-		spliceRefsInFilterMap(root, FILTER_KEY, resolver);
+		JsonNode filterMap = root.get(FILTER_KEY);
+		if (filterMap != null && filterMap.isObject()) {
+			ObjectNode filterObj = (ObjectNode) filterMap;
+			List<String> keys = new ArrayList<>();
+			Iterator<String> names = filterObj.fieldNames();
+			while (names.hasNext()) {
+				keys.add(names.next());
+			}
+			for (String key : keys) {
+				String ref = readRef(filterObj.get(key));
+				if (ref == null) {
+					continue;
+				}
+				JsonNode target = resolver.apply(ref);
+				if (target == null) {
+					throw new IllegalArgumentException(
+							"Unresolved $ref: '" + ref + "' at /" + FILTER_KEY + "/" + key);
+				}
+				filterObj.set(key, target);
+			}
+		}
 		try (JsonParser parser = JSONP_MAPPER.jsonProvider()
 				.createParser(new StringReader(root.toString()))) {
 			return IndexSettingsAnalysis._DESERIALIZER.deserialize(parser, JSONP_MAPPER);

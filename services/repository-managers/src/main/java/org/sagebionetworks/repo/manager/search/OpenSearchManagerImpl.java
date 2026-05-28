@@ -11,17 +11,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch.OpenSearchClient;
-import org.opensearch.client.opensearch._types.ErrorCause;
-import org.opensearch.client.opensearch._types.FieldValue;
-import org.opensearch.client.opensearch._types.OpenSearchException;
-import org.opensearch.client.opensearch._types.Refresh;
-import org.opensearch.client.opensearch._types.ShardSearchFailure;
-import org.opensearch.client.opensearch._types.ShardStatistics;
-import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
+import org.opensearch.client.opensearch._types.*;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.CharFilter;
 import org.opensearch.client.opensearch._types.analysis.CustomAnalyzer;
@@ -47,6 +43,8 @@ import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHighlight;
 import org.sagebionetworks.repo.model.search.SearchHit;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
@@ -988,13 +986,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public SearchQueryResults search(String indexName, Object body, List<ColumnModel> columns,
+	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
 		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false);
 	}
 
 	@Override
-	public SearchQueryResults autocomplete(String indexName, Object body, List<ColumnModel> columns,
+	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
 		// Autocomplete does not accept a caller-supplied size; force the server cap as both
 		// default and ceiling.
@@ -1040,7 +1038,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
-				req.timeout("30");
+				req.timeout("50s");
+				req.cancelAfterTimeInterval(t -> t.time("60s"));
 				effectiveFrom[0] = autocomplete
 						? SearchOpaqueJsonUtil.applyAutocompleteBodyToRequest(
 								body, ctx, req, options, defaultSize)
@@ -1141,6 +1140,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return searchHit;
 	}
 
+	private static final ObjectMapper FIELD_VALUE_MAPPER = new ObjectMapper();
+
 	/**
 	 * Stringify a value from an AOSS hit's {@code _source} for {@link SearchFieldValue#setValue(String)}.
 	 * Lists and maps (i.e. {@code *_LIST} and {@code JSON} columns) are written as canonical JSON
@@ -1153,7 +1154,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			return null;
 		}
 		if (value instanceof Collection || value instanceof Map) {
-			return SearchOpaqueJsonUtil.writeValueAsString(value, "Failed to serialize search field value");
+			try {
+				return FIELD_VALUE_MAPPER.writeValueAsString(value);
+			} catch (JsonProcessingException e) {
+				throw new IllegalStateException("Failed to serialize search field value: " + value, e);
+			}
 		}
 		return String.valueOf(value);
 	}

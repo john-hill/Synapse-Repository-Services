@@ -13,7 +13,11 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.AggregationRange;
+import org.opensearch.client.opensearch._types.aggregations.DateRangeExpression;
 import org.opensearch.client.opensearch._types.aggregations.ExtendedBounds;
+import org.opensearch.client.opensearch._types.aggregations.FieldDateMath;
+import org.opensearch.client.opensearch._types.aggregations.TermsExclude;
+import org.opensearch.client.opensearch._types.aggregations.TermsInclude;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.FuzzyQuery;
 import org.opensearch.client.opensearch._types.query_dsl.MatchPhrasePrefixQuery;
@@ -741,5 +745,281 @@ public class SearchDslValidatorTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> SearchDslValidator.validateRescore(r));
 		assertTrue(ex.getMessage().contains("window_size"));
+	}
+
+	@Test
+	public void testValidateRescoreWithDisallowedInnerKindRejected() {
+		// MoreLikeThis is not in the query allowlist; the inner walkQuery in validateRescore
+		// must reject it the same way a top-level query would.
+		Rescore r = Rescore.of(b -> b.windowSize(50)
+				.query(RescoreQuery.of(rq -> rq.rescoreQuery(
+						Query.of(q -> q.moreLikeThis(m -> m.like(l -> l.text("x"))))))));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateRescore(r));
+		assertTrue(ex.getMessage().contains("not allowed"));
+	}
+
+	@Test
+	public void testValidateRescoreWithNull() {
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateRescore(null));
+	}
+
+	@Test
+	public void testValidateFieldCollapseWithNull() {
+		assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateFieldCollapse(null));
+	}
+
+	// FieldCollapse with a missing or empty `field` is unreachable from the typed builder —
+	// it throws MissingRequiredPropertyException at construction time. The validator's
+	// defensive null/empty check stays for safety in case the OpenSearch client relaxes it.
+
+	// -----------------------------------------------------------------------------
+	// Top-level body allowlists (scanBodyTopLevelKeys / scanAutocompleteBodyTopLevelKeys)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testScanBodyTopLevelKeysWithAllowedSubsetAccepted() throws Exception {
+		// One body containing every BODY_ALLOWED_KEY except aggs (alias) and search_after.
+		String json = "{\"query\":{},\"post_filter\":{},\"aggregations\":{},\"suggest\":{},"
+				+ "\"highlight\":{},\"collapse\":{},\"rescore\":{},\"sort\":[],\"_source\":{},"
+				+ "\"from\":0,\"size\":10}";
+		// call under test — must not throw
+		SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(json));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithUnsupportedKeyRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"explain\":true}")));
+		assertTrue(ex.getMessage().contains("explain"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithNullRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(null));
+		assertTrue(ex.getMessage().contains("body"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithNonObjectRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree("[]")));
+		assertTrue(ex.getMessage().contains("body"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithBothAggregationsAndAggsRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"aggregations\":{},\"aggs\":{}}")));
+		assertTrue(ex.getMessage().contains("'aggregations' and 'aggs'"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithSearchAfterAndPositiveFromRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"search_after\":[\"x\"],\"from\":5}")));
+		assertTrue(ex.getMessage().contains("search_after"));
+		assertTrue(ex.getMessage().contains("from"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithSearchAfterAndZeroFromAccepted() throws Exception {
+		// from=0 alongside search_after is fine — the cursor takes precedence.
+		// call under test — must not throw
+		SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+				"{\"query\":{},\"search_after\":[\"x\"],\"from\":0}"));
+	}
+
+	@Test
+	public void testScanAutocompleteBodyTopLevelKeysWithQueryAndSourceAccepted() throws Exception {
+		// call under test — must not throw
+		SearchDslValidator.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
+				"{\"query\":{},\"_source\":{}}"));
+	}
+
+	@Test
+	public void testScanAutocompleteBodyTopLevelKeysWithDisallowedKeyRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"aggregations\":{}}")));
+		assertTrue(ex.getMessage().contains("aggregations"));
+	}
+
+	@Test
+	public void testScanAutocompleteBodyTopLevelKeysWithNullRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanAutocompleteBodyTopLevelKeys(null));
+		assertTrue(ex.getMessage().contains("body"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Query allowlist coverage guard
+	// -----------------------------------------------------------------------------
+
+	/**
+	 * Single round trip exercising every kind in
+	 * {@link SearchDslValidator#ALLOWED_QUERY_KINDS}. EnumSet.allOf coverage guard at the
+	 * bottom — adding a new allowlisted kind here without a fixture fails the test.
+	 *
+	 * <p>Compounds wrap leaves so the walker recurses into every kind in one validation.</p>
+	 */
+	@Test
+	public void testValidateQueryWithEveryAllowedKindRoundTrips() {
+		List<Query> leaves = new ArrayList<>();
+		leaves.add(Query.of(b -> b.match(m -> m.field("f").query(FieldValue.of("x")))));
+		leaves.add(Query.of(b -> b.multiMatch(mm -> mm.query("x").fields("f"))));
+		leaves.add(Query.of(b -> b.matchPhrase(mp -> mp.field("f").query("x"))));
+		leaves.add(Query.of(b -> b.matchPhrasePrefix(mpp -> mpp.field("f").query("x"))));
+		leaves.add(Query.of(b -> b.matchBoolPrefix(mbp -> mbp.field("f").query("x"))));
+		leaves.add(Query.of(b -> b.term(t -> t.field("f").value(FieldValue.of("x")))));
+		leaves.add(Query.of(b -> b.terms(t -> t.field("f").terms(TermsQueryField.of(qf ->
+				qf.value(List.of(FieldValue.of("x"))))))));
+		leaves.add(Query.of(b -> b.range(r -> r.field("f").gte(JsonData.of(0)))));
+		leaves.add(Query.of(b -> b.exists(e -> e.field("f"))));
+		leaves.add(Query.of(b -> b.prefix(p -> p.field("f").value("x"))));
+		leaves.add(Query.of(b -> b.wildcard(w -> w.field("f").value("x"))));
+		leaves.add(Query.of(b -> b.fuzzy(f -> f.field("f").value(FieldValue.of("x")))));
+		leaves.add(Query.of(b -> b.ids(i -> i.values("1"))));
+		leaves.add(Query.of(b -> b.simpleQueryString(s -> s.query("x"))));
+		leaves.add(Query.of(b -> b.matchAll(m -> m)));
+
+		// Compounds wrap a different leaf each so all four compound branches run.
+		List<Query> all = new ArrayList<>(leaves);
+		all.add(Query.of(b -> b.bool(bb -> bb.must(leaves.get(0)).filter(leaves.get(5)))));
+		all.add(Query.of(b -> b.disMax(dm -> dm.queries(leaves.get(1)))));
+		all.add(Query.of(b -> b.constantScore(cs -> cs.filter(leaves.get(8)))));
+		all.add(Query.of(b -> b.boosting(bo -> bo.positive(leaves.get(0)).negative(leaves.get(13))
+				.negativeBoost(0.5f))));
+
+		EnumSet<Query.Kind> covered = EnumSet.noneOf(Query.Kind.class);
+		for (Query q : all) {
+			// call under test — every kind must validate without throwing
+			SearchDslValidator.validateQuery(q, false);
+			covered.add(q._kind());
+		}
+
+		assertEquals(SearchDslValidator.ALLOWED_QUERY_KINDS, covered,
+				"every allowlisted query kind must appear in this round-trip");
+	}
+
+	// -----------------------------------------------------------------------------
+	// Aggregation recursion (positive case complementing the depth-cap rejection)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testValidateAggregationsWithSubAggregationsRecursesPositive() {
+		Aggregation child = Aggregation.of(b -> b.terms(t -> t.field("f")));
+		Aggregation parent = Aggregation.of(b -> b.terms(t -> t.field("f"))
+				.aggregations("child", child));
+		Map<String, Aggregation> aggs = new LinkedHashMap<>();
+		aggs.put("parent", parent);
+		// call under test — recursion descends without throwing.
+		SearchDslValidator.validateAggregations(aggs);
+	}
+
+	// -----------------------------------------------------------------------------
+	// Highlight: top-level highlight_query (not the per-field variant)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testValidateHighlightWithTopLevelDisallowedHighlightQueryRejected() {
+		// MoreLikeThis is not in the query allowlist; the recursive walkQuery on the
+		// Highlight.highlightQuery() node must reject it at the top level the same way
+		// as it does on the per-field variant.
+		Query nested = Query.of(q -> q.moreLikeThis(m -> m.like(l -> l.text("x"))));
+		Highlight h = Highlight.of(b -> b.highlightQuery(nested).fields(new LinkedHashMap<>()));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateHighlight(h));
+		assertTrue(ex.getMessage().contains("not allowed"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Terms: null TermsQueryField early return
+	// -----------------------------------------------------------------------------
+
+	// validateTerms's null TermsQueryField early return is unreachable from typed callers —
+	// the typed TermsQuery builder requires a TermsQueryField at construction time. The
+	// validator keeps the defensive null check.
+
+@Test
+	public void testValidateTermsAggregationWithIncludeRegexLeftAlone() {
+		// Regex-string include passes through (only inline-list form is capped).
+		Map<String, Aggregation> aggs = new LinkedHashMap<>();
+		aggs.put("a", Aggregation.of(b -> b.terms(t -> t.field("f")
+				.include(TermsInclude.of(ti -> ti.regexp("^a.*"))))));
+		// call under test — must not throw
+		SearchDslValidator.validateAggregations(aggs);
+	}
+
+	@Test
+	public void testValidateTermsAggregationWithExcludeListAtCap() {
+		List<String> tooMany = new ArrayList<>();
+		for (int i = 0; i <= SearchDslValidator.MAX_VALUES_PER_CLAUSE; i++) {
+			tooMany.add("v" + i);
+		}
+		Map<String, Aggregation> aggs = new LinkedHashMap<>();
+		aggs.put("a", Aggregation.of(b -> b.terms(t -> t.field("f")
+				.exclude(TermsExclude.of(te -> te.terms(tooMany))))));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateAggregations(aggs));
+		assertTrue(ex.getMessage().contains("'exclude'"));
+	}
+
+	@Test
+	public void testValidateDateRangeAggregationWithRangesAtCap() {
+		List<DateRangeExpression> ranges = new ArrayList<>();
+		for (int i = 0; i <= SearchDslValidator.MAX_VALUES_PER_CLAUSE; i++) {
+			ranges.add(DateRangeExpression.of(
+					dr -> dr.from(FieldDateMath.of(m -> m.expr("now-1d")))));
+		}
+		Map<String, Aggregation> aggs = new LinkedHashMap<>();
+		aggs.put("a", Aggregation.of(b -> b.dateRange(r -> r.field("f").ranges(ranges))));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateAggregations(aggs));
+		assertTrue(ex.getMessage().contains("'date_range'"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Suggester per-kind size caps
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testValidateSuggesterWithExcessivePhraseSize() {
+		Map<String, FieldSuggester> map = new LinkedHashMap<>();
+		map.put("s", FieldSuggester.of(b -> b.phrase(p -> p.field("f")
+				.size(SearchDslValidator.MAX_SUGGESTER_SIZE + 1)).text("x")));
+		Suggester s = Suggester.of(b -> b.text("x").suggesters(map));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateSuggester(s));
+		assertTrue(ex.getMessage().contains("'size'"));
+	}
+
+	@Test
+	public void testValidateSuggesterWithExcessiveCompletionSize() {
+		Map<String, FieldSuggester> map = new LinkedHashMap<>();
+		map.put("s", FieldSuggester.of(b -> b.completion(c -> c.field("f")
+				.size(SearchDslValidator.MAX_SUGGESTER_SIZE + 1)).text("x")));
+		Suggester s = Suggester.of(b -> b.text("x").suggesters(map));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateSuggester(s));
+		assertTrue(ex.getMessage().contains("'size'"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Ids: empty values list accepted
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testValidateQueryWithEmptyIdsAccepted() {
+		// Null/empty values doesn't trigger the cap; this exercises the (values == null)
+		// early-out path of validateIds.
+		Query q = Query.of(b -> b.ids(i -> i));
+		SearchDslValidator.validateQuery(q, false);
 	}
 }

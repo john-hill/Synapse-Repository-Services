@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -38,8 +39,10 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
@@ -109,27 +112,25 @@ public class SearchIndexQueryManagerImplTest {
 				.thenReturn(new TableIndexDescription(SOURCE_ID));
 	}
 
-	private Object buildBody() {
+	private SearchQuery buildBody() {
 		// Minimal valid body: a match clause on the NAME_COLUMN, expressed as the opaque
 		// OpenSearch DSL the manager forwards to OpenSearchManager. The manager doesn't
 		// inspect the body any more than this — its own validation lives in
-		// OpenSearchManagerImpl.executeSearch — so any non-null Map literal works.
+		// OpenSearchManagerImpl.executeSearch — so any non-null query slot works.
 		Map<String, Object> matchClause = new HashMap<>();
 		matchClause.put(NAME_COLUMN, "test");
 		Map<String, Object> queryDsl = new HashMap<>();
 		queryDsl.put("match", matchClause);
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", queryDsl);
-		return body;
+		return new SearchQuery().setQuery(queryDsl);
 	}
 
 	/** Wrap a body in a SearchIndexQuery bound to {@link #SEARCH_INDEX_ID}. */
-	private SearchIndexQuery buildRequest(Object body) {
+	private SearchIndexQuery buildRequest(SearchQuery body) {
 		return new SearchIndexQuery().setSearchIndexId(SEARCH_INDEX_ID).setSearchQuery(body);
 	}
 
 	/** Wrap a body plus an explicit set of response parts. */
-	private SearchIndexQuery buildRequest(Object body, SearchQueryPart... parts) {
+	private SearchIndexQuery buildRequest(SearchQuery body, SearchQueryPart... parts) {
 		Set<SearchQueryPart> partSet = parts.length == 0
 				? EnumSet.noneOf(SearchQueryPart.class)
 				: EnumSet.copyOf(Arrays.asList(parts));
@@ -147,14 +148,12 @@ public class SearchIndexQueryManagerImplTest {
 	 * or {@code match_bool_prefix} — but since OpenSearchManager is mocked here, that
 	 * validation does not run.
 	 */
-	private static Object buildAutocompleteBody() {
+	private static SearchAutocompleteBody buildAutocompleteBody() {
 		Map<String, Object> prefixArgs = new HashMap<>();
 		prefixArgs.put(NAME_COLUMN + ".keyword", "te");
 		Map<String, Object> prefixClause = new HashMap<>();
 		prefixClause.put("prefix", prefixArgs);
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", prefixClause);
-		return body;
+		return new SearchAutocompleteBody().setQuery(prefixClause);
 	}
 
 	/** Build a minimal SearchAutocompleteRequest bound to {@link #SEARCH_INDEX_ID}. */
@@ -204,9 +203,9 @@ public class SearchIndexQueryManagerImplTest {
 	 * <p>Using concrete matchers here instead of {@code any()} ensures the test actually
 	 * verifies the values the manager passed — not merely that the method was invoked.
 	 */
-	private Object verifyOpenSearchSearch(Set<SearchQueryPart> expectedParts,
+	private SearchQuery verifyOpenSearchSearch(Set<SearchQueryPart> expectedParts,
 			List<String> expectedColumnNames) {
-		ArgumentCaptor<Object> bodyCaptor = ArgumentCaptor.forClass(Object.class);
+		ArgumentCaptor<SearchQuery> bodyCaptor = ArgumentCaptor.forClass(SearchQuery.class);
 		@SuppressWarnings({"unchecked", "rawtypes"})
 		ArgumentCaptor<List<ColumnModel>> columnsCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
 		verify(openSearchManager).search(
@@ -222,9 +221,9 @@ public class SearchIndexQueryManagerImplTest {
 	/**
 	 * Autocomplete analog of {@link #verifyOpenSearchSearch}.
 	 */
-	private Object verifyOpenSearchAutocomplete(Set<SearchQueryPart> expectedParts,
+	private SearchAutocompleteBody verifyOpenSearchAutocomplete(Set<SearchQueryPart> expectedParts,
 			List<String> expectedColumnNames) {
-		ArgumentCaptor<Object> bodyCaptor = ArgumentCaptor.forClass(Object.class);
+		ArgumentCaptor<SearchAutocompleteBody> bodyCaptor = ArgumentCaptor.forClass(SearchAutocompleteBody.class);
 		@SuppressWarnings({"unchecked", "rawtypes"})
 		ArgumentCaptor<List<ColumnModel>> columnsCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
 		verify(openSearchManager).autocomplete(
@@ -248,7 +247,7 @@ public class SearchIndexQueryManagerImplTest {
 			List<String> expectedColumnNames, SearchQueryResults returnValue) {
 		when(openSearchManager.search(
 				eq("search-index-1"),
-				argThat(b -> b instanceof Map && ((Map<?, ?>) b).containsKey("query")),
+				argThat(b -> b != null && b.getQuery() != null),
 				argThat(cols -> cols != null && expectedColumnNames.equals(
 						cols.stream().map(ColumnModel::getName).collect(Collectors.toList()))),
 				eq(expectedOptions)
@@ -260,7 +259,7 @@ public class SearchIndexQueryManagerImplTest {
 			List<String> expectedColumnNames, SearchQueryResults returnValue) {
 		when(openSearchManager.autocomplete(
 				eq("search-index-1"),
-				argThat(b -> b instanceof Map && ((Map<?, ?>) b).containsKey("query")),
+				argThat(b -> b != null && b.getQuery() != null),
 				argThat(cols -> cols != null && expectedColumnNames.equals(
 						cols.stream().map(ColumnModel::getName).collect(Collectors.toList()))),
 				eq(expectedOptions)
@@ -369,7 +368,7 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
-		Object body = buildBody();
+		SearchQuery body = buildBody();
 
 		// call under test — request HITS + TOTAL_HITS so the assertions on totalHits work
 		SearchQueryResults results = manager.search(user, buildRequest(body,
@@ -407,19 +406,14 @@ public class SearchIndexQueryManagerImplTest {
 		assertEquals(NAME_COLUMN, results.getHits().get(0).getFields().get(0).getName());
 
 		// HITS is the only resolved part — the slim request carries no responseParts knob.
-		Object forwarded = verifyOpenSearchAutocomplete(
+		// The forwarded body is the caller's body, untouched. The autocomplete envelope is
+		// already restricted to query + _source by its schema, so the absence of any other
+		// slot is structural rather than something the manager needs to enforce.
+		SearchAutocompleteBody forwarded = verifyOpenSearchAutocomplete(
 				EnumSet.of(SearchQueryPart.HITS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN));
-		// The forwarded body is the caller's opaque body, untouched.
-		assertTrue(forwarded instanceof Map);
-		Map<?, ?> forwardedMap = (Map<?, ?>) forwarded;
-		assertNotNull(forwardedMap.get("query"));
-		assertNull(forwardedMap.get("aggregations"));
-		assertNull(forwardedMap.get("sort"));
-		assertNull(forwardedMap.get("from"));
-		assertNull(forwardedMap.get("size"));
-		assertNull(forwardedMap.get("search_after"));
-		assertNull(forwardedMap.get("suggest"));
+		assertNotNull(forwarded.getQuery());
+		assertNull(forwarded.get_source());
 	}
 
 	@Test
@@ -439,21 +433,18 @@ public class SearchIndexQueryManagerImplTest {
 		prefixClause.put("prefix", prefixArgs);
 		Map<String, Object> source = new HashMap<>();
 		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", prefixClause);
-		body.put("_source", source);
+		SearchAutocompleteBody body = new SearchAutocompleteBody()
+				.setQuery(prefixClause).set_source(source);
 
 		// call under test
 		manager.autocomplete(user, new SearchAutocompleteRequest()
 				.setSearchIndexId(SEARCH_INDEX_ID)
 				.setBody(body));
 
-		Object forwarded = verifyOpenSearchAutocomplete(
+		SearchAutocompleteBody forwarded = verifyOpenSearchAutocomplete(
 				EnumSet.of(SearchQueryPart.HITS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN));
-		assertTrue(forwarded instanceof Map);
-		Map<?, ?> forwardedMap = (Map<?, ?>) forwarded;
-		assertEquals(source, forwardedMap.get("_source"));
+		assertEquals(source, forwarded.get_source());
 	}
 
 	// --- Focused unit tests for package-protected helpers ---
@@ -595,7 +586,7 @@ public class SearchIndexQueryManagerImplTest {
 	@Test
 	public void testResolveRequestedPartsCopiesInputAsEnumSet() {
 		Set<SearchQueryPart> input = new java.util.HashSet<>(
-				Arrays.asList(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.FACETS));
+				Arrays.asList(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 		// call under test
 		Set<SearchQueryPart> result = SearchIndexQueryManagerImpl.resolveRequestedParts(input);
 
@@ -668,9 +659,12 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
+		// Raw results without aggregations — mirrors what OpenSearchManager returns when
+		// the body did not supply aggregations / aggs.
+		SearchQueryResults raw = rawHits().setAggregationResults(null);
 		stubOpenSearchSearchReturns(
 				EnumSet.of(SearchQueryPart.HITS),
-				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), raw);
 
 		// call under test — buildRequest with no parts ⇒ default minimal payload
 		SearchQueryResults results = manager.search(user, buildRequest(buildBody()));
@@ -679,7 +673,7 @@ public class SearchIndexQueryManagerImplTest {
 		assertNull(results.getTotalHits(),     "totalHits should be null when TOTAL_HITS not requested");
 		assertNull(results.getSelectColumns(), "selectColumns should be null when SELECT_COLUMNS not requested");
 		assertNull(results.getAggregationResults(),
-				"aggregationResults should be null when FACETS not requested");
+				"aggregationResults should be null when body.aggregations was not supplied");
 		assertEquals(0L, results.getOffset(),  "offset is always populated");
 	}
 
@@ -691,20 +685,58 @@ public class SearchIndexQueryManagerImplTest {
 		setupHappyPathMocks();
 		stubOpenSearchSearchReturns(
 				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS,
-						SearchQueryPart.SELECT_COLUMNS, SearchQueryPart.FACETS),
+						SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		// call under test
+		// call under test — request every SearchQueryPart. Aggregations come back because
+		// the raw OpenSearchManager response carried them (presence-driven), not because
+		// of an enum bit.
 		SearchQueryResults results = manager.search(user, buildRequest(buildBody(),
 				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS,
-				SearchQueryPart.SELECT_COLUMNS, SearchQueryPart.FACETS));
+				SearchQueryPart.SELECT_COLUMNS));
 
 		assertNotNull(results.getHits());
 		assertEquals(7L, results.getTotalHits());
 		assertNotNull(results.getSelectColumns());
 		assertNotNull(results.getAggregationResults(),
-				"aggregationResults should be populated when FACETS is requested");
+				"aggregationResults should be forwarded when the raw response carried them");
 		assertEquals(0L, results.getOffset());
+	}
+
+	@Test
+	public void testSearchAggregationResultsForwardedWhenBodySuppliedAggregations() {
+		// Aggregations are presence-driven by the body, not by a SearchQueryPart bit.
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		stubOpenSearchSearchReturns(
+				EnumSet.of(SearchQueryPart.HITS),
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
+
+		// call under test — only HITS requested, but raw results carry aggregationResults.
+		SearchQueryResults results = manager.search(user, buildRequest(buildBody()));
+
+		assertNotNull(results.getAggregationResults(),
+				"aggregationResults must be forwarded whenever the raw response carries them");
+	}
+
+	@Test
+	public void testSearchAggregationResultsNullWhenBodyHadNoAggregations() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		SearchQueryResults raw = rawHits().setAggregationResults(null);
+		stubOpenSearchSearchReturns(
+				EnumSet.of(SearchQueryPart.HITS),
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), raw);
+
+		// call under test
+		SearchQueryResults results = manager.search(user, buildRequest(buildBody()));
+
+		assertNull(results.getAggregationResults(),
+				"aggregationResults must be null when the raw response carries none");
 	}
 
 	@Test
@@ -713,9 +745,12 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
+		// Raw response without aggregations — body had no aggs, so OpenSearchManager returns
+		// aggregationResults = null.
+		SearchQueryResults raw = rawHits().setAggregationResults(null);
 		stubOpenSearchSearchReturns(
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
-				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), raw);
 
 		// call under test
 		SearchQueryResults results = manager.search(user, buildRequest(buildBody(), SearchQueryPart.SELECT_COLUMNS));
@@ -745,9 +780,7 @@ public class SearchIndexQueryManagerImplTest {
 		queryDsl.put("match", matchClause);
 		Map<String, Object> source = new HashMap<>();
 		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", queryDsl);
-		body.put("_source", source);
+		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(source);
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -772,9 +805,8 @@ public class SearchIndexQueryManagerImplTest {
 		matchClause.put(NAME_COLUMN, "test");
 		Map<String, Object> queryDsl = new HashMap<>();
 		queryDsl.put("match", matchClause);
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", queryDsl);
-		body.put("_source", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
+		SearchQuery body = new SearchQuery().setQuery(queryDsl)
+				.set_source(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -820,9 +852,7 @@ public class SearchIndexQueryManagerImplTest {
 		matchClause.put(NAME_COLUMN, "test");
 		Map<String, Object> queryDsl = new HashMap<>();
 		queryDsl.put("match", matchClause);
-		Map<String, Object> body = new HashMap<>();
-		body.put("query", queryDsl);
-		body.put("_source", Boolean.FALSE);
+		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(Boolean.FALSE);
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -942,7 +972,7 @@ public class SearchIndexQueryManagerImplTest {
 		@SuppressWarnings({"unchecked", "rawtypes"})
 		ArgumentCaptor<List<ColumnModel>> columnsCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
 		when(openSearchManager.search(eq("search-index-1"),
-				argThat(b -> b instanceof Map && ((Map<?, ?>) b).containsKey("query")), columnsCaptor.capture(),
+				argThat(b -> b != null && b.getQuery() != null), columnsCaptor.capture(),
 				eq(EnumSet.of(SearchQueryPart.HITS))))
 				.thenReturn(new SearchQueryResults().setHits(Collections.emptyList()));
 
@@ -976,5 +1006,133 @@ public class SearchIndexQueryManagerImplTest {
 		assertTrue(ex.getMessage().contains("no bound schema"),
 				"expected 'no bound schema' in message, got: " + ex.getMessage());
 		verifyNoMoreInteractions(openSearchManager);
+	}
+
+	// ===================== branch coverage: extractSourceIncludes =====================
+
+	/**
+	 * One parameterized test exercising every shape callers might supply on
+	 * {@code body._source}. The static helper has only six distinct branches; this is the
+	 * tightest fixture that covers all of them.
+	 */
+	@Test
+	public void testExtractSourceIncludesWithEverySourceShape() {
+		// Each fixture: (description, body._source value, expected return value).
+		// null _source → null
+		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(new SearchQuery()),
+				"absent _source → null");
+
+		// Boolean _source (true / false) → null in both directions; the source-shape branch
+		// rejects non-Map / non-List values upfront.
+		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
+				new SearchQuery().set_source(Boolean.TRUE)),
+				"Boolean true _source → null");
+		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
+				new SearchQuery().set_source(Boolean.FALSE)),
+				"Boolean false _source → null");
+
+		// List shorthand: top-level _source is an array of column names.
+		assertEquals(Arrays.asList("title", "name"),
+				SearchIndexQueryManagerImpl.extractSourceIncludes(
+						new SearchQuery().set_source(Arrays.asList("title", "name"))),
+				"array shorthand → list verbatim");
+
+		// Empty list shorthand: returns null because the helper drops empty-list results
+		// (forces the caller to treat absent and explicitly-empty identically).
+		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
+				new SearchQuery().set_source(Collections.emptyList())),
+				"empty list → null");
+
+		// Map with includes array.
+		Map<String, Object> includesObj = new HashMap<>();
+		includesObj.put("includes", Arrays.asList("title", "name"));
+		assertEquals(Arrays.asList("title", "name"),
+				SearchIndexQueryManagerImpl.extractSourceIncludes(
+						new SearchQuery().set_source(includesObj)),
+				"map.includes → list verbatim");
+
+		// Map with no includes (e.g. excludes-only) — returns null since includes is what we filter on.
+		Map<String, Object> excludesOnly = new HashMap<>();
+		excludesOnly.put("excludes", Arrays.asList("private"));
+		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
+				new SearchQuery().set_source(excludesOnly)),
+				"map.excludes-only → null (includes is the filter source)");
+
+		// Map with includes containing non-string elements — filtered out, only strings retained.
+		Map<String, Object> mixedIncludes = new HashMap<>();
+		mixedIncludes.put("includes", Arrays.asList("title", 42, "name"));
+		assertEquals(Arrays.asList("title", "name"),
+				SearchIndexQueryManagerImpl.extractSourceIncludes(
+						new SearchQuery().set_source(mixedIncludes)),
+				"map.includes with non-string values → strings only");
+
+		// Null body — defensive null guard at the top of the helper.
+		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(null),
+				"null body → null (defensive guard)");
+	}
+
+	// ===================== branch coverage: SearchQueryPart powerset =====================
+
+	/**
+	 * Drive the full search() path with every subset of {@link SearchQueryPart}, asserting
+	 * that the manager's per-part gates write the expected fields onto the result. EnumSet
+	 * coverage guard at the bottom — adding a new SearchQueryPart value without a fixture
+	 * fails the test until the assertion table is updated.
+	 *
+	 * <p>The mocked OpenSearchManager always returns a fully-populated raw response so we
+	 * can isolate the manager's gating from the OpenSearchManager's gating (which is
+	 * separately covered in OpenSearchManagerImplTest).</p>
+	 */
+	@Test
+	public void testSearchWithEverySearchQueryPartCombination() {
+		EnumSet<SearchQueryPart> guard = EnumSet.noneOf(SearchQueryPart.class);
+		SearchQueryPart[] all = SearchQueryPart.values();
+		for (int mask = 0; mask < (1 << all.length); mask++) {
+			EnumSet<SearchQueryPart> parts = EnumSet.noneOf(SearchQueryPart.class);
+			for (int b = 0; b < all.length; b++) {
+				if ((mask & (1 << b)) != 0) {
+					parts.add(all[b]);
+					guard.add(all[b]);
+				}
+			}
+
+			// Reset mocks per iteration so each scenario starts fresh.
+			reset(entityManager, connectionFactory, openSearchManager,
+					tableManagerSupport, searchIndexStatusDao);
+
+			SearchIndex si = setupSearchIndex();
+			when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+			setupAuthMocks();
+			List<ColumnModel> schema = setupHappyPathMocks();
+
+			java.util.Set<SearchQueryPart> resolved = parts.isEmpty()
+					? EnumSet.of(SearchQueryPart.HITS) : EnumSet.copyOf(parts);
+			stubOpenSearchSearchReturns(resolved,
+					schema.stream().map(ColumnModel::getName).collect(Collectors.toList()),
+					rawHits());
+
+			// call under test
+			SearchQueryResults results = manager.search(user, buildRequest(buildBody(),
+					parts.toArray(new SearchQueryPart[0])));
+
+			// HITS gate
+			boolean expectHits = resolved.contains(SearchQueryPart.HITS);
+			assertEquals(expectHits, results.getHits() != null, "HITS gate, mask=" + mask);
+
+			// TOTAL_HITS gate
+			assertEquals(resolved.contains(SearchQueryPart.TOTAL_HITS),
+					results.getTotalHits() != null, "TOTAL_HITS gate, mask=" + mask);
+
+			// SELECT_COLUMNS gate
+			assertEquals(resolved.contains(SearchQueryPart.SELECT_COLUMNS),
+					results.getSelectColumns() != null, "SELECT_COLUMNS gate, mask=" + mask);
+
+			// aggregations / suggest are not gated by SearchQueryPart — they pass through
+			// whenever the raw response carried them. rawHits() carries aggregationResults.
+			assertNotNull(results.getAggregationResults(),
+					"aggregations always pass through, mask=" + mask);
+		}
+		assertEquals(EnumSet.allOf(SearchQueryPart.class), guard,
+				"every SearchQueryPart must be exercised across the powerset");
 	}
 }

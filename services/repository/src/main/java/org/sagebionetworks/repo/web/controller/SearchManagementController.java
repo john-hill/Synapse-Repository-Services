@@ -804,17 +804,186 @@ public class SearchManagementController {
 	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.
 	 * <p>
 	 * The request wraps a
-	 * <a href="${org.sagebionetworks.repo.model.search.SearchQuery}">SearchQuery</a>
-	 * — an opaque OpenSearch query DSL pass-through (allowlist-validated server-side) plus
-	 * typed Synapse-specific fields (<code>returnFields</code>, <code>sort</code>,
-	 * <code>offset</code>, <code>limit</code>, <code>searchAfter</code>). See that schema for
-	 * the full description of each field, the per-clause allowlist, and the
-	 * <code>.keyword</code> sub-field cheatsheet for text-typed columns. Optional
-	 * <code>aggregations</code> and <code>suggest</code> objects are passed through to
-	 * OpenSearch unchanged. The caller may also opt in to additional response parts
-	 * (<code>TOTAL_HITS</code>, <code>FACETS</code>, <code>SELECT_COLUMNS</code>) via
-	 * <code>responseParts</code>; the default is <code>HITS</code> only.
+	 * <a href="${org.sagebionetworks.repo.model.search.SearchQuery}">SearchQuery</a> — the
+	 * top-level OpenSearch <code>_search</code> body, allowlist-validated server-side and
+	 * submitted to AOSS. Each slot's contents are pass-through OpenSearch DSL.
 	 * </p>
+	 * <p>
+	 * <b>Required:</b> <code>query</code> is required (use <code>{"match_all":{}}</code> to
+	 * match all documents). <code>from</code> and <code>search_after</code> are mutually
+	 * exclusive: when <code>search_after</code> is supplied the server pins <code>from=0</code>
+	 * internally; supplying both <code>search_after</code> and <code>from &gt; 0</code> is
+	 * rejected with HTTP 400.
+	 * </p>
+	 * <p>
+	 * <b>Two pagination modes.</b> Use <code>from</code> + <code>size</code> for the simple
+	 * "jump to page N" case. Use <code>search_after</code> for deep pagination past the
+	 * OpenSearch <code>from</code> + <code>size</code> ~10,000-row ceiling: omit
+	 * <code>search_after</code> on the first request and on every subsequent request pass
+	 * back the previous response's <code>nextSearchAfter</code> unchanged. Cursors are
+	 * stable as long as the underlying sort is unchanged. For shallow paging within the
+	 * first ~10,000 rows, prefer <code>from</code> + <code>size</code>.
+	 * </p>
+	 *
+	 * <h6>Field references and sub-field routing</h6>
+	 * <p>
+	 * Field references use column names everywhere (DSL clauses, aggregation
+	 * <code>field</code>, suggester <code>field</code>, <code>highlight.fields</code> keys,
+	 * <code>sort</code>, <code>_source.includes</code> / <code>_source.excludes</code>). The
+	 * server resolves names to internal column ids before sending to OpenSearch and rewrites
+	 * them back to column names on response so callers see their original schema.
+	 * </p>
+	 * <p>
+	 * <b>Pass the bare column name in every clause.</b> The server knows the index schema and
+	 * routes text-typed columns (STRING, STRING_LIST, MEDIUMTEXT, LARGETEXT, LINK) through
+	 * <code>{column}.keyword</code> automatically when the operation requires it:
+	 * <code>term</code> / <code>terms</code> / <code>prefix</code> / <code>wildcard</code> /
+	 * <code>fuzzy</code> / <code>range</code> / <code>match_phrase_prefix</code>, every
+	 * aggregation kind, <code>sort</code>, and <code>collapse</code>. The relevance-scored
+	 * match-family clauses (<code>match</code>, <code>multi_match</code>,
+	 * <code>match_phrase</code>, <code>match_bool_prefix</code>,
+	 * <code>simple_query_string</code>) use the analyzed text field directly. Numeric,
+	 * boolean, keyword (ENTITYID / USERID), and date columns always use the bare name.
+	 * </p>
+	 * <p>
+	 * Aggregation and suggester results come back with field references reported as the
+	 * caller's bare column name — the server strips the <code>.keyword</code> suffix it
+	 * auto-appended on the request side. Callers who prefer to be explicit may still supply
+	 * <code>{columnName}.keyword</code> on a reference; the server preserves the suffix
+	 * verbatim. The <code>{field}^{boost}</code> form on <code>multi_match.fields</code> is
+	 * also preserved.
+	 * </p>
+	 *
+	 * <h6>Allowlisted top-level keys</h6>
+	 * <p>
+	 * <b><code>query</code></b> — required. Compound (<code>bool</code> / <code>dis_max</code>
+	 * / <code>constant_score</code> / <code>boosting</code>) and leaf (<code>match</code> /
+	 * <code>multi_match</code> / <code>match_phrase</code> / <code>match_phrase_prefix</code>
+	 * / <code>match_bool_prefix</code> / <code>term</code> / <code>terms</code> /
+	 * <code>range</code> / <code>exists</code> / <code>prefix</code> / <code>wildcard</code> /
+	 * <code>fuzzy</code> / <code>ids</code> / <code>simple_query_string</code> /
+	 * <code>match_all</code>) clauses. The server wraps the supplied subtree as a
+	 * <code>must</code> clause inside its own <code>bool</code>.
+	 * </p>
+	 * <p>
+	 * <b><code>post_filter</code></b> — optional. Same DSL shape as <code>query</code>, applied
+	 * <i>after</i> aggregations are computed: aggregations see the unfiltered population
+	 * (matched by <code>query</code>) while the returned hits are narrowed by
+	 * <code>post_filter</code>. For filters that should also constrain aggregations, place
+	 * them inside <code>query.bool.filter</code> instead.
+	 * </p>
+	 * <p>
+	 * <b><code>aggregations</code></b> (alias <code>aggs</code>) — optional. Map of
+	 * caller-chosen name to aggregation definition. Supports <code>terms</code> /
+	 * <code>histogram</code> / <code>date_histogram</code> / <code>range</code> /
+	 * <code>date_range</code> / <code>min</code> / <code>max</code> / <code>avg</code> /
+	 * <code>sum</code> / <code>stats</code> / <code>extended_stats</code> /
+	 * <code>value_count</code> / <code>cardinality</code> / <code>missing</code>, with nested
+	 * sub-aggregations. Aggregations need doc values; text-typed columns are auto-routed
+	 * through <code>.keyword</code>. Supplying both <code>aggregations</code> and
+	 * <code>aggs</code> simultaneously is rejected with HTTP 400. The raw aggregation result
+	 * comes back on <code>SearchQueryResults.aggregationResults</code>, with field references
+	 * rewritten back to bare column names.
+	 * </p>
+	 * <p>
+	 * <b><code>suggest</code></b> — optional. A map of suggestion name to suggester definition
+	 * (optionally alongside a top-level <code>text</code>). Allowlisted suggester types:
+	 * <code>term</code>, <code>phrase</code>, <code>completion</code>. Returns
+	 * query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>.
+	 * </p>
+	 * <p>
+	 * <b><code>highlight</code></b> — optional. Adds per-field snippet fragments with matched
+	 * terms wrapped in <code>&lt;em&gt;</code> / <code>&lt;/em&gt;</code> tags (configurable
+	 * via <code>pre_tags</code> / <code>post_tags</code>) to each
+	 * <code>SearchQueryResults.hits[*].highlights</code> entry. <code>highlight.fields</code>
+	 * keys are caller column names. Allowlisted highlighter types: <code>unified</code>
+	 * (default), <code>plain</code>, <code>fvh</code>; <code>semantic</code> is rejected.
+	 * </p>
+	 * <p>
+	 * <b><code>collapse</code></b> — optional. Groups the result list so only one hit is
+	 * returned per distinct value of <code>field</code>. Collapse needs doc values;
+	 * text-typed columns are auto-routed through <code>.keyword</code>.
+	 * <code>inner_hits</code> is rejected.
+	 * </p>
+	 * <p>
+	 * <b><code>rescore</code></b> — optional. Re-ranks the top <code>window_size</code> hits
+	 * returned by <code>query</code> using a secondary, typically more expensive, scoring
+	 * query. The original ranking is preserved past the rescore window. The inner
+	 * <code>rescore_query</code> is validated against the same allowlist as
+	 * <code>query</code>.
+	 * </p>
+	 * <p>
+	 * <b><code>sort</code></b> — optional. OpenSearch sort shape (string column name,
+	 * <code>{column: "asc|desc"}</code>, or <code>{column: {order: ...}}</code>). The
+	 * pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted
+	 * by relevance descending (<code>_score</code> DESC). Text-typed columns are auto-routed
+	 * through <code>.keyword</code>.
+	 * </p>
+	 * <p>
+	 * <b><code>_source</code></b> — optional. Source filter. Accepts the full OpenSearch
+	 * <code>SourceConfig</code> shape: a boolean (<code>false</code> to omit
+	 * <code>_source</code> entirely), an array of column-name patterns (shorthand for
+	 * <code>{includes: [...]}</code>), or <code>{includes: [...], excludes: [...]}</code>.
+	 * Names are column-name → column-id rewritten before being sent to AOSS.
+	 * </p>
+	 * <p>
+	 * <b><code>from</code></b> — optional. Zero-based pagination offset; default
+	 * <code>0</code>. Maximum reach: <code>from + size</code> &le; ~10,000. For deeper
+	 * pagination, switch to <code>search_after</code>; the two are mutually exclusive.
+	 * </p>
+	 * <p>
+	 * <b><code>size</code></b> — optional. Maximum number of hits to return per page.
+	 * Default: 25. Maximum: 100 (larger values are silently capped). Set to 0 with HITS
+	 * omitted from <code>SearchIndexQuery.responseParts</code> to retrieve only aggregation
+	 * counts.
+	 * </p>
+	 * <p>
+	 * <b><code>search_after</code></b> — optional. Opaque cursor emitted as
+	 * <code>nextSearchAfter</code> on the previous response. Pass back unchanged. Stable as
+	 * long as the underlying sort is unchanged. Mutually exclusive with
+	 * <code>from &gt; 0</code>.
+	 * </p>
+	 * <p>
+	 * Any other top-level key returns HTTP 400 naming the offender.
+	 * </p>
+	 *
+	 * <h6>Per-request limits</h6>
+	 * <p>Violations return HTTP 400 with a message naming the limit:</p>
+	 * <ul>
+	 * <li><code>query</code> / <code>post_filter</code> / <code>rescore.rescore_query</code>:
+	 * maximum nesting depth 20, maximum total clauses 256, maximum inline <code>terms</code>
+	 * array length 1,024, <code>prefix</code> values starting with <code>*</code> or
+	 * <code>?</code> rejected.</li>
+	 * <li><code>aggregations</code>: maximum nesting depth 10, maximum total aggregations
+	 * 100, maximum bucket <code>size</code> / <code>shard_size</code> 1,000.</li>
+	 * <li><code>suggest</code>: maximum 50 suggesters per request.</li>
+	 * <li><code>highlight</code>: maximum <code>fields</code> entries 50, maximum
+	 * <code>number_of_fragments</code> per field 100, maximum <code>fragment_size</code> per
+	 * field 1,000. Any nested <code>highlight_query</code> is validated against the same
+	 * allowlist as <code>query</code>.</li>
+	 * <li><code>collapse</code>: maximum <code>max_concurrent_group_searches</code> 10.</li>
+	 * <li><code>rescore</code>: maximum <code>window_size</code> 1,000. Single rescore stage
+	 * only.</li>
+	 * </ul>
+	 *
+	 * <h6>Disallowed clauses</h6>
+	 * <p>The following are rejected anywhere in the body with HTTP 400:</p>
+	 * <ul>
+	 * <li>Inside <code>query</code> / <code>post_filter</code> /
+	 * <code>rescore.rescore_query</code> / <code>highlight.highlight_query</code>:
+	 * <code>script</code>, <code>script_score</code>, <code>function_score</code>,
+	 * <code>more_like_this</code>, <code>geo_shape</code> / <code>shape</code> with an indexed
+	 * shape, <code>has_child</code> / <code>has_parent</code>, <code>terms</code>-lookup
+	 * form, <code>percolate</code>, <code>wrapper</code>.</li>
+	 * <li>Inside <code>aggregations</code>: scripted aggregations, pipeline aggregations,
+	 * embedded <code>script</code>.</li>
+	 * <li>Inside <code>suggest</code>: non-allowlisted suggester types, <code>script</code>
+	 * in a phrase <code>collate</code>.</li>
+	 * <li>Inside <code>highlight</code>: embedded <code>script</code> or
+	 * <code>indexed_shape</code>.</li>
+	 * <li>Inside <code>collapse</code>: <code>inner_hits</code>.</li>
+	 * </ul>
+	 *
 	 * <p>
 	 * Results are returned as a
 	 * <a href="${org.sagebionetworks.repo.model.search.SearchQueryResults}">SearchQueryResults</a>.
@@ -874,19 +1043,52 @@ public class SearchManagementController {
 	 * Perform a synchronous autocomplete search query against a
 	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.
 	 * <p>
-	 * Purpose-built for type-ahead input. The request shape is deliberately narrow: the
-	 * caller supplies a target <code>searchIndexId</code>, a prefix-flavored DSL
-	 * <code>query</code> clause (one of <code>prefix</code>, <code>match_phrase_prefix</code>,
-	 * or <code>match_bool_prefix</code>), and an optional <code>returnFields</code> list.
-	 * The response is always {@code hits}-only and is capped at 8 entries server-side.
-	 * </p>
-	 * <p>
-	 * For anything that needs scored relevance, faceting, totals, deep pagination, sort,
-	 * suggesters, or aggregations, use the async
+	 * Purpose-built for type-ahead input. The request shape is deliberately narrow: there is
+	 * no <code>size</code> (the server caps every response at 8 hits), no <code>from</code>
+	 * / <code>search_after</code> (a dropdown does not paginate), no <code>sort</code>
+	 * (results are ordered by relevance), and no <code>aggregations</code> /
+	 * <code>suggest</code> / <code>responseParts</code> (autocomplete returns matching hits
+	 * only). For anything beyond a type-ahead lookup — scored relevance, faceting, totals,
+	 * deep pagination — use the async
 	 * <a href="${POST.search.query.async.start}">POST /search/query/async/start</a> endpoint
 	 * with <a href="${org.sagebionetworks.repo.model.search.table.SearchIndexQuery}">SearchIndexQuery</a>
 	 * instead.
 	 * </p>
+	 *
+	 * <h6>Allowlisted top-level keys</h6>
+	 * <p>
+	 * Only <code>query</code> and <code>_source</code> are accepted on the body; any other
+	 * top-level key returns HTTP 400 naming the offender.
+	 * </p>
+	 * <p>
+	 * <b><code>query</code></b> — required. The top-level clause must be one of
+	 * <code>prefix</code>, <code>match_phrase_prefix</code>, or
+	 * <code>match_bool_prefix</code>; any other clause type (including compound clauses such
+	 * as <code>bool</code>) is rejected with HTTP 400. The same per-clause guarantees as the
+	 * async search endpoint apply: scripts, cross-index references, and the
+	 * <code>wrapper</code> form are rejected; depth, total-clause, and inline
+	 * <code>terms</code> array length are capped; <code>prefix</code> values starting with
+	 * <code>*</code> or <code>?</code> are rejected (a leading wildcard forces a full
+	 * inverted-index scan).
+	 * </p>
+	 * <p>
+	 * <b><code>_source</code></b> — optional. Source filter; same shape as on
+	 * <a href="${org.sagebionetworks.repo.model.search.SearchQuery}">SearchQuery._source</a>.
+	 * Narrowing this to the columns the dropdown actually displays reduces response size,
+	 * especially for wide indexes.
+	 * </p>
+	 *
+	 * <h6>Field references</h6>
+	 * <p>
+	 * On text-typed columns (STRING, STRING_LIST, MEDIUMTEXT, LARGETEXT, LINK), use
+	 * <code>{columnName}.keyword</code> for <code>prefix</code> and
+	 * <code>match_phrase_prefix</code> (these are exact-match operations against the raw /
+	 * non-tokenized sub-field). <code>match_bool_prefix</code> uses the bare column name (it
+	 * analyzes the input). Numeric / boolean / keyword columns always use the bare name.
+	 * </p>
+	 *
+	 * <p>Example — prefix match on the <code>title.keyword</code> sub-field:</p>
+	 * <pre><code>"body": { "query": { "prefix": { "title.keyword": "can" } } }</code></pre>
 	 *
 	 * @param userId The ID of the authenticated user.
 	 * @param request The autocomplete request including the <code>searchIndexId</code> and

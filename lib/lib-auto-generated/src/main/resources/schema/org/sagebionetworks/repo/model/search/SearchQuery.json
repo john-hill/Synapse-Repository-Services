@@ -1,0 +1,59 @@
+{
+	"description": "<p>The body of an OpenSearch <code>_search</code> request, narrowed to the top-level keys Synapse accepts. Each slot's contents are pass-through OpenSearch DSL; see the search REST endpoint for the inner-clause allowlist, field-reference rules, pagination semantics, and per-request limits.</p>",
+	"properties": {
+		"query": {
+			"type": "object",
+			"description": "Required. The OpenSearch query DSL clause (the contents of the <code>query</code> key). Use <code>{\"match_all\":{}}</code> to match all documents."
+		},
+		"post_filter": {
+			"type": "object",
+			"description": "Optional. Same DSL shape as <code>query</code>, applied <i>after</i> aggregations are computed."
+		},
+		"aggregations": {
+			"type": "object",
+			"description": "Optional (alias <code>aggs</code>). Map of caller-chosen name to aggregation definition. Supplying both <code>aggregations</code> and <code>aggs</code> simultaneously is rejected with HTTP 400. The raw aggregation result comes back on <code>SearchQueryResults.aggregationResults</code>."
+		},
+		"suggest": {
+			"type": "object",
+			"description": "Optional. A map of suggestion name to suggester definition (optionally alongside a top-level <code>text</code>). Returns query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>."
+		},
+		"highlight": {
+			"type": "object",
+			"description": "Optional. Adds per-field snippet fragments (matched terms wrapped in <code>&lt;em&gt;</code> / <code>&lt;/em&gt;</code> tags by default) to each <code>SearchQueryResults.hits[*].highlights</code> entry."
+		},
+		"collapse": {
+			"type": "object",
+			"description": "Optional. Groups the result list so only one hit is returned per distinct value of <code>field</code>."
+		},
+		"rescore": {
+			"type": "object",
+			"description": "Optional. Re-ranks the top <code>window_size</code> hits returned by <code>query</code> using a secondary scoring query."
+		},
+		"sort": {
+			"type": "array",
+			"description": "Optional. Result ordering. OpenSearch sort shape (string column name, <code>{column: \"asc|desc\"}</code>, or <code>{column: {order: ...}}</code>). The pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted by relevance descending.",
+			"items": {
+				"type": "object"
+			}
+		},
+		"_source": {
+			"type": "object",
+			"description": "Optional. Source filter. Accepts the full OpenSearch <code>SourceConfig</code> shape: a boolean, an array of column-name patterns (shorthand for <code>{includes: [...]}</code>), or <code>{includes: [...], excludes: [...]}</code>."
+		},
+		"from": {
+			"type": "integer",
+			"description": "Optional. Zero-based pagination offset; default <code>0</code>. Mutually exclusive with <code>search_after &gt; 0</code>."
+		},
+		"size": {
+			"type": "integer",
+			"description": "Optional. Maximum number of hits to return per page. Default: 25. Maximum: 100 (larger values are silently capped)."
+		},
+		"search_after": {
+			"type": "array",
+			"description": "Optional. Opaque cursor emitted as <code>nextSearchAfter</code> on the previous response. Pass back unchanged. Mutually exclusive with <code>from &gt; 0</code>.",
+			"items": {
+				"type": "object"
+			}
+		}
+	}
+}

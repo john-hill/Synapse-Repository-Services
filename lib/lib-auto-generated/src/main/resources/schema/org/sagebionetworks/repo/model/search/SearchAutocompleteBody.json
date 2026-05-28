@@ -1,0 +1,13 @@
+{
+	"description": "<p>Body of an autocomplete request &mdash; the OpenSearch <code>_search</code> shape narrowed to the type-ahead subset. The autocomplete endpoint allowlists only <code>query</code> and <code>_source</code>; pagination, sort, aggregations, suggesters, and highlight are not accepted. See the autocomplete REST endpoint for the allowed inner-clause shapes and field-reference rules.</p>",
+	"properties": {
+		"query": {
+			"type": "object",
+			"description": "Required. The top-level OpenSearch DSL clause; restricted server-side to <code>prefix</code>, <code>match_phrase_prefix</code>, or <code>match_bool_prefix</code>."
+		},
+		"_source": {
+			"type": "object",
+			"description": "Optional. Source filter; same shape as on <a href=\"${org.sagebionetworks.repo.model.search.SearchQuery}\">SearchQuery._source</a>."
+		}
+	}
+}

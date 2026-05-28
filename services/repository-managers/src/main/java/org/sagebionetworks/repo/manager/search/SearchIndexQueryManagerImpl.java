@@ -1,14 +1,15 @@
 package org.sagebionetworks.repo.manager.search;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.opensearch.client.opensearch.core.search.SourceConfig;
+import org.opensearch.client.opensearch.core.search.SourceFilter;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -66,14 +67,14 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		preflightAndCheckIndex(user, searchIndexId);
 		QueryMetadata metadata = buildQueryMetadata(IdAndVersion.parse(searchIndexId));
 
-		List<String> originalReturnFields = parts.contains(SearchQueryPart.SELECT_COLUMNS)
-				? extractSourceIncludes(body)
+		SourceFilter sourceFilter = parts.contains(SearchQueryPart.SELECT_COLUMNS)
+				? extractSourceFilter(body)
 				: null;
 
 		SearchQueryResults rawResults = openSearchManager.search(
 				getIndexName(searchIndexId), body, metadata.getColumns(), parts);
 
-		return shapeResults(rawResults, parts, metadata, originalReturnFields);
+		return shapeResults(rawResults, parts, metadata, sourceFilter);
 	}
 
 	@Override
@@ -81,7 +82,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
 		ValidateArgument.required(request.getSearchIndexId(), "request.searchIndexId");
-		ValidateArgument.required(request.getBody(), "request.body");
+		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
 
 		String searchIndexId = request.getSearchIndexId();
 		preflightAndCheckIndex(user, searchIndexId);
@@ -89,7 +90,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
 		Set<SearchQueryPart> parts = EnumSet.of(SearchQueryPart.HITS);
 		SearchQueryResults rawResults = openSearchManager.autocomplete(
-				getIndexName(searchIndexId), request.getBody(), metadata.getColumns(), parts);
+				getIndexName(searchIndexId), request.getSearchQuery(), metadata.getColumns(), parts);
 
 		return new SearchQueryResults()
 				.setOffset(rawResults.getOffset())
@@ -111,7 +112,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	}
 
 	private SearchQueryResults shapeResults(SearchQueryResults rawResults, Set<SearchQueryPart> parts,
-			QueryMetadata metadata, List<String> originalReturnFields) {
+			QueryMetadata metadata, SourceFilter sourceFilter) {
 		SearchQueryResults results = new SearchQueryResults().setOffset(rawResults.getOffset());
 		if (parts.contains(SearchQueryPart.HITS)) {
 			results.setHits(rawResults.getHits());
@@ -125,8 +126,8 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		results.setAggregationResults(rawResults.getAggregationResults());
 		results.setSuggestResults(rawResults.getSuggestResults());
 		if (parts.contains(SearchQueryPart.SELECT_COLUMNS)) {
-			results.setSelectColumns(filterSelectColumnsForReturnFields(
-					metadata.getSelectColumns(), originalReturnFields));
+			results.setSelectColumns(filterSelectColumnsForSourceFilter(
+					metadata.getSelectColumns(), sourceFilter));
 		}
 		return results;
 	}
@@ -144,44 +145,49 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	}
 
 	/**
-	 * Returns the caller-supplied {@code _source.includes} (or the {@code _source} array
-	 * shorthand) as a list of column names. Returns null when no source filter is supplied,
-	 * when {@code _source} is a boolean, or when there are no includes.
+	 * Parse the caller-supplied {@code body._source} into the OpenSearch typed
+	 * {@link SourceFilter}. Returns null when no filter is supplied, when {@code _source}
+	 * is a boolean (the {@code Fetch} variant), or when the body itself is null. The
+	 * array shorthand ({@code ["a","b"]}) deserializes as {@code {includes: ["a","b"]}}
+	 * via {@code SourceFilter}'s {@code shortcutProperty("includes")}.
 	 */
-	static List<String> extractSourceIncludes(SearchQuery body) {
+	static SourceFilter extractSourceFilter(SearchQuery body) {
 		Object source = body == null ? null : body.get_source();
-		if (!(source instanceof List) && !(source instanceof Map)) {
+		if (source == null) {
 			return null;
 		}
-		Object includes = source instanceof List ? source : ((Map<?, ?>) source).get("includes");
-		if (!(includes instanceof List)) {
-			return null;
-		}
-		List<String> names = new ArrayList<>();
-		for (Object element : (List<?>) includes) {
-			if (element instanceof String) {
-				names.add((String) element);
-			}
-		}
-		return names.isEmpty() ? null : names;
+		SourceConfig cfg = SearchOpaqueJsonUtil.fromJsonpTree(
+				SearchOpaqueJsonUtil.parse(source), SourceConfig._DESERIALIZER);
+		return cfg.isFilter() ? cfg.filter() : null;
 	}
 
 	/**
-	 * Filter a SELECT-clause {@link SelectColumn} list down to entries whose names
-	 * match {@code returnFields}. When {@code returnFields} is null or empty, the
-	 * original list is returned unchanged. Unknown names are silently dropped; the
-	 * SELECT-clause order is preserved.
+	 * Filter a SELECT-clause {@link SelectColumn} list to honor the caller's
+	 * {@code _source} filter. A column survives if it matches {@code includes} (or
+	 * {@code includes} is empty/absent) AND is not in {@code excludes}. When
+	 * {@code filter} is null or has neither includes nor excludes, the original list
+	 * is returned unchanged. Unknown names are silently dropped; the SELECT-clause
+	 * order is preserved.
 	 */
-	List<SelectColumn> filterSelectColumnsForReturnFields(List<SelectColumn> selectColumns, List<String> returnFields) {
+	List<SelectColumn> filterSelectColumnsForSourceFilter(List<SelectColumn> selectColumns, SourceFilter filter) {
 		if (selectColumns == null) {
 			return null;
 		}
-		if (returnFields == null || returnFields.isEmpty()) {
+		if (filter == null) {
 			return selectColumns;
 		}
-		Set<String> allowed = new HashSet<>(returnFields);
+		List<String> includes = filter.includes();
+		List<String> excludes = filter.excludes();
+		boolean hasIncludes = includes != null && !includes.isEmpty();
+		boolean hasExcludes = excludes != null && !excludes.isEmpty();
+		if (!hasIncludes && !hasExcludes) {
+			return selectColumns;
+		}
+		Set<String> includeSet = hasIncludes ? new HashSet<>(includes) : null;
+		Set<String> excludeSet = hasExcludes ? new HashSet<>(excludes) : Collections.emptySet();
 		return selectColumns.stream()
-				.filter(sc -> allowed.contains(sc.getName()))
+				.filter(sc -> includeSet == null || includeSet.contains(sc.getName()))
+				.filter(sc -> !excludeSet.contains(sc.getName()))
 				.collect(Collectors.toList());
 	}
 

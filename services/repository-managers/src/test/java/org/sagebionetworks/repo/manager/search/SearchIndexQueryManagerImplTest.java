@@ -33,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.opensearch.client.opensearch.core.search.SourceFilter;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -160,7 +161,7 @@ public class SearchIndexQueryManagerImplTest {
 	private SearchAutocompleteRequest buildAutocompleteRequest() {
 		return new SearchAutocompleteRequest()
 				.setSearchIndexId(SEARCH_INDEX_ID)
-				.setBody(buildAutocompleteBody());
+				.setSearchQuery(buildAutocompleteBody());
 	}
 
 	/**
@@ -439,7 +440,7 @@ public class SearchIndexQueryManagerImplTest {
 		// call under test
 		manager.autocomplete(user, new SearchAutocompleteRequest()
 				.setSearchIndexId(SEARCH_INDEX_ID)
-				.setBody(body));
+				.setSearchQuery(body));
 
 		SearchAutocompleteBody forwarded = verifyOpenSearchAutocomplete(
 				EnumSet.of(SearchQueryPart.HITS),
@@ -594,40 +595,70 @@ public class SearchIndexQueryManagerImplTest {
 		assertTrue(result instanceof EnumSet, "Result must be an EnumSet for O(1) contains");
 	}
 
-	// --- responseParts: filterSelectColumnsForReturnFields ---
+	// --- responseParts: filterSelectColumnsForSourceFilter ---
 
 	@Test
-	public void testFilterSelectColumnsForReturnFieldsWithNullColumnsReturnsNull() {
+	public void testFilterSelectColumnsForSourceFilterWithNullColumnsReturnsNull() {
 		// call under test
-		assertNull(manager.filterSelectColumnsForReturnFields(null, Arrays.asList("a")));
+		assertNull(manager.filterSelectColumnsForSourceFilter(
+				null, SourceFilter.of(b -> b.includes("a"))));
 	}
 
 	@Test
-	public void testFilterSelectColumnsForReturnFieldsWithNullReturnFieldsKeepsAll() {
+	public void testFilterSelectColumnsForSourceFilterWithNullFilterKeepsAll() {
 		List<SelectColumn> input = Arrays.asList(
 				new SelectColumn().setName("title"), new SelectColumn().setName("abstract"));
-		// call under test — null returnFields → keep everything.
-		assertEquals(input, manager.filterSelectColumnsForReturnFields(input, null));
+		// call under test — null filter → keep everything.
+		assertEquals(input, manager.filterSelectColumnsForSourceFilter(input, null));
 	}
 
 	@Test
-	public void testFilterSelectColumnsForReturnFieldsWithEmptyReturnFieldsKeepsAll() {
+	public void testFilterSelectColumnsForSourceFilterWithEmptyFilterKeepsAll() {
 		List<SelectColumn> input = Arrays.asList(new SelectColumn().setName("title"));
-		// call under test
-		assertEquals(input, manager.filterSelectColumnsForReturnFields(input, Collections.emptyList()));
+		// call under test — filter with neither includes nor excludes → keep everything.
+		assertEquals(input, manager.filterSelectColumnsForSourceFilter(
+				input, SourceFilter.of(b -> b)));
 	}
 
 	@Test
-	public void testFilterSelectColumnsForReturnFieldsKeepsOrderAndFilters() {
+	public void testFilterSelectColumnsForSourceFilterIncludesKeepsOrderAndFilters() {
 		List<SelectColumn> input = Arrays.asList(
 				new SelectColumn().setName("title"),
 				new SelectColumn().setName("abstract"),
 				new SelectColumn().setName("authors"));
-		// call under test — names not in returnFields drop; SELECT order preserved.
-		List<SelectColumn> result = manager.filterSelectColumnsForReturnFields(
-				input, Arrays.asList("authors", "title"));
+		// call under test — names not in includes drop; SELECT order preserved.
+		List<SelectColumn> result = manager.filterSelectColumnsForSourceFilter(
+				input, SourceFilter.of(b -> b.includes("authors", "title")));
 
 		assertEquals(Arrays.asList("title", "authors"),
+				result.stream().map(SelectColumn::getName).collect(Collectors.toList()));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForSourceFilterExcludesDropsNamedColumns() {
+		List<SelectColumn> input = Arrays.asList(
+				new SelectColumn().setName("title"),
+				new SelectColumn().setName("abstract"),
+				new SelectColumn().setName("authors"));
+		// call under test — excludes drop named columns; remaining order preserved.
+		List<SelectColumn> result = manager.filterSelectColumnsForSourceFilter(
+				input, SourceFilter.of(b -> b.excludes("abstract")));
+
+		assertEquals(Arrays.asList("title", "authors"),
+				result.stream().map(SelectColumn::getName).collect(Collectors.toList()));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForSourceFilterIncludesAndExcludesIntersect() {
+		List<SelectColumn> input = Arrays.asList(
+				new SelectColumn().setName("title"),
+				new SelectColumn().setName("abstract"),
+				new SelectColumn().setName("authors"));
+		// call under test — survive only when included AND not excluded.
+		List<SelectColumn> result = manager.filterSelectColumnsForSourceFilter(
+				input, SourceFilter.of(b -> b.includes("title", "abstract").excludes("abstract")));
+
+		assertEquals(Arrays.asList("title"),
 				result.stream().map(SelectColumn::getName).collect(Collectors.toList()));
 	}
 
@@ -791,6 +822,64 @@ public class SearchIndexQueryManagerImplTest {
 	}
 
 	@Test
+	public void testSearchWithSelectColumnsAndSourceExcludes() {
+		// _source.excludes drops the named columns from the SELECT_COLUMNS response. The
+		// previous implementation ignored excludes entirely and surfaced the column even
+		// though AOSS already omitted its value from the hit.
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		stubOpenSearchSearchReturns(
+				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
+
+		Map<String, Object> matchClause = new HashMap<>();
+		matchClause.put(NAME_COLUMN, "test");
+		Map<String, Object> queryDsl = new HashMap<>();
+		queryDsl.put("match", matchClause);
+		Map<String, Object> source = new HashMap<>();
+		source.put("excludes", new ArrayList<>(Arrays.asList(DESC_COLUMN)));
+		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(source);
+
+		// call under test
+		SearchQueryResults results = manager.search(user,
+				buildRequest(body, SearchQueryPart.SELECT_COLUMNS));
+
+		assertEquals(1, results.getSelectColumns().size());
+		assertEquals(NAME_COLUMN, results.getSelectColumns().get(0).getName());
+	}
+
+	@Test
+	public void testSearchWithSelectColumnsAndSourceIncludesAndExcludes() {
+		// Both clauses combine: a column survives only if it matches includes AND is not
+		// in excludes.
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		stubOpenSearchSearchReturns(
+				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
+
+		Map<String, Object> matchClause = new HashMap<>();
+		matchClause.put(NAME_COLUMN, "test");
+		Map<String, Object> queryDsl = new HashMap<>();
+		queryDsl.put("match", matchClause);
+		Map<String, Object> source = new HashMap<>();
+		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN, DESC_COLUMN)));
+		source.put("excludes", new ArrayList<>(Arrays.asList(DESC_COLUMN)));
+		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(source);
+
+		// call under test
+		SearchQueryResults results = manager.search(user,
+				buildRequest(body, SearchQueryPart.SELECT_COLUMNS));
+
+		assertEquals(1, results.getSelectColumns().size());
+		assertEquals(NAME_COLUMN, results.getSelectColumns().get(0).getName());
+	}
+
+	@Test
 	public void testSearchWithSelectColumnsAndSourceArrayShorthand() {
 		// _source as an array is the OpenSearch shorthand for _source.includes.
 		SearchIndex si = setupSearchIndex();
@@ -920,7 +1009,7 @@ public class SearchIndexQueryManagerImplTest {
 
 	@Test
 	public void testAutocompleteWithNullSearchIndexIdThrows() {
-		SearchAutocompleteRequest request = new SearchAutocompleteRequest().setBody(buildAutocompleteBody());
+		SearchAutocompleteRequest request = new SearchAutocompleteRequest().setSearchQuery(buildAutocompleteBody());
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.autocomplete(user, request));
@@ -928,7 +1017,7 @@ public class SearchIndexQueryManagerImplTest {
 	}
 
 	@Test
-	public void testAutocompleteWithNullBodyThrows() {
+	public void testAutocompleteWithNullSearchQueryThrows() {
 		SearchAutocompleteRequest request = new SearchAutocompleteRequest().setSearchIndexId(SEARCH_INDEX_ID);
 
 		// call under test
@@ -1008,67 +1097,75 @@ public class SearchIndexQueryManagerImplTest {
 		verifyNoMoreInteractions(openSearchManager);
 	}
 
-	// ===================== branch coverage: extractSourceIncludes =====================
+	// ===================== branch coverage: extractSourceFilter =====================
 
 	/**
-	 * One parameterized test exercising every shape callers might supply on
-	 * {@code body._source}. The static helper has only six distinct branches; this is the
-	 * tightest fixture that covers all of them.
+	 * One test exercising every shape callers might supply on {@code body._source}.
+	 * The helper delegates to OpenSearch's {@code SourceConfig._DESERIALIZER}, which
+	 * is itself a {@code Boolean | SourceFilter} tagged union with {@code includes}
+	 * as a shortcut property — this covers every branch on the manager side.
 	 */
 	@Test
-	public void testExtractSourceIncludesWithEverySourceShape() {
-		// Each fixture: (description, body._source value, expected return value).
-		// null _source → null
-		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(new SearchQuery()),
+	public void testExtractSourceFilterWithEverySourceShape() {
+		// null body → null (defensive guard)
+		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(null),
+				"null body → null (defensive guard)");
+
+		// absent _source → null
+		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(new SearchQuery()),
 				"absent _source → null");
 
-		// Boolean _source (true / false) → null in both directions; the source-shape branch
-		// rejects non-Map / non-List values upfront.
-		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
+		// Boolean _source (Fetch variant) → null; the column trim is a no-op.
+		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(
 				new SearchQuery().set_source(Boolean.TRUE)),
-				"Boolean true _source → null");
-		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
+				"Boolean true _source → null (Fetch variant)");
+		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(
 				new SearchQuery().set_source(Boolean.FALSE)),
-				"Boolean false _source → null");
+				"Boolean false _source → null (Fetch variant)");
 
-		// List shorthand: top-level _source is an array of column names.
-		assertEquals(Arrays.asList("title", "name"),
-				SearchIndexQueryManagerImpl.extractSourceIncludes(
-						new SearchQuery().set_source(Arrays.asList("title", "name"))),
-				"array shorthand → list verbatim");
+		// List shorthand: top-level _source is an array of column names — deserializes
+		// to SourceFilter via the includes shortcut.
+		SourceFilter listShorthand = SearchIndexQueryManagerImpl.extractSourceFilter(
+				new SearchQuery().set_source(Arrays.asList("title", "name")));
+		assertNotNull(listShorthand);
+		assertEquals(Arrays.asList("title", "name"), listShorthand.includes());
+		assertTrue(listShorthand.excludes() == null || listShorthand.excludes().isEmpty(),
+				"array shorthand → no excludes");
 
-		// Empty list shorthand: returns null because the helper drops empty-list results
-		// (forces the caller to treat absent and explicitly-empty identically).
-		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
-				new SearchQuery().set_source(Collections.emptyList())),
-				"empty list → null");
+		// Empty list shorthand → SourceFilter with empty includes; the column trim
+		// treats empty includes as "keep everything" (matching the includes-absent case).
+		SourceFilter emptyShorthand = SearchIndexQueryManagerImpl.extractSourceFilter(
+				new SearchQuery().set_source(Collections.emptyList()));
+		assertNotNull(emptyShorthand);
+		assertTrue(emptyShorthand.includes() == null || emptyShorthand.includes().isEmpty(),
+				"empty array shorthand → empty includes");
 
 		// Map with includes array.
 		Map<String, Object> includesObj = new HashMap<>();
 		includesObj.put("includes", Arrays.asList("title", "name"));
-		assertEquals(Arrays.asList("title", "name"),
-				SearchIndexQueryManagerImpl.extractSourceIncludes(
-						new SearchQuery().set_source(includesObj)),
-				"map.includes → list verbatim");
+		SourceFilter includesOnly = SearchIndexQueryManagerImpl.extractSourceFilter(
+				new SearchQuery().set_source(includesObj));
+		assertNotNull(includesOnly);
+		assertEquals(Arrays.asList("title", "name"), includesOnly.includes());
 
-		// Map with no includes (e.g. excludes-only) — returns null since includes is what we filter on.
+		// Map with excludes only — now actually surfaced (this is the bug fix: the old
+		// helper returned null and silently dropped the excludes).
 		Map<String, Object> excludesOnly = new HashMap<>();
 		excludesOnly.put("excludes", Arrays.asList("private"));
-		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(
-				new SearchQuery().set_source(excludesOnly)),
-				"map.excludes-only → null (includes is the filter source)");
+		SourceFilter excludesFilter = SearchIndexQueryManagerImpl.extractSourceFilter(
+				new SearchQuery().set_source(excludesOnly));
+		assertNotNull(excludesFilter);
+		assertEquals(Arrays.asList("private"), excludesFilter.excludes());
 
-		// Map with includes containing non-string elements — filtered out, only strings retained.
-		Map<String, Object> mixedIncludes = new HashMap<>();
-		mixedIncludes.put("includes", Arrays.asList("title", 42, "name"));
-		assertEquals(Arrays.asList("title", "name"),
-				SearchIndexQueryManagerImpl.extractSourceIncludes(
-						new SearchQuery().set_source(mixedIncludes)),
-				"map.includes with non-string values → strings only");
-
-		// Null body — defensive null guard at the top of the helper.
-		assertNull(SearchIndexQueryManagerImpl.extractSourceIncludes(null),
-				"null body → null (defensive guard)");
+		// Map with both includes and excludes.
+		Map<String, Object> bothFields = new HashMap<>();
+		bothFields.put("includes", Arrays.asList("title", "name"));
+		bothFields.put("excludes", Arrays.asList("private"));
+		SourceFilter both = SearchIndexQueryManagerImpl.extractSourceFilter(
+				new SearchQuery().set_source(bothFields));
+		assertNotNull(both);
+		assertEquals(Arrays.asList("title", "name"), both.includes());
+		assertEquals(Arrays.asList("private"), both.excludes());
 	}
 
 	// ===================== branch coverage: SearchQueryPart powerset =====================

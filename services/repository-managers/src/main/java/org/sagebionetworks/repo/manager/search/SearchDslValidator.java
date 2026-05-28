@@ -240,7 +240,7 @@ final class SearchDslValidator {
 			"from", "size", "search_after");
 
 	/**
-	 * Narrow allowlist for {@code SearchAutocompleteRequest.body}. The dropdown surface has
+	 * Narrow allowlist for {@code SearchAutocompleteRequest.searchQuery}. The dropdown surface has
 	 * no aggregations / suggest / sort / pagination — only a prefix-flavored {@code query}
 	 * and an optional {@code _source} filter.
 	 */
@@ -419,20 +419,18 @@ final class SearchDslValidator {
 			walkQuery(highlight.highlightQuery(), 1, count);
 		}
 		Map<String, HighlightField> fields = highlight.fields();
-		if (fields != null) {
-			if (fields.size() > MAX_HIGHLIGHT_FIELDS) {
-				throw new IllegalArgumentException("highlight.fields has " + fields.size()
-						+ " entries; max is " + MAX_HIGHLIGHT_FIELDS);
-			}
-			for (Map.Entry<String, HighlightField> entry : fields.entrySet()) {
-				HighlightField hf = entry.getValue();
-				String label = "highlight.fields[" + entry.getKey() + "]";
-				rejectSemanticType(hf.type(), label + ".type");
-				checkHighlightCaps(hf.numberOfFragments(), hf.fragmentSize(), label);
-				if (hf.highlightQuery() != null) {
-					int[] count = new int[] { 0 };
-					walkQuery(hf.highlightQuery(), 1, count);
-				}
+		if (fields.size() > MAX_HIGHLIGHT_FIELDS) {
+			throw new IllegalArgumentException("highlight.fields has " + fields.size()
+					+ " entries; max is " + MAX_HIGHLIGHT_FIELDS);
+		}
+		for (Map.Entry<String, HighlightField> entry : fields.entrySet()) {
+			HighlightField hf = entry.getValue();
+			String label = "highlight.fields[" + entry.getKey() + "]";
+			rejectSemanticType(hf.type(), label + ".type");
+			checkHighlightCaps(hf.numberOfFragments(), hf.fragmentSize(), label);
+			if (hf.highlightQuery() != null) {
+				int[] count = new int[] { 0 };
+				walkQuery(hf.highlightQuery(), 1, count);
 			}
 		}
 	}
@@ -469,11 +467,11 @@ final class SearchDslValidator {
 		if (collapse == null) {
 			throw new IllegalArgumentException("collapse must not be null");
 		}
-		if (collapse.field() == null || collapse.field().isEmpty()) {
+		if (collapse.field().isEmpty()) {
 			throw new IllegalArgumentException("collapse.field is required");
 		}
 		List<?> innerHits = collapse.innerHits();
-		if (innerHits != null && !innerHits.isEmpty()) {
+		if (!innerHits.isEmpty()) {
 			throw new IllegalArgumentException(
 					"collapse.inner_hits is not supported (per-group hits are not surfaced on SearchQueryResults)");
 		}
@@ -497,9 +495,6 @@ final class SearchDslValidator {
 		if (windowSize != null && windowSize > MAX_RESCORE_WINDOW_SIZE) {
 			throw new IllegalArgumentException("rescore.window_size is " + windowSize
 					+ "; max is " + MAX_RESCORE_WINDOW_SIZE);
-		}
-		if (rescore.query() == null || rescore.query().rescoreQuery() == null) {
-			throw new IllegalArgumentException("rescore.query.rescore_query is required");
 		}
 		int[] count = new int[] { 0 };
 		walkQuery(rescore.query().rescoreQuery(), 1, count);
@@ -591,7 +586,7 @@ final class SearchDslValidator {
 
 	private static void walkDisMax(DisMaxQuery disMax, int depth, int[] count) {
 		List<Query> queries = disMax.queries();
-		if (queries == null || queries.isEmpty()) {
+		if (queries.isEmpty()) {
 			throw new IllegalArgumentException("'dis_max' clause requires a 'queries' field");
 		}
 		walkQueryList(queries, depth + 1, count);
@@ -599,21 +594,12 @@ final class SearchDslValidator {
 
 	private static void walkConstantScore(ConstantScoreQuery constantScore, int depth, int[] count) {
 		Query filter = constantScore.filter();
-		if (filter == null) {
-			throw new IllegalArgumentException("'constant_score' clause requires a 'filter' field");
-		}
 		walkQuery(filter, depth + 1, count);
 	}
 
 	private static void walkBoosting(BoostingQuery boosting, int depth, int[] count) {
 		Query positive = boosting.positive();
 		Query negative = boosting.negative();
-		if (positive == null) {
-			throw new IllegalArgumentException("'boosting' clause requires a 'positive' field");
-		}
-		if (negative == null) {
-			throw new IllegalArgumentException("'boosting' clause requires a 'negative' field");
-		}
 		walkQuery(positive, depth + 1, count);
 		walkQuery(negative, depth + 1, count);
 	}
@@ -637,9 +623,6 @@ final class SearchDslValidator {
 	 */
 	private static void validateTerms(TermsQuery termsQuery) {
 		TermsQueryField terms = termsQuery.terms();
-		if (terms == null) {
-			return;
-		}
 		if (terms._kind() == TermsQueryField.Kind.Lookup) {
 			throw new IllegalArgumentException(
 					"terms lookup form is not allowed (cross-index reference): '"
@@ -655,7 +638,7 @@ final class SearchDslValidator {
 	/** {@code ids.values} carries the same expansion risk as a {@code terms} array. */
 	private static void validateIds(IdsQuery ids) {
 		List<String> values = ids.values();
-		if (values != null && values.size() > MAX_VALUES_PER_CLAUSE) {
+		if (values.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("ids.values has " + values.size()
 					+ " entries; max is " + MAX_VALUES_PER_CLAUSE);
 		}
@@ -667,7 +650,7 @@ final class SearchDslValidator {
 	 */
 	private static void validateMultiMatch(MultiMatchQuery mm) {
 		List<String> fields = mm.fields();
-		if (fields != null && fields.size() > MAX_VALUES_PER_CLAUSE) {
+		if (fields.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("multi_match.fields has " + fields.size()
 					+ " entries; max is " + MAX_VALUES_PER_CLAUSE);
 		}
@@ -702,13 +685,13 @@ final class SearchDslValidator {
 	 */
 	private static void validateSimpleQueryString(SimpleQueryStringQuery sq) {
 		List<String> fields = sq.fields();
-		if (fields != null && fields.size() > MAX_VALUES_PER_CLAUSE) {
+		if (fields.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("simple_query_string.fields has " + fields.size()
 					+ " entries; max is " + MAX_VALUES_PER_CLAUSE);
 		}
 		if (Boolean.TRUE.equals(sq.analyzeWildcard())) {
 			String pattern = sq.query();
-			if (pattern != null && !pattern.isEmpty()) {
+			if (!pattern.isEmpty()) {
 				char first = pattern.charAt(0);
 				if (first == '*' || first == '?') {
 					throw new IllegalArgumentException(
@@ -784,7 +767,7 @@ final class SearchDslValidator {
 			break;
 		}
 		Map<String, Aggregation> sub = agg.aggregations();
-		if (sub != null && !sub.isEmpty()) {
+		if (!sub.isEmpty()) {
 			walkAggregationMap(sub, depth + 1, count);
 		}
 	}
@@ -817,7 +800,7 @@ final class SearchDslValidator {
 
 	private static void validateRangeAgg(RangeAggregation range) {
 		List<?> ranges = range.ranges();
-		if (ranges != null && ranges.size() > MAX_VALUES_PER_CLAUSE) {
+		if (ranges.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("'range' aggregation 'ranges' has "
 					+ ranges.size() + " entries; max is " + MAX_VALUES_PER_CLAUSE);
 		}
@@ -825,7 +808,7 @@ final class SearchDslValidator {
 
 	private static void validateDateRangeAgg(DateRangeAggregation dateRange) {
 		List<?> ranges = dateRange.ranges();
-		if (ranges != null && ranges.size() > MAX_VALUES_PER_CLAUSE) {
+		if (ranges.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("'date_range' aggregation 'ranges' has "
 					+ ranges.size() + " entries; max is " + MAX_VALUES_PER_CLAUSE);
 		}

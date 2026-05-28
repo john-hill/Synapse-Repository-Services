@@ -50,7 +50,10 @@ import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.ShardSearchFailure;
 import org.opensearch.client.opensearch._types.ShardStatistics;
+import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.opensearch.client.opensearch._types.aggregations.StringTermsAggregate;
+import org.opensearch.client.opensearch._types.aggregations.StringTermsBucket;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.CustomAnalyzer;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
@@ -66,6 +69,9 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.core.search.HitsMetadata;
+import org.opensearch.client.opensearch.core.search.Suggest;
+import org.opensearch.client.opensearch.core.search.TermSuggest;
+import org.opensearch.client.opensearch.core.search.TermSuggestOption;
 import org.opensearch.client.opensearch.core.search.TotalHits;
 import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 import org.opensearch.client.opensearch.core.search.TrackHits;
@@ -255,6 +261,33 @@ public class OpenSearchManagerImplTest {
 				new HashSet<>(), new HashSet<>(), new HashSet<>());
 
 		assertTrue(rewritten.isKeyword());
+	}
+
+	@Test
+	public void testRewriteOwnedReferencesPreservesScalarFieldsThroughRoundTrip() {
+		// Regression guard for the JSON round-trip path: every CustomAnalyzer field the
+		// OpenSearch client knows about must survive the rewrite. positionIncrementGap and
+		// positionOffsetGap are currently unused by Synapse fixtures, but the round-trip
+		// must preserve them so a future fixture (or future OpenSearch field) doesn't get
+		// silently dropped.
+		Analyzer entry = Analyzer.of(b -> b.custom(c -> c
+				.tokenizer("std")
+				.filter(Arrays.asList("my_syn"))
+				.positionIncrementGap(137)
+				.positionOffsetGap(42)));
+		Set<String> ownedFilters = new HashSet<>();
+		ownedFilters.add("my_syn");
+
+		// call under test — owned filter forces the rewrite path (not the fast-path early return).
+		Analyzer rewritten = OpenSearchManagerImpl.rewriteOwnedReferences(entry, "org-X",
+				new HashSet<>(), ownedFilters, new HashSet<>());
+
+		assertTrue(rewritten.isCustom());
+		CustomAnalyzer custom = rewritten.custom();
+		assertEquals("std", custom.tokenizer());
+		assertEquals(Arrays.asList("org-X__my_syn"), custom.filter());
+		assertEquals(Integer.valueOf(137), custom.positionIncrementGap());
+		assertEquals(Integer.valueOf(42), custom.positionOffsetGap());
 	}
 
 	// --- isConcurrentDeleteError ---
@@ -2224,5 +2257,85 @@ public class OpenSearchManagerImplTest {
 		}
 		assertEquals(EnumSet.allOf(SearchQueryPart.class), guard,
 				"every SearchQueryPart must be exercised across the powerset");
+	}
+
+	@Test
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	public void testSearchWithAggregationsAndSuggestPopulatesOpaqueResults() throws IOException {
+		// aggregations / suggest are not gated by SearchQueryPart — they are populated on the
+		// response whenever the AOSS response carried them. The fixture below carries one of
+		// each so both branches in convertResponse fire and the column-id → name rewrite is
+		// observable on each opaque payload.
+		Aggregate termsAgg = Aggregate.of(a -> a.sterms(StringTermsAggregate.of(t -> t
+				.buckets(b -> b.array(Arrays.asList(
+						StringTermsBucket.of(bk -> bk.key("biology").docCount(3L)),
+						StringTermsBucket.of(bk -> bk.key("chemistry").docCount(1L))))))));
+
+		Suggest<Map> suggest = (Suggest<Map>) (Suggest) Suggest.of(s -> s.term(
+				TermSuggest.of(ts -> ts.length(1).offset(0).text("biolgy")
+						.options(Arrays.asList(TermSuggestOption.of(opt -> opt
+								.text("biology").score(0.9).freq(3L)))))));
+
+		Map<String, Object> source = new LinkedHashMap<>();
+		source.put("_row_id", 7L);
+		source.put("_row_version", 1L);
+		Hit<Map> hit = (Hit<Map>) (Hit) Hit.of(b -> b.index("idx").id("d1").score(1.0)
+				.source(source).sort(Arrays.asList(FieldValue.of(7L))));
+		HitsMetadata<Map> hits = HitsMetadata.of(h -> h
+				.total(TotalHits.of(t -> t.value(1L).relation(TotalHitsRelation.Eq)))
+				.hits(Arrays.asList(hit)));
+		SearchResponse<Map> response = SearchResponse.searchResponseOf(r -> r
+				.took(0L).timedOut(false)
+				.shards(s -> s.total(1).successful(1).failed(0))
+				.hits(hits)
+				.aggregations(Map.of("by_status", termsAgg))
+				.suggest(Map.of("did_you_mean", Arrays.asList(suggest))));
+
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(response);
+
+		// Provide a column so id → name rewrite has something to rewrite. The fixture above
+		// does not embed a "field" reference (the AOSS typed builders don't surface one for
+		// these aggregate / suggest shapes), so the rewrite is a no-op on the payload — what
+		// we are verifying here is that convertResponse populates BOTH opaque slots.
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
+
+		// call under test
+		SearchQueryResults results =
+				manager.search("my-index", matchAllBody(), columns,
+						EnumSet.of(SearchQueryPart.HITS));
+
+		assertNotNull(results.getAggregationResults(),
+				"aggregations populated whenever the response carried them");
+		assertTrue(results.getAggregationResults() instanceof Map,
+				"aggregationResults surfaced as the deserialized JSON tree (Map)");
+		assertTrue(((Map<String, Object>) results.getAggregationResults()).containsKey("by_status"),
+				"aggregation key preserved verbatim");
+
+		assertNotNull(results.getSuggestResults(),
+				"suggest populated whenever the response carried it");
+		assertTrue(results.getSuggestResults() instanceof Map,
+				"suggestResults surfaced as the deserialized JSON tree (Map)");
+		assertTrue(((Map<String, Object>) results.getSuggestResults()).containsKey("did_you_mean"),
+				"suggester key preserved verbatim");
+	}
+
+	@Test
+	public void testSearchWithoutAggregationsOrSuggestLeavesOpaqueSlotsNull() throws IOException {
+		// Counterpart to the above: when the AOSS response carries neither block, the
+		// corresponding gates in convertResponse stay false and both opaque slots remain null.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(oneHitSearchResponse());
+
+		// call under test
+		SearchQueryResults results =
+				manager.search("my-index", matchAllBody(), Collections.emptyList(),
+						EnumSet.of(SearchQueryPart.HITS));
+
+		assertNull(results.getAggregationResults(),
+				"no aggregations on response → aggregationResults stays null");
+		assertNull(results.getSuggestResults(),
+				"no suggest on response → suggestResults stays null");
 	}
 }

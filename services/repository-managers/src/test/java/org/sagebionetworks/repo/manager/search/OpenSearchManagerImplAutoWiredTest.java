@@ -117,62 +117,34 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
-	public void testCreateIndexWithValidColumns() {
+	public void testCreateIndexAndDeleteLifecycle() {
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING),
 				new ColumnModel().setId("2").setName("age").setColumnType(ColumnType.INTEGER)
 		);
 
-		// call under test
+		// call under test — happy-path create returns the applied settings JSON
 		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), defaultAnalyzers);
-
 		assertTrue(appliedConfig.isPresent());
 		assertTrue(appliedConfig.get().length() > 0);
-	}
-
-	@Test
-	public void testDeleteIndexWithExistingIndex() {
-		List<ColumnModel> columns = List.of(
-				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
-		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), defaultAnalyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
-		// call under test
+		// call under test — creating an index that already exists returns Optional.empty()
+		Optional<String> duplicate = openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		assertTrue(duplicate.isEmpty(),
+				"resource_already_exists must surface as Optional.empty(), not throw");
+
+		// call under test — bulkIndex with no operations is a no-op
+		assertEquals(0L, openSearchManager.bulkIndex(indexName, Collections.emptyList()));
+
+		// call under test — deleteIndex on the live index, then again as a no-op
+		openSearchManager.deleteIndex(indexName);
 		openSearchManager.deleteIndex(indexName);
 
-		// call under test — deleting again should be a no-op
-		openSearchManager.deleteIndex(indexName);
-	}
-
-	@Test
-	public void testDeleteIndexWithNonExistentIndex() {
-		// call under test — should not throw
+		// call under test — deleteIndex on a name that never existed must not throw
 		openSearchManager.deleteIndex("nonexistent-index-" + UUID.randomUUID());
-	}
-
-	@Test
-	public void testCreateIndexWithDuplicateName() {
-		List<ColumnModel> columns = List.of(
-				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
-		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), defaultAnalyzers);
-		openSearchManager.waitForIndexWritable(indexName);
-
-		// call under test — resource_already_exists returns empty Optional
-		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), defaultAnalyzers);
-
-		assertTrue(result.isEmpty());
-	}
-
-	@Test
-	public void testBulkIndexWithEmptyList() {
-		// call under test
-		long indexed = openSearchManager.bulkIndex(indexName, Collections.emptyList());
-
-		assertEquals(0L, indexed);
 	}
 
 	@Test
@@ -317,6 +289,13 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// to AUTOCOMPLETE (via override) must let an autocomplete() prefix query match docs
 		// even after only a few characters of the indexed term. This is the only round-trip
 		// that exercises the asymmetric default / default_search behavior end-to-end.
+		//
+		// Regression guard for the bulk-index path (PLFM-9636): the bootstrapped chain combines
+		// word_delimiter (legacy, non-graph) with edge_ngram. An earlier chain used
+		// word_delimiter_graph, which produces multi-position graph tokens that edge_ngram
+		// (a non-graph filter) cannot consume — AOSS rejected every document with a generic
+		// "Internal error". Asserting bulkIndex returns the full doc count protects against
+		// that regression.
 		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
 		analyzers.put("org.sagebionetworks-AUTOCOMPLETE",
 				bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
@@ -340,7 +319,10 @@ public class OpenSearchManagerImplAutoWiredTest {
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria")),
 				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "genome")),
 				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "microbiome")));
-		openSearchManager.bulkIndex(indexName, operations);
+
+		// call under test — every document must be accepted; word_delimiter_graph + edge_ngram
+		// previously caused AOSS to reject all 3 docs.
+		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
 
 		// Autocomplete with prefix "mit" should match "mitochondria"; "microbiome" begins
 		// with "mic", not "mit", so it must NOT match. The manager clamps page size for
@@ -363,29 +345,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
-	public void testSearchWithMatchAllQueryType() {
-		List<ColumnModel> columns = List.of(
-				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
-		openSearchManager.createIndex(indexName, columns, null,
-				Collections.emptyList(), defaultAnalyzers);
-		openSearchManager.waitForIndexWritable(indexName);
-
-		List<BulkOperation> operations = List.of(
-				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")),
-				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "beta"))
-		);
-		openSearchManager.bulkIndex(indexName, operations);
-
-		// call under test
-		SearchQueryResults results = waitForSearch(matchAllBody(), columns, 2);
-
-		assertNotNull(results);
-		assertEquals(2L, results.getTotalHits());
-		assertNotNull(results.getHits());
-		assertEquals(2, results.getHits().size());
-	}
-
-	@Test
 	public void testSearchWithNonExistentIndex() {
 		SearchQuery body = simpleQueryStringBody("anything");
 
@@ -401,45 +360,46 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"Exception message should indicate the index is not ready, got: " + ex.getMessage());
 	}
 
-	@Test
-	public void testValidateAnalyzerSettingsWithInvalidTokenizer() {
-		// Bare built-in tokenizer reference that AOSS doesn't recognize.
-		IndexSettingsAnalysis settings = toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
-				+ "\"tokenizer\":\"nonexistent_tokenizer_xyz\"}}}");
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> openSearchManager.validateAnalyzerSettings(settings));
-		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
-				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
+	/**
+	 * Validator surface, exercised against live AOSS without creating an index. Three static
+	 * cases cover the failure paths (invalid tokenizer, invalid filter) and the inline-filter
+	 * registry success path (typed {@code TokenFilterDefinition} deserialize). The
+	 * bootstrapped-analyzer regression guard is a separate test below because a static
+	 * {@code @MethodSource} factory cannot reach the instance-bootstrapped {@code defaultAnalyzers}.
+	 */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("analyzerValidationCases")
+	public void testValidateAnalyzerSettings(String label, IndexSettingsAnalysis settings, boolean shouldFail) {
+		if (shouldFail) {
+			// call under test
+			IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+					() -> openSearchManager.validateAnalyzerSettings(settings));
+			assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
+					"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
+		} else {
+			// call under test — must not throw
+			openSearchManager.validateAnalyzerSettings(settings);
+		}
 	}
 
-	@Test
-	public void testValidateAnalyzerSettingsWithInvalidFilter() {
-		// Built-in tokenizer paired with a filter chain that names a nonexistent built-in filter.
-		IndexSettingsAnalysis settings = toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
-				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"bogus_filter_name_xyz\"]}}}");
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> openSearchManager.validateAnalyzerSettings(settings));
-		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
-				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
-	}
-
-	@Test
-	public void testValidateAnalyzerSettingsWithInlineFilterRegistry() {
-		// Inline filter registry (my_stop) plus a built-in (lowercase). Exercises the typed
-		// TokenFilterDefinition deserialize path against live AOSS.
-		IndexSettingsAnalysis settings = toAnalysis("{"
-				+ "\"filter\":{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
-				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
-				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"my_stop\",\"lowercase\"]}}}");
-
-		// call under test — must not throw
-		openSearchManager.validateAnalyzerSettings(settings);
+	private static Stream<Arguments> analyzerValidationCases() {
+		return Stream.of(
+				Arguments.of("invalid tokenizer",
+						toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+								+ "\"tokenizer\":\"nonexistent_tokenizer_xyz\"}}}"),
+						true),
+				Arguments.of("invalid filter",
+						toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+								+ "\"tokenizer\":\"standard\","
+								+ "\"filter\":[\"bogus_filter_name_xyz\"]}}}"),
+						true),
+				Arguments.of("inline filter registry",
+						toAnalysis("{"
+								+ "\"filter\":{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
+								+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
+								+ "\"tokenizer\":\"standard\","
+								+ "\"filter\":[\"my_stop\",\"lowercase\"]}}}"),
+						false));
 	}
 
 	@Test
@@ -456,49 +416,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	/** Test helper mirroring SearchOpaqueJsonUtil.resolveAnalyzerSettings() with a no-op resolver. */
 	private static IndexSettingsAnalysis toAnalysis(String json) {
 		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(json), q -> null);
-	}
-
-	/**
-	 * The bootstrapped AUTOCOMPLETE analyzer combines word_delimiter (legacy, non-graph) with
-	 * edge_ngram. Earlier the chain used word_delimiter_graph which produces multi-position
-	 * graph tokens that edge_ngram (a non-graph filter) cannot consume — AOSS rejected every
-	 * document during bulk index with a generic "Internal error". This test reproduces the
-	 * production analyzer config end-to-end against AOSS and asserts that bulk index succeeds.
-	 */
-	@Test
-	public void testBulkIndexWithAutocompleteAnalyzerOverride() {
-		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
-		analyzers.put("org.sagebionetworks-AUTOCOMPLETE",
-				bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
-
-		List<ColumnModel> columns = List.of(
-				new ColumnModel().setId("1").setName("geneName").setColumnType(ColumnType.STRING));
-
-		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry entry =
-				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
-						.setColumnName("geneName")
-						.setAnalyzer(Map.of("$ref", "org.sagebionetworks-AUTOCOMPLETE"));
-		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride override =
-				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
-						.setName("AUTOCOMPLETE_OVERRIDE")
-						.setOrganizationName("org.sagebionetworks")
-						.setOverrides(List.of(entry));
-
-		openSearchManager.createIndex(indexName, columns, null,
-				List.of(override), analyzers);
-		openSearchManager.waitForIndexWritable(indexName);
-
-		List<BulkOperation> operations = List.of(
-				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
-				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "BRCA2")),
-				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "TP53"))
-		);
-
-		// call under test — every document must be accepted; the previous word_delimiter_graph
-		// + edge_ngram chain caused AOSS to reject all 3 here with "Internal error".
-		long indexed = openSearchManager.bulkIndex(indexName, operations);
-
-		assertEquals(3L, indexed);
 	}
 
 	/**
@@ -1201,5 +1118,201 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setQuery(queryClause)
 				.setSize(10L)
 				.setFrom(0L);
+	}
+
+	/**
+	 * {@code post_filter} is applied AFTER aggregations are computed, so aggregation buckets
+	 * must reflect the unfiltered population matched by {@code query} while the returned hits
+	 * are narrowed by {@code post_filter}. A {@code bool.filter} placed inside {@code query}
+	 * has the opposite shape (aggregations also shrink). Two distinct status values are seeded
+	 * so the assertion can distinguish those two semantics. Bare column names exercise the
+	 * server's auto-routing through {@code .keyword} for term clauses against text columns.
+	 */
+	@Test
+	public void testSearchWithPostFilter() {
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("status").setColumnType(ColumnType.STRING));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		openSearchManager.bulkIndex(indexName, List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "ACTIVE")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "ACTIVE")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "INACTIVE")),
+				buildBulkOp(indexName, "4", Map.of("_row_id", 4L, "_row_version", 1L, "1", "INACTIVE")),
+				buildBulkOp(indexName, "5", Map.of("_row_id", 5L, "_row_version", 1L, "1", "INACTIVE"))));
+		waitForSearch(matchAllBody(), columns, 5);
+
+		SearchQuery body = new SearchQuery()
+				.setQuery(Map.of("match_all", Collections.emptyMap()))
+				.setAggregations(Map.of(
+						"by_status", Map.of("terms", Map.of("field", "status"))))
+				.setPost_filter(Map.of("term", Map.of("status", "ACTIVE")))
+				.setSize(10L)
+				.setFrom(0L);
+
+		// call under test — post_filter narrows hits; aggregations stay at full population
+		SearchQueryResults results = openSearchManager.search(indexName, body, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+
+		assertEquals(2L, results.getTotalHits(),
+				"totalHits must reflect post_filter narrowing — only ACTIVE rows");
+		assertNotNull(results.getHits());
+		assertEquals(2, results.getHits().size());
+
+		assertNotNull(results.getAggregationResults(), "aggregations were requested");
+		JsonNode aggResults = new com.fasterxml.jackson.databind.ObjectMapper()
+				.valueToTree(results.getAggregationResults());
+		Map<String, Long> counts = new HashMap<>();
+		for (JsonNode bucket : aggResults.path("by_status").path("buckets")) {
+			counts.put(bucket.path("key").asText(), bucket.path("doc_count").asLong());
+		}
+		assertEquals(Long.valueOf(2L), counts.get("ACTIVE"),
+				"ACTIVE bucket must report 2 (full population, not post-filtered)");
+		assertEquals(Long.valueOf(3L), counts.get("INACTIVE"),
+				"INACTIVE bucket must be present with full count — post_filter "
+						+ "must NOT narrow aggregations (that's the bool.filter shape)");
+	}
+
+	/**
+	 * {@code highlight} fragments must round-trip and surface as a structured per-hit list.
+	 * Each {@link org.sagebionetworks.repo.model.search.SearchHighlight} is keyed by the bare
+	 * column name (server rewrites the AOSS field reference back) and snippets wrap the
+	 * matched term in the default {@code <em>...</em>} tags.
+	 */
+	@Test
+	public void testSearchWithHighlight() {
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("description").setColumnType(ColumnType.LARGETEXT));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		openSearchManager.bulkIndex(indexName, List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1 tumor suppressor gene")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "BRCA2 tumor suppressor gene")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "TP53 tumor suppressor gene"))));
+		waitForSearch(matchAllBody(), columns, 3);
+
+		SearchQuery body = new SearchQuery()
+				.setQuery(Map.of("match", Map.of("description", "tumor")))
+				.setHighlight(Map.of("fields",
+						Map.of("description", Collections.emptyMap())))
+				.setSize(10L)
+				.setFrom(0L);
+
+		// call under test — highlight payload round-trips and SearchHit.highlights is populated
+		SearchQueryResults results = openSearchManager.search(indexName, body, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+
+		assertEquals(3L, results.getTotalHits());
+		assertNotNull(results.getHits());
+		assertEquals(3, results.getHits().size());
+		for (org.sagebionetworks.repo.model.search.SearchHit hit : results.getHits()) {
+			List<org.sagebionetworks.repo.model.search.SearchHighlight> highlights = hit.getHighlights();
+			assertNotNull(highlights, "highlights must be populated when highlight requested");
+			assertEquals(1, highlights.size(),
+					"only the description field has matches and was requested");
+			org.sagebionetworks.repo.model.search.SearchHighlight h = highlights.get(0);
+			assertEquals("description", h.getName(),
+					"server must rewrite the response field reference back to the bare column name");
+			assertNotNull(h.getSnippets());
+			assertTrue(h.getSnippets().size() >= 1, "expected at least one snippet fragment");
+			assertTrue(h.getSnippets().get(0).contains("<em>tumor</em>"),
+					"snippet must wrap the matched 'tumor' term in <em> tags; got: "
+							+ h.getSnippets().get(0));
+		}
+	}
+
+	/**
+	 * Exercises {@code collapse} and {@code rescore} on the same projA/projB amyloid fixture.
+	 *
+	 * <p>{@code collapse} groups results so one hit per distinct value of {@code field} is
+	 * returned: collapse on {@code projectId} must yield exactly two hits surfacing the two
+	 * distinct project ids.
+	 *
+	 * <p>{@code rescore} re-ranks the top {@code window_size} hits using a secondary scoring
+	 * query: a phrase boost (weight 5×) on 'amyloid plaques' must lift the three projA rows
+	 * (which contain the phrase) above the three projB rows that match only 'amyloid'.
+	 *
+	 * <p>{@code collapse} and {@code rescore} are mutually exclusive at the OpenSearch engine
+	 * layer, so each is exercised in its own search call against the shared fixture.
+	 */
+	@Test
+	public void testSearchWithCollapseAndRescore() {
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("projectId").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("title").setColumnType(ColumnType.LARGETEXT));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		openSearchManager.bulkIndex(indexName, List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L,
+						"1", "projA", "2", "amyloid plaques in cortex")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L,
+						"1", "projA", "2", "amyloid plaques in hippocampus")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L,
+						"1", "projA", "2", "amyloid plaques and tau")),
+				buildBulkOp(indexName, "4", Map.of("_row_id", 4L, "_row_version", 1L,
+						"1", "projB", "2", "amyloid precursor protein")),
+				buildBulkOp(indexName, "5", Map.of("_row_id", 5L, "_row_version", 1L,
+						"1", "projB", "2", "amyloid beta peptide")),
+				buildBulkOp(indexName, "6", Map.of("_row_id", 6L, "_row_version", 1L,
+						"1", "projB", "2", "amyloid signaling pathway"))));
+		waitForSearch(matchAllBody(), columns, 6);
+
+		SearchQuery collapseBody = new SearchQuery()
+				.setQuery(Map.of("match", Map.of("title", "amyloid")))
+				.setCollapse(Map.of("field", "projectId"))
+				.setSize(10L)
+				.setFrom(0L);
+
+		// call under test — collapse yields one hit per distinct projectId
+		SearchQueryResults collapseResults = openSearchManager.search(indexName, collapseBody, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+
+		assertNotNull(collapseResults.getHits());
+		assertEquals(2, collapseResults.getHits().size(),
+				"collapse on projectId must return one hit per distinct value");
+		Set<String> projectIds = collapseResults.getHits().stream()
+				.map(hit -> hit.getFields().stream()
+						.filter(f -> "projectId".equals(f.getName()))
+						.findFirst()
+						.orElseThrow(() -> new AssertionError("no 'projectId' field on hit"))
+						.getValue())
+				.collect(Collectors.toSet());
+		assertEquals(Set.of("projA", "projB"), projectIds,
+				"collapse must surface both distinct projectId values");
+
+		SearchQuery rescoreBody = new SearchQuery()
+				.setQuery(Map.of("match", Map.of("title", "amyloid")))
+				.setRescore(Map.of(
+						"window_size", 50,
+						"query", Map.of(
+								"rescore_query", Map.of(
+										"match_phrase", Map.of("title", "amyloid plaques")),
+								"query_weight", 1.0,
+								"rescore_query_weight", 5.0)))
+				.setSize(10L)
+				.setFrom(0L);
+
+		// call under test — rescore must lift the three 'amyloid plaques' rows to the top
+		SearchQueryResults rescoreResults = openSearchManager.search(indexName, rescoreBody, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+
+		assertNotNull(rescoreResults.getHits());
+		assertEquals(6, rescoreResults.getHits().size(),
+				"base match on 'amyloid' returns every row");
+		List<String> topThreeProjectIds = rescoreResults.getHits().subList(0, 3).stream()
+				.map(hit -> hit.getFields().stream()
+						.filter(f -> "projectId".equals(f.getName()))
+						.findFirst()
+						.orElseThrow(() -> new AssertionError("no 'projectId' field on hit"))
+						.getValue())
+				.collect(Collectors.toList());
+		assertEquals(List.of("projA", "projA", "projA"), topThreeProjectIds,
+				"rescore boost on 'amyloid plaques' must rank all three projA rows above projB");
 	}
 }

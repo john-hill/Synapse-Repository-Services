@@ -12,7 +12,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,7 +28,6 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
-import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.CountRequest;
@@ -208,7 +210,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String appliedConfigJson = request.toJsonString();
 			CreateIndexResponse response = openSearchClient.indices().create(request);
 
-			if (!Boolean.TRUE.equals(response.acknowledged())) {
+			if (!response.acknowledged()) {
 				throw new IllegalStateException("Search index " + indexName + " creation was not acknowledged.");
 			}
 
@@ -353,9 +355,12 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * never reference local registry components and are returned as-is.
 	 *
 	 * <p>The OpenSearch Java client's list-typed builders ({@code filter(List)},
-	 * {@code charFilter(List)}) are <i>additive</i> &mdash; they append to whatever the
-	 * source builder already holds, so {@code toBuilder()} cannot be used here. Construct
-	 * a fresh {@link CustomAnalyzer} instead and copy the scalar fields explicitly.</p>
+	 * {@code charFilter(List)}) are <i>additive</i> &mdash; they append to the source
+	 * builder's existing list, so {@code toBuilder()} would duplicate the chain. Instead,
+	 * round-trip through the JSON shape: serialize the source {@link CustomAnalyzer},
+	 * mutate only the three chain keys we own, and deserialize back. Any scalar / list /
+	 * object field the OpenSearch client adds in a future version flows through the JSON
+	 * tree untouched, so new fields cannot be silently dropped.</p>
 	 */
 	static Analyzer rewriteOwnedReferences(Analyzer analyzer, String aossKey,
 			Set<String> ownedCharFilters, Set<String> ownedFilters, Set<String> ownedTokenizers) {
@@ -363,39 +368,33 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			return analyzer;
 		}
 		CustomAnalyzer source = analyzer.custom();
-		List<String> charFilterChain = rewriteChain(source.charFilter(), aossKey, ownedCharFilters);
-		List<String> filterChain = rewriteChain(source.filter(), aossKey, ownedFilters);
-		String tokenizer = source.tokenizer();
-		String rewrittenTokenizer = (tokenizer != null && ownedTokenizers.contains(tokenizer))
-				? aossKey + "__" + tokenizer : tokenizer;
-		CustomAnalyzer rebuilt = CustomAnalyzer.of(b -> {
-			if (rewrittenTokenizer != null) {
-				b.tokenizer(rewrittenTokenizer);
-			}
-			if (charFilterChain != null && !charFilterChain.isEmpty()) {
-				b.charFilter(charFilterChain);
-			}
-			if (filterChain != null && !filterChain.isEmpty()) {
-				b.filter(filterChain);
-			}
-			if (source.positionIncrementGap() != null) {
-				b.positionIncrementGap(source.positionIncrementGap());
-			}
-			if (source.positionOffsetGap() != null) {
-				b.positionOffsetGap(source.positionOffsetGap());
-			}
-			return b;
-		});
+		boolean tokenizerOwned = ownedTokenizers.contains(source.tokenizer());
+		boolean charFilterHasOwned = source.charFilter().stream().anyMatch(ownedCharFilters::contains);
+		boolean filterHasOwned = source.filter().stream().anyMatch(ownedFilters::contains);
+		if (!tokenizerOwned && !charFilterHasOwned && !filterHasOwned) {
+			return analyzer;
+		}
+		ObjectNode tree = (ObjectNode) SearchOpaqueJsonUtil.toJsonpTree(source);
+		if (tokenizerOwned) {
+			tree.put("tokenizer", aossKey + "__" + source.tokenizer());
+		}
+		if (charFilterHasOwned) {
+			rewriteChainArray((ArrayNode) tree.get("char_filter"), aossKey, ownedCharFilters);
+		}
+		if (filterHasOwned) {
+			rewriteChainArray((ArrayNode) tree.get("filter"), aossKey, ownedFilters);
+		}
+		CustomAnalyzer rebuilt = SearchOpaqueJsonUtil.fromJsonpTree(tree, CustomAnalyzer._DESERIALIZER);
 		return Analyzer.of(b -> b.custom(rebuilt));
 	}
 
-	private static List<String> rewriteChain(List<String> chain, String aossKey, Set<String> owned) {
-		if (chain == null || chain.isEmpty()) {
-			return chain;
+	private static void rewriteChainArray(ArrayNode chain, String aossKey, Set<String> owned) {
+		for (int i = 0; i < chain.size(); i++) {
+			JsonNode element = chain.get(i);
+			if (element.isTextual() && owned.contains(element.asText())) {
+				chain.set(i, chain.textNode(aossKey + "__" + element.asText()));
+			}
 		}
-		return chain.stream()
-				.map(name -> owned.contains(name) ? aossKey + "__" + name : name)
-				.collect(Collectors.toList());
 	}
 
 	/**
@@ -1038,6 +1037,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
+				// Timeout defines when incomplete results should be returned, giving
+				// a 10s grace period before requests are canceled.
 				req.timeout("50s");
 				req.cancelAfterTimeInterval(t -> t.time("60s"));
 				effectiveFrom[0] = autocomplete
@@ -1095,9 +1096,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		// Pagination cursor: when hits are requested and the page is full, emit the last
 		// hit's sort values as the next-page cursor; null when the page is short or empty.
-		if (options.contains(SearchQueryPart.HITS) && hits != null && !hits.isEmpty()) {
+		if (options.contains(SearchQueryPart.HITS) && !hits.isEmpty()) {
 			List<FieldValue> sortValues = hits.get(hits.size() - 1).sort();
-			if (sortValues != null && !sortValues.isEmpty()) {
+			if (!sortValues.isEmpty()) {
 				results.setNextSearchAfter(SearchOpaqueJsonUtil.toSearchAfterCursor(sortValues));
 			}
 		}
@@ -1128,7 +1129,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 
 		Map<String, List<String>> rawHighlights = hit.highlight();
-		if (rawHighlights != null && !rawHighlights.isEmpty()) {
+		if (!rawHighlights.isEmpty()) {
 			List<SearchHighlight> highlights = rawHighlights.entrySet().stream()
 					.map(e -> new SearchHighlight()
 							.setName(idToName.getOrDefault(e.getKey(), e.getKey()))

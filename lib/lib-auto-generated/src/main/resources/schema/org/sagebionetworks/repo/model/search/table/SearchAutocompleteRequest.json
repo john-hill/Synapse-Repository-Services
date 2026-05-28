@@ -5,7 +5,7 @@
 			"type": "string",
 			"description": "The ID of the SearchIndex entity to query."
 		},
-		"body": {
+		"searchQuery": {
 			"$ref": "org.sagebionetworks.repo.model.search.SearchAutocompleteBody",
 			"description": "The autocomplete request body. See <a href=\"${org.sagebionetworks.repo.model.search.SearchAutocompleteBody}\">SearchAutocompleteBody</a> for the allowlisted top-level keys."
 		}

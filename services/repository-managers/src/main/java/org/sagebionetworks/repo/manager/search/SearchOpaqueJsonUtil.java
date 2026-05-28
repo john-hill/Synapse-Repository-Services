@@ -709,6 +709,9 @@ public final class SearchOpaqueJsonUtil {
 			if (value instanceof JSONObject || value instanceof JSONArray) {
 				return MAPPER.readValue(value.toString(), clazz);
 			}
+			if (value instanceof JSONObjectAdapter) {
+				return MAPPER.readValue(((JSONObjectAdapter) value).toJSONString(), clazz);
+			}
 			return MAPPER.convertValue(value, clazz);
 		} catch (IllegalArgumentException | JsonProcessingException e) {
 			throw new IllegalArgumentException(

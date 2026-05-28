@@ -461,6 +461,35 @@ public class SearchOpaqueJsonUtilTest {
 		assertTrue(ex.getMessage().contains("Invalid inline TextAnalyzer"), ex.getMessage());
 	}
 
+	@Test
+	public void testToInlineConvertsJsonObjectAdapterToTypedPojo() throws Exception {
+		// JSONObjectAdapter is the wire-deserialized shape controllers receive for opaque-Object
+		// fields after JSON binding. Without the JSONObjectAdapter branch in toInline, this falls
+		// through to MAPPER.convertValue, which tries to serialize JSONObjectAdapterImpl via
+		// Jackson (no BeanSerializer) and throws "No serializer found for class JSONObjectAdapterImpl".
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(
+				"{\"organizationName\":\"biomed\",\"name\":\"publications\"}");
+
+		// call under test
+		TextAnalyzer ta = SearchOpaqueJsonUtil.toInline(adapter, TextAnalyzer.class);
+
+		assertEquals("biomed", ta.getOrganizationName());
+		assertEquals("publications", ta.getName());
+	}
+
+	@Test
+	public void testToInlineRejectsMalformedJsonObjectAdapter() throws Exception {
+		// A JSONObjectAdapter whose payload doesn't deserialize as the target POJO must surface
+		// as IllegalArgumentException — same contract as Map / JSONObject inputs.
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(
+				"{\"createdBy\":{\"not\":\"a-string\"}}");
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchOpaqueJsonUtil.toInline(adapter, TextAnalyzer.class));
+
+		assertTrue(ex.getMessage().contains("Invalid inline TextAnalyzer"), ex.getMessage());
+	}
+
 	// ===================== analyzer-typed splice + deserialize =====================
 
 	@Test

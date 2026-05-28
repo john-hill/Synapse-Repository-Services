@@ -1057,8 +1057,8 @@ public class SearchManagementController {
 	 *
 	 * <h6>Allowlisted top-level keys</h6>
 	 * <p>
-	 * Only <code>query</code> and <code>_source</code> are accepted on the body; any other
-	 * top-level key returns HTTP 400 naming the offender.
+	 * Only <code>query</code> and <code>_source</code> are accepted on the
+	 * <code>searchQuery</code>; any other top-level key returns HTTP 400 naming the offender.
 	 * </p>
 	 * <p>
 	 * <b><code>query</code></b> — required. The top-level clause must be one of
@@ -1088,7 +1088,7 @@ public class SearchManagementController {
 	 * </p>
 	 *
 	 * <p>Example — prefix match on the <code>title.keyword</code> sub-field:</p>
-	 * <pre><code>"body": { "query": { "prefix": { "title.keyword": "can" } } }</code></pre>
+	 * <pre><code>"searchQuery": { "query": { "prefix": { "title.keyword": "can" } } }</code></pre>
 	 *
 	 * @param userId The ID of the authenticated user.
 	 * @param request The autocomplete request including the <code>searchIndexId</code> and

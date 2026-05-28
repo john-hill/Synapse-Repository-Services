@@ -101,10 +101,6 @@ final class SearchFieldRewriter {
 			}
 		} else if (node.isObject()) {
 			rewriteSortObjectKeys((ObjectNode) node, ctx);
-		} else if (node.isTextual()) {
-			// A bare string sort value at the top level can't be replaced via JsonNode mutation;
-			// the caller (SearchOpaqueJsonUtil) handles the singleton-string case before calling
-			// this method.
 		}
 	}
 

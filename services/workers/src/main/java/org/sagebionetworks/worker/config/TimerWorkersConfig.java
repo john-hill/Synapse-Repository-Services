@@ -6,6 +6,7 @@ import org.sagebionetworks.file.worker.FileHandleAssociationScanDispatcherWorker
 import org.sagebionetworks.principal.worker.InactiveUsersWorker;
 import org.sagebionetworks.table.worker.ReplicatedToViewConsumerWorker;
 import org.sagebionetworks.tos.workers.TermsOfServiceLatestVersionRefreshWorker;
+import org.sagebionetworks.worker.SemaphoreGarbageCollection;
 import org.sagebionetworks.worker.utils.StackStatusGate;
 import org.sagebionetworks.workers.util.semaphore.SemaphoreGatedWorkerStack;
 import org.sagebionetworks.workers.util.semaphore.SemaphoreGatedWorkerStackConfiguration;
@@ -111,19 +112,37 @@ public class TimerWorkersConfig {
 	@Bean
 	public SimpleTriggerFactoryBean inactiveUsersWorkerTrigger(InactiveUsersWorker worker) {
 		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();
-		
+
 		config.setSemaphoreLockKey("inactiveUsersWorker");
 		config.setProgressingRunner(worker);
 		config.setSemaphoreMaxLockCount(1);
 		config.setSemaphoreLockTimeoutSec(30);
 		config.setGate(stackStatusGate);
-		
+
 		return new WorkerTriggerBuilder()
 			.withStack(new SemaphoreGatedWorkerStack(countingSemaphore, config))
 			.withRepeatInterval(30 * 60 * 1000)
 			.withStartDelay(10_000)
 			.build();
-		
+
+	}
+
+	@Bean
+	public SimpleTriggerFactoryBean semaphoreGarbageCollectionTrigger(SemaphoreGarbageCollection worker) {
+		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();
+
+		config.setSemaphoreLockKey("semaphoreGarbageCollection");
+		config.setProgressingRunner(worker);
+		config.setSemaphoreMaxLockCount(1);
+		config.setSemaphoreLockTimeoutSec(60);
+		config.setGate(stackStatusGate);
+
+		return new WorkerTriggerBuilder()
+			.withStack(new SemaphoreGatedWorkerStack(countingSemaphore, config))
+			// This does not need to run more than every ten minutes
+			.withRepeatInterval(600170)
+			.withStartDelay(912)
+			.build();
 	}
 
 }

@@ -9,7 +9,7 @@ CREATE PROCEDURE attemptToAcquireSemaphoreLock(IN lockKey VARCHAR(256), IN timeo
     SQL SECURITY INVOKER
 BEGIN
 	DECLARE newToken VARCHAR(256) DEFAULT NULL;
-	DECLARE rowId MEDIUMINT DEFAULT NULL;
+	DECLARE rowId INT DEFAULT NULL;
 	    
     /* Ensure the lock rows exist for this key */
     CALL bootstrapLockKeyRows(lockKey, maxLockCount);

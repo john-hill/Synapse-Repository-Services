@@ -156,9 +156,9 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		if (source == null) {
 			return null;
 		}
-		SourceConfig cfg = SearchOpaqueJsonUtil.fromJsonpTree(
+		SourceConfig sourceConfig = SearchOpaqueJsonUtil.fromJsonpTree(
 				SearchOpaqueJsonUtil.parse(source), SourceConfig._DESERIALIZER);
-		return cfg.isFilter() ? cfg.filter() : null;
+		return sourceConfig.isFilter() ? sourceConfig.filter() : null;
 	}
 
 	/**

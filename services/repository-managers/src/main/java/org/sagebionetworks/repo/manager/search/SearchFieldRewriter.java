@@ -104,9 +104,9 @@ final class SearchFieldRewriter {
 		}
 	}
 
-	private static void rewriteSortObjectKeys(ObjectNode obj, RoutingContext ctx) {
+	private static void rewriteSortObjectKeys(ObjectNode sortObject, RoutingContext ctx) {
 		List<String> originalKeys = new ArrayList<>();
-		Iterator<String> names = obj.fieldNames();
+		Iterator<String> names = sortObject.fieldNames();
 		while (names.hasNext()) {
 			originalKeys.add(names.next());
 		}
@@ -116,9 +116,9 @@ final class SearchFieldRewriter {
 			}
 			String rewritten = rewriteFieldRef(key, ctx, RoutingMode.KEYWORD_FOR_TEXT);
 			if (!key.equals(rewritten)) {
-				JsonNode value = obj.get(key);
-				obj.remove(key);
-				obj.set(rewritten, value);
+				JsonNode value = sortObject.get(key);
+				sortObject.remove(key);
+				sortObject.set(rewritten, value);
 			}
 		}
 	}
@@ -336,41 +336,42 @@ final class SearchFieldRewriter {
 	 * column-id form. Highlighted fields are bound to the analyzer at index time, so the
 	 * reference goes to the bare tokenized field — no {@code .keyword} routing.
 	 */
-	private static void rewriteHighlightFieldsMap(ObjectNode fieldsObj, RoutingContext ctx) {
+	private static void rewriteHighlightFieldsMap(ObjectNode highlightFields, RoutingContext ctx) {
 		List<String> originalKeys = new ArrayList<>();
-		Iterator<String> names = fieldsObj.fieldNames();
+		Iterator<String> names = highlightFields.fieldNames();
 		while (names.hasNext()) {
 			originalKeys.add(names.next());
 		}
 		for (String key : originalKeys) {
 			String rewritten = rewriteFieldRef(key, ctx, RoutingMode.BARE);
 			if (!key.equals(rewritten)) {
-				JsonNode value = fieldsObj.get(key);
-				fieldsObj.remove(key);
-				fieldsObj.set(rewritten, value);
+				JsonNode value = highlightFields.get(key);
+				highlightFields.remove(key);
+				highlightFields.set(rewritten, value);
 			}
 		}
 	}
 
 	/**
-	 * Detect and rewrite a shorthand leaf-query key. If {@code inner} has exactly one entry
-	 * and its key is not the literal {@code "field"} (which would mark long-form), the key
-	 * is the field name &mdash; replace it via {@link #rewriteFieldRef}. Long-form objects
-	 * (multiple keys, or a single {@code "field"} key) are left alone for the leaf rule.
+	 * Detect and rewrite a shorthand leaf-query key. If {@code shorthandObject} has exactly
+	 * one entry and its key is not the literal {@code "field"} (which would mark long-form),
+	 * the key is the field name &mdash; replace it via {@link #rewriteFieldRef}. Long-form
+	 * objects (multiple keys, or a single {@code "field"} key) are left alone for the leaf
+	 * rule.
 	 */
-	private static void rewriteShorthandKey(ObjectNode inner, RoutingContext ctx, RoutingMode mode) {
-		if (inner.size() != 1) {
+	private static void rewriteShorthandKey(ObjectNode shorthandObject, RoutingContext ctx, RoutingMode mode) {
+		if (shorthandObject.size() != 1) {
 			return;
 		}
-		String key = inner.fieldNames().next();
+		String key = shorthandObject.fieldNames().next();
 		if ("field".equals(key)) {
 			return;
 		}
 		String rewritten = rewriteFieldRef(key, ctx, mode);
 		if (!key.equals(rewritten)) {
-			JsonNode value = inner.get(key);
-			inner.remove(key);
-			inner.set(rewritten, value);
+			JsonNode value = shorthandObject.get(key);
+			shorthandObject.remove(key);
+			shorthandObject.set(rewritten, value);
 		}
 	}
 

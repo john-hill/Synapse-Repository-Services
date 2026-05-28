@@ -588,11 +588,11 @@ public final class SearchOpaqueJsonUtil {
 			java.util.function.Function<String, String> idToName) {
 		ObjectNode root = objectNode();
 		for (Map.Entry<String, ? extends java.util.List<? extends JsonpSerializable>> entry : suggest.entrySet()) {
-			com.fasterxml.jackson.databind.node.ArrayNode array = arrayNode();
+			com.fasterxml.jackson.databind.node.ArrayNode suggestionsArray = arrayNode();
 			for (JsonpSerializable suggestion : entry.getValue()) {
-				array.add(toJsonpTree(suggestion));
+				suggestionsArray.add(toJsonpTree(suggestion));
 			}
-			root.set(entry.getKey(), array);
+			root.set(entry.getKey(), suggestionsArray);
 		}
 		// Suggest envelope embeds the same "field" string shape as aggregations.
 		SearchFieldRewriter.rewriteAggregationResults(root, idToName);

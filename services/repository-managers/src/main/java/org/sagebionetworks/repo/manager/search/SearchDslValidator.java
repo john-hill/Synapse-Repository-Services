@@ -608,8 +608,8 @@ final class SearchDslValidator {
 		if (queries == null) {
 			return;
 		}
-		for (Query q : queries) {
-			walkQuery(q, depth, count);
+		for (Query queryClause : queries) {
+			walkQuery(queryClause, depth, count);
 		}
 	}
 
@@ -766,9 +766,9 @@ final class SearchDslValidator {
 		default:
 			break;
 		}
-		Map<String, Aggregation> sub = agg.aggregations();
-		if (!sub.isEmpty()) {
-			walkAggregationMap(sub, depth + 1, count);
+		Map<String, Aggregation> subAggregations = agg.aggregations();
+		if (!subAggregations.isEmpty()) {
+			walkAggregationMap(subAggregations, depth + 1, count);
 		}
 	}
 

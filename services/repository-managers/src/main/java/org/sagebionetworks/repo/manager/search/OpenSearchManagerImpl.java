@@ -1018,9 +1018,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				if (column == null) {
 					return false;
 				}
-				ColumnType colType = column.getColumnType();
-				return ColumnTypeToOpenSearchMapping.isTextType(colType)
-						|| ColumnTypeToOpenSearchMapping.isLinkType(colType);
+				ColumnType columnType = column.getColumnType();
+				return ColumnTypeToOpenSearchMapping.isTextType(columnType)
+						|| ColumnTypeToOpenSearchMapping.isLinkType(columnType);
 			}
 		};
 	}
@@ -1251,11 +1251,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		if (columnAnalyzerOverrides == null) {
 			return map;
 		}
-		for (ColumnAnalyzerOverride cao : columnAnalyzerOverrides) {
-			if (cao.getOverrides() == null) {
+		for (ColumnAnalyzerOverride override : columnAnalyzerOverrides) {
+			if (override.getOverrides() == null) {
 				continue;
 			}
-			for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+			for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
 				String columnId = nameToId.get(entry.getColumnName());
 				if (columnId != null) {
 					map.putIfAbsent(columnId, entry);

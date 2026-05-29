@@ -66,6 +66,8 @@ jobs:
           else
             STACK_BUILDER_BRANCH=develop
           fi
+          echo "STACK_BUILDER_REPO_OWNER=$STACK_BUILDER_REPO_OWNER" >> $GITHUB_OUTPUT
+          echo "STACK_BUILDER_BRANCH=$STACK_BUILDER_BRANCH" >> $GITHUB_OUTPUT
           FULL_BUILD=${{ vars.FULL_BUILD }}
           EXTRA_ARGS=${{ vars.EXTRA_ARGS }}
           # for builds in Sage-Bionetworks repo', publish build artifacts
@@ -82,11 +84,7 @@ jobs:
             echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_OUTPUT
           fi
           PIPELINE_PARAMETERS=\
-          "SynapseBranch=$BRANCH,\
-          SynapseRepoOwner=${{ github.repository_owner }},\
-          BuildParamUser=$USER,\
-          StackBuilderBranch=$STACK_BUILDER_BRANCH,\
-          StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\
+          "BuildParamUser=$USER,\
           FullBuild=$FULL_BUILD,\
           MavenExtraArgs=$EXTRA_ARGS,\
           ArtifactVersion=$ARTIFACT_VERSION"
@@ -137,16 +135,81 @@ jobs:
 
     outputs:
       USER: ${{ steps.pipeline-params.outputs.USER }}
+      STACK_BUILDER_REPO_OWNER: ${{ steps.pipeline-params.outputs.STACK_BUILDER_REPO_OWNER }}
+      STACK_BUILDER_BRANCH: ${{ steps.pipeline-params.outputs.STACK_BUILDER_BRANCH }}
       PIPELINE_PARAMETERS: ${{ steps.pipeline-params.outputs.PIPELINE_PARAMETERS }}
 
-  invoke_workflow:
+  upload_source:
     needs: build_and_test
-    uses: Sage-Bionetworks/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline.yml@main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Synapse Repo
+        uses: actions/checkout@v5
+
+      - name: Checkout Stack Builder Repo
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ needs.build_and_test.outputs.STACK_BUILDER_REPO_OWNER }}/Synapse-Stack-Builder
+          ref: ${{ needs.build_and_test.outputs.STACK_BUILDER_BRANCH }}
+          path: stack-builder
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-build
+          aws-region: us-east-1
+
+      - name: Upload Sources to S3
+        id: upload
+        run: |
+          BUCKET="synapse-build-source-${{ needs.build_and_test.outputs.USER }}"
+
+          # Ensure bucket exists with versioning and lifecycle policy
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            aws s3api create-bucket --bucket "$BUCKET" --region us-east-1
+            aws s3api put-public-access-block --bucket "$BUCKET" \
+              --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+            aws s3api put-bucket-versioning --bucket "$BUCKET" \
+              --versioning-configuration Status=Enabled
+            aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
+              --lifecycle-configuration '{"Rules":[{"ID":"PurgeOldUploads","Status":"Enabled","Expiration":{"Days":7},"Filter":{"Prefix":""}}]}'
+          fi
+
+          # Resolve Stack Builder commit SHA
+          STACK_BUILDER_SHA=$(git -C stack-builder rev-parse HEAD)
+
+          SYNAPSE_KEY="${{ github.repository_owner }}/Synapse-Repository-Services/${{ github.sha }}/Synapse-Repository-Services.zip"
+          STACK_BUILDER_KEY="${{ needs.build_and_test.outputs.STACK_BUILDER_REPO_OWNER }}/Synapse-Stack-Builder/${STACK_BUILDER_SHA}/Synapse-Stack-Builder.zip"
+
+          # Zip and upload Synapse repo
+          zip -qr /tmp/synapse.zip . -x '.git/*' 'stack-builder/*'
+          aws s3 cp /tmp/synapse.zip "s3://${BUCKET}/${SYNAPSE_KEY}"
+
+          # Zip and upload Stack Builder repo
+          cd stack-builder
+          zip -qr /tmp/stack-builder.zip . -x '.git/*'
+          aws s3 cp /tmp/stack-builder.zip "s3://${BUCKET}/${STACK_BUILDER_KEY}"
+
+          echo "SOURCE_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "SYNAPSE_SOURCE_KEY=$SYNAPSE_KEY" >> $GITHUB_OUTPUT
+          echo "STACK_BUILDER_SOURCE_KEY=$STACK_BUILDER_KEY" >> $GITHUB_OUTPUT
+
+    outputs:
+      SOURCE_BUCKET: ${{ steps.upload.outputs.SOURCE_BUCKET }}
+      SYNAPSE_SOURCE_KEY: ${{ steps.upload.outputs.SYNAPSE_SOURCE_KEY }}
+      STACK_BUILDER_SOURCE_KEY: ${{ steps.upload.outputs.STACK_BUILDER_SOURCE_KEY }}
+
+  invoke_workflow:
+    needs: [build_and_test, upload_source]
+    uses: brucehoff/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline.yml@PLFM-9695
     with:
       CODE_PIPELINE_CF_TEMPLATE: configuration/build/codepipeline_cf_template.yaml
       PIPELINE_NAME: Synapse-Build-${{ needs.build_and_test.outputs.USER }}
-      CODE_PIPELINE_SOURCE_REVISIONS: "actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}"
-      PIPELINE_PARAMETERS: ${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }}
+      PIPELINE_PARAMETERS: "${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }},SourceBucket=${{ needs.upload_source.outputs.SOURCE_BUCKET }},SynapseSourceKey=${{ needs.upload_source.outputs.SYNAPSE_SOURCE_KEY }},StackBuilderSourceKey=${{ needs.upload_source.outputs.STACK_BUILDER_SOURCE_KEY }}"
       ROLE_TO_ASSUME: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-build
       STATUS_REPO_OWNER: Sage-Bionetworks
       STATUS_REPOSITORY: Synapse-Repository-Services

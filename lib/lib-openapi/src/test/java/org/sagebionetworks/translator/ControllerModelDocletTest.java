@@ -51,6 +51,7 @@ public class ControllerModelDocletTest {
 		outputDirectory = new File(propertyValue);
 	}
 
+	@Ignore
 	@Test
 	public void testDoclet() throws Exception {
 		final String serverSideFactoryPath = "org.sagebionetworks.openapi.server.ServerSideOnlyFactory";

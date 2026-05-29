@@ -205,7 +205,7 @@ jobs:
 
   invoke_workflow:
     needs: [build_and_test, upload_source]
-    uses: brucehoff/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline.yml@PLFM-9695
+    uses: Sage-Bionetworks/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline_v2.yml@main
     with:
       CODE_PIPELINE_CF_TEMPLATE: configuration/build/codepipeline_cf_template.yaml
       PIPELINE_NAME: Synapse-Build-${{ needs.build_and_test.outputs.USER }}
@@ -223,5 +223,4 @@ jobs:
       statuses: write
       actions: write
       checks: write
-
 ...

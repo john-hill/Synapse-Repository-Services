@@ -223,5 +223,4 @@ jobs:
       statuses: write
       actions: write
       checks: write
-
 ...

@@ -131,6 +131,7 @@ public class TimerWorkersConfig {
 	public SimpleTriggerFactoryBean semaphoreGarbageCollectionTrigger(SemaphoreGarbageCollection worker) {
 		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();
 
+		// 
 		config.setSemaphoreLockKey("semaphoreGarbageCollection");
 		config.setProgressingRunner(worker);
 		config.setSemaphoreMaxLockCount(1);

@@ -22,9 +22,9 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
-import org.sagebionetworks.util.TemporaryCode;
 
 public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DBOSynonymSet> {
 
@@ -90,38 +90,8 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 		}
 	};
 
-	// Migration bridge:a valid (empty) OpenSearch synonym_graph token-filter definition.
-	// Written into the DEFINITION column for any row whose backup carries the legacy
-	// <rules> shape, so the NOT NULL constraint passes on restore. Curators are expected to
-	// DELETE & re-POST these rows through the SynonymSet REST API after migration.
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
-	static final String PLACEHOLDER_DEFINITION = "{\"type\":\"synonym_graph\",\"synonyms\":[]}";
-
-	// Migration bridge:production backups still serialize the legacy <rules> XML element
-	// (a JSON array of {ruleType, ...} entries). Catch it here so deserialization does not
-	// fail. The translator below discards the value and writes PLACEHOLDER_DEFINITION into
-	// the new DEFINITION column. No FieldColumn entry — this field is never read from or
-	// written to the database.
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
-	private String rules;
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Replace with BasicMigratableTableTranslation after legacy <rules> backups can no longer arrive.")
 	private static final MigratableTableTranslation<DBOSynonymSet, DBOSynonymSet> MIGRATION_TRANSLATOR =
-			new MigratableTableTranslation<DBOSynonymSet, DBOSynonymSet>() {
-		@Override
-		public DBOSynonymSet createDatabaseObjectFromBackup(DBOSynonymSet backup) {
-			if (backup.getDefinition() == null) {
-				backup.setDefinition(PLACEHOLDER_DEFINITION);
-			}
-			backup.setRules(null);
-			return backup;
-		}
-
-		@Override
-		public DBOSynonymSet createBackupFromDatabaseObject(DBOSynonymSet dbo) {
-			return dbo;
-		}
-	};
+			new BasicMigratableTableTranslation<>();
 
 	@Override
 	public TableMapping<DBOSynonymSet> getTableMapping() {
@@ -204,17 +174,6 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 
 	public DBOSynonymSet setDefinition(String definition) {
 		this.definition = definition;
-		return this;
-	}
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
-	public String getRules() {
-		return rules;
-	}
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
-	public DBOSynonymSet setRules(String rules) {
-		this.rules = rules;
 		return this;
 	}
 

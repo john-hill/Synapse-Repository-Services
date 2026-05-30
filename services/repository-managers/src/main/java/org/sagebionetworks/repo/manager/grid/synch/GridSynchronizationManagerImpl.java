@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.synch;
 
 import java.util.List;
+import java.util.Set;
 
 import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
@@ -62,6 +63,7 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		GridSession session = gridManager.getGridSession(user, request.getGridSessionId());
 
 		List<String> errorMessage;
+		Set<Long> benefactorIds;
 		try (CopyHandler copyHandler = copyHandlerProvider.createCopyHandler(session);
 				SourceHandler sourceHandler = sourceHandlerProvdier.createNewProvider(callback, user, session,
 						copyHandler.getGridSource());
@@ -83,7 +85,10 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			logic.synchronize(rowCopy, rowSource, rowMerge);
 
 			errorMessage = sourceHandler.getErrorMessages();
+			benefactorIds = sourceHandler.getBenefactorIds();
 		}
+		// Update benefactor IDs and evict any connections that no longer have access.
+		gridManager.updateSessionBenefactorIds(session.getSessionId(), benefactorIds);
 		return new SynchronizeGridResponse().setErrorMessages(errorMessage).setGridSessionId(session.getSessionId());
 	}
 

@@ -50,9 +50,15 @@ public interface TranslatedQuery {
 	String getSingleTableId();
 	
 	/**
+	 * Does the query result include the row's benefactorId? True for non-aggregate view queries.
+	 * @return
+	 */
+	boolean getIncludeBenefactorId();
+
+	/**
 	 * Get a hash for the table/view. A change in the hash can prevent a stale cache
 	 * hit.
-	 * 
+	 *
 	 * @return
 	 */
 	String getTableHash();

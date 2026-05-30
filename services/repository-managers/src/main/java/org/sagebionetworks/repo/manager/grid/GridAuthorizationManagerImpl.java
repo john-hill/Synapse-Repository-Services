@@ -1,9 +1,13 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.entity.decider.UsersEntityAccessInfo;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
@@ -13,6 +17,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
@@ -35,6 +40,11 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 	public UserInfo getRowLevelFilterUserInfo(UserInfo user, String gridSessionId) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(gridSessionId, "gridSessionId");
+
+		AuthorizationMode mode = gridDao.getAuthorizationMode(gridSessionId).orElse(AuthorizationMode.SESSION_OWNER);
+		if (AuthorizationMode.SOURCE_BENEFACTOR.equals(mode)) {
+			return user;
+		}
 
 		GridSource gridSource = getGridSource(gridSessionId);
 
@@ -78,17 +88,53 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 	public AuthorizationStatus hasGridSessionAccess(UserInfo user, String gridSessionId) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(gridSessionId, "gridSessionId");
-
-		Long ownerId = getGridOwner(gridSessionId);
-		if (!isAuthorizedUser(user, ownerId)) {
-			return AuthorizationStatus.accessDenied("You are not authorized to access this resource.");
+		
+		AuthorizationStatus modeStatus = modeSpecificHasAccess(user, gridSessionId);
+		if(!modeStatus.isAuthorized()) {
+			return modeStatus;
 		}
-
+		
 		Optional<GridSource> sourceOp = gridDao.getSessionSource(gridSessionId);
 		if (sourceOp.isPresent()) {
 			return checkSourceAccess(user, sourceOp.get());
 		}
 		return AuthorizationStatus.authorized();
+	}
+	
+	AuthorizationStatus modeSpecificHasAccess(UserInfo user, String gridSessionId) {
+		AuthorizationMode mode = gridDao.getAuthorizationMode(gridSessionId).orElse(AuthorizationMode.SESSION_OWNER);
+		switch (mode) {
+		case SOURCE_BENEFACTOR:
+			return checkAllBenefactorAccess(user, gridSessionId);
+		case SESSION_OWNER:
+			return checkOwnerAccess(user, gridSessionId);
+		default:
+			throw new IllegalStateException("Unknown type: " + mode);
+		}
+	}
+
+	private AuthorizationStatus checkOwnerAccess(UserInfo user, String gridSessionId) {
+		Long ownerId = getGridOwner(gridSessionId);
+		return isAuthorizedUser(user, ownerId) ? AuthorizationStatus.authorized()
+				: AuthorizationStatus.accessDenied("You are not authorized to access this resource.");
+	}
+
+	private AuthorizationStatus checkAllBenefactorAccess(UserInfo user, String gridSessionId) {
+		Set<Long> storedBenefactorIds = gridDao.getSessionBenefactorIds(gridSessionId);
+		if (storedBenefactorIds.isEmpty()) {
+			return AuthorizationStatus.authorized();
+		}
+		List<UsersEntityAccessInfo> results = entityAuthorizationManager.batchHasAccess(
+				user, new ArrayList<>(storedBenefactorIds), ACCESS_TYPE.UPDATE);
+		Set<Long> accessible = results.stream()
+				.filter(a -> a.getAuthorizationStatus().isAuthorized())
+				.map(UsersEntityAccessInfo::getEntityId)
+				.collect(Collectors.toSet());
+		if (accessible.equals(storedBenefactorIds)) {
+			return AuthorizationStatus.authorized();
+		}
+		return AuthorizationStatus.accessDenied(
+				"You must have EDIT access on all source benefactors to access this grid session.");
 	}
 
 	private boolean isAuthorizedUser(UserInfo user, Long ownerId) {

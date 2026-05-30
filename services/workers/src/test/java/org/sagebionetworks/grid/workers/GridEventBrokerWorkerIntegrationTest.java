@@ -71,6 +71,7 @@ import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
@@ -85,6 +86,8 @@ import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
+import org.sagebionetworks.repo.model.grid.SynchronizeGridResponse;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -912,6 +915,171 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	}
 	
+	@Test
+	public void testGridViewWithSourceBenefactor() throws Exception {
+		UserInfo userOne = createUser();
+		UserInfo userTwo = createUser();
+		UserInfo userThree = createUser();
+
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("test"), null);
+		Folder folder = entityService.createEntity(admin.getId(),
+				new Folder().setName("folder").setParentId(project.getId()), null);
+
+		ExternalFileHandle fh = fileHandleManager.createExternalFileHandle(admin, new ExternalFileHandle()
+				.setContentType("text/plain").setFileName("foo.bar").setExternalURL("https://something.org"));
+
+		int fileCount = 3;
+		List<FileEntity> files = createFiles(fileCount, folder.getId(), fh.getId());
+
+		// userOne and userTwo have READ+UPDATE on the project (the benefactor of all files).
+		// userThree has READ only — no UPDATE, so cannot join a SOURCE_BENEFACTOR session.
+		aclHelper.update(project.getId(), ObjectType.ENTITY, (a) -> {
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.UPDATE));
+			a.getResourceAccess().add(createResourceAccess(userTwo.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userTwo.getId(), ACCESS_TYPE.UPDATE));
+			a.getResourceAccess().add(createResourceAccess(userThree.getId(), ACCESS_TYPE.READ));
+		});
+
+		for (FileEntity f : files) {
+			FileEntity current = entityManager.getEntity(admin, f.getId(), FileEntity.class);
+			current.setName(current.getName() + "updated");
+			entityManager.updateEntity(admin, current, false, null);
+			current = entityManager.getEntity(admin, f.getId(), FileEntity.class);
+			asynchronousJobWorkerHelper.waitForObjectReplication(ReplicationType.ENTITY,
+					KeyFactory.stringToKey(current.getId()), current.getEtag(), MAX_WAIT_MS);
+		}
+
+		List<ColumnModel> schema = List.of(
+				new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER)
+		);
+		schema = columnManager.createColumnModels(admin, schema);
+		List<String> colIds = schema.stream().map(c -> c.getId()).collect(Collectors.toList());
+		EntityView view = entityService.createEntity(admin.getId(),
+				new EntityView().setParentId(project.getId()).setName("aView")
+						.setColumnIds(colIds).setScopeIds(List.of(folder.getId())).setViewTypeMask(0x01L),
+				null);
+
+		String sql = String.format("select * from %s", view.getId());
+
+		asynchronousJobWorkerHelper.assertQueryResult(admin, sql, (QueryResultBundle result) -> {
+			assertEquals((long) fileCount, result.getQueryResult().getQueryResults().getRows().size());
+		}, MAX_WAIT_MS);
+
+		// userOne creates the grid session with SOURCE_BENEFACTOR mode.
+		// The session captures the project's benefactor ID since all files inherit from the project.
+		GridSession session = asynchronousJobWorkerHelper
+				.assertJobResponse(userOne,
+						new CreateGridRequest().setInitialQuery(new Query().setSql(sql))
+								.setAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR),
+						(CreateGridResponse response) -> {
+							assertNotNull(response);
+							assertNotNull(response.getGridSession());
+						}, MAX_WAIT_MS)
+				.getResponse().getGridSession();
+		assertNotNull(session);
+		assertEquals(view.getId(), session.getSourceEntityId());
+		assertEquals(AuthorizationMode.SOURCE_BENEFACTOR, session.getAuthorizationMode());
+
+		// The session's benefactor IDs must include the project (benefactor of all files).
+		Long projectId = KeyFactory.stringToKey(project.getId());
+		Set<Long> sessionBenefactorIds = gridDao.getSessionBenefactorIds(session.getSessionId());
+		assertTrue(sessionBenefactorIds.contains(projectId));
+
+		// userOne (the session creator) can join.
+		GridReplica replicaOne = gridService
+				.createReplica(userOne.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+		assertNotNull(replicaOne);
+
+		// userTwo can join because they also have UPDATE on the project benefactor.
+		GridReplica replicaTwo = gridService
+				.createReplica(userTwo.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+		assertNotNull(replicaTwo);
+
+		// Both users establish WebSocket connections.
+		String urlOne = gridService.createPresignedUrl(userOne.getId(), new CreateGridPresignedUrlRequest()
+				.setGridSessionId(session.getSessionId()).setReplicaId(replicaOne.getReplicaId())).getPresignedUrl();
+		BlockingQueue<String> messagesOne = new LinkedBlockingQueue<>();
+		WebSocket wsOne = createConnection(urlOne, messagesOne);
+		waitForConnected(messagesOne);
+
+		String urlTwo = gridService.createPresignedUrl(userTwo.getId(), new CreateGridPresignedUrlRequest()
+				.setGridSessionId(session.getSessionId()).setReplicaId(replicaTwo.getReplicaId())).getPresignedUrl();
+		BlockingQueue<String> messagesTwo = new LinkedBlockingQueue<>();
+		WebSocket wsTwo = createConnection(urlTwo, messagesTwo);
+		waitForConnected(messagesTwo);
+
+		// userThree cannot join — READ only on the project benefactor, UPDATE is required.
+		assertThrows(UnauthorizedException.class, () -> gridService
+				.createReplica(userThree.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId())));
+
+		// The grid must contain all rows visible to userOne (all files, since userOne has READ+UPDATE on the project).
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			return Pair.create(rows.size() == fileCount, null);
+		});
+
+		// Add a new file with its own ACL where only userOne has UPDATE.
+		// This breaks the file's ACL inheritance from the project, making the file its own benefactor.
+		// userTwo is not granted any access on this file.
+		FileEntity newFile = entityService.createEntity(admin.getId(),
+				new FileEntity().setName("newFile").setParentId(folder.getId()).setDataFileHandleId(fh.getId()), null);
+		aclHelper.create((a) -> {
+			a.setId(newFile.getId());
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.UPDATE));
+		});
+		
+		// Touch the file and wait for it to replicate so the view includes it with the correct benefactor.
+		FileEntity currentNewFile = entityManager.getEntity(admin, newFile.getId(), FileEntity.class);
+		currentNewFile.setName(currentNewFile.getName() + "updated");
+		entityManager.updateEntity(admin, currentNewFile, false, null);
+		currentNewFile = entityManager.getEntity(admin, newFile.getId(), FileEntity.class);
+		
+		asynchronousJobWorkerHelper.waitForObjectReplication(ReplicationType.ENTITY,
+				KeyFactory.stringToKey(currentNewFile.getId()), currentNewFile.getEtag(), MAX_WAIT_MS);
+		asynchronousJobWorkerHelper.assertQueryResult(admin, sql, (QueryResultBundle result) -> {
+			assertEquals((long) fileCount+1, result.getQueryResult().getQueryResults().getRows().size());
+		}, MAX_WAIT_MS);
+
+		// Run a sync job as userOne (the action user).
+		// The sync re-runs the view query using userOne's identity, which now includes the new file
+		// (userOne has READ+UPDATE on it). The new file's own ID becomes a captured benefactor ID.
+		asynchronousJobWorkerHelper.assertJobResponse(userOne,
+				new SynchronizeGridRequest().setGridSessionId(session.getSessionId()),
+				(SynchronizeGridResponse response) -> assertNotNull(response), MAX_WAIT_MS);
+
+		// After sync the session's benefactor IDs include both the project and the new file's own ID.
+		Long newFileId = KeyFactory.stringToKey(newFile.getId());
+		Set<Long> updatedBenefactorIds = gridDao.getSessionBenefactorIds(session.getSessionId());
+		assertTrue(updatedBenefactorIds.contains(projectId));
+		assertTrue(updatedBenefactorIds.contains(newFileId));
+
+		// userOne's WebSocket connection remains open — ping receives a pong.
+		wsOne.send(new JSONArray("[8,\"ping\"]").toString());
+		assertTrue(waitForMessage((a) -> a.optInt(0) == 8 && "pong".equals(a.optString(1)), messagesOne));
+		wsOne.close();
+
+		// userTwo's WebSocket was force-closed by the eviction — wait for the close to propagate.
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> Pair.create(!wsTwo.isOpen(), null));
+
+		// userOne still has UPDATE on all captured benefactors and can join the session.
+		GridReplica replicaOneAfterSync = gridService
+				.createReplica(userOne.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+		assertNotNull(replicaOneAfterSync);
+
+		// userTwo lacks UPDATE on the new file's benefactor, so they lose access after sync.
+		assertThrows(UnauthorizedException.class, () -> gridService
+				.createReplica(userTwo.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId())));
+	}
+
 	List<FileEntity> createFiles(int count, String folderId, String fileHandleId) {
 		List<FileEntity> files = new ArrayList<>();
 		for (int i = 0; i < count; i++) {

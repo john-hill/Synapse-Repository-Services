@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -122,7 +123,9 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSynchronizeProvider.getRowMerge(mockLogic, mockIntendedChangePublisher, finalSchema, mockCopyHandler,
 				mockSourceHandler)).thenReturn(mockRowMerge);
 
+		Set<Long> benefactorIds = Set.of(111L, 222L);
 		when(mockSourceHandler.getErrorMessages()).thenReturn(List.of("errorOne", "errorTwo"));
+		when(mockSourceHandler.getBenefactorIds()).thenReturn(benefactorIds);
 
 		doReturn(mockIntendedChangePublisher).when(manager).newIntendedChangePublisher(mockCopyHandler);
 
@@ -133,6 +136,8 @@ public class GridSynchronizationManagerImplTest {
 
 		verify(mockLogic).synchronize(eq(mockSchemaCopy), eq(mockSchemaSource), any());
 		verify(mockLogic).synchronize(mockRowCopy, mockRowSource, mockRowMerge);
+		// updateSessionBenefactorIds on gridManager handles both DAO update and eviction
+		verify(mockGridManager).updateSessionBenefactorIds(gridSessionId, benefactorIds);
 
 		verify(mockCopyHandler).close();
 		verify(mockSourceHandler).close();

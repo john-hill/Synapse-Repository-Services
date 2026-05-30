@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.sagebionetworks.repo.model.table.TableConstants.ROW_BENEFACTOR;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ETAG;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ID;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_VERSION;
@@ -78,9 +79,9 @@ public class ViewIndexDescriptionTest {
 		// call under test
 		List<ColumnToAdd> result = vid.getColumnNamesToAddToSelect(SqlContext.query, includeEtag, isAggregate);
 		assertEquals(Arrays.asList(new ColumnToAdd(idAndVersion, ROW_ID), new ColumnToAdd(idAndVersion, ROW_VERSION),
-				new ColumnToAdd(idAndVersion, ROW_ETAG)), result);
+				new ColumnToAdd(idAndVersion, ROW_ETAG), new ColumnToAdd(idAndVersion, ROW_BENEFACTOR)), result);
 	}
-	
+
 	@Test
 	public void testGetColumnNamesToAddToSelectWithQueryWithoutEtagWithNonAggregate() {
 		IdAndVersion idAndVersion = IdAndVersion.parse("syn999");
@@ -89,7 +90,8 @@ public class ViewIndexDescriptionTest {
 		boolean isAggregate = false;
 		// call under test
 		List<ColumnToAdd> result = vid.getColumnNamesToAddToSelect(SqlContext.query, includeEtag, isAggregate);
-		assertEquals(Arrays.asList(new ColumnToAdd(idAndVersion, ROW_ID), new ColumnToAdd(idAndVersion, ROW_VERSION)), result);
+		assertEquals(Arrays.asList(new ColumnToAdd(idAndVersion, ROW_ID), new ColumnToAdd(idAndVersion, ROW_VERSION),
+				new ColumnToAdd(idAndVersion, ROW_BENEFACTOR)), result);
 	}
 	
 	@Test

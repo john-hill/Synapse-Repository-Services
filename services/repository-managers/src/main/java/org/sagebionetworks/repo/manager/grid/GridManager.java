@@ -2,16 +2,13 @@ package org.sagebionetworks.repo.manager.grid;
 
 import java.net.URL;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
-import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
-import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
-import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
@@ -24,15 +21,18 @@ import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 
 public interface GridManager extends PatchStore, SnapshotStore {
 
@@ -149,11 +149,32 @@ public interface GridManager extends PatchStore, SnapshotStore {
 
 	/**
 	 * List the active connections for a grid session.
-	 * 
+	 *
 	 * @param connectionId
 	 * @return
 	 */
 	List<GridConnectionInfo> listActiveConnections(String connectionId);
+
+	/**
+	 * Updates the session's stored benefactor IDs to reflect the current source
+	 * state as seen by the action user, then evicts any active WebSocket connections
+	 * belonging to users who no longer pass the session's authorization check.
+	 * Non-user connections (INTERNAL, VALIDATION, USER_SUPPORT) are always skipped
+	 * during eviction.
+	 *
+	 * @param sessionId
+	 * @param benefactorIds
+	 */
+	void updateSessionBenefactorIds(String sessionId, Set<Long> benefactorIds);
+
+	/**
+	 * Checks all active WebSocket connections for the given session and removes any
+	 * belonging to users who no longer pass the session's authorization check.
+	 * Non-user connections (INTERNAL, VALIDATION, USER_SUPPORT) are always skipped.
+	 *
+	 * @param sessionId
+	 */
+	void evictUnauthorizedConnections(String sessionId);
 
 	/**
 	 * Given a replica's clock, find the next snapshot or patch that the replica is missing, and format a message that

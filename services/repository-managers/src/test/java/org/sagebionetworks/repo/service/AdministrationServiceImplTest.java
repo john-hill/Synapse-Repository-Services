@@ -210,6 +210,7 @@ public class AdministrationServiceImplTest {
 		assertEquals(expected, result);
 		
 		verify(mockUserManager).getUserInfo(adminUserId);
+		verify(mockUserManager).getUserInfo(nonAdminUserId);
 		verify(mockAuthManager).loginWithNoPasswordOrTwoFaCheck(admin, null);
 	}
 	

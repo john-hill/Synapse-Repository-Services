@@ -211,6 +211,7 @@ public class AdministrationServiceImplTest {
 		
 		verify(mockUserManager).getUserInfo(adminUserId);
 		verify(mockUserManager).getUserInfo(nonAdminUserId);
+		
 		verify(mockAuthManager).loginWithNoPasswordOrTwoFaCheck(admin, null);
 	}
 	

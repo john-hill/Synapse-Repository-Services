@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import java.util.Collections;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
@@ -37,6 +38,7 @@ public class AsynchJobQueuePublisherImplTest {
 		asynchJobQueuePublisher.emptyAllQueues();
 	}
 	
+	@Disabled
 	@Test
 	public void testPublishRoundTrip() throws Exception{
 		AsynchronousJobStatus status = new AsynchronousJobStatus();

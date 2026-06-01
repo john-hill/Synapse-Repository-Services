@@ -1,5 +1,5 @@
 {
-  "description": "An interface for task properties that support using a Grid to edit data or metadata.",
+  "description": "An interface for task properties that support using a <a href=\"${org.sagebionetworks.repo.model.grid.GridSession}\">GridSession</a> to edit data or metadata.",
   "type": "interface",
   "properties": {
     "collaboratorPrincipalIds": {

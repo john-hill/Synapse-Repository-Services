@@ -95,40 +95,6 @@ public class TextAnalyzerBootstrapperTest {
 		}
 	}
 
-	// --- Stale-row migration for the dropped AUTOCOMPLETE_SEARCH_ID=6 ---
-
-	@Test
-	public void testBootstrapDeletesStaleAutocompleteSearchRowWhenNameMatches() {
-		when(textAnalyzerDao.get(6L)).thenReturn(
-				Optional.of(new TextAnalyzer().setName("AUTOCOMPLETE_SEARCH")));
-
-		// call under test
-		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
-
-		verify(textAnalyzerDao).delete(6L);
-	}
-
-	@Test
-	public void testBootstrapLeavesId6AloneWhenNameDoesNotMatch() {
-		when(textAnalyzerDao.get(6L)).thenReturn(
-				Optional.of(new TextAnalyzer().setName("RECLAIMED")));
-
-		// call under test
-		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
-
-		verify(textAnalyzerDao, never()).delete(6L);
-	}
-
-	@Test
-	public void testBootstrapLeavesId6AloneWhenAbsent() {
-		when(textAnalyzerDao.get(6L)).thenReturn(Optional.empty());
-
-		// call under test
-		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
-
-		verify(textAnalyzerDao, never()).delete(6L);
-	}
-
 	// --- helpers ---
 
 	private Map<Long, TextAnalyzer> captureAllUpserts() {

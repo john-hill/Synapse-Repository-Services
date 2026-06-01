@@ -1,5 +1,5 @@
 {
-	"description": "<p>Synchronous, type-ahead-only request for the <a href=\"${POST.search.autocomplete}\">POST /search/autocomplete</a> endpoint. See that endpoint for the autocomplete-vs-async tradeoffs and the allowed inner-clause shapes.</p>",
+	"description": "<p>Synchronous, type-ahead-only request for the <code>POST /search/autocomplete</code> endpoint. See that endpoint for the autocomplete-vs-async tradeoffs and the allowed inner-clause shapes.</p>",
 	"properties": {
 		"searchIndexId": {
 			"type": "string",

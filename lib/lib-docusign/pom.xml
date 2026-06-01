@@ -106,14 +106,15 @@
 		<plugins>
 			<!--
 			    The DocuSign "shaded" artifact bundles its own copy of common libraries.
-			    Most of those (Jersey w/ jakarta APIs, Bouncycastle, etc.) live in
-			    package namespaces that do not collide with Synapse's classpath, but
-			    `org/json/**` and `com/fasterxml/jackson/**` do — the bundled Jackson
-			    2.14.2 conflicts with Synapse's 2.20.0 (missing StreamReadConstraints
-			    constructor breaks OpenSearch), and the bundled org.json rejects the
-			    Boolean→String coercion that Synapse's OAuth2 parsing relies on.
-			    We strip both; Synapse's own versions satisfy the DocuSign API at
-			    runtime.
+			    We strip classes that conflict with Synapse's classpath:
+			    - org/json/** : bundled version rejects Boolean→String coercion that
+			      Synapse's OAuth2 parsing relies on.
+			    - Jackson core/databind/annotation/dataformat/datatype : bundled 2.14.2
+			      conflicts with Synapse's 2.20.0 (missing StreamReadConstraints
+			      constructor breaks OpenSearch).
+			    We keep jackson/jakarta/** and jackson/module/** because DocuSign's
+			    bundled Jersey (jakarta-based) needs them and Synapse doesn't provide
+			    jakarta xmlbind annotation support.
 			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -137,9 +138,13 @@
 									<artifact>com.docusign:docusign-esign-java</artifact>
 									<excludes>
 										<exclude>org/json/**</exclude>
-										<exclude>com/fasterxml/jackson/**</exclude>
+										<exclude>com/fasterxml/jackson/core/**</exclude>
+										<exclude>com/fasterxml/jackson/databind/**</exclude>
+										<exclude>com/fasterxml/jackson/annotation/**</exclude>
+										<exclude>com/fasterxml/jackson/dataformat/**</exclude>
+										<exclude>com/fasterxml/jackson/datatype/**</exclude>
 										<exclude>META-INF/versions/*/com/fasterxml/jackson/**</exclude>
-										<exclude>META-INF/services/com.fasterxml.jackson.*</exclude>
+										<exclude>META-INF/services/com.fasterxml.jackson.core.*</exclude>
 										<exclude>META-INF/maven/com.fasterxml.jackson*/**</exclude>
 									</excludes>
 								</filter>

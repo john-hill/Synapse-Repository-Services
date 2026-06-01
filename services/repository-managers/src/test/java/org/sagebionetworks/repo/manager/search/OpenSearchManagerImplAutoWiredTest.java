@@ -898,6 +898,29 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return result[0];
 	}
 
+	/**
+	 * Poll {@link OpenSearchManager#search} until it returns without throwing
+	 * {@link IllegalStateException} (the wrapper around AOSS's {@code index_not_found_exception}
+	 * — see {@link OpenSearchManagerImpl#executeSearch}). AOSS replicas are not strongly
+	 * consistent, so a freshly-created index that one node has acknowledged may briefly be
+	 * absent at another. Used by tests that need to vary {@code parts} per call rather than
+	 * always asking for {@code EnumSet.allOf(...)} like {@link #waitForSearch} does.
+	 */
+	private SearchQueryResults searchWithRetry(SearchQuery body, List<ColumnModel> columns,
+			Set<SearchQueryPart> parts) {
+		SearchQueryResults[] result = {null};
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				result[0] = openSearchManager.search(indexName, body, columns, parts);
+				return true;
+			} catch (IllegalStateException e) {
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for search to succeed");
+		return result[0];
+	}
+
 	private SearchQueryResults waitForAutocomplete(SearchAutocompleteBody body, List<ColumnModel> columns,
 			long expectedMinHits) {
 		SearchQueryResults[] result = {null};
@@ -1092,7 +1115,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				}
 			}
 			// call under test
-			SearchQueryResults r = openSearchManager.search(indexName, matchAllBody(), columns, parts);
+			SearchQueryResults r = searchWithRetry(matchAllBody(), columns, parts);
 
 			assertEquals(parts.contains(SearchQueryPart.HITS), r.getHits() != null,
 					"HITS gate, mask=" + mask);

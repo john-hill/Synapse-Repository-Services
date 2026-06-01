@@ -18,6 +18,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import java.util.Map;
 
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -46,7 +47,7 @@ public class SearchQueryWorkerTest {
 		searchIndexId = "syn456";
 		request = new SearchIndexQuery();
 		request.setSearchIndexId(searchIndexId);
-		request.setSearchQuery(Map.of("query", Map.of("match_all", Map.of())));
+		request.setSearchQuery(new SearchQuery().setQuery(Map.of("match_all", Map.of())));
 		jobId = "job-1";
 	}
 

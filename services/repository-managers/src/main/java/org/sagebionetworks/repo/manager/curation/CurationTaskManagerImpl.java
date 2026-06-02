@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.curation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,13 +17,16 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.curation.CurationTask;
+import org.sagebionetworks.repo.model.curation.CurationTaskProperties;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.TaskBundle;
 import org.sagebionetworks.repo.model.curation.TaskStatus;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
+import org.sagebionetworks.repo.model.curation.metadata.GridSupportedTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dbo.curation.CurationTaskDao;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -79,6 +83,13 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
         }
 
         authorizationManager.canAccess(userInfo, existing.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
+
+        AuthorizationMode oldMode = getSuggestedAuthorizationMode(existing.getTaskProperties());
+        AuthorizationMode newMode = getSuggestedAuthorizationMode(toUpdate.getTaskProperties());
+
+        if (hasAuthorizationModeChanged(oldMode, newMode)) {
+            curationTaskDao.clearActiveSessionId(toUpdate.getTaskId());
+        }
 
         return curationTaskDao.updateCurationTask(userInfo.getId(), toUpdate);
     }
@@ -180,6 +191,23 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     private boolean isAuthorizedAssignee(UserInfo user, Long assigneeId) {
         return AuthorizationUtils.isUserCreatorOrAdmin(user, assigneeId.toString())
                 || user.getGroups().contains(assigneeId);
+    }
+
+    /**
+     * Returns true if the suggestedAuthorizationMode changed between the old and new values.
+     */
+    boolean hasAuthorizationModeChanged(AuthorizationMode oldMode, AuthorizationMode newMode) {
+        return !Objects.equals(oldMode, newMode);
+    }
+
+    /**
+     * Returns the suggestedAuthorizationMode from the given task properties, or null if not set or not applicable.
+     */
+    private static AuthorizationMode getSuggestedAuthorizationMode(CurationTaskProperties properties) {
+        if (properties instanceof GridSupportedTaskProperties) {
+            return ((GridSupportedTaskProperties) properties).getSuggestedAuthorizationMode();
+        }
+        return null;
     }
 
     private void validateCurationTask(UserInfo userInfo, CurationTask task) {

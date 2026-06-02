@@ -35,11 +35,14 @@ import org.sagebionetworks.repo.model.curation.TaskStatus;
 import org.sagebionetworks.repo.model.curation.execution.GridExecutionDetails;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = {"classpath:jdomodels-test-context.xml"})
@@ -435,6 +438,54 @@ class CurationTaskDaoAutowireTest {
         dao.deleteCurationTask(created.getTaskId());
     }
 
+    @Transactional("txManager")
+    @Test
+    public void testClearActiveSessionIdWithLinkedSession() {
+        CurationTask created = dao.createCurationTask(userId, new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("fastq")
+                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
+
+        // Link a session via task status update
+        TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
+        dao.updateTaskStatus(userId, created.getTaskId(), new TaskStatus()
+                .setState(TaskState.IN_PROGRESS)
+                .setEtag(initialStatus.getEtag())
+                .setExecutionDetails(new GridExecutionDetails().setActiveSessionId("session-to-clear")));
+
+        // call under test
+        dao.clearActiveSessionId(created.getTaskId());
+
+        TaskStatus afterClear = dao.getTaskStatus(created.getTaskId());
+        assertNotNull(afterClear.getExecutionDetails());
+        assertTrue(afterClear.getExecutionDetails() instanceof GridExecutionDetails);
+        assertNull(((GridExecutionDetails) afterClear.getExecutionDetails()).getActiveSessionId());
+
+        dao.deleteCurationTask(created.getTaskId());
+    }
+
+    @Transactional("txManager")
+    @Test
+    public void testClearActiveSessionIdWithNoExecutionDetails() {
+        CurationTask created = dao.createCurationTask(userId, new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("fastq")
+                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
+
+        // call under test — no execution details set; should be a no-op
+        dao.clearActiveSessionId(created.getTaskId());
+
+        TaskStatus afterClear = dao.getTaskStatus(created.getTaskId());
+        assertNull(afterClear.getExecutionDetails());
+
+        dao.deleteCurationTask(created.getTaskId());
+    }
+
+    @Test
+    public void testClearActiveSessionIdFailsNotInWriteTransaction() {
+        assertThrows(IllegalTransactionStateException.class, () -> dao.clearActiveSessionId(1234L));
+    }
+
     @Test
     public void testUpdateTaskStatusConflicting() {
         CurationTask created = dao.createCurationTask(userId, new CurationTask()
@@ -572,9 +623,13 @@ class CurationTaskDaoAutowireTest {
     private CurationTaskProperties createTaskProperties(CurationTaskPropertiesType taskType) {
         switch (taskType) {
             case FILE_BASED:
-                return new FileBasedMetadataTaskProperties().setFileViewId(fileViewId).setUploadFolderId(uploadFolderId);
+                return new FileBasedMetadataTaskProperties().setFileViewId(fileViewId).setUploadFolderId(uploadFolderId)
+                        .setCollaboratorPrincipalIds(List.of(userId.toString()))
+                        .setSuggestedAuthorizationMode(AuthorizationMode.SESSION_OWNER);
             case RECORD_BASED:
-                return new RecordBasedMetadataTaskProperties().setRecordSetId(recordSetId);
+                return new RecordBasedMetadataTaskProperties().setRecordSetId(recordSetId)
+                        .setCollaboratorPrincipalIds(List.of(userId.toString()))
+                        .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
             default:
                 throw new IllegalArgumentException("Unknown task type: " + taskType);
         }

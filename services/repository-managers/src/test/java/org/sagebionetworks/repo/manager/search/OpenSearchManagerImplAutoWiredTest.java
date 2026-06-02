@@ -921,6 +921,32 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return result[0];
 	}
 
+	/**
+	 * Poll {@link OpenSearchManager#search} until the returned hit list reaches exactly
+	 * {@code expectedHits}. {@link #waitForSearch} gates only on the {@code totalHits} of a
+	 * {@code match_all} probe, but AOSS is eventually consistent per query and per replica:
+	 * a {@code match}/{@code collapse}/{@code rescore} search issued right after indexing can
+	 * transiently observe fewer of the just-indexed rows than {@code match_all} already
+	 * reported (the replica serving this query may not have caught up yet). Tests that assert
+	 * on an exact hit count must therefore poll the specific query they assert on rather than
+	 * trusting a prior {@code match_all} wait.
+	 */
+	private SearchQueryResults waitForSearchHits(SearchQuery body, List<ColumnModel> columns,
+			Set<SearchQueryPart> parts, int expectedHits) {
+		SearchQueryResults[] result = {null};
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				result[0] = openSearchManager.search(indexName, body, columns, parts);
+				return result[0].getHits() != null && result[0].getHits().size() == expectedHits;
+			} catch (IllegalStateException e) {
+				// index_not_found — not ready yet
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for search to return " + expectedHits + " hits");
+		return result[0];
+	}
+
 	private SearchQueryResults waitForAutocomplete(SearchAutocompleteBody body, List<ColumnModel> columns,
 			long expectedMinHits) {
 		SearchQueryResults[] result = {null};
@@ -1292,9 +1318,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setSize(10L)
 				.setFrom(0L);
 
-		// call under test — collapse yields one hit per distinct projectId
-		SearchQueryResults collapseResults = openSearchManager.search(indexName, collapseBody, columns,
-				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+		// call under test — collapse yields one hit per distinct projectId. Poll for the
+		// exact hit count: AOSS is eventually consistent per query, so this collapse search
+		// can lag the earlier match_all wait until both projects' rows are visible here.
+		SearchQueryResults collapseResults = waitForSearchHits(collapseBody, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 2);
 
 		assertNotNull(collapseResults.getHits());
 		assertEquals(2, collapseResults.getHits().size(),
@@ -1321,9 +1349,12 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setSize(10L)
 				.setFrom(0L);
 
-		// call under test — rescore must lift the three 'amyloid plaques' rows to the top
-		SearchQueryResults rescoreResults = openSearchManager.search(indexName, rescoreBody, columns,
-				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+		// call under test — rescore must lift the three 'amyloid plaques' rows to the top.
+		// Poll for all six rows: rescore never drops hits, so a transient short count here is
+		// AOSS eventual consistency (this query's replica lagging the earlier match_all wait),
+		// not a scoring effect — wait it out before asserting on order.
+		SearchQueryResults rescoreResults = waitForSearchHits(rescoreBody, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 6);
 
 		assertNotNull(rescoreResults.getHits());
 		assertEquals(6, rescoreResults.getHits().size(),

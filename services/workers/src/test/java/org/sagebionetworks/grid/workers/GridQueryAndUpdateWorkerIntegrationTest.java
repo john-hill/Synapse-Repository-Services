@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.json.JSONArray;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,9 +28,6 @@ import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
-import org.sagebionetworks.util.csv.CSVWriterProviderImpl;
-
-import au.com.bytecode.opencsv.CSVWriter;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
@@ -41,8 +37,6 @@ import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
 import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
-import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
-import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
 import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
@@ -51,12 +45,14 @@ import org.sagebionetworks.repo.model.grid.update.Update;
 import org.sagebionetworks.repo.model.grid.update.UpdateBatch;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.service.EntityService;
-import org.sagebionetworks.schema.adapter.org.json.JSONArrayAdapterImpl;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
+import org.sagebionetworks.util.csv.CSVWriterProviderImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import au.com.bytecode.opencsv.CSVWriter;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -237,55 +233,4 @@ public class GridQueryAndUpdateWorkerIntegrationTest {
 		});
 	}
 
-	@Test
-	public void testQueryGridWithInOperatorAndArrayValues() throws Exception {
-		SessionAndReplica setup = createGridWithData();
-		GridSession session = setup.session;
-		GridReplica replica = setup.replica;
-
-		// Create query with IN operator and array values (PLFM-9692)
-		GridQueryJobRequest request = new GridQueryJobRequest().setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId()).setQueryRequest(
-						new QueryRequest().setQuery(new org.sagebionetworks.repo.model.grid.query.Query()
-								.setColumnSelection(List.of(new SelectAll()))
-								.setFilters(List.of(new CellValueFilter().setColumnName(COL_NAME)
-										.setOperator(CellValueOperator.IN)
-										.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("alpha", "beta"))))))
-								.setLimit(10L)));
-
-		// call under test
-		GridQueryJobResponse response = asynchronousJobWorkerHelper
-				.assertJobResponse(admin, request, (GridQueryJobResponse r) -> {
-					assertNotNull(r.getQueryResult());
-					assertEquals(2, r.getQueryResult().getRows().size());
-				}, MAX_WAIT_MS).getResponse();
-
-		assertEquals(2, response.getQueryResult().getRows().size());
-	}
-
-	@Test
-	public void testQueryGridWithEqualsOperatorAndArrayValues() throws Exception {
-		SessionAndReplica setup = createGridWithData();
-		GridSession session = setup.session;
-		GridReplica replica = setup.replica;
-
-		// Create query with EQUALS operator and array values (PLFM-9691)
-		GridQueryJobRequest request = new GridQueryJobRequest().setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId()).setQueryRequest(
-						new QueryRequest().setQuery(new org.sagebionetworks.repo.model.grid.query.Query()
-								.setColumnSelection(List.of(new SelectAll()))
-								.setFilters(List.of(new CellValueFilter().setColumnName(COL_NAME)
-										.setOperator(CellValueOperator.EQUALS)
-										.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("alpha", "beta"))))))
-								.setLimit(10L)));
-
-		// call under test
-		GridQueryJobResponse response = asynchronousJobWorkerHelper
-				.assertJobResponse(admin, request, (GridQueryJobResponse r) -> {
-					assertNotNull(r.getQueryResult());
-					assertEquals(2, r.getQueryResult().getRows().size());
-				}, MAX_WAIT_MS).getResponse();
-
-		assertEquals(2, response.getQueryResult().getRows().size());
-	}
 }

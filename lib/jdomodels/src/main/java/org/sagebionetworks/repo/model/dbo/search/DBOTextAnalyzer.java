@@ -9,9 +9,9 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
-import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.sagebionetworks.util.TemporaryCode;
 
 public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer, DBOTextAnalyzer> {
 
@@ -38,6 +38,13 @@ public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer
 	private Timestamp createdOn;
 	private Long modifiedBy;
 	private Timestamp modifiedOn;
+
+	// A valid (empty) opaque-JSON analyzer settings blob. Written into the SETTINGS column
+	// for any backup whose settings JSON still uses the legacy typed shape (presence of
+	// "tokenFilters" / "indexFilterOrder" keys), so the column passes validation on restore.
+	// Curators are expected to PUT the row through the TextAnalyzer REST API to re-author.
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
+	static final String PLACEHOLDER_SETTINGS = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
 
 	private static final TableMapping<DBOTextAnalyzer> TABLE_MAPPING = new TableMapping<>() {
 		@Override
@@ -87,8 +94,28 @@ public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer
 		return MigrationType.TEXT_ANALYZER;
 	}
 
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
 	private static final MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer> MIGRATION_TRANSLATOR =
-			new BasicMigratableTableTranslation<>();
+			new MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer>() {
+		@Override
+		public DBOTextAnalyzer createDatabaseObjectFromBackup(DBOTextAnalyzer backup) {
+			// Detect the legacy typed-settings shape (presence of "tokenFilters" or
+			// "indexFilterOrder" keys) and replace with a placeholder opaque-JSON blob.
+			// Curators recreate via the REST API on the bridge stack.
+			String s = backup.getSettings();
+			if (s != null && (s.contains("\"tokenFilters\"") || s.contains("\"indexFilterOrder\"")
+					|| s.contains("\"searchFilterOrder\"") || s.contains("\"charFilters\"")
+					|| s.contains("\"charFilterOrder\"") || s.contains("\"positionIncrementGap\""))) {
+				backup.setSettings(PLACEHOLDER_SETTINGS);
+			}
+			return backup;
+		}
+
+		@Override
+		public DBOTextAnalyzer createBackupFromDatabaseObject(DBOTextAnalyzer dbo) {
+			return dbo;
+		}
+	};
 
 	@Override
 	public MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer> getTranslator() {

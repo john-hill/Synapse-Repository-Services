@@ -1,56 +1,56 @@
 {
-	"description": "<p>The body of an OpenSearch <code>_search</code> request, narrowed to the top-level keys Synapse accepts. Each slot's contents are pass-through OpenSearch DSL; see the search REST endpoint for the inner-clause allowlist, field-reference rules, pagination semantics, and per-request limits.</p>",
+	"description": "<p>The body of an OpenSearch <a href=\"https://docs.opensearch.org/latest/api-reference/search-apis/search/\"><code>_search</code></a> request, narrowed to the top-level keys Synapse accepts. Each slot's contents are pass-through <a href=\"https://docs.opensearch.org/latest/query-dsl/\">OpenSearch query DSL</a>; see the search REST endpoint for the inner-clause allowlist, field-reference rules, pagination semantics, and per-request limits.</p>",
 	"properties": {
 		"query": {
 			"type": "object",
-			"description": "Required. The OpenSearch query DSL clause (the contents of the <code>query</code> key). Use <code>{\"match_all\":{}}</code> to match all documents."
+			"description": "<p>Required. The <a href=\"https://docs.opensearch.org/latest/query-dsl/\">OpenSearch query DSL</a> clause (the contents of the <code>query</code> key). Use <a href=\"https://docs.opensearch.org/latest/query-dsl/match-all/\"><code>{\"match_all\":{}}</code></a> to match all documents. See <a href=\"https://docs.opensearch.org/latest/query-dsl/query-filter-context/\">query vs. filter context</a> and <a href=\"https://docs.opensearch.org/latest/query-dsl/term-vs-full-text/\">term-level vs. full-text queries</a>.</p><p>Supported <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/index/\">full-text</a> clauses: <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match/\"><code>match</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/multi-match/\"><code>multi_match</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase/\"><code>match_phrase</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase-prefix/\"><code>match_phrase_prefix</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-bool-prefix/\"><code>match_bool_prefix</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/simple-query-string/\"><code>simple_query_string</code></a>.</p><p>Supported <a href=\"https://docs.opensearch.org/latest/query-dsl/term/index/\">term-level</a> clauses: <a href=\"https://docs.opensearch.org/latest/query-dsl/term/term/\"><code>term</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/terms/\"><code>terms</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/range/\"><code>range</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/exists/\"><code>exists</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/prefix/\"><code>prefix</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/wildcard/\"><code>wildcard</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/fuzzy/\"><code>fuzzy</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/term/ids/\"><code>ids</code></a>.</p><p>Supported <a href=\"https://docs.opensearch.org/latest/query-dsl/compound/index/\">compound</a> clauses: <a href=\"https://docs.opensearch.org/latest/query-dsl/compound/bool/\"><code>bool</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/compound/disjunction-max/\"><code>dis_max</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/compound/constant-score/\"><code>constant_score</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/compound/boosting/\"><code>boosting</code></a>. The <a href=\"https://docs.opensearch.org/latest/query-dsl/minimum-should-match/\"><code>minimum_should_match</code></a> and <a href=\"https://docs.opensearch.org/latest/query-dsl/rewrite-parameter/\"><code>rewrite</code></a> parameters are supported where OpenSearch accepts them.</p>"
 		},
 		"post_filter": {
 			"type": "object",
-			"description": "Optional. Same DSL shape as <code>query</code>, applied <i>after</i> aggregations are computed."
+			"description": "Optional. Same DSL shape as <code>query</code> (see the supported clause list there), applied <i>after</i> aggregations are computed. For the distinction between filtering hits and filtering aggregations, see <a href=\"https://docs.opensearch.org/latest/query-dsl/query-filter-context/\">query vs. filter context</a>."
 		},
 		"aggregations": {
 			"type": "object",
-			"description": "Optional (alias <code>aggs</code>). Map of caller-chosen name to aggregation definition. Supplying both <code>aggregations</code> and <code>aggs</code> simultaneously is rejected with HTTP 400. The raw aggregation result comes back on <code>SearchQueryResults.aggregationResults</code>."
+			"description": "<p>Optional (alias <code>aggs</code>). Map of caller-chosen name to <a href=\"https://docs.opensearch.org/latest/aggregations/\">aggregation</a> definition. Supplying both <code>aggregations</code> and <code>aggs</code> simultaneously is rejected with HTTP 400. The raw aggregation result comes back on <code>SearchQueryResults.aggregationResults</code>.</p><p>Supported <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/index/\">bucket</a> aggregations: <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/terms/\"><code>terms</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/histogram/\"><code>histogram</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/date-histogram/\"><code>date_histogram</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/range/\"><code>range</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/date-range/\"><code>date_range</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/missing/\"><code>missing</code></a>.</p><p>Supported <a href=\"https://docs.opensearch.org/latest/aggregations/metric/index/\">metric</a> aggregations: <a href=\"https://docs.opensearch.org/latest/aggregations/metric/minimum/\"><code>min</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/maximum/\"><code>max</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/average/\"><code>avg</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/sum/\"><code>sum</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/stats/\"><code>stats</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/extended-stats/\"><code>extended_stats</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/value-count/\"><code>value_count</code></a>, <a href=\"https://docs.opensearch.org/latest/aggregations/metric/cardinality/\"><code>cardinality</code></a>. For the facet-counting pattern (a <code>terms</code> aggregation alongside <code>post_filter</code>), see the <a href=\"https://docs.opensearch.org/latest/tutorials/faceted-search/#maintaining-facet-options-during-filtering\">faceted search tutorial</a>.</p>"
 		},
 		"suggest": {
 			"type": "object",
-			"description": "Optional. A map of suggestion name to suggester definition (optionally alongside a top-level <code>text</code>). Returns query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>."
+			"description": "Optional. A map of suggestion name to suggester definition (optionally alongside a top-level <code>text</code>). Allowlisted suggester types: <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/did-you-mean/\"><code>term</code> and <code>phrase</code></a> (\"did you mean\"), and <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/autocomplete/\"><code>completion</code></a>. Returns query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>."
 		},
 		"highlight": {
 			"type": "object",
-			"description": "Optional. Adds per-field snippet fragments (matched terms wrapped in <code>&lt;em&gt;</code> / <code>&lt;/em&gt;</code> tags by default) to each <code>SearchQueryResults.hits[*].highlights</code> entry."
+			"description": "Optional. Adds per-field <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/highlight/\">snippet fragments</a> (matched terms wrapped in <code>&lt;em&gt;</code> / <code>&lt;/em&gt;</code> tags by default) to each <code>SearchQueryResults.hits[*].highlights</code> entry."
 		},
 		"collapse": {
 			"type": "object",
-			"description": "Optional. Groups the result list so only one hit is returned per distinct value of <code>field</code>."
+			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/collapse-search/\">Groups the result list</a> so only one hit is returned per distinct value of <code>field</code>."
 		},
 		"rescore": {
 			"type": "object",
-			"description": "Optional. Re-ranks the top <code>window_size</code> hits returned by <code>query</code> using a secondary scoring query."
+			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/query-dsl/rescore/\">Re-ranks</a> the top <code>window_size</code> hits returned by <code>query</code> using a secondary scoring query."
 		},
 		"sort": {
 			"type": "array",
-			"description": "Optional. Result ordering. OpenSearch sort shape (string column name, <code>{column: \"asc|desc\"}</code>, or <code>{column: {order: ...}}</code>). The pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted by relevance descending.",
+			"description": "Optional. Result <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/sort/\">ordering</a>. OpenSearch sort shape (string column name, <code>{column: \"asc|desc\"}</code>, or <code>{column: {order: ...}}</code>). The pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted by relevance descending.",
 			"items": {
 				"type": "object"
 			}
 		},
 		"_source": {
 			"type": "object",
-			"description": "Optional. Source filter. Accepts the full OpenSearch <code>SourceConfig</code> shape: a boolean, an array of column-name patterns (shorthand for <code>{includes: [...]}</code>), or <code>{includes: [...], excludes: [...]}</code>."
+			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/retrieve-specific-fields/\">Source filter</a>. Accepts the full OpenSearch <code>SourceConfig</code> shape: a boolean, an array of column-name patterns (shorthand for <code>{includes: [...]}</code>), or <code>{includes: [...], excludes: [...]}</code>."
 		},
 		"from": {
 			"type": "integer",
-			"description": "Optional. Zero-based pagination offset; default <code>0</code>. Mutually exclusive with <code>search_after &gt; 0</code>."
+			"description": "Optional. Zero-based <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">pagination</a> offset; default <code>0</code>. Mutually exclusive with <code>search_after &gt; 0</code>."
 		},
 		"size": {
 			"type": "integer",
-			"description": "Optional. Maximum number of hits to return per page. Default: 25. Maximum: 100 (larger values are silently capped)."
+			"description": "Optional. Maximum number of hits to return per <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">page</a>. Default: 25. Maximum: 100 (larger values are silently capped)."
 		},
 		"search_after": {
 			"type": "array",
-			"description": "Optional. Opaque cursor emitted as <code>nextSearchAfter</code> on the previous response. Pass back unchanged. Mutually exclusive with <code>from &gt; 0</code>.",
+			"description": "Optional. Opaque <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">cursor</a> emitted as <code>nextSearchAfter</code> on the previous response. Pass back unchanged. Mutually exclusive with <code>from &gt; 0</code>.",
 			"items": {
 				"type": "object"
 			}

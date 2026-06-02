@@ -201,9 +201,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * Query a <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>
  * using the async job pattern. Submit a
  * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndexQuery}">SearchIndexQuery</a>
- * to start a job, then poll for
+ * wrapping a pass-through <a href="https://docs.opensearch.org/latest/query-dsl/">OpenSearch query DSL</a>
+ * body to start a job, then poll for
  * <a href="${org.sagebionetworks.repo.model.search.SearchQueryResults}">SearchQueryResults</a>.
- * A synchronous autocomplete endpoint is also available for typeahead patterns.
+ * A synchronous <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/autocomplete/">autocomplete</a>
+ * endpoint is also available for typeahead patterns.
  * </p>
  * <ul>
  * <li><a href="${POST.search.query.async.start}">POST /search/query/async/start</a> &mdash; Start async query</li>
@@ -805,8 +807,9 @@ public class SearchManagementController {
 	 * <p>
 	 * The request wraps a
 	 * <a href="${org.sagebionetworks.repo.model.search.SearchQuery}">SearchQuery</a> — the
-	 * top-level OpenSearch <code>_search</code> body, allowlist-validated server-side and
-	 * submitted to AOSS. Each slot's contents are pass-through OpenSearch DSL.
+	 * top-level OpenSearch <a href="https://docs.opensearch.org/latest/api-reference/search-apis/search/"><code>_search</code></a>
+	 * body, allowlist-validated server-side and submitted to AOSS. Each slot's contents are
+	 * pass-through <a href="https://docs.opensearch.org/latest/query-dsl/">OpenSearch DSL</a>.
 	 * </p>
 	 * <p>
 	 * <b>Required:</b> <code>query</code> is required (use <code>{"match_all":{}}</code> to
@@ -856,13 +859,29 @@ public class SearchManagementController {
 	 *
 	 * <h6>Allowlisted top-level keys</h6>
 	 * <p>
-	 * <b><code>query</code></b> — required. Compound (<code>bool</code> / <code>dis_max</code>
-	 * / <code>constant_score</code> / <code>boosting</code>) and leaf (<code>match</code> /
-	 * <code>multi_match</code> / <code>match_phrase</code> / <code>match_phrase_prefix</code>
-	 * / <code>match_bool_prefix</code> / <code>term</code> / <code>terms</code> /
-	 * <code>range</code> / <code>exists</code> / <code>prefix</code> / <code>wildcard</code> /
-	 * <code>fuzzy</code> / <code>ids</code> / <code>simple_query_string</code> /
-	 * <code>match_all</code>) clauses. The server wraps the supplied subtree as a
+	 * <b><code>query</code></b> — required. See the
+	 * <a href="https://docs.opensearch.org/latest/query-dsl/">OpenSearch query DSL</a>.
+	 * <a href="https://docs.opensearch.org/latest/query-dsl/compound/index/">Compound</a>
+	 * (<a href="https://docs.opensearch.org/latest/query-dsl/compound/bool/"><code>bool</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/compound/disjunction-max/"><code>dis_max</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/compound/constant-score/"><code>constant_score</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/compound/boosting/"><code>boosting</code></a>)
+	 * and leaf (<a href="https://docs.opensearch.org/latest/query-dsl/full-text/match/"><code>match</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/full-text/multi-match/"><code>multi_match</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase/"><code>match_phrase</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase-prefix/"><code>match_phrase_prefix</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/full-text/match-bool-prefix/"><code>match_bool_prefix</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/term/"><code>term</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/terms/"><code>terms</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/range/"><code>range</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/exists/"><code>exists</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/prefix/"><code>prefix</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/wildcard/"><code>wildcard</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/fuzzy/"><code>fuzzy</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/ids/"><code>ids</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/full-text/simple-query-string/"><code>simple_query_string</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/query-dsl/match-all/"><code>match_all</code></a>)
+	 * clauses. The server wraps the supplied subtree as a
 	 * <code>must</code> clause inside its own <code>bool</code>.
 	 * </p>
 	 * <p>
@@ -874,11 +893,22 @@ public class SearchManagementController {
 	 * </p>
 	 * <p>
 	 * <b><code>aggregations</code></b> (alias <code>aggs</code>) — optional. Map of
-	 * caller-chosen name to aggregation definition. Supports <code>terms</code> /
-	 * <code>histogram</code> / <code>date_histogram</code> / <code>range</code> /
-	 * <code>date_range</code> / <code>min</code> / <code>max</code> / <code>avg</code> /
-	 * <code>sum</code> / <code>stats</code> / <code>extended_stats</code> /
-	 * <code>value_count</code> / <code>cardinality</code> / <code>missing</code>, with nested
+	 * caller-chosen name to <a href="https://docs.opensearch.org/latest/aggregations/">aggregation</a>
+	 * definition. Supports <a href="https://docs.opensearch.org/latest/aggregations/bucket/terms/"><code>terms</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/histogram/"><code>histogram</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/date-histogram/"><code>date_histogram</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/range/"><code>range</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/date-range/"><code>date_range</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/minimum/"><code>min</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/maximum/"><code>max</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/average/"><code>avg</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/sum/"><code>sum</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/stats/"><code>stats</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/extended-stats/"><code>extended_stats</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/value-count/"><code>value_count</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/metric/cardinality/"><code>cardinality</code></a>
+	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/missing/"><code>missing</code></a>,
+	 * with nested
 	 * sub-aggregations. Aggregations need doc values; text-typed columns are auto-routed
 	 * through <code>.keyword</code>. Supplying both <code>aggregations</code> and
 	 * <code>aggs</code> simultaneously is rejected with HTTP 400. The raw aggregation result
@@ -888,11 +918,15 @@ public class SearchManagementController {
 	 * <p>
 	 * <b><code>suggest</code></b> — optional. A map of suggestion name to suggester definition
 	 * (optionally alongside a top-level <code>text</code>). Allowlisted suggester types:
-	 * <code>term</code>, <code>phrase</code>, <code>completion</code>. Returns
-	 * query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>.
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/did-you-mean/"><code>term</code>
+	 * and <code>phrase</code></a>, and
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/autocomplete/"><code>completion</code></a>.
+	 * Returns query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>.
 	 * </p>
 	 * <p>
-	 * <b><code>highlight</code></b> — optional. Adds per-field snippet fragments with matched
+	 * <b><code>highlight</code></b> — optional. Adds per-field
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/highlight/">snippet fragments</a>
+	 * with matched
 	 * terms wrapped in <code>&lt;em&gt;</code> / <code>&lt;/em&gt;</code> tags (configurable
 	 * via <code>pre_tags</code> / <code>post_tags</code>) to each
 	 * <code>SearchQueryResults.hits[*].highlights</code> entry. <code>highlight.fields</code>
@@ -900,34 +934,44 @@ public class SearchManagementController {
 	 * (default), <code>plain</code>, <code>fvh</code>; <code>semantic</code> is rejected.
 	 * </p>
 	 * <p>
-	 * <b><code>collapse</code></b> — optional. Groups the result list so only one hit is
+	 * <b><code>collapse</code></b> — optional.
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/collapse-search/">Groups the result list</a>
+	 * so only one hit is
 	 * returned per distinct value of <code>field</code>. Collapse needs doc values;
 	 * text-typed columns are auto-routed through <code>.keyword</code>.
 	 * <code>inner_hits</code> is rejected.
 	 * </p>
 	 * <p>
-	 * <b><code>rescore</code></b> — optional. Re-ranks the top <code>window_size</code> hits
+	 * <b><code>rescore</code></b> — optional.
+	 * <a href="https://docs.opensearch.org/latest/query-dsl/rescore/">Re-ranks</a>
+	 * the top <code>window_size</code> hits
 	 * returned by <code>query</code> using a secondary, typically more expensive, scoring
 	 * query. The original ranking is preserved past the rescore window. The inner
 	 * <code>rescore_query</code> is validated against the same allowlist as
 	 * <code>query</code>.
 	 * </p>
 	 * <p>
-	 * <b><code>sort</code></b> — optional. OpenSearch sort shape (string column name,
+	 * <b><code>sort</code></b> — optional. OpenSearch
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/sort/">sort</a>
+	 * shape (string column name,
 	 * <code>{column: "asc|desc"}</code>, or <code>{column: {order: ...}}</code>). The
 	 * pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted
 	 * by relevance descending (<code>_score</code> DESC). Text-typed columns are auto-routed
 	 * through <code>.keyword</code>.
 	 * </p>
 	 * <p>
-	 * <b><code>_source</code></b> — optional. Source filter. Accepts the full OpenSearch
+	 * <b><code>_source</code></b> — optional.
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/retrieve-specific-fields/">Source filter</a>.
+	 * Accepts the full OpenSearch
 	 * <code>SourceConfig</code> shape: a boolean (<code>false</code> to omit
 	 * <code>_source</code> entirely), an array of column-name patterns (shorthand for
 	 * <code>{includes: [...]}</code>), or <code>{includes: [...], excludes: [...]}</code>.
 	 * Names are column-name → column-id rewritten before being sent to AOSS.
 	 * </p>
 	 * <p>
-	 * <b><code>from</code></b> — optional. Zero-based pagination offset; default
+	 * <b><code>from</code></b> — optional. Zero-based
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/">pagination</a>
+	 * offset; default
 	 * <code>0</code>. Maximum reach: <code>from + size</code> &le; ~10,000. For deeper
 	 * pagination, switch to <code>search_after</code>; the two are mutually exclusive.
 	 * </p>
@@ -938,7 +982,9 @@ public class SearchManagementController {
 	 * counts.
 	 * </p>
 	 * <p>
-	 * <b><code>search_after</code></b> — optional. Opaque cursor emitted as
+	 * <b><code>search_after</code></b> — optional. Opaque
+	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/">cursor</a>
+	 * emitted as
 	 * <code>nextSearchAfter</code> on the previous response. Pass back unchanged. Stable as
 	 * long as the underlying sort is unchanged. Mutually exclusive with
 	 * <code>from &gt; 0</code>.
@@ -1062,8 +1108,10 @@ public class SearchManagementController {
 	 * </p>
 	 * <p>
 	 * <b><code>query</code></b> — required. The top-level clause must be one of
-	 * <code>prefix</code>, <code>match_phrase_prefix</code>, or
-	 * <code>match_bool_prefix</code>; any other clause type (including compound clauses such
+	 * <a href="https://docs.opensearch.org/latest/query-dsl/term/prefix/"><code>prefix</code></a>,
+	 * <a href="https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase-prefix/"><code>match_phrase_prefix</code></a>, or
+	 * <a href="https://docs.opensearch.org/latest/query-dsl/full-text/match-bool-prefix/"><code>match_bool_prefix</code></a>;
+	 * any other clause type (including compound clauses such
 	 * as <code>bool</code>) is rejected with HTTP 400. The same per-clause guarantees as the
 	 * async search endpoint apply: scripts, cross-index references, and the
 	 * <code>wrapper</code> form are rejected; depth, total-clause, and inline

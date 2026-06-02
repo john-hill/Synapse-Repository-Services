@@ -1,5 +1,5 @@
 {
-	"description": "Per-field highlight payload on a SearchHit. Populated when <code>SearchQuery.highlight</code> was supplied; absent otherwise. Field references are reported as the caller's bare column name &mdash; the server strips any <code>.keyword</code> suffix it auto-appended on the request side.",
+	"description": "Per-field <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/highlight/\">highlight</a> payload on a SearchHit. Populated when <code>SearchQuery.highlight</code> was supplied; absent otherwise. Field references are reported as the caller's bare column name &mdash; the server strips any <code>.keyword</code> suffix it auto-appended on the request side.",
 	"properties": {
 		"name": {
 			"type": "string",

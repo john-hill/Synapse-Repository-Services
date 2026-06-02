@@ -1,9 +1,9 @@
 {
-	"description": "<p>Body of an autocomplete request &mdash; the OpenSearch <code>_search</code> shape narrowed to the type-ahead subset. The autocomplete endpoint allowlists only <code>query</code> and <code>_source</code>; pagination, sort, aggregations, suggesters, and highlight are not accepted. See the autocomplete REST endpoint for the allowed inner-clause shapes and field-reference rules.</p>",
+	"description": "<p>Body of an autocomplete request &mdash; the OpenSearch <a href=\"https://docs.opensearch.org/latest/api-reference/search-apis/search/\"><code>_search</code></a> shape narrowed to the type-ahead subset. The autocomplete endpoint allowlists only <code>query</code> and <code>_source</code>; pagination, sort, aggregations, suggesters, and highlight are not accepted. See the autocomplete REST endpoint for the allowed inner-clause shapes and field-reference rules.</p>",
 	"properties": {
 		"query": {
 			"type": "object",
-			"description": "Required. The top-level OpenSearch DSL clause; restricted server-side to <code>prefix</code>, <code>match_phrase_prefix</code>, or <code>match_bool_prefix</code>."
+			"description": "Required. The top-level <a href=\"https://docs.opensearch.org/latest/query-dsl/\">OpenSearch DSL</a> clause; restricted server-side to <a href=\"https://docs.opensearch.org/latest/query-dsl/term/prefix/\"><code>prefix</code></a>, <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase-prefix/\"><code>match_phrase_prefix</code></a>, or <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-bool-prefix/\"><code>match_bool_prefix</code></a>."
 		},
 		"_source": {
 			"type": "object",

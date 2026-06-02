@@ -18,11 +18,18 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.TemporaryCode;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Repository
 public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao {
@@ -35,6 +42,8 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		this.idGenerator = idGenerator;
 	}
 
+	private static final ObjectMapper MAPPER = new ObjectMapper();
+
 	private static final RowMapper<ColumnAnalyzerOverride> ROW_MAPPER = (rs, rowNum) -> {
 		ColumnAnalyzerOverride dto = new ColumnAnalyzerOverride();
 		dto.setId(String.valueOf(rs.getLong("ID")));
@@ -43,13 +52,54 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		dto.setName(rs.getString("NAME"));
 		dto.setDescription(rs.getString("DESCRIPTION"));
 		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(
-				rs.getString("OVERRIDES"), ColumnAnalyzerOverrideEntry.class));
+				bridgeLegacyOverridesJson(rs.getString("OVERRIDES")), ColumnAnalyzerOverrideEntry.class));
 		dto.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
 		dto.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
 		dto.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));
 		dto.setModifiedOn(new Date(rs.getTimestamp("MODIFIED_ON").getTime()));
 		return dto;
 	};
+
+	// Bridge for prod-restored rows whose OVERRIDES JSON still carries the legacy
+	// `indexAnalyzer` / `searchAnalyzer` fields: rename `indexAnalyzer` to `analyzer` and
+	// drop `searchAnalyzer`. Remove in the stack that immediately follows the first prod
+	// stack written with the new `analyzer`-only override JSON shape — by then every
+	// COLUMN_ANALYZER_OVERRIDE row's OVERRIDES JSON has been re-saved into the new shape
+	// (either by the curator hand-editing or by the next migration cycle re-restoring the
+	// table from a backup that was itself produced by a stack already on the new shape).
+	@TemporaryCode(author = "BryanFauble",
+			comment = "PLFM-9676: Remove in the stack after the first prod stack writes COLUMN_ANALYZER_OVERRIDE.OVERRIDES with `analyzer` only. Verify by sampling a few prod backups.")
+	static String bridgeLegacyOverridesJson(String json) {
+		if (json == null || json.isEmpty()) {
+			return json;
+		}
+		try {
+			JsonNode root = MAPPER.readTree(json);
+			if (!(root instanceof ArrayNode)) {
+				return json;
+			}
+			boolean changed = false;
+			ArrayNode arr = (ArrayNode) root;
+			for (int i = 0; i < arr.size(); i++) {
+				JsonNode entry = arr.get(i);
+				if (!(entry instanceof ObjectNode)) {
+					continue;
+				}
+				ObjectNode obj = (ObjectNode) entry;
+				if (!obj.has("analyzer") && obj.has("indexAnalyzer")) {
+					obj.set("analyzer", obj.remove("indexAnalyzer"));
+					changed = true;
+				}
+				if (obj.has("searchAnalyzer")) {
+					obj.remove("searchAnalyzer");
+					changed = true;
+				}
+			}
+			return changed ? MAPPER.writeValueAsString(arr) : json;
+		} catch (JsonProcessingException e) {
+			return json;
+		}
+	}
 
 	@Override
 	@WriteTransaction

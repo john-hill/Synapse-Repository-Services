@@ -24,9 +24,9 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
-import org.sagebionetworks.util.TemporaryCode;
 
 public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearchConfiguration, DBOSearchConfiguration> {
 
@@ -55,12 +55,6 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	private Timestamp createdOn;
 	private Long modifiedBy;
 	private Timestamp modifiedOn;
-
-	// Legacy backups still serialize the <synonymSetsJson> XML element (the dropped JSON
-	// column). Caught here so deserialization does not fail; the translator below
-	// discards it. No FieldColumn entry — never read from or written to the database.
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
-	private String synonymSetsJson;
 
 	private static final TableMapping<DBOSearchConfiguration> TABLE_MAPPING = new TableMapping<>() {
 		@Override
@@ -111,31 +105,8 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 		return MigrationType.SEARCH_CONFIGURATION;
 	}
 
-	// Production backups still serialize the legacy <synonymSetsJson> element from the
-	// previous interior shape; the translator nulls it on restore. Both
-	// columnAnalyzerOverrides and defaultAnalyzer changed shape in this PR — overrides moved
-	// from List<String> qnames to a heterogeneous List<Object> of $ref-or-inline, and
-	// defaultAnalyzer moved from a bare qname string to a $ref-or-inline object. The
-	// safest restore path is to discard the legacy values; curators recreate via REST.
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Replace with BasicMigratableTableTranslation after the next stack flushes legacy backup shapes.")
 	private static final MigratableTableTranslation<DBOSearchConfiguration, DBOSearchConfiguration> MIGRATION_TRANSLATOR =
-			new MigratableTableTranslation<DBOSearchConfiguration, DBOSearchConfiguration>() {
-		@Override
-		public DBOSearchConfiguration createDatabaseObjectFromBackup(DBOSearchConfiguration backup) {
-			backup.setColumnAnalyzerOverridesJson(null);
-			backup.setSynonymSetsJson(null);
-			// Legacy defaultAnalyzer column held a bare qname; the new JSON column requires a
-			// JSON value. Either upgrade the bare qname to a $ref shape or drop it. Drop here:
-			// the schema reshape is a clean break, and curators are expected to re-save.
-			backup.setDefaultAnalyzer(null);
-			return backup;
-		}
-
-		@Override
-		public DBOSearchConfiguration createBackupFromDatabaseObject(DBOSearchConfiguration dbo) {
-			return dbo;
-		}
-	};
+			new BasicMigratableTableTranslation<>();
 
 	@Override
 	public MigratableTableTranslation<DBOSearchConfiguration, DBOSearchConfiguration> getTranslator() {
@@ -208,17 +179,6 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 
 	public DBOSearchConfiguration setDefaultAnalyzer(String defaultAnalyzer) {
 		this.defaultAnalyzer = defaultAnalyzer;
-		return this;
-	}
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
-	public String getSynonymSetsJson() {
-		return synonymSetsJson;
-	}
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
-	public DBOSearchConfiguration setSynonymSetsJson(String synonymSetsJson) {
-		this.synonymSetsJson = synonymSetsJson;
 		return this;
 	}
 

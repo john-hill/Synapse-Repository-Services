@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.Arrays;
-import java.util.Optional;
 
 import org.json.JSONObject;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
@@ -15,7 +14,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.util.TemporaryCode;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 
@@ -147,8 +145,6 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		String organizationName = organization.getName();
 
-		dropLegacyAutocompleteSearchAnalyzer();
-
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(SCIENTIFIC_ID, buildAnalyzer(
 				"SCIENTIFIC",
 				"English stemming, stop words, lowercase. Best for scientific metadata.",
@@ -193,18 +189,5 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				.setDescription(description)
 				.setSettings(new JSONObject(settings.toJsonString()));
 	}
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after every stack has been redeployed and the legacy AUTOCOMPLETE_SEARCH row from before AUTOCOMPLETE absorbed default_search no longer arrives. The name check guards the id from being clobbered if the slot is later reclaimed.")
-	private void dropLegacyAutocompleteSearchAnalyzer() {
-		Optional<TextAnalyzer> existing = textAnalyzerDao.get(LEGACY_AUTOCOMPLETE_SEARCH_ID);
-		if (existing.isPresent() && LEGACY_AUTOCOMPLETE_SEARCH_NAME.equals(existing.get().getName())) {
-			textAnalyzerDao.delete(LEGACY_AUTOCOMPLETE_SEARCH_ID);
-		}
-	}
-
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove alongside dropLegacyAutocompleteSearchAnalyzer.")
-	private static final long LEGACY_AUTOCOMPLETE_SEARCH_ID = 6L;
-	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove alongside dropLegacyAutocompleteSearchAnalyzer.")
-	private static final String LEGACY_AUTOCOMPLETE_SEARCH_NAME = "AUTOCOMPLETE_SEARCH";
 
 }

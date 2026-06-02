@@ -97,7 +97,7 @@ public class ITSearchQueryTest {
 	 * catalog-style minimum payload now that {@code query} is required. */
 	private static SearchQuery matchAllBody() {
 		return new SearchQuery().setQuery(
-				java.util.Map.of("match_all", java.util.Collections.emptyMap()));
+				new org.json.JSONObject().put("match_all", new org.json.JSONObject()));
 	}
 
 	/**
@@ -221,12 +221,11 @@ public class ITSearchQueryTest {
 		SearchIndexQuery postFilterQuery = new SearchIndexQuery();
 		postFilterQuery.setSearchIndexId(searchIndexId);
 		postFilterQuery.setSearchQuery(new SearchQuery()
-				.setQuery(java.util.Map.of("match_all", java.util.Collections.emptyMap()))
-				.setAggregations(java.util.Map.of(
-						"by_project", java.util.Map.of(
-								"terms", java.util.Map.of("field", "projectId"))))
-				.setPost_filter(java.util.Map.of(
-						"term", java.util.Map.of("projectId", "projA"))));
+				.setQuery(new org.json.JSONObject().put("match_all", new org.json.JSONObject()))
+				.setAggregations(new org.json.JSONObject(
+						"{\"by_project\":{\"terms\":{\"field\":\"projectId\"}}}"))
+				.setPost_filter(new org.json.JSONObject(
+						"{\"term\":{\"projectId\":\"projA\"}}")));
 		postFilterQuery.setResponseParts(EnumSet.of(SearchQueryPart.TOTAL_HITS));
 
 		// call under test — post_filter + aggregations round-trip
@@ -244,9 +243,8 @@ public class ITSearchQueryTest {
 		SearchIndexQuery highlightQuery = new SearchIndexQuery();
 		highlightQuery.setSearchIndexId(searchIndexId);
 		highlightQuery.setSearchQuery(new SearchQuery()
-				.setQuery(java.util.Map.of("match", java.util.Map.of("title", "tumor")))
-				.setHighlight(java.util.Map.of("fields",
-						java.util.Map.of("title", java.util.Collections.emptyMap()))));
+				.setQuery(new org.json.JSONObject("{\"match\":{\"title\":\"tumor\"}}"))
+				.setHighlight(new org.json.JSONObject("{\"fields\":{\"title\":{}}}")));
 		highlightQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
 
 		// call under test — highlight round-trip
@@ -262,29 +260,47 @@ public class ITSearchQueryTest {
 			AsyncJobHelper.INFINITE_RETRIES
 		);
 
-		// collapse + rescore: hits must respect the collapse grouping. Both fields are
-		// exercised in one call since they only matter when hits are returned.
-		SearchIndexQuery collapseRescoreQuery = new SearchIndexQuery();
-		collapseRescoreQuery.setSearchIndexId(searchIndexId);
-		collapseRescoreQuery.setSearchQuery(new SearchQuery()
-				.setQuery(java.util.Map.of("match", java.util.Map.of("title", "tumor")))
-				.setCollapse(java.util.Map.of("field", "projectId"))
-				.setRescore(java.util.Map.of(
-						"window_size", 50,
-						"query", java.util.Map.of(
-								"rescore_query", java.util.Map.of(
-										"match_phrase", java.util.Map.of("title", "amyloid plaques")),
-								"query_weight", 1.0,
-								"rescore_query_weight", 5.0))));
-		collapseRescoreQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
+		// collapse: hits must respect the collapse grouping. collapse and rescore are
+		// exercised in separate calls — OpenSearch rejects rescore combined with collapse.
+		SearchIndexQuery collapseQuery = new SearchIndexQuery();
+		collapseQuery.setSearchIndexId(searchIndexId);
+		collapseQuery.setSearchQuery(new SearchQuery()
+				.setQuery(new org.json.JSONObject("{\"match\":{\"title\":\"tumor\"}}"))
+				.setCollapse(new org.json.JSONObject().put("field", "projectId")));
+		collapseQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
 
-		// call under test — collapse + rescore round-trip
-		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, collapseRescoreQuery,
+		// call under test — collapse round-trip
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, collapseQuery,
 			(SearchQueryResults results) -> {
 				assertNotNull(results);
 				assertNotNull(results.getHits());
 				assertEquals(2, results.getHits().size(),
 					"collapse on projectId must return one hit per distinct value (projA, projB)");
+			},
+			MAX_QUERY_TIMEOUT_MS,
+			AsyncJobHelper.INFINITE_RETRIES
+		);
+
+		// rescore: re-ranks the top window; exercised on its own (incompatible with collapse).
+		SearchIndexQuery rescoreQuery = new SearchIndexQuery();
+		rescoreQuery.setSearchIndexId(searchIndexId);
+		rescoreQuery.setSearchQuery(new SearchQuery()
+				.setQuery(new org.json.JSONObject("{\"match\":{\"title\":\"tumor\"}}"))
+				.setRescore(new org.json.JSONObject(
+						"{\"window_size\":50,"
+						+ "\"query\":{"
+						+ "\"rescore_query\":{\"match_phrase\":{\"title\":\"amyloid plaques\"}},"
+						+ "\"query_weight\":1.0,"
+						+ "\"rescore_query_weight\":5.0}}")));
+		rescoreQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
+
+		// call under test — rescore round-trip
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, rescoreQuery,
+			(SearchQueryResults results) -> {
+				assertNotNull(results);
+				assertNotNull(results.getHits());
+				assertEquals(4, results.getHits().size(),
+					"rescore never drops hits — all four 'tumor' rows remain");
 			},
 			MAX_QUERY_TIMEOUT_MS,
 			AsyncJobHelper.INFINITE_RETRIES
@@ -385,8 +401,8 @@ public class ITSearchQueryTest {
 		SearchAutocompleteRequest autocompleteRequest = new SearchAutocompleteRequest()
 				.setSearchIndexId(searchIndex.getId())
 				.setSearchQuery(new SearchAutocompleteBody()
-						.setQuery(java.util.Map.of("match_bool_prefix",
-								java.util.Map.of("geneName", "BRC"))));
+						.setQuery(new org.json.JSONObject(
+								"{\"match_bool_prefix\":{\"geneName\":\"BRC\"}}")));
 
 		// call under test
 		SearchQueryResults autocompleteResults = synapse.searchAutocomplete(autocompleteRequest);

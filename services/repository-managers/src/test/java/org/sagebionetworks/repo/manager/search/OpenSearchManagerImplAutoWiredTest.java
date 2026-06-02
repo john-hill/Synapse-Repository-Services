@@ -27,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.json.JSONObject;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
@@ -330,7 +331,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// {prefix, match_phrase_prefix, match_bool_prefix} only — match_bool_prefix is the
 		// direct equivalent of the legacy multi_match{type:bool_prefix} shape.
 		SearchAutocompleteBody body = new SearchAutocompleteBody()
-				.setQuery(Map.of("match_bool_prefix", Map.of("term", "mit")));
+				.setQuery(new JSONObject().put("match_bool_prefix", new JSONObject().put("term", "mit")));
 
 		// call under test
 		SearchQueryResults results = waitForAutocomplete(body, columns, 1);
@@ -618,7 +619,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				throw new AssertionError("runQuery is only used for SIMPLE_QUERY_STRING / MULTI_MATCH");
 		}
 		SearchQuery body = new SearchQuery()
-				.setQuery(Map.of(clause, clauseBody))
+				.setQuery(new JSONObject(Map.of(clause, clauseBody)))
 				.setSize(10L)
 				.setFrom(0L);
 		return waitForSearch(body, columns, 1L);
@@ -695,7 +696,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 					Map.of("terms", Map.of("field", fieldRef)));
 		}
 
-		SearchQuery body = matchAllBody().setAggregations(aggsDsl);
+		SearchQuery body = matchAllBody().setAggregations(new JSONObject(aggsDsl));
 		SearchQueryResults results = waitForSearch(body, columns, 1L);
 
 		assertEquals(1L, results.getTotalHits());
@@ -721,8 +722,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// aggregation name; under it AOSS returns {"buckets":[{"key":..., "doc_count":...}, ...]}
 		// (or sometimes "key_as_string" for typed buckets — accept both).
 		assertNotNull(results.getAggregationResults(), "aggregations were requested");
-		JsonNode aggResults = new com.fasterxml.jackson.databind.ObjectMapper()
-				.valueToTree(results.getAggregationResults());
+		JsonNode aggResults = SearchOpaqueJsonUtil.parse(results.getAggregationResults());
 		for (ColumnModel column : columns) {
 			ColumnType type = column.getColumnType();
 			Set<String> expectedValues = casesByType.get(type).expectedFacetValues;
@@ -977,7 +977,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 			sqs.put("fields", fields);
 		}
 		return new SearchQuery()
-				.setQuery(Map.of("simple_query_string", sqs))
+				.setQuery(new JSONObject(Map.of("simple_query_string", sqs)))
 				.setSize(10L)
 				.setFrom(0L);
 	}
@@ -990,7 +990,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	/** Build a body wrapping an opaque {@code match_all} clause. */
 	private static SearchQuery matchAllBody() {
 		return new SearchQuery()
-				.setQuery(Map.of("match_all", Collections.emptyMap()))
+				.setQuery(new JSONObject().put("match_all", new JSONObject()))
 				.setSize(10L)
 				.setFrom(0L);
 	}
@@ -1164,7 +1164,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 */
 	private static SearchQuery queryBody(Map<String, Object> queryClause) {
 		return new SearchQuery()
-				.setQuery(queryClause)
+				.setQuery(new JSONObject(queryClause))
 				.setSize(10L)
 				.setFrom(0L);
 	}
@@ -1194,10 +1194,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 		waitForSearch(matchAllBody(), columns, 5);
 
 		SearchQuery body = new SearchQuery()
-				.setQuery(Map.of("match_all", Collections.emptyMap()))
-				.setAggregations(Map.of(
-						"by_status", Map.of("terms", Map.of("field", "status"))))
-				.setPost_filter(Map.of("term", Map.of("status", "ACTIVE")))
+				.setQuery(new JSONObject().put("match_all", new JSONObject()))
+				.setAggregations(new JSONObject("{\"by_status\":{\"terms\":{\"field\":\"status\"}}}"))
+				.setPost_filter(new JSONObject("{\"term\":{\"status\":\"ACTIVE\"}}"))
 				.setSize(10L)
 				.setFrom(0L);
 
@@ -1211,8 +1210,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		assertEquals(2, results.getHits().size());
 
 		assertNotNull(results.getAggregationResults(), "aggregations were requested");
-		JsonNode aggResults = new com.fasterxml.jackson.databind.ObjectMapper()
-				.valueToTree(results.getAggregationResults());
+		JsonNode aggResults = SearchOpaqueJsonUtil.parse(results.getAggregationResults());
 		Map<String, Long> counts = new HashMap<>();
 		for (JsonNode bucket : aggResults.path("by_status").path("buckets")) {
 			counts.put(bucket.path("key").asText(), bucket.path("doc_count").asLong());
@@ -1245,9 +1243,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 		waitForSearch(matchAllBody(), columns, 3);
 
 		SearchQuery body = new SearchQuery()
-				.setQuery(Map.of("match", Map.of("description", "tumor")))
-				.setHighlight(Map.of("fields",
-						Map.of("description", Collections.emptyMap())))
+				.setQuery(new JSONObject("{\"match\":{\"description\":\"tumor\"}}"))
+				.setHighlight(new JSONObject("{\"fields\":{\"description\":{}}}"))
 				.setSize(10L)
 				.setFrom(0L);
 
@@ -1313,8 +1310,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 		waitForSearch(matchAllBody(), columns, 6);
 
 		SearchQuery collapseBody = new SearchQuery()
-				.setQuery(Map.of("match", Map.of("title", "amyloid")))
-				.setCollapse(Map.of("field", "projectId"))
+				.setQuery(new JSONObject("{\"match\":{\"title\":\"amyloid\"}}"))
+				.setCollapse(new JSONObject().put("field", "projectId"))
 				.setSize(10L)
 				.setFrom(0L);
 
@@ -1338,14 +1335,13 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"collapse must surface both distinct projectId values");
 
 		SearchQuery rescoreBody = new SearchQuery()
-				.setQuery(Map.of("match", Map.of("title", "amyloid")))
-				.setRescore(Map.of(
-						"window_size", 50,
-						"query", Map.of(
-								"rescore_query", Map.of(
-										"match_phrase", Map.of("title", "amyloid plaques")),
-								"query_weight", 1.0,
-								"rescore_query_weight", 5.0)))
+				.setQuery(new JSONObject("{\"match\":{\"title\":\"amyloid\"}}"))
+				.setRescore(new JSONObject(
+						"{\"window_size\":50,"
+						+ "\"query\":{"
+						+ "\"rescore_query\":{\"match_phrase\":{\"title\":\"amyloid plaques\"}},"
+						+ "\"query_weight\":1.0,"
+						+ "\"rescore_query_weight\":5.0}}"))
 				.setSize(10L)
 				.setFrom(0L);
 

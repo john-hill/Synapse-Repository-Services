@@ -38,6 +38,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.json.JSONObject;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -1737,7 +1738,7 @@ public class OpenSearchManagerImplTest {
 	 */
 	private static SearchQuery matchAllBody() {
 		return new SearchQuery()
-				.setQuery(Map.of("match_all", Map.of()))
+				.setQuery(new JSONObject().put("match_all", new JSONObject()))
 				.setFrom(0L)
 				.setSize(10L);
 	}
@@ -1749,7 +1750,7 @@ public class OpenSearchManagerImplTest {
 	 */
 	private static SearchAutocompleteBody matchPrefixBody() {
 		return new SearchAutocompleteBody()
-				.setQuery(Map.of("match_bool_prefix", Map.of("name", "te")));
+				.setQuery(new JSONObject().put("match_bool_prefix", new JSONObject().put("name", "te")));
 	}
 
 	@Test
@@ -1819,7 +1820,7 @@ public class OpenSearchManagerImplTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
 		SearchQuery body = matchAllBody()
-				.setPost_filter(Map.of("term", Map.of("status.keyword", "ACTIVE")));
+				.setPost_filter(new JSONObject("{\"term\":{\"status.keyword\":\"ACTIVE\"}}"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1843,7 +1844,7 @@ public class OpenSearchManagerImplTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
 		SearchQuery body = matchAllBody()
-				.setPost_filter(Map.of("term", Map.of("status", "ACTIVE")));
+				.setPost_filter(new JSONObject("{\"term\":{\"status\":\"ACTIVE\"}}"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1867,7 +1868,7 @@ public class OpenSearchManagerImplTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
 		SearchQuery body = matchAllBody()
-				.setAggregations(Map.of("by_status", Map.of("terms", Map.of("field", "status"))));
+				.setAggregations(new JSONObject("{\"by_status\":{\"terms\":{\"field\":\"status\"}}}"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1888,7 +1889,7 @@ public class OpenSearchManagerImplTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("200").setName("score").setColumnType(ColumnType.DOUBLE));
 		SearchQuery body = matchAllBody()
-				.setAggregations(Map.of("avg_score", Map.of("avg", Map.of("field", "score"))));
+				.setAggregations(new JSONObject("{\"avg_score\":{\"avg\":{\"field\":\"score\"}}}"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1924,7 +1925,7 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("projectId").setColumnType(ColumnType.STRING));
-		SearchQuery body = matchAllBody().setCollapse(Map.of("field", "projectId"));
+		SearchQuery body = matchAllBody().setCollapse(new JSONObject().put("field", "projectId"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -1944,10 +1945,9 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
-		SearchQuery body = matchAllBody().setRescore(Map.of(
-				"window_size", 50,
-				"query", Map.of("rescore_query",
-						Map.of("match_phrase", Map.of("title", "alzheimers")))));
+		SearchQuery body = matchAllBody().setRescore(new JSONObject(
+				"{\"window_size\":50,"
+				+ "\"query\":{\"rescore_query\":{\"match_phrase\":{\"title\":\"alzheimers\"}}}}"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -2308,16 +2308,17 @@ public class OpenSearchManagerImplTest {
 
 		assertNotNull(results.getAggregationResults(),
 				"aggregations populated whenever the response carried them");
-		assertTrue(results.getAggregationResults() instanceof Map,
-				"aggregationResults surfaced as the deserialized JSON tree (Map)");
-		assertTrue(((Map<String, Object>) results.getAggregationResults()).containsKey("by_status"),
+		assertTrue(results.getAggregationResults() instanceof JSONObject,
+				"aggregationResults surfaced as a JSONObject — the only object shape the schema "
+				+ "adapter can serialize on the async response (a Map throws putObject)");
+		assertTrue(((JSONObject) results.getAggregationResults()).has("by_status"),
 				"aggregation key preserved verbatim");
 
 		assertNotNull(results.getSuggestResults(),
 				"suggest populated whenever the response carried it");
-		assertTrue(results.getSuggestResults() instanceof Map,
-				"suggestResults surfaced as the deserialized JSON tree (Map)");
-		assertTrue(((Map<String, Object>) results.getSuggestResults()).containsKey("did_you_mean"),
+		assertTrue(results.getSuggestResults() instanceof JSONObject,
+				"suggestResults surfaced as a JSONObject — same adapter-serializable contract");
+		assertTrue(((JSONObject) results.getSuggestResults()).has("did_you_mean"),
 				"suggester key preserved verbatim");
 	}
 

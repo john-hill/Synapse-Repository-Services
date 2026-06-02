@@ -27,7 +27,9 @@ import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.search.TrackHits;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
@@ -39,7 +41,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 /**
  * Unit tests for {@link SearchOpaqueJsonUtil}, organized by the concerns the util
  * exposes: shape conversion ({@link SearchOpaqueJsonUtil#parse},
- * {@link SearchOpaqueJsonUtil#fromJsonString},
  * package-private {@link SearchOpaqueJsonUtil#asJsonString}); reference detection
  * ({@link SearchOpaqueJsonUtil#readRef(Object)},
  * {@link SearchOpaqueJsonUtil#readRef(JsonNode)},
@@ -114,37 +115,6 @@ public class SearchOpaqueJsonUtilTest {
 		assertTrue(e.getMessage().contains("required"));
 	}
 
-	// --- fromJsonString ---
-
-	@Test
-	public void testFromJsonStringWithNullPassesThrough() {
-		assertNull(SearchOpaqueJsonUtil.fromJsonString(null));
-	}
-
-	@Test
-	public void testFromJsonStringRoundTripsObjectAsMap() {
-		Object result = SearchOpaqueJsonUtil.fromJsonString("{\"k\":\"v\"}");
-
-		assertTrue(result instanceof Map, "JSON object must land in a Map");
-		assertEquals("v", ((Map<?, ?>) result).get("k"));
-	}
-
-	@Test
-	public void testFromJsonStringRoundTripsArrayAsList() {
-		Object result = SearchOpaqueJsonUtil.fromJsonString("[1,2,3]");
-
-		assertTrue(result instanceof List, "JSON array must land in a List");
-		assertEquals(3, ((List<?>) result).size());
-	}
-
-	@Test
-	public void testFromJsonStringRejectsMalformedJson() {
-		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> SearchOpaqueJsonUtil.fromJsonString("{not_valid"));
-
-		assertTrue(e.getMessage().contains("Invalid JSON"));
-	}
-
 	// --- asJsonString (package-private dispatch) ---
 
 	@Test
@@ -177,6 +147,84 @@ public class SearchOpaqueJsonUtilTest {
 		String out = SearchOpaqueJsonUtil.asJsonString(adapter);
 
 		assertEquals(1, new JSONObject(out).getInt("a"));
+	}
+
+	@Test
+	public void testAsJsonStringWithJSONEntityHoldingAdapterField() throws Exception {
+		// Post-round-trip production shape: the async framework deserializes the request
+		// body via EntityFactory, so SearchQuery's opaque "query" field surfaces as a
+		// JSONObjectAdapter. asJsonString must render the whole entity through the schema
+		// adapter — Jackson cannot serialize the nested JSONObjectAdapterImpl.
+		SearchQuery body = new SearchQuery()
+				.setQuery(new JSONObjectAdapterImpl("{\"match_all\":{}}"));
+
+		String out = SearchOpaqueJsonUtil.asJsonString(body);
+
+		assertEquals(0, new JSONObject(out).getJSONObject("query").getJSONObject("match_all").length());
+	}
+
+	// --- response-path opaque outputs must survive async-response serialization ---
+	// The async framework serializes SearchQueryResults via EntityFactory (the schema
+	// adapter). Its putObject rejects java.util.Map, so any opaque response slot the
+	// manager populates must be a JSONObject (object slot) or scalars (list slot).
+
+	@Test
+	public void testSerializeAggregationsResultSurvivesAdapterSerialization() throws Exception {
+		Map<String, org.opensearch.client.opensearch._types.aggregations.Aggregate> aggs = new LinkedHashMap<>();
+		aggs.put("by_status", org.opensearch.client.opensearch._types.aggregations.Aggregate.of(
+				a -> a.sterms(st -> st.buckets(b -> b.array(Collections.emptyList())))));
+
+		Object aggResults = SearchOpaqueJsonUtil.serializeAggregations(aggs, Function.identity());
+		SearchQueryResults results = new SearchQueryResults().setAggregationResults(aggResults);
+
+		// call under test — must not throw JSONObjectAdapterException (the IT-path 500)
+		String json = org.sagebionetworks.schema.adapter.org.json.EntityFactory
+				.createJSONStringForEntity(results);
+
+		assertTrue(new JSONObject(json).getJSONObject("aggregationResults").has("by_status"));
+	}
+
+	@Test
+	public void testSerializeSuggestResultSurvivesAdapterSerialization() throws Exception {
+		org.opensearch.client.opensearch.core.search.Suggest<Object> suggestValue =
+				(org.opensearch.client.opensearch.core.search.Suggest<Object>)
+				(org.opensearch.client.opensearch.core.search.Suggest)
+				org.opensearch.client.opensearch.core.search.Suggest.of(s -> s.term(
+						org.opensearch.client.opensearch.core.search.TermSuggest.of(ts -> ts
+								.length(1).offset(0).text("biolgy")
+								.options(Arrays.asList(
+										org.opensearch.client.opensearch.core.search.TermSuggestOption.of(
+												opt -> opt.text("biology").score(0.9).freq(3L)))))));
+		Map<String, List<org.opensearch.client.opensearch.core.search.Suggest<Object>>> suggest =
+				new LinkedHashMap<>();
+		suggest.put("did_you_mean", Arrays.asList(suggestValue));
+
+		Object suggestResults = SearchOpaqueJsonUtil.serializeSuggest(suggest, Function.identity());
+		SearchQueryResults results = new SearchQueryResults().setSuggestResults(suggestResults);
+
+		// call under test — must not throw JSONObjectAdapterException
+		String json = org.sagebionetworks.schema.adapter.org.json.EntityFactory
+				.createJSONStringForEntity(results);
+
+		assertTrue(new JSONObject(json).getJSONObject("suggestResults").has("did_you_mean"));
+	}
+
+	@Test
+	public void testToSearchAfterCursorResultSurvivesAdapterSerialization() throws Exception {
+		// A sort over a scalar field yields scalar cursor elements — the schema adapter's
+		// putObjectArray accepts those, so the cursor must round-trip cleanly.
+		List<org.opensearch.client.opensearch._types.FieldValue> sortValues = Arrays.asList(
+				org.opensearch.client.opensearch._types.FieldValue.of(42L),
+				org.opensearch.client.opensearch._types.FieldValue.of("syn123"));
+
+		List<Object> cursor = SearchOpaqueJsonUtil.toSearchAfterCursor(sortValues);
+		SearchQueryResults results = new SearchQueryResults().setNextSearchAfter(cursor);
+
+		// call under test — must not throw JSONObjectAdapterException
+		String json = org.sagebionetworks.schema.adapter.org.json.EntityFactory
+				.createJSONStringForEntity(results);
+
+		assertEquals(2, new JSONObject(json).getJSONArray("nextSearchAfter").length());
 	}
 
 	@Test

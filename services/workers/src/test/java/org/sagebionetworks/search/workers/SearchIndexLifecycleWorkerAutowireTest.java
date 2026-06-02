@@ -10,10 +10,10 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -169,9 +169,11 @@ public class SearchIndexLifecycleWorkerAutowireTest {
 
         SearchIndexQuery query = new SearchIndexQuery();
         query.setSearchIndexId(searchIndex.getId());
-        // Opaque match_all clause — required since body.query is required.
+        // Opaque match_all clause — required since body.query is required. Must be a
+        // JSONObject (not Map.of): the request body is serialized via JSONObjectAdapterImpl
+        // when the async job is submitted, and that adapter rejects java.util.Map values.
         query.setSearchQuery(new SearchQuery()
-                .setQuery(Map.of("match_all", Map.of())));
+                .setQuery(new JSONObject().put("match_all", new JSONObject())));
         query.setResponseParts(EnumSet.of(
                 SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 

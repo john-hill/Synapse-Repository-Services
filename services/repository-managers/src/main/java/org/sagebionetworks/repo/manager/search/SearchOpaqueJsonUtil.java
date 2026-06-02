@@ -36,7 +36,10 @@ import org.opensearch.client.opensearch.core.search.SourceConfig;
 import org.opensearch.client.opensearch.core.search.Suggester;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
+import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
+import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
+import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -52,8 +55,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *
  * <p>Four concerns:</p>
  * <ol>
- *   <li><b>Shape conversion.</b> {@link #parse(Object)} / {@link #fromJsonString(String)}
- *       bridge the four shapes a curator-supplied value can take (raw JSON {@link String},
+ *   <li><b>Shape conversion.</b> {@link #parse(Object)}
+ *       bridges the four shapes a curator-supplied value can take (raw JSON {@link String},
  *       {@link JSONObject} / {@link JSONArray}, {@link JSONObjectAdapter},
  *       Jackson-friendly {@link Map} / {@link java.util.Collection} / scalar) to the
  *       canonical forms the pipeline needs.</li>
@@ -145,24 +148,18 @@ public final class SearchOpaqueJsonUtil {
 		if (json instanceof JSONObjectAdapter) {
 			return ((JSONObjectAdapter) json).toJSONString();
 		}
+		if (json instanceof JSONEntity) {
+			// A generated POJO (e.g. SearchQuery) whose opaque "type":"object" fields hold
+			// JSONObjectAdapter values after a JSON round-trip. Jackson cannot serialize those
+			// adapter instances, so render the whole entity through the schema adapter.
+			try {
+				return EntityFactory.createJSONStringForEntity((JSONEntity) json);
+			} catch (JSONObjectAdapterException e) {
+				throw new IllegalArgumentException("Invalid JSON: " + e.getMessage(), e);
+			}
+		}
 		try {
 			return MAPPER.writeValueAsString(json);
-		} catch (JsonProcessingException e) {
-			throw new IllegalArgumentException("Invalid JSON: " + e.getOriginalMessage(), e);
-		}
-	}
-
-	/**
-	 * Parse a JSON string read from a database column back into a generic Java tree
-	 * (typically a {@link Map} for an object, a {@link java.util.List} for an array, or
-	 * a scalar). {@code null} passes through.
-	 */
-	static Object fromJsonString(String json) {
-		if (json == null) {
-			return null;
-		}
-		try {
-			return MAPPER.readValue(json, Object.class);
 		} catch (JsonProcessingException e) {
 			throw new IllegalArgumentException("Invalid JSON: " + e.getOriginalMessage(), e);
 		}
@@ -574,7 +571,7 @@ public final class SearchOpaqueJsonUtil {
 			root.set(entry.getKey(), toJsonpTree(entry.getValue()));
 		}
 		SearchFieldRewriter.rewriteAggregationResults(root, idToName);
-		return fromJsonString(root.toString());
+		return new JSONObject(root.toString());
 	}
 
 	/**
@@ -596,7 +593,7 @@ public final class SearchOpaqueJsonUtil {
 		}
 		// Suggest envelope embeds the same "field" string shape as aggregations.
 		SearchFieldRewriter.rewriteAggregationResults(root, idToName);
-		return fromJsonString(root.toString());
+		return new JSONObject(root.toString());
 	}
 
 	/**
@@ -611,7 +608,7 @@ public final class SearchOpaqueJsonUtil {
 		java.util.List<Object> cursor = new java.util.ArrayList<>(sortValues.size());
 		for (JsonpSerializable value : sortValues) {
 			JsonNode tree = toJsonpTree(value);
-			cursor.add(fromJsonString(tree.toString()));
+			cursor.add(MAPPER.convertValue(tree, Object.class));
 		}
 		return cursor;
 	}

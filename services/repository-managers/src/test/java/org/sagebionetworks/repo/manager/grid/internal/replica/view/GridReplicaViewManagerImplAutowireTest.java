@@ -14,8 +14,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import javax.management.Query;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -28,7 +26,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.sagebionetworks.grid.db.GridIndexManager;
 import org.sagebionetworks.repo.manager.grid.DocumentConstants;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateMetadataChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
@@ -63,8 +60,11 @@ import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializabl
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.OperationBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
+import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
+import org.sagebionetworks.repo.model.grid.query.Query;
+import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
@@ -76,6 +76,7 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
+import org.sagebionetworks.schema.adapter.org.json.JSONArrayAdapterImpl;
 import org.sagebionetworks.util.ClasspathUtil;
 import org.semver4j.Semver;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1381,6 +1382,87 @@ public class GridReplicaViewManagerImplAutowireTest {
 				.setMap(Map.of(DocumentConstants.ROW_VALIDATION, conId)));
 
 		gridIndexManger.applyPatch(sessionId, patch.getPatchId().getReplicaId(), patch);
+	}
+
+	@Test
+	public void testQueryWithInOperatorAndArrayValuesFromJSON() throws IOException, JSONObjectAdapterException {
+		// Setup: Create rows with string column "a"
+		schema = List.of(new ColumnModel().setName("a").setColumnType(ColumnType.STRING).setMaximumSize(100L),
+				new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER));
+		rows = List.of(
+				new Row().setValues(List.of("alpha", "1")),
+				new Row().setValues(List.of("beta", "2")),
+				new Row().setValues(List.of("gamma", "3")));
+
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		// Build a Query object with IN operator and array values wrapped in JSONArrayAdapterImpl
+		// This simulates what happens during schema-to-pojo deserialization from a controller
+		Query query = new Query()
+				.setColumnSelection(List.of(new SelectAll()))
+				.setFilters(List.of(new CellValueFilter()
+						.setColumnName("a")
+						.setOperator(CellValueOperator.IN)
+						.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("alpha", "beta"))))))
+				.setLimit(10L)
+				.setOffset(0L);
+
+		// call under test - CellValueFilterElement should handle JSONArrayAdapterImpl
+		QueryResult result = gridViewManager.querySinglePageAsQueryResult(header,
+				new QueryElement(query));
+
+		// Verify the query returned the expected rows
+		assertNotNull(result);
+		assertEquals(2, result.getRows().size());
+		// Rows should be "alpha" and "beta"
+		List<String> actualValues = result.getRows().stream()
+				.map(r -> {
+					try {
+						return ((JSONObject) r.getData()).getString("a");
+					} catch (JSONException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.collect(java.util.stream.Collectors.toList());
+		assertEquals(List.of("alpha", "beta"), actualValues);
+	}
+
+	@Test
+	public void testQueryWithEqualsOperatorAndArrayValuesFromJSON() throws IOException, JSONObjectAdapterException {
+		// Setup: Create rows - one with a JSON array value that matches our query
+		schema = List.of(new ColumnModel().setName("a").setColumnType(ColumnType.STRING_LIST).setMaximumSize(100L),
+				new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER));
+
+		rows = List.of(
+				new Row().setValues(List.of("[\"alpha\",\"beta\"]", "1")),  // This row has the array as its value
+				new Row().setValues(List.of("[\"gamma\",\"beta\"]", "2")),          // This row has just "alpha"
+				new Row().setValues(List.of("[\"delta\",\"gamma\"]", "3")));
+
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		// Build a Query object with EQUALS operator and array values wrapped in JSONArrayAdapterImpl
+		// This simulates what happens during schema-to-pojo deserialization from a controller
+		Query query = new Query()
+				.setColumnSelection(List.of(new SelectAll()))
+				.setFilters(List.of(new CellValueFilter()
+						.setColumnName("a")
+						.setOperator(CellValueOperator.EQUALS)
+						.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("alpha", "beta"))))))
+				.setLimit(10L)
+				.setOffset(0L);
+
+		// call under test - CellValueFilterElement should handle JSONArrayAdapterImpl
+		QueryResult result = gridViewManager.querySinglePageAsQueryResult(header,
+				new QueryElement(query));
+
+		// Verify the query returned the expected row (only the one with the array value)
+		assertNotNull(result);
+		assertEquals(1, result.getRows().size());
+		// The row should have the JSON array as its value
+		String actualValue = ((JSONObject) result.getRows().get(0).getData()).getString("a");
+		assertEquals("[\"alpha\",\"beta\"]", actualValue);
 	}
 
 }

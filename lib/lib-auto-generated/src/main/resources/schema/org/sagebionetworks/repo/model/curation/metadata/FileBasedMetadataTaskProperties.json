@@ -2,7 +2,7 @@
   "description": "A CurationTaskProperties for file-based data, describing where data is uploaded and a view which contains the annotations.",
   "implements": [
     {
-      "$ref": "org.sagebionetworks.repo.model.curation.CurationTaskProperties",
+      "$ref": "org.sagebionetworks.repo.model.curation.CurationTaskProperties"
     },
     {
       "$ref": "org.sagebionetworks.repo.model.curation.metadata.GridSupportedTaskProperties"

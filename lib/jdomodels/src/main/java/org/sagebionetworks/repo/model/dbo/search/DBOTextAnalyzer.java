@@ -87,7 +87,8 @@ public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer
 		return MigrationType.TEXT_ANALYZER;
 	}
 
-	private static final BasicMigratableTableTranslation<DBOTextAnalyzer> MIGRATION_TRANSLATOR = new BasicMigratableTableTranslation<>();
+	private static final MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer> MIGRATION_TRANSLATOR =
+			new BasicMigratableTableTranslation<>();
 
 	@Override
 	public MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer> getTranslator() {

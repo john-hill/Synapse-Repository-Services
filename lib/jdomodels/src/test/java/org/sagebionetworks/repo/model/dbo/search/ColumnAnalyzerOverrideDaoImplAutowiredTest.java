@@ -91,12 +91,11 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 	public void testCreateVerifiesOverridesRoundTrip() {
 		ColumnAnalyzerOverrideEntry entry1 = new ColumnAnalyzerOverrideEntry();
 		entry1.setColumnName("diagnosis");
-		entry1.setIndexAnalyzer("org.sagebionetworks-SCIENTIFIC");
-		entry1.setSearchAnalyzer("org.sagebionetworks-STANDARD");
+		entry1.setAnalyzer(new org.json.JSONObject().put("$ref", "org.sagebionetworks-SCIENTIFIC"));
 
 		ColumnAnalyzerOverrideEntry entry2 = new ColumnAnalyzerOverrideEntry();
 		entry2.setColumnName("tissue");
-		entry2.setIndexAnalyzer("org.sagebionetworks-IDENTIFIER");
+		entry2.setAnalyzer(new org.json.JSONObject().put("$ref", "org.sagebionetworks-IDENTIFIER"));
 
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName("multi_entry");
@@ -109,11 +108,71 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 		List<ColumnAnalyzerOverrideEntry> overrides = created.getOverrides();
 		assertEquals(2, overrides.size());
 		assertEquals("diagnosis", overrides.get(0).getColumnName());
-		assertEquals("org.sagebionetworks-SCIENTIFIC", overrides.get(0).getIndexAnalyzer());
-		assertEquals("org.sagebionetworks-STANDARD", overrides.get(0).getSearchAnalyzer());
-		assertEquals("tissue", overrides.get(1).getColumnName());
-		assertEquals("org.sagebionetworks-IDENTIFIER", overrides.get(1).getIndexAnalyzer());
-		assertNull(overrides.get(1).getSearchAnalyzer());
+		// Because the DAO reads the typed POJO list back through the schema-to-pojo
+		// adapter, the opaque-Object analyzer field arrives as a JSONObjectAdapter rather
+		// than a JSONObject. Compare semantically through Jackson — toString() on either
+		// shape yields canonical JSON.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree("{\"$ref\":\"org.sagebionetworks-SCIENTIFIC\"}"),
+					mapper.readTree(String.valueOf(overrides.get(0).getAnalyzer())));
+			assertEquals("tissue", overrides.get(1).getColumnName());
+			assertEquals(mapper.readTree("{\"$ref\":\"org.sagebionetworks-IDENTIFIER\"}"),
+					mapper.readTree(String.valueOf(overrides.get(1).getAnalyzer())));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
+	}
+
+	@Test
+	public void testCRUDWithInlineEntryAnalyzer() {
+		// Each entry's `analyzer` field accepts either {"$ref": qname} or a bare OpenSearch
+		// settings.analysis block. Persist a mixed pair (one $ref, one inline) and verify
+		// both round-trip through the JSON column unchanged.
+		org.json.JSONObject inlineAnalyzer = new org.json.JSONObject().put(
+				"analyzer", new org.json.JSONObject().put(
+						"default", new org.json.JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "keyword")
+								.put("filter", new org.json.JSONArray().put("lowercase"))));
+
+		ColumnAnalyzerOverrideEntry refEntry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("diagnosis")
+				.setAnalyzer(new org.json.JSONObject().put("$ref", "org.sagebionetworks-SCIENTIFIC"));
+		ColumnAnalyzerOverrideEntry inlineEntry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("title")
+				.setAnalyzer(inlineAnalyzer);
+		ColumnAnalyzerOverride toCreate = new ColumnAnalyzerOverride()
+				.setName("inline_entry_" + UUID.randomUUID().toString().replace("-", ""))
+				.setOrganizationName(organizationName)
+				.setOverrides(Arrays.asList(refEntry, inlineEntry));
+
+		// call under test
+		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, toCreate);
+
+		assertNotNull(created.getId());
+		List<ColumnAnalyzerOverrideEntry> overrides = created.getOverrides();
+		assertEquals(2, overrides.size());
+
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree("{\"$ref\":\"org.sagebionetworks-SCIENTIFIC\"}"),
+					mapper.readTree(String.valueOf(overrides.get(0).getAnalyzer())));
+			assertEquals(mapper.readTree(inlineAnalyzer.toString()),
+					mapper.readTree(String.valueOf(overrides.get(1).getAnalyzer())));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
+
+		// Re-fetch and verify the round-trip persists across DAO reads.
+		Optional<ColumnAnalyzerOverride> fetched = columnAnalyzerOverrideDao.get(created.getId());
+		assertTrue(fetched.isPresent());
+		try {
+			assertEquals(mapper.readTree(inlineAnalyzer.toString()),
+					mapper.readTree(String.valueOf(fetched.get().getOverrides().get(1).getAnalyzer())));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
 	}
 
 	@Test
@@ -238,8 +297,10 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	private ColumnAnalyzerOverrideEntry newEntry(String columnName) {
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		// Resolution-time helper: every entry's analyzer is the unified inline-or-$ref shape.
+		// All canonical fixtures here use a $ref to a system analyzer.
 		entry.setColumnName(columnName);
-		entry.setIndexAnalyzer("org.sagebionetworks-SCIENTIFIC");
+		entry.setAnalyzer(new org.json.JSONObject().put("$ref", "org.sagebionetworks-SCIENTIFIC"));
 		return entry;
 	}
 }

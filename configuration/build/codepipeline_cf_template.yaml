@@ -1,46 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create AWS CodeBuild project
 Parameters:
-  SynapseRepository:
-    Type: String
-    Default: Synapse-Repository-Services
-    Description: Synapse repository name
-    AllowedPattern: ".+"
-    ConstraintDescription: Parameter cannot be empty.
-  SynapseBranch:
-    Type: String
-    Description: Branch of the Synapse repo to build
-    AllowedPattern: ".+"
-    ConstraintDescription: Parameter cannot be empty.
-  SynapseRepoOwner:
-    Type: String
-    Description: Owner of the Synapse Repo to build
-    AllowedPattern: ".+"
-    ConstraintDescription: Parameter cannot be empty.
   ArtifactVersion:
     Type: String
     Description: The artifiact version to use when publishing artifacts.  If empty, then no artifacts are published.
-  StackBuilderRepository:
+  SourceBucket:
     Type: String
-    Default: Synapse-Stack-Builder
-    Description: Stack Builder repository name
+    Description: S3 bucket containing source archives uploaded by GitHub Actions
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
-  StackBuilderBranch:
+  SynapseSourceKey:
     Type: String
-    Default: develop
-    Description: Branch of the StackBuilder repo to build
+    Description: S3 key of the Synapse repo source archive
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
-  StackBuilderRepoOwner:
+  StackBuilderSourceKey:
     Type: String
-    Default: Sage-Bionetworks
-    Description: Owner of the StackBuilder Repo
-    AllowedPattern: ".+"
-    ConstraintDescription: Parameter cannot be empty.
-  GitHubToken:
-    Type: String
-    Description: Token to authorize GitHub requests
+    Description: S3 key of the Stack Builder repo source archive
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
   BuildParamUser:
@@ -116,6 +92,15 @@ Resources:
                 Resource:
                   - !Sub "${PipelineOutputBucket.Arn}/*"
                   - !GetAtt PipelineOutputBucket.Arn
+              # Permission to read from the source upload bucket
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub "arn:aws:s3:::${SourceBucket}/*"
+                  - !Sub "arn:aws:s3:::${SourceBucket}"
               # Permission to invoke CodeBuild
               - Effect: Allow
                 Action:
@@ -164,32 +149,28 @@ Resources:
             - Name: CheckoutStackBuilderRepo
               ActionTypeId:
                 Category: Source
-                Owner: ThirdParty
-                Provider: GitHub
+                Owner: AWS
+                Provider: S3
                 Version: 1
               OutputArtifacts:
                 - Name: StackBuilderRepoSource
               Configuration:
-                Owner: !Ref StackBuilderRepoOwner
-                Repo: !Ref StackBuilderRepository
-                Branch: !Ref StackBuilderBranch
-                OAuthToken: !Ref GitHubToken
-                PollForSourceChanges: false # instead we will trigger from GitHub workflow
+                S3Bucket: !Ref SourceBucket
+                S3ObjectKey: !Ref StackBuilderSourceKey
+                PollForSourceChanges: false
             - Name: CheckoutSynapseRepo
               Namespace: CheckoutSynapseRepo
               ActionTypeId:
                 Category: Source
-                Owner: ThirdParty
-                Provider: GitHub
+                Owner: AWS
+                Provider: S3
                 Version: 1
               OutputArtifacts:
                 - Name: SynapseRepoSource
               Configuration:
-                Owner: !Ref SynapseRepoOwner
-                Repo: !Ref SynapseRepository
-                Branch: !Ref SynapseBranch
-                OAuthToken: !Ref GitHubToken
-                PollForSourceChanges: false # instead we will trigger from GitHub workflow
+                S3Bucket: !Ref SourceBucket
+                S3ObjectKey: !Ref SynapseSourceKey
+                PollForSourceChanges: false
         - Name: RunStackBuilder
           Actions:
             - Name: RunStackBuilder

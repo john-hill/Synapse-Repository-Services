@@ -1,8 +1,12 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,7 +19,6 @@ import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -65,7 +68,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
 		assertEquals(adminUserId.toString(), created.getModifiedBy());
-		assertEquals("standard", created.getSettings().getTokenizer());
+		assertNotNull(created.getSettings());
 
 		// Verify get returns the same data
 		Optional<TextAnalyzer> fetched = textAnalyzerDao.get(Long.parseLong(created.getId()));
@@ -95,15 +98,25 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 		created.setName("test_update_renamed");
 		created.setDescription("updated");
-		TextAnalyzerSettings newSettings = new TextAnalyzerSettings();
-		newSettings.setTokenizer("whitespace");
+		org.json.JSONObject newSettings = new org.json.JSONObject().put(
+				"analyzer", new org.json.JSONObject().put(
+						"default", new org.json.JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "whitespace")));
 		created.setSettings(newSettings);
 
 		TextAnalyzer updated = textAnalyzerDao.update(created, adminUserId);
 
 		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
-		assertEquals("whitespace", updated.getSettings().getTokenizer());
+		// settings is opaque-Object; compare semantically via Jackson on both sides.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(newSettings.toString()),
+					mapper.readTree(String.valueOf(updated.getSettings())));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
 		assertNotEquals(originalEtag, updated.getEtag());
 	}
 
@@ -152,34 +165,101 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testSettingsRoundTripThroughDatabase() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setSynonymAware(true);
-		settings.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"));
-		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "english_stop"));
-		settings.setTokenFilters("{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
-				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}}");
+		// Curator-style settings: pasted directly as JSON objects, not stringified JSON.
+		org.json.JSONObject settings = new org.json.JSONObject()
+				.put("filter", new org.json.JSONObject()
+						.put("english_stop", new org.json.JSONObject()
+								.put("type", "stop")
+								.put("stopwords", "_english_"))
+						.put("english_stemmer", new org.json.JSONObject()
+								.put("type", "stemmer")
+								.put("language", "english")))
+				.put("analyzer", new org.json.JSONObject()
+						.put("default", new org.json.JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new org.json.JSONArray()
+										.put("lowercase").put("english_stop").put("english_stemmer"))));
 
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setName("settings_roundtrip");
-		analyzer.setOrganizationName(organizationName);
-		analyzer.setSettings(settings);
+		TextAnalyzer analyzer = new TextAnalyzer()
+				.setName("settings_roundtrip")
+				.setOrganizationName(organizationName)
+				.setSettings(settings);
 
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);
 		TextAnalyzer fetched = textAnalyzerDao.get(Long.parseLong(created.getId())).get();
 
-		assertEquals(settings, fetched.getSettings());
+		// Compare semantically via Jackson; JSONObject.equals isn't value-based.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(settings.toString()),
+					mapper.readTree(String.valueOf(fetched.getSettings())));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
+	}
+
+	@Test
+	public void testSettingsAcceptsNativeJavaInputsWithoutEscaping() throws Exception {
+		// Java callers must be able to pass native Java values directly to the setter —
+		// no manual stringification, no escape ceremonies. The codec turns them into
+		// canonical JSON for the MySQL JSON column and the round-trip surfaces a
+		// structurally equivalent value on the way back out.
+
+		// Case 1: a deeply nested java.util.Map (Map / List / scalar).
+		java.util.Map<String, Object> mapSettings = java.util.Map.of(
+				"analyzer", java.util.Map.of(
+						"default", java.util.Map.of(
+								"type", "custom",
+								"tokenizer", "standard",
+								"filter", java.util.List.of("lowercase", "asciifolding"))));
+
+		TextAnalyzer mapAnalyzer = new TextAnalyzer()
+				.setName("native_map_input")
+				.setOrganizationName(organizationName)
+				.setSettings(mapSettings);
+
+		TextAnalyzer createdFromMap = textAnalyzerDao.create(mapAnalyzer, adminUserId);
+		TextAnalyzer fetchedFromMap = textAnalyzerDao.get(Long.parseLong(createdFromMap.getId())).get();
+
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		assertEquals(mapper.valueToTree(mapSettings),
+				mapper.readTree(String.valueOf(fetchedFromMap.getSettings())),
+				"Map input must round-trip structurally without manual stringification");
+
+		// Case 2: a native org.json.JSONObject input.
+		org.json.JSONObject jsonObjectSettings = new org.json.JSONObject()
+				.put("analyzer", new org.json.JSONObject()
+						.put("default", new org.json.JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "whitespace")
+								.put("filter", new org.json.JSONArray().put("lowercase"))));
+
+		TextAnalyzer jsonAnalyzer = new TextAnalyzer()
+				.setName("native_jsonobject_input")
+				.setOrganizationName(organizationName)
+				.setSettings(jsonObjectSettings);
+
+		TextAnalyzer createdFromJson = textAnalyzerDao.create(jsonAnalyzer, adminUserId);
+		TextAnalyzer fetchedFromJson = textAnalyzerDao.get(Long.parseLong(createdFromJson.getId())).get();
+
+		// Re-parse the JSONObject input as a Jackson tree to compare structurally without
+		// relying on JSONObject.equals (identity-based) or toString() ordering.
+		assertEquals(mapper.readTree(jsonObjectSettings.toString()),
+				mapper.readTree(String.valueOf(fetchedFromJson.getSettings())),
+				"JSONObject input must round-trip structurally without manual stringification");
 	}
 
 	private TextAnalyzer newAnalyzer(String name, String description) {
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setName(name);
-		analyzer.setDescription(description);
-		analyzer.setOrganizationName(organizationName);
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setIndexFilterOrder(Arrays.asList("lowercase"));
-		analyzer.setSettings(settings);
-		return analyzer;
+		return new TextAnalyzer()
+				.setName(name)
+				.setDescription(description)
+				.setOrganizationName(organizationName)
+				.setSettings(new org.json.JSONObject()
+						.put("analyzer", new org.json.JSONObject()
+								.put("default", new org.json.JSONObject()
+										.put("type", "custom")
+										.put("tokenizer", "standard")
+										.put("filter", new org.json.JSONArray().put("lowercase")))));
 	}
 }

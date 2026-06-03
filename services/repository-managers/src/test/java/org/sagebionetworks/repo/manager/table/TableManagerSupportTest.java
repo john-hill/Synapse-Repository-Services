@@ -749,7 +749,43 @@ public class TableManagerSupportTest {
 			manager.validateTableReadAccess(userInfo, indexDescription);
 		});
 	}
-	
+
+	@Test
+	public void testValidateTableReadAccessRecordSet(){
+		IndexDescription indexDescription = new RecordSetIndexDescription(idAndVersion, 1L);
+		when(mockAuthorizationManager.canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
+		when(mockAuthorizationManager.canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
+		//  call under test
+		manager.validateTableReadAccess(userInfo, indexDescription);
+		verify(mockAuthorizationManager).canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.READ);
+		verify(mockAuthorizationManager).canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD);
+	}
+
+	@Test
+	public void testValidateTableReadAccessRecordSetNoRead(){
+		IndexDescription indexDescription = new RecordSetIndexDescription(idAndVersion, 1L);
+		when(mockAuthorizationManager.canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied(""));
+		assertThrows(UnauthorizedException.class, ()->{
+			//  call under test
+			manager.validateTableReadAccess(userInfo, indexDescription);
+		});
+		verify(mockAuthorizationManager).canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.READ);
+		verify(mockAuthorizationManager, never()).canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD);
+	}
+
+	@Test
+	public void testValidateTableReadAccessRecordSetNoDownload(){
+		IndexDescription indexDescription = new RecordSetIndexDescription(idAndVersion, 1L);
+		when(mockAuthorizationManager.canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
+		when(mockAuthorizationManager.canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.accessDenied(""));
+		assertThrows(UnauthorizedException.class, ()->{
+			//  call under test
+			manager.validateTableReadAccess(userInfo, indexDescription);
+		});
+		verify(mockAuthorizationManager).canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.READ);
+		verify(mockAuthorizationManager).canAccess(userInfo, tableId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD);
+	}
+
 	@Test
 	public void testValidateTableReadAccessWithMaterializedView(){
 		IdAndVersion tableId = IdAndVersion.parse("syn1");

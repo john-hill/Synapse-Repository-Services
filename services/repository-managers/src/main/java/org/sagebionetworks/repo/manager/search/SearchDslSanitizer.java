@@ -61,6 +61,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  */
 final class SearchDslSanitizer {
 
+	private SearchDslSanitizer() {
+	}
+
 	/**
 	 * Maximum recursion depth when copying an opaque pass-through value (see {@link #copyOpaque}).
 	 * Independent of the per-surface clause/agg depth caps, which only bound DSL structure &mdash;
@@ -86,108 +89,6 @@ final class SearchDslSanitizer {
 	 * and an optional {@code _source} filter.
 	 */
 	static final Set<String> AUTOCOMPLETE_BODY_ALLOWED_KEYS = Set.of("query", "_source");
-
-	private SearchDslSanitizer() {
-	}
-
-	// --------------------------------------------------------------
-	// Top-level body validation.
-	// --------------------------------------------------------------
-
-	/**
-	 * Reject any top-level key on {@code SearchQuery.body} outside {@link #BODY_ALLOWED_KEYS}.
-	 * Also rejects {@code search_after} alongside {@code from > 0} (mutually exclusive).
-	 */
-	static void scanBodyTopLevelKeys(JsonNode body) {
-		if (body == null || !body.isObject()) {
-			throw new IllegalArgumentException("body must be a JSON object");
-		}
-		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
-		while (fields.hasNext()) {
-			String key = fields.next().getKey();
-			if (!BODY_ALLOWED_KEYS.contains(key)) {
-				throw new IllegalArgumentException(
-						"unsupported top-level key in body: '" + key + "'");
-			}
-		}
-		JsonNode searchAfter = body.get("search_after");
-		JsonNode from = body.get("from");
-		if (searchAfter != null && !searchAfter.isNull() && from != null
-				&& from.isNumber() && from.asLong() > 0L) {
-			throw new IllegalArgumentException(
-					"body.search_after and body.from > 0 are mutually exclusive");
-		}
-	}
-
-	/**
-	 * Narrow body validator for autocomplete: only {@code query} and {@code _source} are
-	 * allowed at the top level.
-	 */
-	static void scanAutocompleteBodyTopLevelKeys(JsonNode body) {
-		if (body == null || !body.isObject()) {
-			throw new IllegalArgumentException("body must be a JSON object");
-		}
-		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
-		while (fields.hasNext()) {
-			String key = fields.next().getKey();
-			if (!AUTOCOMPLETE_BODY_ALLOWED_KEYS.contains(key)) {
-				throw new IllegalArgumentException(
-						"unsupported top-level key in autocomplete body: '" + key + "'");
-			}
-		}
-	}
-
-	/**
-	 * Validate and resolve the effective {@code from} offset on a body. Defaults to {@code 0}
-	 * when absent; rejects non-integral values and anything outside {@code 0..Integer.MAX_VALUE}.
-	 */
-	static int resolveFrom(JsonNode body) {
-		JsonNode node = body.get("from");
-		if (node == null || node.isNull()) {
-			return 0;
-		}
-		if (!node.isIntegralNumber()) {
-			throw new IllegalArgumentException("body.from must be an integer");
-		}
-		long value = node.asLong();
-		if (value < 0L || value > Integer.MAX_VALUE) {
-			throw new IllegalArgumentException(
-					"body.from must be between 0 and " + Integer.MAX_VALUE);
-		}
-		return (int) value;
-	}
-
-	/**
-	 * Validate and resolve the effective {@code size} on a body. Defaults to {@code defaultSize}
-	 * when absent; rejects non-integral and negative values; clamps anything above
-	 * {@code maxSize} down to {@code maxSize}.
-	 */
-	static int resolveSize(JsonNode body, int defaultSize, int maxSize) {
-		JsonNode node = body.get("size");
-		if (node == null || node.isNull()) {
-			return defaultSize;
-		}
-		if (!node.isIntegralNumber()) {
-			throw new IllegalArgumentException("body.size must be an integer");
-		}
-		long value = node.asLong();
-		if (value < 0L) {
-			throw new IllegalArgumentException("body.size must be non-negative");
-		}
-		return (int) Math.min(value, maxSize);
-	}
-
-	/**
-	 * Validate the structural shape of {@code search_after}: when present and non-null it must be
-	 * a JSON array. The {@code search_after} / {@code from > 0} exclusivity rule is enforced
-	 * separately in {@link #scanBodyTopLevelKeys}.
-	 */
-	static void validateSearchAfterShape(JsonNode body) {
-		JsonNode node = body.get("search_after");
-		if (node != null && !node.isNull() && !node.isArray()) {
-			throw new IllegalArgumentException("body.search_after must be an array");
-		}
-	}
 
 	// ==============================================================
 	// Copy-only sanitizer (allowlist by construction).
@@ -342,18 +243,17 @@ final class SearchDslSanitizer {
 
 	/**
 	 * Copy the caller's {@code SearchQuery.body} into a new node containing only the top-level
-	 * keys in {@link #BODY_ALLOWED_KEYS}; reject the
-	 * {@code search_after}/{@code from} conflict. The sub-key values are deep-copied here and
-	 * re-sanitized in full when each surface is parsed.
+	 * keys in {@link #BODY_ALLOWED_KEYS}. The sub-key values are deep-copied here and re-sanitized
+	 * in full when each surface is parsed. The top-level key allowlist and the
+	 * {@code search_after}/{@code from} conflict are checked upstream by
+	 * {@link SearchDslValidator#scanBodyTopLevelKeys}.
 	 */
 	static ObjectNode sanitizeBodyTopLevel(JsonNode body) {
-		scanBodyTopLevelKeys(body);
 		return copyAllowlistedKeys(body, BODY_ALLOWED_KEYS, "body", "");
 	}
 
 	/** Autocomplete variant of {@link #sanitizeBodyTopLevel}. */
 	static ObjectNode sanitizeAutocompleteBodyTopLevel(JsonNode body) {
-		scanAutocompleteBodyTopLevelKeys(body);
 		return copyAllowlistedKeys(body, AUTOCOMPLETE_BODY_ALLOWED_KEYS, "autocomplete body", "");
 	}
 
@@ -434,8 +334,18 @@ final class SearchDslSanitizer {
 			Map.Entry<String, JsonNode> e = body.fields().next();
 			JsonNode value = e.getValue();
 			if (value.isObject()) {
-				clean.set(e.getKey(), copyAllowlistedKeys(value, optionKeys,
-						kind + " query options", path + "." + e.getKey()));
+				ObjectNode options = NODES.objectNode();
+				Iterator<Map.Entry<String, JsonNode>> oit = value.fields();
+				while (oit.hasNext()) {
+					Map.Entry<String, JsonNode> oe = oit.next();
+					String optionKey = oe.getKey();
+					if (!optionKeys.contains(optionKey)) {
+						throw unsupported(kind + " query options", optionKey, path + "." + e.getKey());
+					}
+					options.set(optionKey, copyLeafOptionValue(kind, optionKey, oe.getValue(),
+							path + "." + e.getKey() + "." + optionKey));
+				}
+				clean.set(e.getKey(), options);
 			} else {
 				clean.set(e.getKey(), value.deepCopy());
 			}
@@ -446,12 +356,44 @@ final class SearchDslSanitizer {
 			Map.Entry<String, JsonNode> e = it.next();
 			String key = e.getKey();
 			if ("field".equals(key) || "fields".equals(key) || optionKeys.contains(key)) {
-				clean.set(key, copyOpaque(e.getValue(), path + "." + key));
+				clean.set(key, copyLeafOptionValue(kind, key, e.getValue(), path + "." + key));
 			} else {
 				throw unsupported(kind + " query", key, path);
 			}
 		}
 		return clean;
+	}
+
+	/** Leaf-query keys whose value is an array of scalars. Every other key in
+	 *  {@link #QUERY_LEAF_OPTION_KEYS} is a scalar primitive; {@code field} is a single name. */
+	static final Set<String> LEAF_ARRAY_OPTION_KEYS = Set.of("fields", "values");
+
+	/**
+	 * Copy a leaf-query option value, enforcing its OpenSearch type so an option key only accepts
+	 * the shape it is defined to hold. {@code field} is a single field name (scalar); {@code fields}
+	 * and {@code values} are arrays of scalars; every other allowlisted option is a scalar primitive
+	 * (string/number/boolean). A value of the wrong shape throws {@link IllegalArgumentException}
+	 * (HTTP 400) naming the key and path. Array length is not bounded here &mdash;
+	 * {@link SearchDslValidator} caps {@code fields}/{@code values} at
+	 * {@code MAX_VALUES_PER_CLAUSE}.
+	 */
+	static JsonNode copyLeafOptionValue(String kind, String key, JsonNode value, String path) {
+		if (LEAF_ARRAY_OPTION_KEYS.contains(key)) {
+			if (!value.isArray()) {
+				throw new IllegalArgumentException("'" + kind + "' query option '" + key + "' at "
+						+ path + " must be an array of scalar values");
+			}
+			for (int i = 0; i < value.size(); i++) {
+				if (!value.get(i).isValueNode()) {
+					throw new IllegalArgumentException("'" + kind + "' query option '" + key + "' at "
+							+ path + "[" + i + "] must be a scalar value");
+				}
+			}
+		} else if (!value.isValueNode()) {
+			throw new IllegalArgumentException("'" + kind + "' query option '" + key + "' at " + path
+					+ " must be a scalar value");
+		}
+		return value.deepCopy();
 	}
 
 	/**

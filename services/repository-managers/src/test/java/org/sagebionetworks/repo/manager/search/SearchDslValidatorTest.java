@@ -39,7 +39,11 @@ import org.opensearch.client.opensearch.core.search.InnerHits;
 import org.opensearch.client.opensearch.core.search.Rescore;
 import org.opensearch.client.opensearch.core.search.RescoreQuery;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public class SearchDslValidatorTest {
+
+	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	// -----------------------------------------------------------------------------
 	// Query: kind allowlist
@@ -1193,4 +1197,176 @@ public class SearchDslValidatorTest {
 	// return are unreachable: the typed FieldCollapse / TermsQuery builders require those slots at
 	// construction (MissingRequiredPropertyException). The defensive checks stay in case a future
 	// OpenSearch-client schema change relaxes the requirement.
+
+	// -----------------------------------------------------------------------------
+	// Top-level body allowlists (scanBodyTopLevelKeys / scanAutocompleteBodyTopLevelKeys)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testScanBodyTopLevelKeysWithAllowedSubsetAccepted() throws Exception {
+		// One body containing every BODY_ALLOWED_KEY except search_after.
+		String json = "{\"query\":{},\"post_filter\":{},\"aggregations\":{},"
+				+ "\"highlight\":{},\"collapse\":{},\"rescore\":{},\"sort\":[],\"_source\":{},"
+				+ "\"from\":0,\"size\":10}";
+		// call under test — must not throw
+		SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(json));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithUnsupportedKeyRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"explain\":true}")));
+		assertTrue(ex.getMessage().contains("explain"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithNullRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(null));
+		assertTrue(ex.getMessage().contains("body"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithNonObjectRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree("[]")));
+		assertTrue(ex.getMessage().contains("body"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithSearchAfterAndPositiveFromRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"search_after\":[\"x\"],\"from\":5}")));
+		assertTrue(ex.getMessage().contains("search_after"));
+		assertTrue(ex.getMessage().contains("from"));
+	}
+
+	@Test
+	public void testScanBodyTopLevelKeysWithSearchAfterAndZeroFromAccepted() throws Exception {
+		// from=0 alongside search_after is fine — the cursor takes precedence.
+		// call under test — must not throw
+		SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+				"{\"query\":{},\"search_after\":[\"x\"],\"from\":0}"));
+	}
+
+	@Test
+	public void testScanAutocompleteBodyTopLevelKeysWithQueryAndSourceAccepted() throws Exception {
+		// call under test — must not throw
+		SearchDslValidator.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
+				"{\"query\":{},\"_source\":{}}"));
+	}
+
+	@Test
+	public void testScanAutocompleteBodyTopLevelKeysWithDisallowedKeyRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
+						"{\"query\":{},\"aggregations\":{}}")));
+		assertTrue(ex.getMessage().contains("aggregations"));
+	}
+
+	@Test
+	public void testScanAutocompleteBodyTopLevelKeysWithNullRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.scanAutocompleteBodyTopLevelKeys(null));
+		assertTrue(ex.getMessage().contains("body"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// from / size / search_after resolution (resolveFrom / resolveSize /
+	// validateSearchAfterShape)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testResolveFromWithOmittedDefaultsToZero() throws Exception {
+		// call under test
+		assertEquals(0, SearchDslValidator.resolveFrom(MAPPER.readTree("{\"query\":{}}")));
+	}
+
+	@Test
+	public void testResolveFromWithValidValue() throws Exception {
+		// call under test
+		assertEquals(5, SearchDslValidator.resolveFrom(MAPPER.readTree("{\"from\":5}")));
+	}
+
+	@Test
+	public void testResolveFromWithNonIntegralRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.resolveFrom(MAPPER.readTree("{\"from\":1.5}")));
+		assertTrue(ex.getMessage().contains("body.from must be an integer"));
+	}
+
+	@Test
+	public void testResolveFromWithNegativeRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.resolveFrom(MAPPER.readTree("{\"from\":-1}")));
+		assertTrue(ex.getMessage().contains("body.from must be between 0 and"));
+	}
+
+	@Test
+	public void testResolveFromWithOverflowRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.resolveFrom(MAPPER.readTree(
+						"{\"from\":" + (Integer.MAX_VALUE + 1L) + "}")));
+		assertTrue(ex.getMessage().contains("body.from must be between 0 and"));
+	}
+
+	@Test
+	public void testResolveSizeWithOmittedDefaultsToDefaultSize() throws Exception {
+		// call under test
+		assertEquals(25, SearchDslValidator.resolveSize(MAPPER.readTree("{\"query\":{}}"), 25, 100));
+	}
+
+	@Test
+	public void testResolveSizeWithValidValue() throws Exception {
+		// call under test
+		assertEquals(50, SearchDslValidator.resolveSize(MAPPER.readTree("{\"size\":50}"), 25, 100));
+	}
+
+	@Test
+	public void testResolveSizeWithValueAboveMaxClamps() throws Exception {
+		// call under test
+		assertEquals(100, SearchDslValidator.resolveSize(MAPPER.readTree("{\"size\":10000}"), 25, 100));
+	}
+
+	@Test
+	public void testResolveSizeWithNonIntegralRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.resolveSize(MAPPER.readTree("{\"size\":1.5}"), 25, 100));
+		assertTrue(ex.getMessage().contains("body.size must be an integer"));
+	}
+
+	@Test
+	public void testResolveSizeWithNegativeRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.resolveSize(MAPPER.readTree("{\"size\":-1}"), 25, 100));
+		assertTrue(ex.getMessage().contains("body.size must be non-negative"));
+	}
+
+	@Test
+	public void testValidateSearchAfterShapeWithAbsentAccepted() throws Exception {
+		// call under test — must not throw
+		SearchDslValidator.validateSearchAfterShape(MAPPER.readTree("{\"query\":{}}"));
+	}
+
+	@Test
+	public void testValidateSearchAfterShapeWithArrayAccepted() throws Exception {
+		// call under test — must not throw
+		SearchDslValidator.validateSearchAfterShape(MAPPER.readTree("{\"search_after\":[\"x\",100]}"));
+	}
+
+	@Test
+	public void testValidateSearchAfterShapeWithNonArrayRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.validateSearchAfterShape(
+						MAPPER.readTree("{\"search_after\":\"x\"}")));
+		assertTrue(ex.getMessage().contains("body.search_after must be an array"));
+	}
 }

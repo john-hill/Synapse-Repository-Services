@@ -282,178 +282,6 @@ public class SearchDslSanitizerTest {
 	// it throws MissingRequiredPropertyException at construction time. The validator's
 	// defensive null/empty check stays for safety in case the OpenSearch client relaxes it.
 
-	// -----------------------------------------------------------------------------
-	// Top-level body allowlists (scanBodyTopLevelKeys / scanAutocompleteBodyTopLevelKeys)
-	// -----------------------------------------------------------------------------
-
-	@Test
-	public void testScanBodyTopLevelKeysWithAllowedSubsetAccepted() throws Exception {
-		// One body containing every BODY_ALLOWED_KEY except search_after.
-		String json = "{\"query\":{},\"post_filter\":{},\"aggregations\":{},"
-				+ "\"highlight\":{},\"collapse\":{},\"rescore\":{},\"sort\":[],\"_source\":{},"
-				+ "\"from\":0,\"size\":10}";
-		// call under test — must not throw
-		SearchDslSanitizer.scanBodyTopLevelKeys(MAPPER.readTree(json));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithUnsupportedKeyRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslSanitizer.scanBodyTopLevelKeys(MAPPER.readTree(
-						"{\"query\":{},\"explain\":true}")));
-		assertTrue(ex.getMessage().contains("explain"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithNullRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslSanitizer.scanBodyTopLevelKeys(null));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithNonObjectRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslSanitizer.scanBodyTopLevelKeys(MAPPER.readTree("[]")));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithSearchAfterAndPositiveFromRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslSanitizer.scanBodyTopLevelKeys(MAPPER.readTree(
-						"{\"query\":{},\"search_after\":[\"x\"],\"from\":5}")));
-		assertTrue(ex.getMessage().contains("search_after"));
-		assertTrue(ex.getMessage().contains("from"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithSearchAfterAndZeroFromAccepted() throws Exception {
-		// from=0 alongside search_after is fine — the cursor takes precedence.
-		// call under test — must not throw
-		SearchDslSanitizer.scanBodyTopLevelKeys(MAPPER.readTree(
-				"{\"query\":{},\"search_after\":[\"x\"],\"from\":0}"));
-	}
-
-	@Test
-	public void testScanAutocompleteBodyTopLevelKeysWithQueryAndSourceAccepted() throws Exception {
-		// call under test — must not throw
-		SearchDslSanitizer.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
-				"{\"query\":{},\"_source\":{}}"));
-	}
-
-	@Test
-	public void testScanAutocompleteBodyTopLevelKeysWithDisallowedKeyRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslSanitizer.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
-						"{\"query\":{},\"aggregations\":{}}")));
-		assertTrue(ex.getMessage().contains("aggregations"));
-	}
-
-	@Test
-	public void testScanAutocompleteBodyTopLevelKeysWithNullRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslSanitizer.scanAutocompleteBodyTopLevelKeys(null));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	// -----------------------------------------------------------------------------
-	// from / size / search_after resolution (resolveFrom / resolveSize /
-	// validateSearchAfterShape)
-	// -----------------------------------------------------------------------------
-
-	@Test
-	public void testResolveFromWithOmittedDefaultsToZero() throws Exception {
-		// call under test
-		assertEquals(0, SearchDslSanitizer.resolveFrom(MAPPER.readTree("{\"query\":{}}")));
-	}
-
-	@Test
-	public void testResolveFromWithValidValue() throws Exception {
-		// call under test
-		assertEquals(5, SearchDslSanitizer.resolveFrom(MAPPER.readTree("{\"from\":5}")));
-	}
-
-	@Test
-	public void testResolveFromWithNonIntegralRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslSanitizer.resolveFrom(MAPPER.readTree("{\"from\":1.5}")));
-		assertTrue(ex.getMessage().contains("body.from must be an integer"));
-	}
-
-	@Test
-	public void testResolveFromWithNegativeRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslSanitizer.resolveFrom(MAPPER.readTree("{\"from\":-1}")));
-		assertTrue(ex.getMessage().contains("body.from must be between 0 and"));
-	}
-
-	@Test
-	public void testResolveFromWithOverflowRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslSanitizer.resolveFrom(MAPPER.readTree(
-						"{\"from\":" + (Integer.MAX_VALUE + 1L) + "}")));
-		assertTrue(ex.getMessage().contains("body.from must be between 0 and"));
-	}
-
-	@Test
-	public void testResolveSizeWithOmittedDefaultsToDefaultSize() throws Exception {
-		// call under test
-		assertEquals(25, SearchDslSanitizer.resolveSize(MAPPER.readTree("{\"query\":{}}"), 25, 100));
-	}
-
-	@Test
-	public void testResolveSizeWithValidValue() throws Exception {
-		// call under test
-		assertEquals(50, SearchDslSanitizer.resolveSize(MAPPER.readTree("{\"size\":50}"), 25, 100));
-	}
-
-	@Test
-	public void testResolveSizeWithValueAboveMaxClamps() throws Exception {
-		// call under test
-		assertEquals(100, SearchDslSanitizer.resolveSize(MAPPER.readTree("{\"size\":10000}"), 25, 100));
-	}
-
-	@Test
-	public void testResolveSizeWithNonIntegralRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslSanitizer.resolveSize(MAPPER.readTree("{\"size\":1.5}"), 25, 100));
-		assertTrue(ex.getMessage().contains("body.size must be an integer"));
-	}
-
-	@Test
-	public void testResolveSizeWithNegativeRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslSanitizer.resolveSize(MAPPER.readTree("{\"size\":-1}"), 25, 100));
-		assertTrue(ex.getMessage().contains("body.size must be non-negative"));
-	}
-
-	@Test
-	public void testValidateSearchAfterShapeWithAbsentAccepted() throws Exception {
-		// call under test — must not throw
-		SearchDslSanitizer.validateSearchAfterShape(MAPPER.readTree("{\"query\":{}}"));
-	}
-
-	@Test
-	public void testValidateSearchAfterShapeWithArrayAccepted() throws Exception {
-		// call under test — must not throw
-		SearchDslSanitizer.validateSearchAfterShape(MAPPER.readTree("{\"search_after\":[\"x\",100]}"));
-	}
-
-	@Test
-	public void testValidateSearchAfterShapeWithNonArrayRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslSanitizer.validateSearchAfterShape(
-						MAPPER.readTree("{\"search_after\":\"x\"}")));
-		assertTrue(ex.getMessage().contains("body.search_after must be an array"));
-	}
-
 	// ---------- copyQueryContainer ----------
 
 	@Test
@@ -547,6 +375,128 @@ public class SearchDslSanitizerTest {
 				() -> SearchDslSanitizer.copyLeafQuery("match",
 						MAPPER.readTree("{\"field\":\"f\",\"bogus\":1}"), "query.match"));
 		assertTrue(ex.getMessage().contains("bogus"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithObjectValuedScalarOptionRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafQuery("match",
+						MAPPER.readTree("{\"field\":\"f\",\"boost\":{\"x\":1}}"), "query.match"));
+		assertTrue(ex.getMessage().contains("boost"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithShorthandObjectValuedScalarOptionRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafQuery("match",
+						MAPPER.readTree("{\"f\":{\"query\":\"x\",\"boost\":{\"x\":1}}}"), "query.match"));
+		assertTrue(ex.getMessage().contains("boost"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithArrayValuedScalarOptionRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafQuery("match",
+						MAPPER.readTree("{\"field\":\"f\",\"operator\":[\"AND\"]}"), "query.match"));
+		assertTrue(ex.getMessage().contains("operator"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithObjectFieldRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafQuery("match",
+						MAPPER.readTree("{\"field\":{\"x\":1},\"query\":\"y\"}"), "query.match"));
+		assertTrue(ex.getMessage().contains("field"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithMultiMatchFieldsArrayOfScalarsRoundTrips() throws Exception {
+		JsonNode in = MAPPER.readTree("{\"query\":\"x\",\"fields\":[\"a\",\"b\"]}");
+		// call under test
+		assertEquals(in, SearchDslSanitizer.copyLeafQuery("multi_match", in, "query.multi_match"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithFieldsContainingObjectRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafQuery("multi_match",
+						MAPPER.readTree("{\"query\":\"x\",\"fields\":[\"a\",{\"b\":1}]}"),
+						"query.multi_match"));
+		assertTrue(ex.getMessage().contains("fields"));
+	}
+
+	@Test
+	public void testCopyLeafQueryWithIdsValuesLargeArrayAccepted() throws Exception {
+		StringBuilder values = new StringBuilder("[");
+		for (int i = 0; i < 1024; i++) {
+			if (i > 0) {
+				values.append(",");
+			}
+			values.append("\"id").append(i).append("\"");
+		}
+		values.append("]");
+		JsonNode in = MAPPER.readTree("{\"values\":" + values + "}");
+		// call under test
+		assertEquals(in, SearchDslSanitizer.copyLeafQuery("ids", in, "query.ids"));
+	}
+
+	// ---------- copyLeafOptionValue ----------
+
+	@Test
+	public void testCopyLeafOptionValueWithScalarAccepted() throws Exception {
+		JsonNode in = MAPPER.readTree("2");
+		// call under test
+		assertEquals(in,
+				SearchDslSanitizer.copyLeafOptionValue("match", "boost", in, "query.match.boost"));
+	}
+
+	@Test
+	public void testCopyLeafOptionValueWithObjectRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafOptionValue("match", "boost",
+						MAPPER.readTree("{\"x\":1}"), "query.match.boost"));
+		assertTrue(ex.getMessage().contains("scalar"));
+	}
+
+	@Test
+	public void testCopyLeafOptionValueWithArrayForScalarKeyRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafOptionValue("match", "operator",
+						MAPPER.readTree("[\"AND\"]"), "query.match.operator"));
+		assertTrue(ex.getMessage().contains("scalar"));
+	}
+
+	@Test
+	public void testCopyLeafOptionValueWithArrayOfScalarsAccepted() throws Exception {
+		JsonNode in = MAPPER.readTree("[\"a\",\"b\"]");
+		// call under test
+		assertEquals(in,
+				SearchDslSanitizer.copyLeafOptionValue("ids", "values", in, "query.ids.values"));
+	}
+
+	@Test
+	public void testCopyLeafOptionValueWithArrayOfObjectsRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafOptionValue("ids", "values",
+						MAPPER.readTree("[\"a\",{\"b\":1}]"), "query.ids.values"));
+		assertTrue(ex.getMessage().contains("values"));
+	}
+
+	@Test
+	public void testCopyLeafOptionValueWithNonArrayForArrayKeyRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslSanitizer.copyLeafOptionValue("ids", "values",
+						MAPPER.readTree("\"a\""), "query.ids.values"));
+		assertTrue(ex.getMessage().contains("array"));
 	}
 
 	// ---------- copyTerms ----------

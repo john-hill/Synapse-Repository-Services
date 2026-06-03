@@ -264,12 +264,19 @@ public final class SearchOpaqueJsonUtil {
 	private static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
 			SearchRequest.Builder req, Set<SearchQueryPart> options,
 			int defaultSize, int maxSize, boolean autocomplete) {
-		// Rebuild the body as a new node containing only the supported top-level keys; the
-		// per-surface parse paths below re-sanitize each sub-tree the same way, so the typed
-		// deserializer never sees a key we did not deliberately copy through.
+		// Pre-check the raw top-level keys (and the search_after/from conflict), then rebuild the
+		// body as a new node containing only the supported top-level keys; the per-surface parse
+		// paths below re-sanitize each sub-tree the same way, so the typed deserializer never sees
+		// a key we did not deliberately copy through.
+		JsonNode parsed = parse(opaque);
+		if (autocomplete) {
+			SearchDslValidator.scanAutocompleteBodyTopLevelKeys(parsed);
+		} else {
+			SearchDslValidator.scanBodyTopLevelKeys(parsed);
+		}
 		JsonNode body = autocomplete
-				? SearchDslSanitizer.sanitizeAutocompleteBodyTopLevel(parse(opaque))
-				: SearchDslSanitizer.sanitizeBodyTopLevel(parse(opaque));
+				? SearchDslSanitizer.sanitizeAutocompleteBodyTopLevel(parsed)
+				: SearchDslSanitizer.sanitizeBodyTopLevel(parsed);
 
 		Query query = parseRequiredQuery(body, ctx, autocomplete);
 		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
@@ -291,8 +298,8 @@ public final class SearchOpaqueJsonUtil {
 		boolean returnTotalHits = options.contains(SearchQueryPart.TOTAL_HITS);
 		List<FieldValue> searchAfter = parseSearchAfter(body);
 		boolean usingCursor = !searchAfter.isEmpty();
-		int from = usingCursor ? 0 : SearchDslSanitizer.resolveFrom(body);
-		int size = SearchDslSanitizer.resolveSize(body, defaultSize, maxSize);
+		int from = usingCursor ? 0 : SearchDslValidator.resolveFrom(body);
+		int size = SearchDslValidator.resolveSize(body, defaultSize, maxSize);
 
 		req.from(from);
 		req.size(returnHits ? size : 0);
@@ -437,7 +444,7 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	static List<FieldValue> parseSearchAfter(JsonNode body) {
-		SearchDslSanitizer.validateSearchAfterShape(body);
+		SearchDslValidator.validateSearchAfterShape(body);
 		JsonNode node = body.get("search_after");
 		if (node == null || node.isNull()) {
 			return Collections.emptyList();

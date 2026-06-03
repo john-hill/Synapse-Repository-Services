@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,8 @@ import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.HighlighterType;
 import org.opensearch.client.opensearch.core.search.Rescore;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 /**
  * Phase 2 of the two-phase search-DSL gate: the typed resource-cap validator. It runs <i>after</i>
  * {@link SearchDslSanitizer} has rebuilt the request from an allowlist and the clean node has been
@@ -49,6 +52,14 @@ import org.opensearch.client.opensearch.core.search.Rescore;
  * {@code walk*} switch has a throwing {@code default}, so a query / aggregation kind that the
  * OpenSearch client adds but nobody wires into the allowlist is rejected here even if it somehow
  * survived the sanitizer.</p>
+ *
+ * <p>This class also owns the raw-{@link JsonNode} pre-checks on {@code SearchQuery.body} that run
+ * <i>before</i> the sanitizer rebuilds and before typed deserialization: the top-level key
+ * allowlist ({@link #scanBodyTopLevelKeys} / {@link #scanAutocompleteBodyTopLevelKeys}), the
+ * {@code search_after} / {@code from > 0} exclusivity rule, the {@code search_after} shape check
+ * ({@link #validateSearchAfterShape}), and the {@code from} / {@code size} resolution
+ * ({@link #resolveFrom} / {@link #resolveSize}). These operate on the untyped tree, so they live
+ * here with the rest of the request validation rather than in the copy-only sanitizer.</p>
  *
  * <p><b>Resource exhaustion / AOSS denial-of-wallet caps.</b> Depth and total-count caps bound
  * query shape; an inline {@code terms} value array is capped at {@link #MAX_VALUES_PER_CLAUSE};
@@ -154,6 +165,107 @@ final class SearchDslValidator {
 			Query.Kind.Prefix, Query.Kind.MatchPhrasePrefix, Query.Kind.MatchBoolPrefix);
 
 	private SearchDslValidator() {
+	}
+
+	// --------------------------------------------------------------
+	// Raw-body pre-checks (top-level keys, pagination, cursor shape).
+	// These run on the untyped JsonNode before the sanitizer rebuilds.
+	// --------------------------------------------------------------
+
+	/**
+	 * Reject any top-level key on {@code SearchQuery.body} outside
+	 * {@link SearchDslSanitizer#BODY_ALLOWED_KEYS}. Also rejects {@code search_after} alongside
+	 * {@code from > 0} (mutually exclusive).
+	 */
+	static void scanBodyTopLevelKeys(JsonNode body) {
+		if (body == null || !body.isObject()) {
+			throw new IllegalArgumentException("body must be a JSON object");
+		}
+		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
+		while (fields.hasNext()) {
+			String key = fields.next().getKey();
+			if (!SearchDslSanitizer.BODY_ALLOWED_KEYS.contains(key)) {
+				throw new IllegalArgumentException(
+						"unsupported top-level key in body: '" + key + "'");
+			}
+		}
+		JsonNode searchAfter = body.get("search_after");
+		JsonNode from = body.get("from");
+		if (searchAfter != null && !searchAfter.isNull() && from != null
+				&& from.isNumber() && from.asLong() > 0L) {
+			throw new IllegalArgumentException(
+					"body.search_after and body.from > 0 are mutually exclusive");
+		}
+	}
+
+	/**
+	 * Narrow body validator for autocomplete: only {@code query} and {@code _source} are
+	 * allowed at the top level.
+	 */
+	static void scanAutocompleteBodyTopLevelKeys(JsonNode body) {
+		if (body == null || !body.isObject()) {
+			throw new IllegalArgumentException("body must be a JSON object");
+		}
+		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
+		while (fields.hasNext()) {
+			String key = fields.next().getKey();
+			if (!SearchDslSanitizer.AUTOCOMPLETE_BODY_ALLOWED_KEYS.contains(key)) {
+				throw new IllegalArgumentException(
+						"unsupported top-level key in autocomplete body: '" + key + "'");
+			}
+		}
+	}
+
+	/**
+	 * Validate and resolve the effective {@code from} offset on a body. Defaults to {@code 0}
+	 * when absent; rejects non-integral values and anything outside {@code 0..Integer.MAX_VALUE}.
+	 */
+	static int resolveFrom(JsonNode body) {
+		JsonNode node = body.get("from");
+		if (node == null || node.isNull()) {
+			return 0;
+		}
+		if (!node.isIntegralNumber()) {
+			throw new IllegalArgumentException("body.from must be an integer");
+		}
+		long value = node.asLong();
+		if (value < 0L || value > Integer.MAX_VALUE) {
+			throw new IllegalArgumentException(
+					"body.from must be between 0 and " + Integer.MAX_VALUE);
+		}
+		return (int) value;
+	}
+
+	/**
+	 * Validate and resolve the effective {@code size} on a body. Defaults to {@code defaultSize}
+	 * when absent; rejects non-integral and negative values; clamps anything above
+	 * {@code maxSize} down to {@code maxSize}.
+	 */
+	static int resolveSize(JsonNode body, int defaultSize, int maxSize) {
+		JsonNode node = body.get("size");
+		if (node == null || node.isNull()) {
+			return defaultSize;
+		}
+		if (!node.isIntegralNumber()) {
+			throw new IllegalArgumentException("body.size must be an integer");
+		}
+		long value = node.asLong();
+		if (value < 0L) {
+			throw new IllegalArgumentException("body.size must be non-negative");
+		}
+		return (int) Math.min(value, maxSize);
+	}
+
+	/**
+	 * Validate the structural shape of {@code search_after}: when present and non-null it must be
+	 * a JSON array. The {@code search_after} / {@code from > 0} exclusivity rule is enforced
+	 * separately in {@link #scanBodyTopLevelKeys}.
+	 */
+	static void validateSearchAfterShape(JsonNode body) {
+		JsonNode node = body.get("search_after");
+		if (node != null && !node.isNull() && !node.isArray()) {
+			throw new IllegalArgumentException("body.search_after must be an array");
+		}
 	}
 
 	// --------------------------------------------------------------

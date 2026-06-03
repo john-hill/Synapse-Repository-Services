@@ -150,7 +150,8 @@ public class RecordSetMetadataProvider implements EntityValidator<RecordSet>, Ty
 		// The worker dedupes via isIndexWorkRequired, so a successful build
 		// for one message short-circuits the other.
 		Long id = KeyFactory.stringToKey(entity.getId());
-		IdAndVersion versionedKey = IdAndVersion.newBuilder().setId(id).setVersion(entity.getVersionNumber()).build();
+		Long versionNumber = nodeDao.getCurrentRevisionNumber(KeyFactory.keyToString(id));
+		IdAndVersion versionedKey = IdAndVersion.newBuilder().setId(id).setVersion(versionNumber).build();
 		IdAndVersion entityKey = IdAndVersion.newBuilder().setId(id).build();
 		tableManagerSupport.setTableToProcessingAndTriggerUpdate(versionedKey);
 		tableManagerSupport.setTableToProcessingAndTriggerUpdate(entityKey);

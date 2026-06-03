@@ -27,7 +27,7 @@ import au.com.bytecode.opencsv.CSVReader;
  * Infers a {@link ColumnModel} schema from a RecordSet's CSV data file and
  * reconciles it with the RecordSet's bound JSON Schema (if any). This logic is
  * shared by the grid create flow ({@code RecordSetCreateGridHandler}) and the
- * RecordSetMetadataOrovider, which binds the column schema on to the table index
+ * RecordSetMetadataProvider, which binds the column schema on to the table index
  * upon create/update.
  */
 @Service

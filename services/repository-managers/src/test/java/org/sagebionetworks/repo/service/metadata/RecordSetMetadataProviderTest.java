@@ -87,6 +87,7 @@ public class RecordSetMetadataProviderTest {
 	private FileHandle dataFileHandle;
 	private List<ColumnModel> inferredColumns;
 	private List<ColumnModel> persistedColumns;
+	private long newRevisionNumber = 3L;
 	private IdAndVersion versionedKey;
 
 
@@ -95,7 +96,7 @@ public class RecordSetMetadataProviderTest {
 
 		recordSet = new RecordSet();
 		recordSet.setId("syn123");
-		recordSet.setVersionNumber(3L);
+		recordSet.setVersionNumber(2L);
 		recordSet.setDataFileHandleId("456");
 		recordSet.setParentId("syn234567");
 		recordSet.setUpsertKey(List.of("a", "b"));
@@ -113,13 +114,17 @@ public class RecordSetMetadataProviderTest {
 			new ColumnModel().setId("11").setName("a"),
 			new ColumnModel().setId("22").setName("b")
 		);
-		versionedKey = IdAndVersion.newBuilder().setId(123L).setVersion(3L).build();
+
+		// That the revision number may not have been bumped in the RecordSet DTO
+		// we must get the new revision number for the updated object
+		versionedKey = IdAndVersion.newBuilder().setId(123L).setVersion(newRevisionNumber).build();
 	}
 
 	/**
 	 * Stubs the schema-binding path exercised by entityCreated/entityUpdated.
 	 */
 	private void setupSchemaBinding() {
+		when(mockNodeDao.getCurrentRevisionNumber("syn123")).thenReturn(newRevisionNumber);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("456")).thenReturn(dataFileHandle);
 		when(mockSchemaResolver.getReconciledSchema(eq("syn123"), eq(dataFileHandle),
 				any(CsvTableDescriptor.class), eq(false))).thenReturn(new RecordSetSchemaResolver.ReconciledSchema(inferredColumns, Collections.emptyList()));

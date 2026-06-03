@@ -1,6 +1,10 @@
 package org.sagebionetworks.repo.manager.search;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.util.EnumMap;
@@ -19,6 +23,8 @@ import org.sagebionetworks.repo.manager.search.SearchFieldRewriter.Surface;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class SearchFieldRewriterTest {
 
@@ -94,7 +100,7 @@ public class SearchFieldRewriterTest {
 
 	@Test
 	public void testRewriteFieldRefWithNullReturnsNull() {
-		assertEquals(null, SearchFieldRewriter.rewriteFieldRef(null, NAME_ONLY, RoutingMode.BARE));
+		assertNull(SearchFieldRewriter.rewriteFieldRef(null, NAME_ONLY, RoutingMode.BARE));
 	}
 
 	// -----------------------------------------------------------------------------
@@ -248,23 +254,6 @@ public class SearchFieldRewriterTest {
 	}
 
 	@Test
-	public void testRewriteRequestFieldsWithSuggester() throws IOException {
-		JsonNode dsl = parse("{\"text\":\"hi\",\"suggesters\":{"
-				+ "\"s_term\":{\"text\":\"hi\",\"term\":{\"field\":\"title\"}},"
-				+ "\"s_phrase\":{\"text\":\"hi\",\"phrase\":{\"field\":\"name\"}},"
-				+ "\"s_completion\":{\"text\":\"hi\",\"completion\":{\"field\":\"count\"}}"
-				+ "}}");
-
-		// call under test
-		SearchFieldRewriter.rewriteRequestFields(dsl, NAME_ONLY, Surface.QUERY);
-
-		JsonNode suggesters = dsl.get("suggesters");
-		assertEquals("100", suggesters.get("s_term").get("term").get("field").asText());
-		assertEquals("101", suggesters.get("s_phrase").get("phrase").get("field").asText());
-		assertEquals("102", suggesters.get("s_completion").get("completion").get("field").asText());
-	}
-
-	@Test
 	public void testRewriteRequestFieldsWithNullIsNoOp() {
 		// call under test
 		SearchFieldRewriter.rewriteRequestFields(null, NAME_ONLY, Surface.QUERY);
@@ -370,8 +359,8 @@ public class SearchFieldRewriterTest {
 		SearchFieldRewriter.rewriteRequestFields(dsl, NAME_ONLY, Surface.QUERY);
 
 		// Outer "field" / "fields" labels untouched.
-		assertEquals(true, dsl.has("field"));
-		assertEquals(true, dsl.has("fields"));
+		assertTrue(dsl.has("field"));
+		assertTrue(dsl.has("fields"));
 		// Inner column refs rewritten.
 		assertEquals("100", dsl.get("field").get("terms").get("field").asText());
 		assertEquals("102", dsl.get("fields").get("avg").get("field").asText());
@@ -473,7 +462,7 @@ public class SearchFieldRewriterTest {
 		SearchFieldRewriter.rewriteAggregationResults(response, REVERSE);
 
 		// The top-level "100" key is left alone (it's a label); the embedded "field" is rewritten.
-		assertEquals(true, response.has("100"));
+		assertTrue(response.has("100"));
 		assertEquals("title", response.get("100").get("field").asText());
 	}
 
@@ -757,24 +746,6 @@ public class SearchFieldRewriterTest {
 				dsl.get("by_title").get("aggregations").get("avg_count").get("avg").get("field").asText());
 	}
 
-	// rewriteRequestFields — suggester surface (term/phrase use bare)
-
-	@Test
-	public void testRewriteRequestFieldsWithSuggesterOnTextLeavesBare() throws IOException {
-		JsonNode dsl = parse("{\"text\":\"hi\",\"suggesters\":{"
-				+ "\"s_term\":{\"text\":\"hi\",\"term\":{\"field\":\"title\"}},"
-				+ "\"s_phrase\":{\"text\":\"hi\",\"phrase\":{\"field\":\"name\"}}"
-				+ "}}");
-
-		// call under test
-		SearchFieldRewriter.rewriteRequestFields(dsl, ROUTING, Surface.SUGGESTER);
-
-		assertEquals("100",
-				dsl.get("suggesters").get("s_term").get("term").get("field").asText());
-		assertEquals("101",
-				dsl.get("suggesters").get("s_phrase").get("phrase").get("field").asText());
-	}
-
 	// Response side: .keyword stripped on the way out
 
 	@Test
@@ -816,10 +787,10 @@ public class SearchFieldRewriterTest {
 		SearchFieldRewriter.rewriteRequestFields(dsl, ROUTING, Surface.HIGHLIGHT);
 
 		// Both column names rewritten to their ids; option values preserved.
-		assertEquals(true, dsl.get("fields").has("100"));
-		assertEquals(true, dsl.get("fields").has("101"));
-		assertEquals(false, dsl.get("fields").has("title"));
-		assertEquals(false, dsl.get("fields").has("name"));
+		assertTrue(dsl.get("fields").has("100"));
+		assertTrue(dsl.get("fields").has("101"));
+		assertFalse(dsl.get("fields").has("title"));
+		assertFalse(dsl.get("fields").has("name"));
 	}
 
 	@Test
@@ -830,9 +801,9 @@ public class SearchFieldRewriterTest {
 		// call under test
 		SearchFieldRewriter.rewriteRequestFields(dsl, ROUTING, Surface.HIGHLIGHT);
 
-		assertEquals(true, dsl.get("fields").has("100"));
+		assertTrue(dsl.get("fields").has("100"));
 		// Must NOT be 100.keyword.
-		assertEquals(false, dsl.get("fields").has("100.keyword"));
+		assertFalse(dsl.get("fields").has("100.keyword"));
 	}
 
 	@Test
@@ -859,7 +830,7 @@ public class SearchFieldRewriterTest {
 		// call under test
 		SearchFieldRewriter.rewriteRequestFields(dsl, ROUTING, Surface.HIGHLIGHT);
 
-		assertEquals(true, dsl.get("fields").has("ghost"));
+		assertTrue(dsl.get("fields").has("ghost"));
 	}
 
 	@Test
@@ -892,7 +863,6 @@ public class SearchFieldRewriterTest {
 		EnumMap<Surface, String> bodies = new EnumMap<>(Surface.class);
 		bodies.put(Surface.QUERY,        "{\"match\":{\"title\":\"x\"}}");
 		bodies.put(Surface.AGGREGATIONS, "{\"a\":{\"terms\":{\"field\":\"title\"}}}");
-		bodies.put(Surface.SUGGESTER,    "{\"s\":{\"text\":\"x\",\"term\":{\"field\":\"title\"}}}");
 		bodies.put(Surface.HIGHLIGHT,    "{\"fields\":{\"title\":{}}}");
 		bodies.put(Surface.COLLAPSE,     "{\"field\":\"title\"}");
 
@@ -901,10 +871,10 @@ public class SearchFieldRewriterTest {
 			JsonNode dsl = parse(entry.getValue());
 			// call under test
 			SearchFieldRewriter.rewriteRequestFields(dsl, NAME_ONLY, entry.getKey());
-			// All five surfaces must have rewritten "title" → "100" somewhere in the tree;
+			// Every surface must have rewritten "title" → "100" somewhere in the tree;
 			// findValuesAsText collects every "field" value plus the highlight `fields` key.
 			String allText = dsl.toString();
-			assertEquals(false, allText.contains("\"title\""),
+			assertFalse(allText.contains("\"title\""),
 					"surface=" + entry.getKey() + " left a column name in: " + allText);
 			covered.add(entry.getKey());
 		}
@@ -968,9 +938,9 @@ public class SearchFieldRewriterTest {
 		assertEquals("100", dsl.get(0).asText());
 		assertEquals("_score", dsl.get(1).asText(),
 				"_score must pass through unchanged");
-		assertEquals(true, dsl.get(2).has("101"),
+		assertTrue(dsl.get(2).has("101"),
 				"object-shorthand key must be rewritten name → id");
-		assertEquals(false, dsl.get(2).has("name"));
+		assertFalse(dsl.get(2).has("name"));
 	}
 
 	@Test
@@ -978,7 +948,7 @@ public class SearchFieldRewriterTest {
 		// {"_score": "asc"} — the object-key path should leave "_score" alone.
 		JsonNode dsl = parse("[{\"_score\":\"asc\"}]");
 		SearchFieldRewriter.rewriteSortFields(dsl, NAME_ONLY);
-		assertEquals(true, dsl.get(0).has("_score"));
+		assertTrue(dsl.get(0).has("_score"));
 	}
 
 	// -----------------------------------------------------------------------------
@@ -996,7 +966,7 @@ public class SearchFieldRewriterTest {
 		SearchFieldRewriter.rewriteRequestFields(dsl, NAME_ONLY, Surface.QUERY);
 
 		// "field" key remains; its value is rewritten to the id.
-		assertEquals(true, dsl.get("term").has("field"));
+		assertTrue(dsl.get("term").has("field"));
 		assertEquals("100", dsl.get("term").get("field").asText());
 		assertEquals("x", dsl.get("term").get("value").asText());
 	}
@@ -1035,5 +1005,231 @@ public class SearchFieldRewriterTest {
 		SearchFieldRewriter.rewriteAggregationResults(dsl, REVERSE);
 
 		assertEquals("999.keyword", dsl.at("/a/meta/field").asText());
+	}
+
+	// -----------------------------------------------------------------------------
+	// Null-node guards on the three in-place walkers
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testRewriteSortFieldsWithNullIsNoOp() {
+		// call under test — null body must be a no-op, not an NPE.
+		assertDoesNotThrow(() -> SearchFieldRewriter.rewriteSortFields(null, NAME_ONLY));
+	}
+
+	@Test
+	public void testRewriteSourceFieldsWithNullIsNoOp() {
+		// call under test
+		assertDoesNotThrow(() -> SearchFieldRewriter.rewriteSourceFields(null, NAME_ONLY));
+	}
+
+	@Test
+	public void testRewriteAggregationResultsWithNullIsNoOp() {
+		// call under test
+		assertDoesNotThrow(() -> SearchFieldRewriter.rewriteAggregationResults(null, REVERSE));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Sort: top-level object (not wrapped in an array)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testRewriteSortFieldsWithTopLevelObjectRewritesKey() throws IOException {
+		// {"name":"asc"} as the whole sort value (not inside an array) — the top-level
+		// object branch must rewrite the key name → id.
+		JsonNode dsl = parse("{\"name\":\"asc\"}");
+
+		// call under test
+		SearchFieldRewriter.rewriteSortFields(dsl, NAME_ONLY);
+
+		assertTrue(dsl.has("101"));
+		assertFalse(dsl.has("name"));
+		assertEquals("asc", dsl.get("101").asText());
+	}
+
+	// -----------------------------------------------------------------------------
+	// _source: object form with includes / excludes arrays
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testRewriteSourceFieldsWithIncludesExcludesObjectFormRewrites() throws IOException {
+		// {"includes":["title","ghost"],"excludes":["name"]} — each array element is
+		// rewritten name → id; the unknown "ghost" passes through unchanged.
+		JsonNode dsl = parse("{\"includes\":[\"title\",\"ghost\"],\"excludes\":[\"name\"]}");
+
+		// call under test
+		SearchFieldRewriter.rewriteSourceFields(dsl, NAME_ONLY);
+
+		assertEquals("100", dsl.get("includes").get(0).asText());
+		assertEquals("ghost", dsl.get("includes").get(1).asText());
+		assertEquals("101", dsl.get("excludes").get(0).asText());
+	}
+
+	// ---------- kindMapFor ----------
+
+	@Test
+	public void testKindMapForWithQueryRoutesTermThroughKeyword() {
+		// call under test
+		assertEquals(RoutingMode.KEYWORD_FOR_TEXT,
+				SearchFieldRewriter.kindMapFor(Surface.QUERY).get("term"));
+		assertEquals(RoutingMode.BARE, SearchFieldRewriter.kindMapFor(Surface.QUERY).get("match"));
+	}
+
+	@Test
+	public void testKindMapForWithAggregationsRoutesTermsThroughKeyword() {
+		// call under test
+		assertEquals(RoutingMode.KEYWORD_FOR_TEXT,
+				SearchFieldRewriter.kindMapFor(Surface.AGGREGATIONS).get("terms"));
+	}
+
+	@Test
+	public void testKindMapForWithHighlightIsEmpty() {
+		// call under test
+		assertTrue(SearchFieldRewriter.kindMapFor(Surface.HIGHLIGHT).isEmpty());
+	}
+
+	@Test
+	public void testKindMapForWithCollapseIsEmpty() {
+		// call under test
+		assertTrue(SearchFieldRewriter.kindMapFor(Surface.COLLAPSE).isEmpty());
+	}
+
+	// kindMapFor's default IllegalStateException is unreachable: Surface is exhausted by the
+	// switch, and `switch(null)` NPEs before reaching the default. Left documented, not faked.
+
+	// ---------- rewriteShorthandKey ----------
+
+	@Test
+	public void testRewriteShorthandKeyWithSingleKeyRewritten() throws IOException {
+		ObjectNode obj = (ObjectNode) parse("{\"title\":\"x\"}");
+		// call under test
+		SearchFieldRewriter.rewriteShorthandKey(obj, NAME_ONLY, RoutingMode.BARE);
+		assertEquals("x", obj.get("100").asText());
+		assertFalse(obj.has("title"));
+	}
+
+	@Test
+	public void testRewriteShorthandKeyWithMultipleKeysSkipped() throws IOException {
+		// size != 1 → long-form, the helper leaves it for the leaf rule.
+		ObjectNode obj = (ObjectNode) parse("{\"field\":\"title\",\"query\":\"x\"}");
+		// call under test
+		SearchFieldRewriter.rewriteShorthandKey(obj, NAME_ONLY, RoutingMode.BARE);
+		assertEquals("title", obj.get("field").asText());
+	}
+
+	@Test
+	public void testRewriteShorthandKeyWithFieldKeySkipped() throws IOException {
+		// A single key that is the literal "field" marks long-form — skipped.
+		ObjectNode obj = (ObjectNode) parse("{\"field\":\"title\"}");
+		// call under test
+		SearchFieldRewriter.rewriteShorthandKey(obj, NAME_ONLY, RoutingMode.BARE);
+		assertEquals("title", obj.get("field").asText());
+	}
+
+	@Test
+	public void testRewriteShorthandKeyWithUnchangedKeyLeftAlone() throws IOException {
+		// Unknown name maps to itself → no swap.
+		ObjectNode obj = (ObjectNode) parse("{\"ghost\":\"x\"}");
+		// call under test
+		SearchFieldRewriter.rewriteShorthandKey(obj, NAME_ONLY, RoutingMode.BARE);
+		assertEquals("x", obj.get("ghost").asText());
+	}
+
+	// ---------- rewriteHighlightFieldsMap ----------
+
+	@Test
+	public void testRewriteHighlightFieldsMapWithKnownNameRewritten() throws IOException {
+		ObjectNode obj = (ObjectNode) parse("{\"title\":{},\"name\":{}}");
+		// call under test
+		SearchFieldRewriter.rewriteHighlightFieldsMap(obj, NAME_ONLY);
+		assertTrue(obj.has("100"));
+		assertTrue(obj.has("101"));
+		assertFalse(obj.has("title"));
+	}
+
+	@Test
+	public void testRewriteHighlightFieldsMapWithUnknownNameUnchanged() throws IOException {
+		ObjectNode obj = (ObjectNode) parse("{\"ghost\":{}}");
+		// call under test
+		SearchFieldRewriter.rewriteHighlightFieldsMap(obj, NAME_ONLY);
+		assertTrue(obj.has("ghost"));
+	}
+
+	// ---------- rewriteSortObjectKeys ----------
+
+	@Test
+	public void testRewriteSortObjectKeysWithScoreSkipped() throws IOException {
+		ObjectNode obj = (ObjectNode) parse("{\"_score\":\"desc\"}");
+		// call under test
+		SearchFieldRewriter.rewriteSortObjectKeys(obj, NAME_ONLY);
+		assertTrue(obj.has("_score"));
+	}
+
+	@Test
+	public void testRewriteSortObjectKeysWithKnownNameRewritten() throws IOException {
+		ObjectNode obj = (ObjectNode) parse("{\"title\":{\"order\":\"asc\"}}");
+		// call under test
+		SearchFieldRewriter.rewriteSortObjectKeys(obj, NAME_ONLY);
+		assertTrue(obj.has("100"));
+		assertFalse(obj.has("title"));
+	}
+
+	@Test
+	public void testRewriteSortObjectKeysWithUnknownNameUnchanged() throws IOException {
+		ObjectNode obj = (ObjectNode) parse("{\"ghost\":\"asc\"}");
+		// call under test
+		SearchFieldRewriter.rewriteSortObjectKeys(obj, NAME_ONLY);
+		assertEquals("asc", obj.get("ghost").asText());
+	}
+
+	// ---------- rewriteSourceArrayInPlace ----------
+
+	@Test
+	public void testRewriteSourceArrayInPlaceWithTextualRewritten() throws IOException {
+		ArrayNode array = (ArrayNode) parse("[\"title\",\"name\"]");
+		// call under test
+		SearchFieldRewriter.rewriteSourceArrayInPlace(array, NAME_ONLY);
+		assertEquals("100", array.get(0).asText());
+		assertEquals("101", array.get(1).asText());
+	}
+
+	@Test
+	public void testRewriteSourceArrayInPlaceWithNonTextualLeftAlone() throws IOException {
+		// A non-textual element (number) is skipped, not rewritten.
+		ArrayNode array = (ArrayNode) parse("[\"title\",5]");
+		// call under test
+		SearchFieldRewriter.rewriteSourceArrayInPlace(array, NAME_ONLY);
+		assertEquals("100", array.get(0).asText());
+		assertEquals(5, array.get(1).asInt());
+	}
+
+	// ---------- rewriteIdRefStrippingKeyword ----------
+
+	@Test
+	public void testRewriteIdRefStrippingKeywordWithNullReturnsNull() {
+		// call under test
+		assertNull(SearchFieldRewriter.rewriteIdRefStrippingKeyword(null, REVERSE));
+	}
+
+	@Test
+	public void testRewriteIdRefStrippingKeywordWithKeywordAndBoostStripsKeyword() {
+		// {id}.keyword^boost → {name}^boost
+		// call under test
+		assertEquals("title^2",
+				SearchFieldRewriter.rewriteIdRefStrippingKeyword("100.keyword^2", REVERSE));
+	}
+
+	@Test
+	public void testRewriteIdRefStrippingKeywordWithKeywordStripsToName() {
+		// call under test
+		assertEquals("count",
+				SearchFieldRewriter.rewriteIdRefStrippingKeyword("102.keyword", REVERSE));
+	}
+
+	@Test
+	public void testRewriteIdRefStrippingKeywordWithUnmappedIdPassesThrough() {
+		// call under test
+		assertEquals("999.keyword",
+				SearchFieldRewriter.rewriteIdRefStrippingKeyword("999.keyword", REVERSE));
 	}
 }

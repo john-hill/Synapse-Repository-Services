@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -70,9 +71,6 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.core.search.HitsMetadata;
-import org.opensearch.client.opensearch.core.search.Suggest;
-import org.opensearch.client.opensearch.core.search.TermSuggest;
-import org.opensearch.client.opensearch.core.search.TermSuggestOption;
 import org.opensearch.client.opensearch.core.search.TotalHits;
 import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 import org.opensearch.client.opensearch.core.search.TrackHits;
@@ -597,6 +595,20 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testConvertFieldValueWithUnserializableCollectionThrows() {
+		// A self-referential collection can't be serialized to JSON; the JsonProcessingException
+		// must surface as an IllegalStateException carrying the field-value marker.
+		List<Object> selfRef = new ArrayList<>();
+		selfRef.add(selfRef);
+
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> OpenSearchManagerImpl.convertFieldValue(selfRef));
+
+		assertTrue(ex.getMessage().contains("Failed to serialize search field value"),
+				"surfaced error must carry the field-value marker: " + ex.getMessage());
+	}
+
+	@Test
 	public void testDescribeErrorWithSingleCause() {
 		ErrorCause cause = ErrorCause.of(b -> b
 				.type("mapper_parsing_exception")
@@ -860,6 +872,133 @@ public class OpenSearchManagerImplTest {
 				Collections.emptyList(), Collections.emptyMap());
 
 		assertEquals(Optional.empty(), result);
+	}
+
+	@Test
+	public void testCreateIndexWithNotAcknowledgedThrows() throws IOException {
+		String indexName = "search-index-syn1";
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(
+						r -> r.acknowledged(false).shardsAcknowledged(false).index(indexName)));
+
+		// call under test
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> manager.createIndex(indexName, Collections.emptyList(), null,
+						Collections.emptyList(), Collections.emptyMap()));
+
+		assertEquals("Search index " + indexName + " creation was not acknowledged.",
+				ex.getMessage());
+	}
+
+	@Test
+	public void testCreateIndexWithIOExceptionThrowsRuntime() throws IOException {
+		String indexName = "search-index-syn1";
+		IOException ioException = new IOException("connection reset");
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenThrow(ioException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.createIndex(indexName, Collections.emptyList(), null,
+						Collections.emptyList(), Collections.emptyMap()));
+
+		assertEquals(ioException, ex.getCause());
+		assertEquals("Failed to create search index: " + indexName, ex.getMessage());
+	}
+
+	@Test
+	public void testCreateIndexWithDuplicateColumnNamesUsesFirst() throws IOException {
+		// Two columns share a name: the nameToId toMap merge function keeps the first id and
+		// must not throw on the duplicate key.
+		String indexName = "search-index-syn1";
+		String qname = "org.sagebionetworks-SCIENTIFIC";
+		String settingsJson = "{\"analyzer\":{"
+				+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
+		Map<String, IndexSettingsAnalysis> resolvedAnalyzers =
+				Collections.singletonMap(qname, toAnalysis(settingsJson));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(
+						r -> r.acknowledged(true).shardsAcknowledged(true).index(indexName)));
+		List<ColumnModel> columns = Arrays.asList(
+				new ColumnModel().setId("100").setName("dup").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("101").setName("dup").setColumnType(ColumnType.STRING));
+
+		// call under test — must not throw on the duplicate name key
+		Optional<String> result = manager.createIndex(indexName, columns, qname,
+				Collections.emptyList(), resolvedAnalyzers);
+
+		assertTrue(result.isPresent());
+		verify(indicesClient).create(argThat((CreateIndexRequest req) -> indexName.equals(req.index())));
+	}
+
+	@Test
+	public void testDeleteIndexWithIndexNotFoundIsNoOp() throws IOException {
+		String indexName = "search-index-syn1";
+		OpenSearchException notFound = new OpenSearchException(ErrorResponse.of(er -> er
+				.error(ErrorCause.of(c -> c.type("index_not_found_exception").reason("missing")))
+				.status(404)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.delete(argThat((org.opensearch.client.opensearch.indices.DeleteIndexRequest req) ->
+				req.index().contains(indexName)))).thenThrow(notFound);
+
+		// call under test — index_not_found is swallowed
+		assertDoesNotThrow(() -> manager.deleteIndex(indexName));
+		verify(indicesClient).delete(argThat((org.opensearch.client.opensearch.indices.DeleteIndexRequest req) ->
+				req.index().contains(indexName)));
+	}
+
+	@Test
+	public void testDeleteIndexWithConcurrentDeleteRethrows() throws IOException {
+		String indexName = "search-index-syn1";
+		OpenSearchException concurrent = new OpenSearchException(ErrorResponse.of(er -> er
+				.error(ErrorCause.of(c -> c.type("any").reason("concurrent deletes detected")))
+				.status(400)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.delete(argThat((org.opensearch.client.opensearch.indices.DeleteIndexRequest req) ->
+				req.index().contains(indexName)))).thenThrow(concurrent);
+
+		// call under test — concurrent-delete is rethrown unwrapped for recoverable retry
+		OpenSearchException ex = assertThrows(OpenSearchException.class,
+				() -> manager.deleteIndex(indexName));
+		assertEquals(concurrent, ex);
+	}
+
+	@Test
+	public void testDeleteIndexWithOpenSearchExceptionThrowsRuntime() throws IOException {
+		String indexName = "search-index-syn1";
+		ErrorCause cause = ErrorCause.of(c -> c.type("internal_server_error").reason("boom"));
+		OpenSearchException openSearchException = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(cause).status(500)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.delete(argThat((org.opensearch.client.opensearch.indices.DeleteIndexRequest req) ->
+				req.index().contains(indexName)))).thenThrow(openSearchException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.deleteIndex(indexName));
+
+		assertEquals(openSearchException, ex.getCause());
+		assertEquals("Failed to delete search index: " + indexName
+				+ " (" + OpenSearchManagerImpl.describeError(cause) + ")", ex.getMessage());
+	}
+
+	@Test
+	public void testDeleteIndexWithIOExceptionThrowsRuntime() throws IOException {
+		String indexName = "search-index-syn1";
+		IOException ioException = new IOException("connection reset");
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.delete(argThat((org.opensearch.client.opensearch.indices.DeleteIndexRequest req) ->
+				req.index().contains(indexName)))).thenThrow(ioException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.deleteIndex(indexName));
+
+		assertEquals(ioException, ex.getCause());
+		assertEquals("Failed to delete search index: " + indexName, ex.getMessage());
 	}
 
 	private static BulkResponseItem okItem(String id) {
@@ -1292,6 +1431,75 @@ public class OpenSearchManagerImplTest {
 		assertNotNull(trackHits, "trackTotalHits must be explicitly disabled");
 		assertTrue(trackHits.isEnabled(), "must use enabled() variant");
 		assertEquals(Boolean.FALSE, trackHits.enabled());
+	}
+
+	@Test
+	public void testSearchWithIndexNotFoundThrowsIllegalState() throws IOException {
+		// index_not_found means the index is still building — surface a clear retry message.
+		OpenSearchException notFound = new OpenSearchException(ErrorResponse.of(er -> er
+				.error(ErrorCause.of(c -> c.type("index_not_found_exception").reason("missing")))
+				.status(404)));
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenThrow(notFound);
+
+		// call under test
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> manager.search("my-index", matchAllBody(), Collections.emptyList(),
+						EnumSet.of(SearchQueryPart.HITS)));
+
+		assertEquals(notFound, ex.getCause());
+		assertTrue(ex.getMessage().contains("still building"));
+	}
+
+	@Test
+	public void testSearchWithOpenSearchExceptionThrowsRuntime() throws IOException {
+		ErrorCause cause = ErrorCause.of(c -> c.type("search_phase_execution_exception").reason("boom"));
+		OpenSearchException openSearchException = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(cause).status(500)));
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenThrow(openSearchException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.search("my-index", matchAllBody(), Collections.emptyList(),
+						EnumSet.of(SearchQueryPart.HITS)));
+
+		assertEquals(openSearchException, ex.getCause());
+		assertEquals("Failed to execute search on search index: my-index"
+				+ " (" + OpenSearchManagerImpl.describeError(cause) + ")", ex.getMessage());
+	}
+
+	@Test
+	public void testSearchWithIOExceptionThrowsRuntime() throws IOException {
+		IOException ioException = new IOException("connection reset");
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenThrow(ioException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.search("my-index", matchAllBody(), Collections.emptyList(),
+						EnumSet.of(SearchQueryPart.HITS)));
+
+		assertEquals(ioException, ex.getCause());
+		assertEquals("Failed to execute search on search index: my-index", ex.getMessage());
+	}
+
+	@Test
+	public void testSearchWithDuplicateColumnIdsAndNamesUsesFirst() throws IOException {
+		// executeSearch builds idToName, nameToId, and columnMap via toMap; duplicate ids
+		// (idToName / columnMap) and duplicate names (nameToId) must hit the merge functions
+		// without throwing.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		List<ColumnModel> columns = Arrays.asList(
+				new ColumnModel().setId("100").setName("dup").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("100").setName("other").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("101").setName("dup").setColumnType(ColumnType.STRING));
+
+		// call under test — duplicate id and name keys must not throw
+		assertDoesNotThrow(() -> manager.search("my-index", matchAllBody(), columns,
+				EnumSet.of(SearchQueryPart.HITS)));
+		verify(openSearchClient).search(argThat((SearchRequest req) -> req != null), eq(Map.class));
 	}
 
 	@Test
@@ -2261,20 +2469,14 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	public void testSearchWithAggregationsAndSuggestPopulatesOpaqueResults() throws IOException {
-		// aggregations / suggest are not gated by SearchQueryPart — they are populated on the
-		// response whenever the AOSS response carried them. The fixture below carries one of
-		// each so both branches in convertResponse fire and the column-id → name rewrite is
-		// observable on each opaque payload.
+	public void testSearchWithAggregationsPopulatesOpaqueResults() throws IOException {
+		// aggregations are not gated by SearchQueryPart — they are populated on the response
+		// whenever the AOSS response carried them, so the convertResponse branch fires and the
+		// column-id → name rewrite is observable on the opaque payload.
 		Aggregate termsAgg = Aggregate.of(a -> a.sterms(StringTermsAggregate.of(t -> t
 				.buckets(b -> b.array(Arrays.asList(
 						StringTermsBucket.of(bk -> bk.key("biology").docCount(3L)),
 						StringTermsBucket.of(bk -> bk.key("chemistry").docCount(1L))))))));
-
-		Suggest<Map> suggest = (Suggest<Map>) (Suggest) Suggest.of(s -> s.term(
-				TermSuggest.of(ts -> ts.length(1).offset(0).text("biolgy")
-						.options(Arrays.asList(TermSuggestOption.of(opt -> opt
-								.text("biology").score(0.9).freq(3L)))))));
 
 		Map<String, Object> source = new LinkedHashMap<>();
 		source.put("_row_id", 7L);
@@ -2288,16 +2490,15 @@ public class OpenSearchManagerImplTest {
 				.took(0L).timedOut(false)
 				.shards(s -> s.total(1).successful(1).failed(0))
 				.hits(hits)
-				.aggregations(Map.of("by_status", termsAgg))
-				.suggest(Map.of("did_you_mean", Arrays.asList(suggest))));
+				.aggregations(Map.of("by_status", termsAgg)));
 
 		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
 				.thenReturn(response);
 
 		// Provide a column so id → name rewrite has something to rewrite. The fixture above
 		// does not embed a "field" reference (the AOSS typed builders don't surface one for
-		// these aggregate / suggest shapes), so the rewrite is a no-op on the payload — what
-		// we are verifying here is that convertResponse populates BOTH opaque slots.
+		// this aggregate shape), so the rewrite is a no-op on the payload — what we are
+		// verifying here is that convertResponse populates the opaque aggregations slot.
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
 
@@ -2313,19 +2514,12 @@ public class OpenSearchManagerImplTest {
 				+ "adapter can serialize on the async response (a Map throws putObject)");
 		assertTrue(((JSONObject) results.getAggregationResults()).has("by_status"),
 				"aggregation key preserved verbatim");
-
-		assertNotNull(results.getSuggestResults(),
-				"suggest populated whenever the response carried it");
-		assertTrue(results.getSuggestResults() instanceof JSONObject,
-				"suggestResults surfaced as a JSONObject — same adapter-serializable contract");
-		assertTrue(((JSONObject) results.getSuggestResults()).has("did_you_mean"),
-				"suggester key preserved verbatim");
 	}
 
 	@Test
-	public void testSearchWithoutAggregationsOrSuggestLeavesOpaqueSlotsNull() throws IOException {
-		// Counterpart to the above: when the AOSS response carries neither block, the
-		// corresponding gates in convertResponse stay false and both opaque slots remain null.
+	public void testSearchWithoutAggregationsLeavesOpaqueSlotNull() throws IOException {
+		// Counterpart to the above: when the AOSS response carries no aggregations block, the
+		// corresponding gate in convertResponse stays false and the opaque slot remains null.
 		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
 				.thenReturn(oneHitSearchResponse());
 
@@ -2336,7 +2530,5 @@ public class OpenSearchManagerImplTest {
 
 		assertNull(results.getAggregationResults(),
 				"no aggregations on response → aggregationResults stays null");
-		assertNull(results.getSuggestResults(),
-				"no suggest on response → suggestResults stays null");
 	}
 }

@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.EnumSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,67 +29,32 @@ import org.opensearch.client.opensearch._types.query_dsl.SimpleQueryStringQuery;
 import org.opensearch.client.opensearch._types.query_dsl.TermsQuery;
 import org.opensearch.client.opensearch._types.query_dsl.TermsQueryField;
 import org.opensearch.client.opensearch._types.query_dsl.WildcardQuery;
-import org.opensearch.client.opensearch.core.search.CompletionSuggester;
 import org.opensearch.client.opensearch.core.search.FieldCollapse;
-import org.opensearch.client.opensearch.core.search.FieldSuggester;
 import org.opensearch.client.opensearch.core.search.Highlight;
 import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.HighlighterType;
-import org.opensearch.client.opensearch.core.search.PhraseSuggester;
 import org.opensearch.client.opensearch.core.search.Rescore;
-import org.opensearch.client.opensearch.core.search.Suggester;
-import org.opensearch.client.opensearch.core.search.TermSuggester;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Allowlist validator for the three caller-supplied OpenSearch DSL surfaces Synapse exposes:
- * the query subtree, the aggregations map, and the suggesters map. Each surface validates a
- * typed OpenSearch client object ({@link Query}, {@link Aggregation}, {@link Suggester}) that
- * the caller's JSON has already been deserialized into; the typed deserializer's tagged-union
- * machinery already enforced "single clause type per object" / "no malformed shape", so this
- * class is left with three concerns:
+ * Phase 2 of the two-phase search-DSL gate: the typed resource-cap validator. It runs <i>after</i>
+ * {@link SearchDslSanitizer} has rebuilt the request from an allowlist and the clean node has been
+ * deserialized into the typed OpenSearch objects ({@link Query}, {@link Aggregation},
+ * {@link Highlight}, {@link FieldCollapse}, {@link Rescore}). Each {@code validate*} method walks
+ * its typed object and enforces the numeric caps that need typed accessors and prevent a request
+ * from expanding into an unbounded shape inside AOSS: query depth and clause count, aggregation
+ * depth and count, value-array length, prefix-expansion, histogram bucket bound, cardinality
+ * precision, and the leading-wildcard rejection.
  *
- * <ul>
- *   <li><b>Kind allowlist.</b> Reject any {@code _kind()} that isn't in the allowlist
- *       constants below. Compound clauses recurse into their nested-query slots.</li>
- *   <li><b>Resource caps.</b> Depth, clause count, value-array length, prefix-expansion,
- *       histogram bucket bound, cardinality precision, suggester size — every cap that
- *       prevents a request from expanding into an unbounded shape inside AOSS.</li>
- *   <li><b>Pre-deserialization forbidden-key scan.</b> Properties like {@code script},
- *       {@code script_fields}, {@code indexed_shape}, {@code runtime_mappings}, and
- *       {@code _search_template} are legitimate fields on multiple typed variants the
- *       allowlist permits (e.g. {@code TermsAggregation.script},
- *       {@code DateHistogramAggregation.script}). The typed deserializer would happily bind
- *       them and round-trip to AOSS, so we scan the raw {@link JsonNode} <i>before</i>
- *       deserialization and reject any occurrence anywhere in the body. See
- *       {@link #scanQueryForbiddenKeys(JsonNode)} and friends.</li>
- * </ul>
+ * <p>This is the defense-in-depth layer behind the sanitizer's structural allowlist. Each
+ * {@code walk*} switch has a throwing {@code default}, so a query / aggregation kind that the
+ * OpenSearch client adds but nobody wires into the allowlist is rejected here even if it somehow
+ * survived the sanitizer.</p>
  *
- * <p><b>Why an allowlist, not a denylist.</b> A denylist must chase every new dangerous or
- * cross-index construct OpenSearch ships. An allowlist is safe-by-default: only the
- * enumerated kinds are permitted, so a newly-introduced kind is rejected until it is
- * deliberately added here after review.</p>
- *
- * <p><b>What this protects against.</b></p>
- * <ul>
- *   <li><b>Script injection</b> &mdash; {@code Script} / {@code ScriptScore} (Painless
- *       execution) are not in the allowlist; a script-bearing property on an otherwise
- *       allowed variant is rejected by the forbidden-key scan.</li>
- *   <li><b>Cross-collection reach</b> &mdash; clause kinds that can reference another index
- *       ({@code MoreLikeThis}, {@code GeoShape}, {@code HasChild}, {@code HasParent},
- *       {@code Percolate}) are not allowlisted; the {@code terms} lookup form is
- *       additionally rejected explicitly since {@code Terms} itself is allowed in its
- *       inline form.</li>
- *   <li><b>Validation bypass</b> &mdash; {@code Wrapper} (a base64-encoded query that would
- *       evade this walk entirely) is not allowlisted.</li>
- *   <li><b>Resource exhaustion / AOSS denial-of-wallet</b> &mdash; depth and total-count caps
- *       bound query shape; an inline {@code terms} value array is capped at
- *       {@link #MAX_VALUES_PER_CLAUSE}; bucket aggregation {@code size} / {@code shard_size}
- *       are capped at {@link #MAX_AGG_SIZE}; {@code prefix} / {@code wildcard} values that
- *       begin with {@code *} or {@code ?} are rejected because a leading wildcard forces a
- *       full inverted-index scan.</li>
- * </ul>
+ * <p><b>Resource exhaustion / AOSS denial-of-wallet caps.</b> Depth and total-count caps bound
+ * query shape; an inline {@code terms} value array is capped at {@link #MAX_VALUES_PER_CLAUSE};
+ * bucket aggregation {@code size} / {@code shard_size} are capped at {@link #MAX_AGG_SIZE};
+ * {@code prefix} / {@code wildcard} values that begin with {@code *} or {@code ?} are rejected
+ * because a leading wildcard forces a full inverted-index scan.</p>
  *
  * <p>Throws {@link IllegalArgumentException} (HTTP 400) on any violation.</p>
  */
@@ -137,14 +101,6 @@ final class SearchDslValidator {
 	/** Maximum value for {@code window_size} on a {@code rescore} stage. */
 	static final int MAX_RESCORE_WINDOW_SIZE = 1000;
 
-	static final int SUGGEST_MAX_COUNT = 50;
-	/**
-	 * Maximum nesting depth inside a suggester definition. Today no suggester body recurses,
-	 * so this is mostly a guarantee against future code paths that add nesting.
-	 */
-	static final int SUGGEST_MAX_DEPTH = 3;
-	/** Maximum {@code size} on a suggester definition. */
-	static final int MAX_SUGGESTER_SIZE = 100;
 	/**
 	 * Maximum value for {@code max_expansions} on the prefix-expansion clauses
 	 * ({@code match_phrase_prefix}, {@code match_bool_prefix}, {@code fuzzy}, and
@@ -152,12 +108,6 @@ final class SearchDslValidator {
 	 * value rewrites into many term queries.
 	 */
 	static final int MAX_PREFIX_EXPANSIONS = 50;
-	/**
-	 * Maximum recursion depth for the forbidden-key scan. Independent of the per-surface
-	 * depth caps, which only bound clause/agg structure — leaf bodies can still be arbitrarily
-	 * nested JSON, and an unbounded recursive scan would blow the stack on a pathological input.
-	 */
-	static final int FORBIDDEN_SCAN_MAX_DEPTH = 100;
 
 	// --------------------------------------------------------------
 	// Kind allowlists.
@@ -196,10 +146,6 @@ final class SearchDslValidator {
 			Aggregation.Kind.Sum, Aggregation.Kind.Stats, Aggregation.Kind.ExtendedStats,
 			Aggregation.Kind.ValueCount, Aggregation.Kind.Cardinality);
 
-	/** Suggester kinds a caller may use. */
-	static final Set<FieldSuggester.Kind> ALLOWED_SUGGESTER_KINDS = EnumSet.of(
-			FieldSuggester.Kind.Term, FieldSuggester.Kind.Phrase, FieldSuggester.Kind.Completion);
-
 	/**
 	 * Top-level autocomplete kinds. Narrower than {@link #ALLOWED_QUERY_KINDS} so the
 	 * type-ahead surface stays minimal and predictable.
@@ -207,169 +153,7 @@ final class SearchDslValidator {
 	static final Set<Query.Kind> ALLOWED_AUTOCOMPLETE_TOP_LEVEL = EnumSet.of(
 			Query.Kind.Prefix, Query.Kind.MatchPhrasePrefix, Query.Kind.MatchBoolPrefix);
 
-	// --------------------------------------------------------------
-	// Forbidden-key sets — applied as a JsonNode pre-pass.
-	// --------------------------------------------------------------
-
-	private static final Set<String> QUERY_FORBIDDEN_KEYS = Set.of(
-			"script", "indexed_shape", "runtime_mappings", "script_fields", "_search_template");
-
-	private static final Set<String> AGGREGATION_FORBIDDEN_KEYS = Set.of(
-			"script", "indexed_shape");
-
-	private static final Set<String> SUGGEST_FORBIDDEN_KEYS = Set.of("script");
-
-	private static final Set<String> HIGHLIGHT_FORBIDDEN_KEYS = Set.of("script", "indexed_shape");
-
-	private static final Set<String> COLLAPSE_FORBIDDEN_KEYS = Set.of("script");
-
-	// --------------------------------------------------------------
-	// Top-level body allowlists.
-	// --------------------------------------------------------------
-
-	/**
-	 * Allowlisted top-level keys on {@code SearchQuery.body}. Anything else is rejected
-	 * with HTTP 400. The strict allowlist replaces the typed-schema rejection that the
-	 * old structured SearchQuery carried natively.
-	 */
-	static final Set<String> BODY_ALLOWED_KEYS = Set.of(
-			"query", "post_filter",
-			"aggregations", "aggs",
-			"suggest", "highlight", "collapse", "rescore",
-			"sort", "_source",
-			"from", "size", "search_after");
-
-	/**
-	 * Narrow allowlist for {@code SearchAutocompleteRequest.searchQuery}. The dropdown surface has
-	 * no aggregations / suggest / sort / pagination — only a prefix-flavored {@code query}
-	 * and an optional {@code _source} filter.
-	 */
-	static final Set<String> AUTOCOMPLETE_BODY_ALLOWED_KEYS = Set.of("query", "_source");
-
 	private SearchDslValidator() {
-	}
-
-	// --------------------------------------------------------------
-	// Top-level body validation.
-	// --------------------------------------------------------------
-
-	/**
-	 * Reject any top-level key on {@code SearchQuery.body} outside {@link #BODY_ALLOWED_KEYS}.
-	 * Also rejects supplying both {@code aggregations} and {@code aggs} on the same body
-	 * (they're aliases; pick one), and rejects {@code search_after} alongside {@code from > 0}
-	 * (mutually exclusive).
-	 */
-	static void scanBodyTopLevelKeys(JsonNode body) {
-		if (body == null || !body.isObject()) {
-			throw new IllegalArgumentException("body must be a JSON object");
-		}
-		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
-		while (fields.hasNext()) {
-			String key = fields.next().getKey();
-			if (!BODY_ALLOWED_KEYS.contains(key)) {
-				throw new IllegalArgumentException(
-						"unsupported top-level key in body: '" + key + "'");
-			}
-		}
-		if (body.has("aggregations") && body.has("aggs")) {
-			throw new IllegalArgumentException(
-					"body has both 'aggregations' and 'aggs'; supply only one");
-		}
-		JsonNode searchAfter = body.get("search_after");
-		JsonNode from = body.get("from");
-		if (searchAfter != null && !searchAfter.isNull() && from != null
-				&& from.isNumber() && from.asLong() > 0L) {
-			throw new IllegalArgumentException(
-					"body.search_after and body.from > 0 are mutually exclusive");
-		}
-	}
-
-	/**
-	 * Narrow body validator for autocomplete: only {@code query} and {@code _source} are
-	 * allowed at the top level.
-	 */
-	static void scanAutocompleteBodyTopLevelKeys(JsonNode body) {
-		if (body == null || !body.isObject()) {
-			throw new IllegalArgumentException("body must be a JSON object");
-		}
-		Iterator<Map.Entry<String, JsonNode>> fields = body.fields();
-		while (fields.hasNext()) {
-			String key = fields.next().getKey();
-			if (!AUTOCOMPLETE_BODY_ALLOWED_KEYS.contains(key)) {
-				throw new IllegalArgumentException(
-						"unsupported top-level key in autocomplete body: '" + key + "'");
-			}
-		}
-	}
-
-	// --------------------------------------------------------------
-	// Pre-deserialization forbidden-key scan.
-	// --------------------------------------------------------------
-
-	/**
-	 * Scan a query subtree for forbidden keys. Run before {@link Query#_DESERIALIZER}, since
-	 * the typed deserializer would silently bind {@code script} onto e.g.
-	 * {@code FunctionScoreQuery.script_score} or onto a non-allowlisted variant we never
-	 * reach with the typed kind check.
-	 */
-	static void scanQueryForbiddenKeys(JsonNode root) {
-		scanForbiddenKeys(root, QUERY_FORBIDDEN_KEYS, "query", 0);
-	}
-
-	/**
-	 * Scan an aggregations subtree for forbidden keys. Critical because multiple allowed
-	 * aggregation kinds (e.g. {@link TermsAggregation}, {@link RangeAggregation},
-	 * {@link DateHistogramAggregation}) define {@code script} as a real bindable property
-	 * &mdash; without this scan a caller could send a Painless script straight to AOSS.
-	 */
-	static void scanAggregationsForbiddenKeys(JsonNode root) {
-		scanForbiddenKeys(root, AGGREGATION_FORBIDDEN_KEYS, "aggregation", 0);
-	}
-
-	/** Scan a suggesters subtree for forbidden keys. */
-	static void scanSuggestForbiddenKeys(JsonNode root) {
-		scanForbiddenKeys(root, SUGGEST_FORBIDDEN_KEYS, "suggester", 0);
-	}
-
-	/**
-	 * Scan a highlight subtree for forbidden keys. {@code script} can appear inside a
-	 * {@code highlight_query} body or on the typed-deserializer-bindable
-	 * {@code options} map; {@code indexed_shape} is rejected for the same reason it is
-	 * elsewhere.
-	 */
-	static void scanHighlightForbiddenKeys(JsonNode root) {
-		scanForbiddenKeys(root, HIGHLIGHT_FORBIDDEN_KEYS, "highlight", 0);
-	}
-
-	/** Scan a collapse subtree for forbidden keys. */
-	static void scanCollapseForbiddenKeys(JsonNode root) {
-		scanForbiddenKeys(root, COLLAPSE_FORBIDDEN_KEYS, "collapse", 0);
-	}
-
-	private static void scanForbiddenKeys(JsonNode node, Set<String> forbiddenKeys,
-			String surface, int depth) {
-		if (node == null) {
-			return;
-		}
-		if (depth > FORBIDDEN_SCAN_MAX_DEPTH) {
-			throw new IllegalArgumentException(
-					"forbidden-key scan exceeded maximum depth (" + FORBIDDEN_SCAN_MAX_DEPTH + ")");
-		}
-		if (node.isObject()) {
-			Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
-			while (fields.hasNext()) {
-				Map.Entry<String, JsonNode> field = fields.next();
-				if (forbiddenKeys.contains(field.getKey())) {
-					throw new IllegalArgumentException(
-							"forbidden key in " + surface + ": '" + field.getKey() + "'");
-				}
-				scanForbiddenKeys(field.getValue(), forbiddenKeys, surface, depth + 1);
-			}
-		} else if (node.isArray()) {
-			for (JsonNode element : node) {
-				scanForbiddenKeys(element, forbiddenKeys, surface, depth + 1);
-			}
-		}
 	}
 
 	// --------------------------------------------------------------
@@ -435,7 +219,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void rejectSemanticType(HighlighterType type, String label) {
+	static void rejectSemanticType(HighlighterType type, String label) {
 		if (type == null) {
 			return;
 		}
@@ -447,7 +231,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void checkHighlightCaps(Integer numberOfFragments, Integer fragmentSize, String label) {
+	static void checkHighlightCaps(Integer numberOfFragments, Integer fragmentSize, String label) {
 		if (numberOfFragments != null && numberOfFragments > MAX_HIGHLIGHT_FRAGMENTS) {
 			throw new IllegalArgumentException(label + ".number_of_fragments is "
 					+ numberOfFragments + "; max is " + MAX_HIGHLIGHT_FRAGMENTS);
@@ -500,37 +284,24 @@ final class SearchDslValidator {
 		walkQuery(rescore.query().rescoreQuery(), 1, count);
 	}
 
-	/** Validate a {@link Suggester}. */
-	static void validateSuggester(Suggester suggester) {
-		if (suggester == null) {
-			throw new IllegalArgumentException("suggest must not be null");
-		}
-		Map<String, FieldSuggester> suggesters = suggester.suggesters();
-		if (suggesters.size() > SUGGEST_MAX_COUNT) {
-			throw new IllegalArgumentException("too many suggesters (max " + SUGGEST_MAX_COUNT + ")");
-		}
-		for (FieldSuggester fs : suggesters.values()) {
-			validateFieldSuggester(fs, 1);
-		}
-	}
-
 	// --------------------------------------------------------------
 	// Query walk.
 	// --------------------------------------------------------------
 
-	private static void walkQuery(Query query, int depth, int[] count) {
+	static void walkQuery(Query query, int depth, int[] count) {
 		if (depth > QUERY_MAX_DEPTH) {
 			throw new IllegalArgumentException(
 					"query is nested too deeply (max depth " + QUERY_MAX_DEPTH + ")");
-		}
-		if (!ALLOWED_QUERY_KINDS.contains(query._kind())) {
-			throw new IllegalArgumentException("query clause kind is not allowed: '"
-					+ query._kind() + "'. Allowed kinds: " + ALLOWED_QUERY_KINDS);
 		}
 		if (++count[0] > QUERY_MAX_CLAUSES) {
 			throw new IllegalArgumentException(
 					"query has too many clauses (max " + QUERY_MAX_CLAUSES + ")");
 		}
+		// Switch with a throwing default: every allowlisted kind has an explicit case — even the
+		// cap-free leaves get an explicit `break` — so a kind that is newly added to the OpenSearch
+		// client but never wired here is rejected, not silently passed. This is the typed
+		// defense-in-depth layer; SearchDslSanitizer has already rebuilt the tree from the same
+		// allowlist.
 		switch (query._kind()) {
 		case Bool:
 			walkBool(query.bool(), depth, count);
@@ -571,20 +342,28 @@ final class SearchDslValidator {
 		case MatchBoolPrefix:
 			validateMatchBoolPrefix(query.matchBoolPrefix());
 			break;
-		default:
-			// Match, MatchPhrase, Term, Range, Exists, MatchAll — no caps to enforce.
+		case Match:
+		case MatchPhrase:
+		case Term:
+		case Range:
+		case Exists:
+		case MatchAll:
+			// Allowlisted leaves with no additional caps to enforce.
 			break;
+		default:
+			throw new IllegalArgumentException("query clause kind is not allowed: '"
+					+ query._kind() + "'. Allowed kinds: " + ALLOWED_QUERY_KINDS);
 		}
 	}
 
-	private static void walkBool(BoolQuery bool, int depth, int[] count) {
+	static void walkBool(BoolQuery bool, int depth, int[] count) {
 		walkQueryList(bool.must(), depth + 1, count);
 		walkQueryList(bool.should(), depth + 1, count);
 		walkQueryList(bool.mustNot(), depth + 1, count);
 		walkQueryList(bool.filter(), depth + 1, count);
 	}
 
-	private static void walkDisMax(DisMaxQuery disMax, int depth, int[] count) {
+	static void walkDisMax(DisMaxQuery disMax, int depth, int[] count) {
 		List<Query> queries = disMax.queries();
 		if (queries.isEmpty()) {
 			throw new IllegalArgumentException("'dis_max' clause requires a 'queries' field");
@@ -592,19 +371,19 @@ final class SearchDslValidator {
 		walkQueryList(queries, depth + 1, count);
 	}
 
-	private static void walkConstantScore(ConstantScoreQuery constantScore, int depth, int[] count) {
+	static void walkConstantScore(ConstantScoreQuery constantScore, int depth, int[] count) {
 		Query filter = constantScore.filter();
 		walkQuery(filter, depth + 1, count);
 	}
 
-	private static void walkBoosting(BoostingQuery boosting, int depth, int[] count) {
+	static void walkBoosting(BoostingQuery boosting, int depth, int[] count) {
 		Query positive = boosting.positive();
 		Query negative = boosting.negative();
 		walkQuery(positive, depth + 1, count);
 		walkQuery(negative, depth + 1, count);
 	}
 
-	private static void walkQueryList(List<Query> queries, int depth, int[] count) {
+	static void walkQueryList(List<Query> queries, int depth, int[] count) {
 		if (queries == null) {
 			return;
 		}
@@ -621,7 +400,7 @@ final class SearchDslValidator {
 	 * A {@code terms} clause: reject the cross-index lookup form, cap the inline value array
 	 * at {@link #MAX_VALUES_PER_CLAUSE}.
 	 */
-	private static void validateTerms(TermsQuery termsQuery) {
+	static void validateTerms(TermsQuery termsQuery) {
 		TermsQueryField terms = termsQuery.terms();
 		if (terms._kind() == TermsQueryField.Kind.Lookup) {
 			throw new IllegalArgumentException(
@@ -636,7 +415,7 @@ final class SearchDslValidator {
 	}
 
 	/** {@code ids.values} carries the same expansion risk as a {@code terms} array. */
-	private static void validateIds(IdsQuery ids) {
+	static void validateIds(IdsQuery ids) {
 		List<String> values = ids.values();
 		if (values.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("ids.values has " + values.size()
@@ -648,7 +427,7 @@ final class SearchDslValidator {
 	 * {@code multi_match}: each {@code fields} entry expands into one internal match clause,
 	 * and {@code phrase_prefix} type inherits the {@code max_expansions} concern.
 	 */
-	private static void validateMultiMatch(MultiMatchQuery mm) {
+	static void validateMultiMatch(MultiMatchQuery mm) {
 		List<String> fields = mm.fields();
 		if (fields.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("multi_match.fields has " + fields.size()
@@ -657,16 +436,16 @@ final class SearchDslValidator {
 		checkMaxExpansions(mm.maxExpansions(), "multi_match");
 	}
 
-	private static void rejectLeadingWildcardPrefix(PrefixQuery prefix) {
+	static void rejectLeadingWildcardPrefix(PrefixQuery prefix) {
 		rejectLeadingWildcard(prefix.value(), "prefix", prefix.field());
 	}
 
-	private static void rejectLeadingWildcardWildcard(WildcardQuery wildcard) {
+	static void rejectLeadingWildcardWildcard(WildcardQuery wildcard) {
 		String value = wildcard.value() != null ? wildcard.value() : wildcard.wildcard();
 		rejectLeadingWildcard(value, "wildcard", wildcard.field());
 	}
 
-	private static void rejectLeadingWildcard(String pattern, String clause, String field) {
+	static void rejectLeadingWildcard(String pattern, String clause, String field) {
 		if (pattern == null || pattern.isEmpty()) {
 			return;
 		}
@@ -683,7 +462,7 @@ final class SearchDslValidator {
 	 * wouldn't actually be evaluated as one). The mini-DSL inside {@code query} is otherwise
 	 * passed through &mdash; AOSS request timeouts bound the worst case.
 	 */
-	private static void validateSimpleQueryString(SimpleQueryStringQuery sq) {
+	static void validateSimpleQueryString(SimpleQueryStringQuery sq) {
 		List<String> fields = sq.fields();
 		if (fields.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("simple_query_string.fields has " + fields.size()
@@ -702,19 +481,19 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void validateFuzzyMaxExpansions(FuzzyQuery fuzzy) {
+	static void validateFuzzyMaxExpansions(FuzzyQuery fuzzy) {
 		checkMaxExpansions(fuzzy.maxExpansions(), "fuzzy");
 	}
 
-	private static void validateMatchPhrasePrefix(MatchPhrasePrefixQuery mpp) {
+	static void validateMatchPhrasePrefix(MatchPhrasePrefixQuery mpp) {
 		checkMaxExpansions(mpp.maxExpansions(), "match_phrase_prefix");
 	}
 
-	private static void validateMatchBoolPrefix(MatchBoolPrefixQuery mbp) {
+	static void validateMatchBoolPrefix(MatchBoolPrefixQuery mbp) {
 		checkMaxExpansions(mbp.maxExpansions(), "match_bool_prefix");
 	}
 
-	private static void checkMaxExpansions(Integer value, String clause) {
+	static void checkMaxExpansions(Integer value, String clause) {
 		if (value != null && value > MAX_PREFIX_EXPANSIONS) {
 			throw new IllegalArgumentException("'" + clause + "' max_expansions is "
 					+ value + "; max is " + MAX_PREFIX_EXPANSIONS);
@@ -725,7 +504,7 @@ final class SearchDslValidator {
 	// Aggregation walk.
 	// --------------------------------------------------------------
 
-	private static void walkAggregationMap(Map<String, Aggregation> map, int depth, int[] count) {
+	static void walkAggregationMap(Map<String, Aggregation> map, int depth, int[] count) {
 		if (depth > AGG_MAX_DEPTH) {
 			throw new IllegalArgumentException(
 					"aggregations are nested too deeply (max depth " + AGG_MAX_DEPTH + ")");
@@ -739,11 +518,10 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void walkAggregation(Aggregation agg, int depth, int[] count) {
-		if (!ALLOWED_AGGREGATION_KINDS.contains(agg._kind())) {
-			throw new IllegalArgumentException("aggregation kind is not allowed: '"
-					+ agg._kind() + "'. Allowed kinds: " + ALLOWED_AGGREGATION_KINDS);
-		}
+	static void walkAggregation(Aggregation agg, int depth, int[] count) {
+		// Switch with a throwing default, per the same posture as walkQuery: every allowlisted
+		// aggregation kind has an explicit case (even the cap-free metric aggregations), so a kind
+		// the OpenSearch client adds but nobody wired here is rejected rather than silently passed.
 		switch (agg._kind()) {
 		case Terms:
 			validateTermsAgg(agg.terms());
@@ -763,8 +541,19 @@ final class SearchDslValidator {
 		case Cardinality:
 			validateCardinalityAgg(agg.cardinality());
 			break;
-		default:
+		case Missing:
+		case Min:
+		case Max:
+		case Avg:
+		case Sum:
+		case Stats:
+		case ExtendedStats:
+		case ValueCount:
+			// Allowlisted aggregations with no additional caps to enforce.
 			break;
+		default:
+			throw new IllegalArgumentException("aggregation kind is not allowed: '"
+					+ agg._kind() + "'. Allowed kinds: " + ALLOWED_AGGREGATION_KINDS);
 		}
 		Map<String, Aggregation> subAggregations = agg.aggregations();
 		if (!subAggregations.isEmpty()) {
@@ -777,7 +566,7 @@ final class SearchDslValidator {
 	 * include/exclude term-list lengths. Regex-string {@code include}/{@code exclude} are
 	 * passed through (catastrophic regex is bounded by AOSS request timeouts).
 	 */
-	private static void validateTermsAgg(TermsAggregation terms) {
+	static void validateTermsAgg(TermsAggregation terms) {
 		checkAggSize(terms.size(), "terms", "size");
 		checkAggSize(terms.shardSize(), "terms", "shard_size");
 		TermsInclude include = terms.include();
@@ -798,7 +587,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void validateRangeAgg(RangeAggregation range) {
+	static void validateRangeAgg(RangeAggregation range) {
 		List<?> ranges = range.ranges();
 		if (ranges.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("'range' aggregation 'ranges' has "
@@ -806,7 +595,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void validateDateRangeAgg(DateRangeAggregation dateRange) {
+	static void validateDateRangeAgg(DateRangeAggregation dateRange) {
 		List<?> ranges = dateRange.ranges();
 		if (ranges.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("'date_range' aggregation 'ranges' has "
@@ -819,7 +608,7 @@ final class SearchDslValidator {
 	 * the count is unbounded; require either {@code extended_bounds} or {@code hard_bounds},
 	 * and require a positive {@code interval}.
 	 */
-	private static void validateHistogramAgg(HistogramAggregation histogram) {
+	static void validateHistogramAgg(HistogramAggregation histogram) {
 		Double interval = histogram.interval();
 		if (interval != null && interval <= 0) {
 			throw new IllegalArgumentException("'histogram' interval must be positive");
@@ -830,7 +619,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void validateDateHistogramAgg(DateHistogramAggregation dateHistogram) {
+	static void validateDateHistogramAgg(DateHistogramAggregation dateHistogram) {
 		// date_histogram allows interval / calendar_interval / fixed_interval; the typed
 		// model can't easily check positivity for Time-typed intervals, so we focus on the
 		// bounds requirement which is what actually caps bucket count.
@@ -840,7 +629,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void validateCardinalityAgg(CardinalityAggregation cardinality) {
+	static void validateCardinalityAgg(CardinalityAggregation cardinality) {
 		Integer precision = cardinality.precisionThreshold();
 		if (precision != null && precision > MAX_PRECISION_THRESHOLD) {
 			throw new IllegalArgumentException("'cardinality' precision_threshold is "
@@ -848,47 +637,11 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void checkAggSize(Integer value, String aggType, String key) {
+	static void checkAggSize(Integer value, String aggType, String key) {
 		if (value != null && value > MAX_AGG_SIZE) {
 			throw new IllegalArgumentException("'" + aggType + "' aggregation '" + key
 					+ "' is " + value + "; max is " + MAX_AGG_SIZE);
 		}
 	}
 
-	// --------------------------------------------------------------
-	// Suggester walk.
-	// --------------------------------------------------------------
-
-	private static void validateFieldSuggester(FieldSuggester fs, int depth) {
-		if (depth > SUGGEST_MAX_DEPTH) {
-			throw new IllegalArgumentException(
-					"suggesters are nested too deeply (max depth " + SUGGEST_MAX_DEPTH + ")");
-		}
-		if (!ALLOWED_SUGGESTER_KINDS.contains(fs._kind())) {
-			throw new IllegalArgumentException("suggester kind is not allowed: '"
-					+ fs._kind() + "'. Allowed kinds: " + ALLOWED_SUGGESTER_KINDS);
-		}
-		Integer size;
-		switch (fs._kind()) {
-		case Term:
-			TermSuggester term = fs.term();
-			size = term.size();
-			break;
-		case Phrase:
-			PhraseSuggester phrase = fs.phrase();
-			size = phrase.size();
-			break;
-		case Completion:
-			CompletionSuggester completion = fs.completion();
-			size = completion.size();
-			break;
-		default:
-			size = null;
-			break;
-		}
-		if (size != null && size > MAX_SUGGESTER_SIZE) {
-			throw new IllegalArgumentException("'" + fs._kind() + "' suggester 'size' is "
-					+ size + "; max is " + MAX_SUGGESTER_SIZE);
-		}
-	}
 }

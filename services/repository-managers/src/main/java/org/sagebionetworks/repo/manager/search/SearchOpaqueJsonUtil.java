@@ -33,7 +33,6 @@ import org.opensearch.client.opensearch.core.search.FieldCollapse;
 import org.opensearch.client.opensearch.core.search.Highlight;
 import org.opensearch.client.opensearch.core.search.Rescore;
 import org.opensearch.client.opensearch.core.search.SourceConfig;
-import org.opensearch.client.opensearch.core.search.Suggester;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.schema.adapter.JSONEntity;
@@ -180,9 +179,9 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	/**
-	 * Serialize a typed OpenSearch client object ({@code Aggregate}, {@code Suggest},
-	 * {@code FieldValue}, ...) to a Jackson tree — the inverse of {@link #fromJsonpTree}, for
-	 * assembling typed results back into an opaque JSON response.
+	 * Serialize a typed OpenSearch client object ({@code Aggregate}, {@code FieldValue}, ...) to a
+	 * Jackson tree — the inverse of {@link #fromJsonpTree}, for assembling typed results back into
+	 * an opaque JSON response.
 	 */
 	public static JsonNode toJsonpTree(JsonpSerializable value) {
 		StringWriter writer = new StringWriter();
@@ -200,7 +199,7 @@ public final class SearchOpaqueJsonUtil {
 
 	/**
 	 * Empty {@link ObjectNode} backed by the shared {@link #MAPPER}. Callers building up an
-	 * opaque-JSON response (e.g. the aggregations / suggest result envelopes) should reach
+	 * opaque-JSON response (e.g. the aggregations result envelope) should reach
 	 * for this rather than instantiating their own {@code ObjectMapper}.
 	 */
 	public static ObjectNode objectNode() {
@@ -265,12 +264,12 @@ public final class SearchOpaqueJsonUtil {
 	private static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
 			SearchRequest.Builder req, Set<SearchQueryPart> options,
 			int defaultSize, int maxSize, boolean autocomplete) {
-		JsonNode body = parse(opaque);
-		if (autocomplete) {
-			SearchDslValidator.scanAutocompleteBodyTopLevelKeys(body);
-		} else {
-			SearchDslValidator.scanBodyTopLevelKeys(body);
-		}
+		// Rebuild the body as a new node containing only the supported top-level keys; the
+		// per-surface parse paths below re-sanitize each sub-tree the same way, so the typed
+		// deserializer never sees a key we did not deliberately copy through.
+		JsonNode body = autocomplete
+				? SearchDslSanitizer.sanitizeAutocompleteBodyTopLevel(parse(opaque))
+				: SearchDslSanitizer.sanitizeBodyTopLevel(parse(opaque));
 
 		Query query = parseRequiredQuery(body, ctx, autocomplete);
 		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
@@ -286,18 +285,14 @@ public final class SearchOpaqueJsonUtil {
 			if (!aggregations.isEmpty()) {
 				req.aggregations(aggregations);
 			}
-			JsonNode suggest = body.get("suggest");
-			if (suggest != null && !suggest.isNull()) {
-				req.suggest(parseSuggester(suggest, ctx));
-			}
 		}
 
 		boolean returnHits = options.contains(SearchQueryPart.HITS);
 		boolean returnTotalHits = options.contains(SearchQueryPart.TOTAL_HITS);
 		List<FieldValue> searchAfter = parseSearchAfter(body);
 		boolean usingCursor = !searchAfter.isEmpty();
-		int from = usingCursor ? 0 : parseFrom(body);
-		int size = parseSize(body, defaultSize, maxSize);
+		int from = usingCursor ? 0 : SearchDslSanitizer.resolveFrom(body);
+		int size = SearchDslSanitizer.resolveSize(body, defaultSize, maxSize);
 
 		req.from(from);
 		req.size(returnHits ? size : 0);
@@ -334,7 +329,7 @@ public final class SearchOpaqueJsonUtil {
 		return from;
 	}
 
-	private static Query parseRequiredQuery(JsonNode body,
+	static Query parseRequiredQuery(JsonNode body,
 			SearchFieldRewriter.RoutingContext ctx, boolean autocomplete) {
 		JsonNode node = body.get("query");
 		if (node == null || node.isNull()) {
@@ -346,23 +341,26 @@ public final class SearchOpaqueJsonUtil {
 
 	private static Query parseQuery(JsonNode node, SearchFieldRewriter.RoutingContext ctx,
 			boolean autocomplete) {
-		SearchDslValidator.scanQueryForbiddenKeys(node);
-		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.QUERY);
-		Query query = fromJsonpTree(node, Query._DESERIALIZER);
+		// Rebuild a clean node from supported clauses/keys only (rejects any unrecognized sibling
+		// and any forbidden key inside an opaque value in a single pass), then rewrite, deserialize,
+		// and run the typed caps on the clean node.
+		JsonNode clean = SearchDslSanitizer.sanitizeQuery(node, autocomplete);
+		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.QUERY);
+		Query query = fromJsonpTree(clean, Query._DESERIALIZER);
 		SearchDslValidator.validateQuery(query, autocomplete);
 		return query;
 	}
 
-	private static Map<String, Aggregation> parseAggregations(JsonNode body,
+	static Map<String, Aggregation> parseAggregations(JsonNode body,
 			SearchFieldRewriter.RoutingContext ctx) {
-		JsonNode node = body.has("aggregations") ? body.get("aggregations") : body.get("aggs");
+		JsonNode node = body.get("aggregations");
 		if (node == null || node.isNull()) {
 			return Collections.emptyMap();
 		}
-		SearchDslValidator.scanAggregationsForbiddenKeys(node);
-		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.AGGREGATIONS);
+		JsonNode clean = SearchDslSanitizer.sanitizeAggregations(node);
+		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.AGGREGATIONS);
 		Map<String, Aggregation> result = new LinkedHashMap<>();
-		Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+		Iterator<Map.Entry<String, JsonNode>> fields = clean.fields();
 		while (fields.hasNext()) {
 			Map.Entry<String, JsonNode> entry = fields.next();
 			result.put(entry.getKey(), fromJsonpTree(entry.getValue(), Aggregation._DESERIALIZER));
@@ -371,45 +369,35 @@ public final class SearchOpaqueJsonUtil {
 		return result;
 	}
 
-	private static Suggester parseSuggester(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		SearchDslValidator.scanSuggestForbiddenKeys(node);
-		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.SUGGESTER);
-		Suggester suggester = fromJsonpTree(node, Suggester._DESERIALIZER);
-		SearchDslValidator.validateSuggester(suggester);
-		return suggester;
-	}
-
 	private static Highlight parseHighlight(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		SearchDslValidator.scanHighlightForbiddenKeys(node);
-		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.HIGHLIGHT);
-		Highlight highlight = fromJsonpTree(node, Highlight._DESERIALIZER);
+		JsonNode clean = SearchDslSanitizer.sanitizeHighlight(node);
+		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.HIGHLIGHT);
+		Highlight highlight = fromJsonpTree(clean, Highlight._DESERIALIZER);
 		SearchDslValidator.validateHighlight(highlight);
 		return highlight;
 	}
 
 	private static FieldCollapse parseCollapse(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		SearchDslValidator.scanCollapseForbiddenKeys(node);
-		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.COLLAPSE);
-		FieldCollapse collapse = fromJsonpTree(node, FieldCollapse._DESERIALIZER);
+		JsonNode clean = SearchDslSanitizer.sanitizeCollapse(node);
+		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.COLLAPSE);
+		FieldCollapse collapse = fromJsonpTree(clean, FieldCollapse._DESERIALIZER);
 		SearchDslValidator.validateFieldCollapse(collapse);
 		return collapse;
 	}
 
-	private static Rescore parseRescore(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		// The rescore envelope itself carries no scriptable surface; the inner rescore_query
-		// is validated as a Query subtree.
-		JsonNode rescoreQueryNode = node.path("query").path("rescore_query");
+	static Rescore parseRescore(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
+		JsonNode clean = SearchDslSanitizer.sanitizeRescore(node);
+		JsonNode rescoreQueryNode = clean.path("query").path("rescore_query");
 		if (!rescoreQueryNode.isMissingNode()) {
-			SearchDslValidator.scanQueryForbiddenKeys(rescoreQueryNode);
 			SearchFieldRewriter.rewriteRequestFields(rescoreQueryNode, ctx,
 					SearchFieldRewriter.Surface.QUERY);
 		}
-		Rescore rescore = fromJsonpTree(node, Rescore._DESERIALIZER);
+		Rescore rescore = fromJsonpTree(clean, Rescore._DESERIALIZER);
 		SearchDslValidator.validateRescore(rescore);
 		return rescore;
 	}
 
-	private static List<SortOptions> parseSort(JsonNode body, SearchFieldRewriter.RoutingContext ctx) {
+	static List<SortOptions> parseSort(JsonNode body, SearchFieldRewriter.RoutingContext ctx) {
 		JsonNode node = body.get("sort");
 		if (node == null || node.isNull()) {
 			// Default: relevance descending. Mirrors the OpenSearch default sort when
@@ -417,15 +405,18 @@ public final class SearchOpaqueJsonUtil {
 			return Collections.singletonList(SortOptions.of(so ->
 					so.field(FieldSort.of(fs -> fs.field("_score").order(SortOrder.Desc)))));
 		}
+		// Copy-construct a clean sort node (rejects _script / _geo_distance and any unsupported
+		// sort option) before any rewriting touches it.
+		JsonNode clean = SearchDslSanitizer.sanitizeSort(node);
 		// Top-level "sort" can be a bare string ("title") referring to a column by name —
 		// JsonNode mutation can't replace it, so wrap it in an array shorthand before walking.
 		JsonNode walkable;
-		if (node.isTextual() && !"_score".equals(node.asText())) {
+		if (clean.isTextual() && !"_score".equals(clean.asText())) {
 			com.fasterxml.jackson.databind.node.ArrayNode wrapped = arrayNode();
-			wrapped.add(node.asText());
+			wrapped.add(clean.asText());
 			walkable = wrapped;
 		} else {
-			walkable = node;
+			walkable = clean;
 		}
 		SearchFieldRewriter.rewriteSortFields(walkable, ctx);
 		List<SortOptions> sort = new ArrayList<>();
@@ -440,115 +431,22 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	private static SourceConfig parseSource(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		SearchFieldRewriter.rewriteSourceFields(node, ctx);
-		return fromJsonpTree(node, SourceConfig._DESERIALIZER);
+		JsonNode clean = SearchDslSanitizer.sanitizeSource(node);
+		SearchFieldRewriter.rewriteSourceFields(clean, ctx);
+		return fromJsonpTree(clean, SourceConfig._DESERIALIZER);
 	}
 
-	private static int parseFrom(JsonNode body) {
-		JsonNode node = body.get("from");
-		if (node == null || node.isNull()) {
-			return 0;
-		}
-		if (!node.isIntegralNumber()) {
-			throw new IllegalArgumentException("body.from must be an integer");
-		}
-		long value = node.asLong();
-		if (value < 0L || value > Integer.MAX_VALUE) {
-			throw new IllegalArgumentException(
-					"body.from must be between 0 and " + Integer.MAX_VALUE);
-		}
-		return (int) value;
-	}
-
-	private static int parseSize(JsonNode body, int defaultSize, int maxSize) {
-		JsonNode node = body.get("size");
-		if (node == null || node.isNull()) {
-			return defaultSize;
-		}
-		if (!node.isIntegralNumber()) {
-			throw new IllegalArgumentException("body.size must be an integer");
-		}
-		long value = node.asLong();
-		if (value < 0L) {
-			throw new IllegalArgumentException("body.size must be non-negative");
-		}
-		return (int) Math.min(value, maxSize);
-	}
-
-	private static List<FieldValue> parseSearchAfter(JsonNode body) {
+	static List<FieldValue> parseSearchAfter(JsonNode body) {
+		SearchDslSanitizer.validateSearchAfterShape(body);
 		JsonNode node = body.get("search_after");
 		if (node == null || node.isNull()) {
 			return Collections.emptyList();
-		}
-		if (!node.isArray()) {
-			throw new IllegalArgumentException("body.search_after must be an array");
 		}
 		List<FieldValue> values = new ArrayList<>(node.size());
 		for (JsonNode element : node) {
 			values.add(fromJsonpTree(element, FieldValue._DESERIALIZER));
 		}
 		return values;
-	}
-
-	// ---------- per-surface helpers (test seams) ----------
-
-	/**
-	 * Parse, scan, rewrite, typed-deserialize, and validate a single {@code query}-shaped
-	 * payload. Package-private so {@link SearchOpaqueJsonUtilTest} can drive each surface
-	 * directly; production search uses {@link #applyBodyToRequest} which dispatches to
-	 * these per-surface paths under the hood.
-	 */
-	static Query buildTypedQuery(Object opaque, SearchFieldRewriter.RoutingContext ctx) {
-		return parseQuery(parse(opaque), ctx, false);
-	}
-
-	/** See {@link #buildTypedQuery}. */
-	static Map<String, Aggregation> buildTypedAggregations(Object opaque,
-			SearchFieldRewriter.RoutingContext ctx) {
-		ObjectNode wrapped = objectNode();
-		wrapped.set("aggregations", parse(opaque));
-		return parseAggregations(wrapped, ctx);
-	}
-
-	/** See {@link #buildTypedQuery}. */
-	static Suggester buildTypedSuggester(Object opaque, SearchFieldRewriter.RoutingContext ctx) {
-		return parseSuggester(parse(opaque), ctx);
-	}
-
-	/** See {@link #buildTypedQuery}. */
-	static Highlight buildTypedHighlight(Object opaque, SearchFieldRewriter.RoutingContext ctx) {
-		return parseHighlight(parse(opaque), ctx);
-	}
-
-	/** See {@link #buildTypedQuery}. */
-	static FieldCollapse buildTypedFieldCollapse(Object opaque,
-			SearchFieldRewriter.RoutingContext ctx) {
-		return parseCollapse(parse(opaque), ctx);
-	}
-
-	/** See {@link #buildTypedQuery}. */
-	static Rescore buildTypedRescore(Object opaque, SearchFieldRewriter.RoutingContext ctx) {
-		return parseRescore(parse(opaque), ctx);
-	}
-
-	/**
-	 * Convert an opaque {@code searchAfter} cursor &mdash; the same shape this server emits
-	 * on {@code SearchQueryResults.nextSearchAfter} &mdash; into the typed
-	 * {@link FieldValue} list OpenSearch expects.
-	 *
-	 * @return the typed cursor; an empty list when {@code cursor} is {@code null} or empty.
-	 */
-	static List<FieldValue> buildTypedSearchAfter(List<Object> cursor) {
-		if (cursor == null || cursor.isEmpty()) {
-			return Collections.emptyList();
-		}
-		ObjectNode wrapped = objectNode();
-		try {
-			wrapped.set("search_after", MAPPER.readTree(MAPPER.writeValueAsString(cursor)));
-		} catch (JsonProcessingException e) {
-			throw new IllegalArgumentException("Invalid searchAfter cursor: " + e.getOriginalMessage(), e);
-		}
-		return parseSearchAfter(wrapped);
 	}
 
 	// ---------- OpenSearch search-response serializers ----------
@@ -570,28 +468,6 @@ public final class SearchOpaqueJsonUtil {
 		for (Map.Entry<String, ? extends JsonpSerializable> entry : aggregations.entrySet()) {
 			root.set(entry.getKey(), toJsonpTree(entry.getValue()));
 		}
-		SearchFieldRewriter.rewriteAggregationResults(root, idToName);
-		return new JSONObject(root.toString());
-	}
-
-	/**
-	 * Serialize the typed suggester response into an opaque JSON tree with column ids
-	 * rewritten back to column names. Top-level keys are caller-chosen suggestion names;
-	 * each value is a list of typed {@link JsonpSerializable} suggestion options. Same
-	 * return shape as {@link #serializeAggregations}.
-	 */
-	public static Object serializeSuggest(
-			Map<String, ? extends java.util.List<? extends JsonpSerializable>> suggest,
-			java.util.function.Function<String, String> idToName) {
-		ObjectNode root = objectNode();
-		for (Map.Entry<String, ? extends java.util.List<? extends JsonpSerializable>> entry : suggest.entrySet()) {
-			com.fasterxml.jackson.databind.node.ArrayNode suggestionsArray = arrayNode();
-			for (JsonpSerializable suggestion : entry.getValue()) {
-				suggestionsArray.add(toJsonpTree(suggestion));
-			}
-			root.set(entry.getKey(), suggestionsArray);
-		}
-		// Suggest envelope embeds the same "field" string shape as aggregations.
 		SearchFieldRewriter.rewriteAggregationResults(root, idToName);
 		return new JSONObject(root.toString());
 	}

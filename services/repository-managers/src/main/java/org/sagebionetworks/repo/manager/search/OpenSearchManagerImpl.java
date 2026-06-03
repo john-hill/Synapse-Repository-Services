@@ -1088,12 +1088,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					response.aggregations(), id -> idToName.getOrDefault(id, id)));
 		}
 
-		// Suggest: same shape, opaque JSON string with column ids rewritten back.
-		if (response.suggest() != null && !response.suggest().isEmpty()) {
-			results.setSuggestResults(SearchOpaqueJsonUtil.serializeSuggest(
-					response.suggest(), id -> idToName.getOrDefault(id, id)));
-		}
-
 		// Pagination cursor: when hits are requested and the page is full, emit the last
 		// hit's sort values as the next-page cursor; null when the page is short or empty.
 		if (options.contains(SearchQueryPart.HITS) && !hits.isEmpty()) {

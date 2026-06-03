@@ -119,8 +119,8 @@ public interface OpenSearchManager {
 	 * Execute a search query against the OpenSearch index. The {@code options} set controls
 	 * which sections of the OpenSearch request are populated: omitting HITS switches the
 	 * request to {@code size=0}, and omitting TOTAL_HITS disables total-hits tracking.
-	 * Aggregations and suggesters are presence-driven by the request body
-	 * ({@code body.aggregations} / {@code body.suggest}) and are not gated by the options set.
+	 * Aggregations are presence-driven by the request body
+	 * ({@code body.aggregations}) and are not gated by the options set.
 	 *
 	 * <p>Note: query-time analysis (default and per-column analyzers) is baked into the
 	 * AOSS index at build time, so this method does not take analyzer arguments — AOSS

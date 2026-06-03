@@ -831,7 +831,7 @@ public class SearchManagementController {
 	 * <h6>Field references and sub-field routing</h6>
 	 * <p>
 	 * Field references use column names everywhere (DSL clauses, aggregation
-	 * <code>field</code>, suggester <code>field</code>, <code>highlight.fields</code> keys,
+	 * <code>field</code>, <code>highlight.fields</code> keys,
 	 * <code>sort</code>, <code>_source.includes</code> / <code>_source.excludes</code>). The
 	 * server resolves names to internal column ids before sending to OpenSearch and rewrites
 	 * them back to column names on response so callers see their original schema.
@@ -849,7 +849,7 @@ public class SearchManagementController {
 	 * boolean, keyword (ENTITYID / USERID), and date columns always use the bare name.
 	 * </p>
 	 * <p>
-	 * Aggregation and suggester results come back with field references reported as the
+	 * Aggregation results come back with field references reported as the
 	 * caller's bare column name — the server strips the <code>.keyword</code> suffix it
 	 * auto-appended on the request side. Callers who prefer to be explicit may still supply
 	 * <code>{columnName}.keyword</code> on a reference; the server preserves the suffix
@@ -892,7 +892,7 @@ public class SearchManagementController {
 	 * them inside <code>query.bool.filter</code> instead.
 	 * </p>
 	 * <p>
-	 * <b><code>aggregations</code></b> (alias <code>aggs</code>) — optional. Map of
+	 * <b><code>aggregations</code></b> — optional. Map of
 	 * caller-chosen name to <a href="https://docs.opensearch.org/latest/aggregations/">aggregation</a>
 	 * definition. Supports <a href="https://docs.opensearch.org/latest/aggregations/bucket/terms/"><code>terms</code></a>
 	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/histogram/"><code>histogram</code></a>
@@ -910,18 +910,9 @@ public class SearchManagementController {
 	 * / <a href="https://docs.opensearch.org/latest/aggregations/bucket/missing/"><code>missing</code></a>,
 	 * with nested
 	 * sub-aggregations. Aggregations need doc values; text-typed columns are auto-routed
-	 * through <code>.keyword</code>. Supplying both <code>aggregations</code> and
-	 * <code>aggs</code> simultaneously is rejected with HTTP 400. The raw aggregation result
+	 * through <code>.keyword</code>. The raw aggregation result
 	 * comes back on <code>SearchQueryResults.aggregationResults</code>, with field references
 	 * rewritten back to bare column names.
-	 * </p>
-	 * <p>
-	 * <b><code>suggest</code></b> — optional. A map of suggestion name to suggester definition
-	 * (optionally alongside a top-level <code>text</code>). Allowlisted suggester types:
-	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/did-you-mean/"><code>term</code>
-	 * and <code>phrase</code></a>, and
-	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/autocomplete/"><code>completion</code></a>.
-	 * Returns query-assistance suggestions on <code>SearchQueryResults.suggestResults</code>.
 	 * </p>
 	 * <p>
 	 * <b><code>highlight</code></b> — optional. Adds per-field
@@ -995,22 +986,79 @@ public class SearchManagementController {
 	 *
 	 * <h6>Per-request limits</h6>
 	 * <p>Violations return HTTP 400 with a message naming the limit:</p>
-	 * <ul>
-	 * <li><code>query</code> / <code>post_filter</code> / <code>rescore.rescore_query</code>:
-	 * maximum nesting depth 20, maximum total clauses 256, maximum inline <code>terms</code>
-	 * array length 1,024, <code>prefix</code> values starting with <code>*</code> or
-	 * <code>?</code> rejected.</li>
-	 * <li><code>aggregations</code>: maximum nesting depth 10, maximum total aggregations
-	 * 100, maximum bucket <code>size</code> / <code>shard_size</code> 1,000.</li>
-	 * <li><code>suggest</code>: maximum 50 suggesters per request.</li>
-	 * <li><code>highlight</code>: maximum <code>fields</code> entries 50, maximum
-	 * <code>number_of_fragments</code> per field 100, maximum <code>fragment_size</code> per
-	 * field 1,000. Any nested <code>highlight_query</code> is validated against the same
-	 * allowlist as <code>query</code>.</li>
-	 * <li><code>collapse</code>: maximum <code>max_concurrent_group_searches</code> 10.</li>
-	 * <li><code>rescore</code>: maximum <code>window_size</code> 1,000. Single rescore stage
-	 * only.</li>
-	 * </ul>
+	 * <b>Per-request Limits by Surface</b>
+	 * <table border="1">
+	 * <tr>
+	 * <th>Surface</th>
+	 * <th>Limit</th>
+	 * <th>Value</th>
+	 * </tr>
+	 * <tr>
+	 * <td><code>query</code></td>
+	 * <td>max nesting depth</td>
+	 * <td>20</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>query</code></td>
+	 * <td>max total clauses</td>
+	 * <td>256</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>query</code></td>
+	 * <td>max inline <code>terms</code> array length</td>
+	 * <td>1,024</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>aggregations</code></td>
+	 * <td>max nesting depth</td>
+	 * <td>10</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>aggregations</code></td>
+	 * <td>max total aggregations</td>
+	 * <td>100</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>aggregations</code></td>
+	 * <td>max bucket <code>size</code> / <code>shard_size</code></td>
+	 * <td>1,000</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>highlight</code></td>
+	 * <td>max <code>fields</code> entries</td>
+	 * <td>50</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>highlight</code></td>
+	 * <td>max <code>number_of_fragments</code> per field</td>
+	 * <td>100</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>highlight</code></td>
+	 * <td>max <code>fragment_size</code> per field</td>
+	 * <td>1,000</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>collapse</code></td>
+	 * <td>max <code>max_concurrent_group_searches</code></td>
+	 * <td>10</td>
+	 * </tr>
+	 * <tr>
+	 * <td><code>rescore</code></td>
+	 * <td>max <code>window_size</code> (single stage only)</td>
+	 * <td>1,000</td>
+	 * </tr>
+	 * </table>
+	 * <p>
+	 * The <code>query</code> limits above apply equally to <code>post_filter</code> and
+	 * <code>rescore.rescore_query</code>. In <code>query</code> / <code>post_filter</code> /
+	 * <code>rescore.rescore_query</code>, <code>prefix</code> values starting with
+	 * <code>*</code> or <code>?</code> are rejected.
+	 * </p>
+	 * <p>
+	 * Any nested <code>highlight_query</code> is validated against the same allowlist as
+	 * <code>query</code>.
+	 * </p>
 	 *
 	 * <h6>Disallowed clauses</h6>
 	 * <p>The following are rejected anywhere in the body with HTTP 400:</p>
@@ -1023,8 +1071,6 @@ public class SearchManagementController {
 	 * form, <code>percolate</code>, <code>wrapper</code>.</li>
 	 * <li>Inside <code>aggregations</code>: scripted aggregations, pipeline aggregations,
 	 * embedded <code>script</code>.</li>
-	 * <li>Inside <code>suggest</code>: non-allowlisted suggester types, <code>script</code>
-	 * in a phrase <code>collate</code>.</li>
 	 * <li>Inside <code>highlight</code>: embedded <code>script</code> or
 	 * <code>indexed_shape</code>.</li>
 	 * <li>Inside <code>collapse</code>: <code>inner_hits</code>.</li>
@@ -1093,7 +1139,7 @@ public class SearchManagementController {
 	 * no <code>size</code> (the server caps every response at 8 hits), no <code>from</code>
 	 * / <code>search_after</code> (a dropdown does not paginate), no <code>sort</code>
 	 * (results are ordered by relevance), and no <code>aggregations</code> /
-	 * <code>suggest</code> / <code>responseParts</code> (autocomplete returns matching hits
+	 * <code>responseParts</code> (autocomplete returns matching hits
 	 * only). For anything beyond a type-ahead lookup — scored relevance, faceting, totals,
 	 * deep pagination — use the async
 	 * <a href="${POST.search.query.async.start}">POST /search/query/async/start</a> endpoint

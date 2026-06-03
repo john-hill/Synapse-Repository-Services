@@ -121,10 +121,9 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		if (parts.contains(SearchQueryPart.TOTAL_HITS)) {
 			results.setTotalHits(rawResults.getTotalHits());
 		}
-		// Aggregations and suggesters are scoped by the caller supplying body.aggregations /
-		// body.suggest, not a SearchQueryPart bit. Raw fields are null when not requested.
+		// Aggregations are scoped by the caller supplying body.aggregations, not a
+		// SearchQueryPart bit. The raw field is null when not requested.
 		results.setAggregationResults(rawResults.getAggregationResults());
-		results.setSuggestResults(rawResults.getSuggestResults());
 		if (parts.contains(SearchQueryPart.SELECT_COLUMNS)) {
 			results.setSelectColumns(filterSelectColumnsForSourceFilter(
 					metadata.getSelectColumns(), sourceFilter));

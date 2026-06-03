@@ -20,15 +20,14 @@ import com.fasterxml.jackson.databind.node.TextNode;
  * carries on its search APIs. Operates on a Jackson tree in both directions:
  * <ul>
  *   <li>Request side: {@link #rewriteRequestFields(JsonNode, RoutingContext, Surface)} mutates
- *       an inbound {@code query} / {@code aggregations} / {@code suggest} tree, rewriting
+ *       an inbound {@code query} / {@code aggregations} tree, rewriting
  *       caller column names to column ids and routing text-typed columns through their
  *       {@code .keyword} sub-field on operations that need it (term-family, range,
  *       aggregations, sort-equivalent clauses).</li>
- *   <li>Response side: {@link #rewriteAggregationResults} walks the AOSS response envelope
- *       (aggregations and suggest blocks share the same {@code "field"}-string shape),
- *       rewrites embedded column ids back to column names, and strips the {@code .keyword}
- *       suffix so the caller sees their original bare column name even when the server
- *       auto-routed.</li>
+ *   <li>Response side: {@link #rewriteAggregationResults} walks the AOSS aggregations response
+ *       envelope, rewrites embedded column ids back to column names, and strips the
+ *       {@code .keyword} suffix so the caller sees their original bare column name even when the
+ *       server auto-routed.</li>
  * </ul>
  *
  * <p>Both directions assume {@code "field"} string values and {@code "fields"} string-array
@@ -60,7 +59,6 @@ final class SearchFieldRewriter {
 	enum Surface {
 		QUERY,
 		AGGREGATIONS,
-		SUGGESTER,
 		HIGHLIGHT,
 		COLLAPSE
 	}
@@ -104,7 +102,7 @@ final class SearchFieldRewriter {
 		}
 	}
 
-	private static void rewriteSortObjectKeys(ObjectNode sortObject, RoutingContext ctx) {
+	static void rewriteSortObjectKeys(ObjectNode sortObject, RoutingContext ctx) {
 		List<String> originalKeys = new ArrayList<>();
 		Iterator<String> names = sortObject.fieldNames();
 		while (names.hasNext()) {
@@ -150,7 +148,7 @@ final class SearchFieldRewriter {
 		}
 	}
 
-	private static void rewriteSourceArrayInPlace(ArrayNode array, RoutingContext ctx) {
+	static void rewriteSourceArrayInPlace(ArrayNode array, RoutingContext ctx) {
 		for (int i = 0; i < array.size(); i++) {
 			JsonNode element = array.get(i);
 			if (element.isTextual()) {
@@ -184,7 +182,7 @@ final class SearchFieldRewriter {
 			"match", "match_phrase", "match_phrase_prefix", "match_bool_prefix",
 			"term", "terms", "range", "prefix", "wildcard", "fuzzy"));
 
-	// Per-surface routing tables: key is the OpenSearch clause/agg/suggester kind name;
+	// Per-surface routing tables: key is the OpenSearch clause/agg kind name;
 	// value is the routing mode that applies to the immediate `field` / `fields` /
 	// shorthand-key reference inside that body. Keys not in a table default to BARE.
 
@@ -224,25 +222,16 @@ final class SearchFieldRewriter {
 			Map.entry("value_count", RoutingMode.KEYWORD_FOR_TEXT),
 			Map.entry("cardinality", RoutingMode.KEYWORD_FOR_TEXT));
 
-	// Term and phrase suggesters operate on the analyzed (bare) field — their job is to
-	// suggest tokens. Completion uses a dedicated completion sub-field but the index emits
-	// it under the bare column name today; no .keyword routing.
-	private static final Map<String, RoutingMode> SUGGESTER_KIND_MODES = Map.of(
-			"term", RoutingMode.BARE,
-			"phrase", RoutingMode.BARE,
-			"completion", RoutingMode.BARE);
-
 	private SearchFieldRewriter() {
 	}
 
 	// HIGHLIGHT and COLLAPSE have no nested clause-kind names that drive routing —
 	// HIGHLIGHT routes via its `fields` map keys (handled inline in walk()), and COLLAPSE
 	// routes its single top-level `field` via the seed mode passed to the walker.
-	private static Map<String, RoutingMode> kindMapFor(Surface surface) {
+	static Map<String, RoutingMode> kindMapFor(Surface surface) {
 		switch (surface) {
 		case QUERY: return QUERY_KIND_MODES;
 		case AGGREGATIONS: return AGG_KIND_MODES;
-		case SUGGESTER: return SUGGESTER_KIND_MODES;
 		case HIGHLIGHT:
 		case COLLAPSE: return Collections.emptyMap();
 		default: throw new IllegalStateException("unknown surface: " + surface);
@@ -259,7 +248,7 @@ final class SearchFieldRewriter {
 	 * <p>Three reference shapes are recognized:</p>
 	 * <ul>
 	 *   <li>A {@code "field"} string property (long-form leaf queries, aggregations,
-	 *       suggesters, exists).</li>
+	 *       exists).</li>
 	 *   <li>A {@code "fields"} string-array property (multi_match, simple_query_string).</li>
 	 *   <li>The single key of the inner object of a shorthand leaf query
 	 *       (e.g. {@code {"match": {"<column>": "value"}}}).</li>
@@ -279,7 +268,7 @@ final class SearchFieldRewriter {
 		walk(node, ctx, surface, initialMode);
 	}
 
-	private static void walk(JsonNode node, RoutingContext ctx, Surface surface, RoutingMode mode) {
+	static void walk(JsonNode node, RoutingContext ctx, Surface surface, RoutingMode mode) {
 		if (node == null) {
 			return;
 		}
@@ -336,7 +325,7 @@ final class SearchFieldRewriter {
 	 * column-id form. Highlighted fields are bound to the analyzer at index time, so the
 	 * reference goes to the bare tokenized field — no {@code .keyword} routing.
 	 */
-	private static void rewriteHighlightFieldsMap(ObjectNode highlightFields, RoutingContext ctx) {
+	static void rewriteHighlightFieldsMap(ObjectNode highlightFields, RoutingContext ctx) {
 		List<String> originalKeys = new ArrayList<>();
 		Iterator<String> names = highlightFields.fieldNames();
 		while (names.hasNext()) {
@@ -359,7 +348,7 @@ final class SearchFieldRewriter {
 	 * objects (multiple keys, or a single {@code "field"} key) are left alone for the leaf
 	 * rule.
 	 */
-	private static void rewriteShorthandKey(ObjectNode shorthandObject, RoutingContext ctx, RoutingMode mode) {
+	static void rewriteShorthandKey(ObjectNode shorthandObject, RoutingContext ctx, RoutingMode mode) {
 		if (shorthandObject.size() != 1) {
 			return;
 		}
@@ -468,7 +457,7 @@ final class SearchFieldRewriter {
 	 * non-column ids (the literal {@code _score}, {@code _id}, etc., or values produced by
 	 * AOSS that don't correspond to any column) pass through.</p>
 	 */
-	private static String rewriteIdRefStrippingKeyword(String raw, Function<String, String> idToName) {
+	static String rewriteIdRefStrippingKeyword(String raw, Function<String, String> idToName) {
 		if (raw == null) {
 			return null;
 		}

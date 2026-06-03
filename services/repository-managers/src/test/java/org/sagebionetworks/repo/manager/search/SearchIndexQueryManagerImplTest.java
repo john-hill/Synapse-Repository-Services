@@ -691,7 +691,7 @@ public class SearchIndexQueryManagerImplTest {
 		setupAuthMocks();
 		setupHappyPathMocks();
 		// Raw results without aggregations — mirrors what OpenSearchManager returns when
-		// the body did not supply aggregations / aggs.
+		// the body did not supply aggregations.
 		SearchQueryResults raw = rawHits().setAggregationResults(null);
 		stubOpenSearchSearchReturns(
 				EnumSet.of(SearchQueryPart.HITS),
@@ -776,7 +776,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		// Raw response without aggregations — body had no aggs, so OpenSearchManager returns
+		// Raw response without aggregations — body had no aggregations, so OpenSearchManager returns
 		// aggregationResults = null.
 		SearchQueryResults raw = rawHits().setAggregationResults(null);
 		stubOpenSearchSearchReturns(
@@ -1224,7 +1224,7 @@ public class SearchIndexQueryManagerImplTest {
 			assertEquals(resolved.contains(SearchQueryPart.SELECT_COLUMNS),
 					results.getSelectColumns() != null, "SELECT_COLUMNS gate, mask=" + mask);
 
-			// aggregations / suggest are not gated by SearchQueryPart — they pass through
+			// aggregations are not gated by SearchQueryPart — they pass through
 			// whenever the raw response carried them. rawHits() carries aggregationResults.
 			assertNotNull(results.getAggregationResults(),
 					"aggregations always pass through, mask=" + mask);

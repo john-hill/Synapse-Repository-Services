@@ -119,8 +119,9 @@ public class RecordSetMetadataProvider implements EntityValidator<RecordSet>, Ty
 		CsvTableDescriptor csvDescriptor = Optional.ofNullable(entity.getCsvDescriptor())
 				.orElse(RecordSetCreateGridHandler.DEFAULT_RECORD_SET_CSV_DESCRIPTOR);
 
-		// At the risk of inaccurate columns, we avoid a full CSV scan since this occurs within the entity update transaction
-		// A bound JSON Schema can be used to 'reconcile' the column models and ensure the schema is correct
+		// This step occurs within the same transaction as the entity update, so we avoid the full CSV scan.
+		// Because we are not scanning all rows, the inferred columns may be inacurate. A bound JSON Schema
+		// can be used to 'reconcile' the column models and ensure the schema is correct
 		boolean doFullCsvScan = false;
 		List<ColumnModel> schema = schemaResolver.getReconciledSchema(entity.getId(), dataFileHandle, csvDescriptor, doFullCsvScan).getSchema();
 		if (schema.isEmpty()) {

@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.LoggerProvider;
@@ -28,7 +27,6 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.table.SparseRowDto;
-import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.RecordSetIndexDescription;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
@@ -119,18 +117,10 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 			FileHandle dataFileHandle = fileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId());
 			// RecordSet.csvDescriptor is optional, so fall back to the same default CsvDescriptor as the grid create flow
 			CsvTableDescriptor csvDescriptor = Optional.ofNullable(recordSet.getCsvDescriptor()).orElse(DEFAULT_RECORD_SET_CSV_DESCRIPTOR);
-			List<ColumnModel> schema = inferSchema(dataFileHandle, csvDescriptor);
-			if (schema.isEmpty()) {
-				throw new IllegalArgumentException("RecordSet CSV contains no columns to index.");
-			}
-			List<ColumnModel> persistedColumns = columnModelManager.createColumnModels(getAdminUser(), schema);
-			List<String> columnIds = persistedColumns.stream().map(ColumnModel::getId).collect(Collectors.toList());
-			// Versioned binding preserves the schema for this specific snapshot.
-			columnModelManager.bindColumnsToVersionOfObject(columnIds, versionedKey);
-			if (bindDefaultVersion) {
-				// Default binding serves queries against "syn123" (no 'dot' version) — only rewritten when this rebuild
-				// is for the current revision
-				columnModelManager.bindColumnsToDefaultVersionOfObject(columnIds, entityKey.getId().toString());
+			// The inferred column schema was computed and persisted at update-time by the RecordSetMetadataProvider
+			List<ColumnModel> persistedColumns = tableManagerSupport.getTableSchema(versionedKey);
+			if (persistedColumns.isEmpty()) {
+				throw new IllegalArgumentException("RecordSet schema has not been bound for " + versionedKey + ".");
 			}
 
 			TableIndexManager indexManager = connectionFactory.connectToTableIndex(entityKey);
@@ -177,17 +167,6 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 
 	UserInfo getAdminUser() {
 		return userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
-	}
-
-	List<ColumnModel> inferSchema(FileHandle dataFileHandle, CsvTableDescriptor csvDescriptor) throws IOException {
-		try (CSVReader csvReader = csvFileHandleProvider.getCsvReader(dataFileHandle, csvDescriptor)) {
-			UploadToTablePreviewRequest request = new UploadToTablePreviewRequest()
-					.setCsvTableDescriptor(csvDescriptor)
-					.setDoFullFileScan(true);
-			List<ColumnModel> suggested = new UploadPreviewBuilder(csvReader, request).buildResult()
-					.getSuggestedColumns();
-			return suggested == null ? Collections.emptyList() : suggested;
-		}
 	}
 
 	long loadRows(TableIndexManager indexManager, List<IndexDescription> indexDescriptions, List<ColumnModel> schema,

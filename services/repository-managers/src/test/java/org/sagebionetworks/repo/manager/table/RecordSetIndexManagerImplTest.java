@@ -86,7 +86,7 @@ public class RecordSetIndexManagerImplTest {
 	private RecordSet recordSet;
 	private S3FileHandle fileHandle;
 	private CsvTableDescriptor csvDescriptor;
-	private List<ColumnModel> inferredSchema;
+	/** The provider-bound schema the worker reads. */
 	private List<ColumnModel> persistedSchema;
 	private String token;
 	private long currentRevision;
@@ -109,9 +109,6 @@ public class RecordSetIndexManagerImplTest {
 		recordSet.setEtag("some-etag");
 		fileHandle = new S3FileHandle();
 		fileHandle.setId("9991");
-		inferredSchema = Arrays.asList(
-				new ColumnModel().setName("a").setColumnType(ColumnType.STRING).setMaximumSize(50L),
-				new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER));
 		persistedSchema = Arrays.asList(
 				new ColumnModel().setId("100").setName("a").setColumnType(ColumnType.STRING).setMaximumSize(50L),
 				new ColumnModel().setId("101").setName("b").setColumnType(ColumnType.INTEGER));
@@ -132,8 +129,8 @@ public class RecordSetIndexManagerImplTest {
 		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", currentRevision, RecordSet.class))
 				.thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
-		doReturn(inferredSchema).when(manager).inferSchema(fileHandle, csvDescriptor);
-		when(mockColumnModelManager.createColumnModels(mockAdminUser, inferredSchema)).thenReturn(persistedSchema);
+		// The schema is bound by the provider; the worker only reads it.
+		when(mockTableManagerSupport.getTableSchema(versionedKey)).thenReturn(persistedSchema);
 		when(mockConnectionFactory.connectToTableIndex(entityKey)).thenReturn(mockIndexManager);
 		List<IndexDescription> bothDescriptions = Arrays.asList(entityDescription, versionedDescription);
 		// Single CSV pass writes rows into both index tables on this TableIndexManager mock.
@@ -143,9 +140,10 @@ public class RecordSetIndexManagerImplTest {
 		// call under test
 		manager.createOrUpdateRecordSetIndex(incomingIdAndVersion, mockProgressCallback);
 
-		// Bindings: default (current alias) + versioned (snapshot history).
-		verify(mockColumnModelManager).bindColumnsToDefaultVersionOfObject(Arrays.asList("100", "101"), "999");
-		verify(mockColumnModelManager).bindColumnsToVersionOfObject(Arrays.asList("100", "101"), versionedKey);
+		// The worker no longer creates/binds columns — it reads the bound schema.
+		verify(mockColumnModelManager, never()).createColumnModels(any(), any());
+		verify(mockColumnModelManager, never()).bindColumnsToDefaultVersionOfObject(any(), any());
+		verify(mockColumnModelManager, never()).bindColumnsToVersionOfObject(any(), any());
 		// Both index tables are reset before the single-pass row load.
 		verify(mockIndexManager).resetTableIndex(entityDescription, persistedSchema, false);
 		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
@@ -163,7 +161,7 @@ public class RecordSetIndexManagerImplTest {
 	}
 
 	@Test
-	public void testCreateOrUpdateRecordSetIndexWithEmptySchemaFails() throws Exception {
+	public void testCreateOrUpdateRecordSetIndexWithUnboundSchemaFails() throws Exception {
 		stubLockToRunInline();
 		when(mockTableManagerSupport.isIndexWorkRequired(entityKey)).thenReturn(true);
 		when(mockTableManagerSupport.startTableProcessing(entityKey)).thenReturn(token);
@@ -172,7 +170,8 @@ public class RecordSetIndexManagerImplTest {
 		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", currentRevision, RecordSet.class))
 				.thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
-		doReturn(Collections.emptyList()).when(manager).inferSchema(fileHandle, csvDescriptor);
+		// No schema bound for this version.
+		when(mockTableManagerSupport.getTableSchema(versionedKey)).thenReturn(Collections.emptyList());
 
 		// call under test
 		assertThrows(RuntimeException.class,
@@ -180,7 +179,6 @@ public class RecordSetIndexManagerImplTest {
 
 		verify(mockTableManagerSupport).attemptToSetTableStatusToFailed(eq(entityKey), any(Exception.class));
 		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToAvailable(any(), any(), any());
-		verify(mockColumnModelManager, never()).bindColumnsToDefaultVersionOfObject(any(), any());
 		verify(mockIndexManager, never()).resetTableIndex(any(IndexDescription.class), any(List.class),
 				Mockito.anyBoolean());
 	}
@@ -228,8 +226,8 @@ public class RecordSetIndexManagerImplTest {
 		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", olderVersion, RecordSet.class))
 				.thenReturn(olderRecordSet);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
-		doReturn(inferredSchema).when(manager).inferSchema(fileHandle, csvDescriptor);
-		when(mockColumnModelManager.createColumnModels(mockAdminUser, inferredSchema)).thenReturn(persistedSchema);
+		// The older version reads its own snapshot's bound schema.
+		when(mockTableManagerSupport.getTableSchema(versionedOlderKey)).thenReturn(persistedSchema);
 		when(mockConnectionFactory.connectToTableIndex(entityKey)).thenReturn(mockIndexManager);
 		List<IndexDescription> versionedOnly = Collections.singletonList(versionedDescription);
 		doReturn(7L).when(manager).loadRows(eq(mockIndexManager), eq(versionedOnly), eq(persistedSchema),
@@ -238,10 +236,6 @@ public class RecordSetIndexManagerImplTest {
 		// call under test
 		manager.createOrUpdateRecordSetIndex(olderIncoming, mockProgressCallback);
 
-		// Only the per-version binding — default binding is left alone so T{id}'s schema
-		// keeps following the current revision.
-		verify(mockColumnModelManager).bindColumnsToVersionOfObject(Arrays.asList("100", "101"), versionedOlderKey);
-		verify(mockColumnModelManager, never()).bindColumnsToDefaultVersionOfObject(any(), any());
 		// Only the versioned index table is reset / built / version-stamped.
 		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
 		verify(mockIndexManager, never()).resetTableIndex(eq(entityDescriptionAtOlder), any(), Mockito.anyBoolean());
@@ -273,7 +267,7 @@ public class RecordSetIndexManagerImplTest {
 		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", olderVersion, RecordSet.class))
 				.thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
-		doReturn(Collections.emptyList()).when(manager).inferSchema(fileHandle, csvDescriptor);
+		when(mockTableManagerSupport.getTableSchema(versionedOlderKey)).thenReturn(Collections.emptyList());
 
 		// call under test
 		assertThrows(RuntimeException.class,
@@ -301,8 +295,7 @@ public class RecordSetIndexManagerImplTest {
 		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", currentRevision, RecordSet.class))
 				.thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
-		doReturn(inferredSchema).when(manager).inferSchema(fileHandle, csvDescriptor);
-		when(mockColumnModelManager.createColumnModels(mockAdminUser, inferredSchema)).thenReturn(persistedSchema);
+		when(mockTableManagerSupport.getTableSchema(versionedKey)).thenReturn(persistedSchema);
 		when(mockConnectionFactory.connectToTableIndex(entityKey)).thenReturn(mockIndexManager);
 		List<IndexDescription> bothDescriptions = Arrays.asList(entityDescription, versionedDescription);
 		doReturn(42L).when(manager).loadRows(eq(mockIndexManager), eq(bothDescriptions), eq(persistedSchema),
@@ -311,8 +304,6 @@ public class RecordSetIndexManagerImplTest {
 		// call under test
 		manager.createOrUpdateRecordSetIndex(versionless, mockProgressCallback);
 
-		verify(mockColumnModelManager).bindColumnsToDefaultVersionOfObject(Arrays.asList("100", "101"), "999");
-		verify(mockColumnModelManager).bindColumnsToVersionOfObject(Arrays.asList("100", "101"), versionedKey);
 		verify(mockIndexManager).resetTableIndex(entityDescription, persistedSchema, false);
 		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
 		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(versionedKey), eq(versionedToken), eq("some-etag"));

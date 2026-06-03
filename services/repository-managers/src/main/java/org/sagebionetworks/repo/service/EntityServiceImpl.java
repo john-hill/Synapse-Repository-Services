@@ -67,6 +67,7 @@ import org.sagebionetworks.repo.service.metadata.MetadataProviderFactory;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificCreateProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificDefiningSqlProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificDeleteProvider;
+import org.sagebionetworks.repo.service.metadata.TypeSpecificEntitySanitizer;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificMetadataProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificUpdateProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificVersionDeleteProvider;
@@ -231,6 +232,7 @@ public class EntityServiceImpl implements EntityService {
 		EventType eventType = EventType.CREATE;
 		// Fire the event
 		fireValidateEvent(userInfo, eventType, newEntity, type);
+		fireSanitizeEvent(userInfo, eventType, newEntity, type);
 		String id = entityManager.createEntity(userInfo, newEntity, activityId);
 		newEntity.setId(id);
 		fireAfterCreateEntityEvent(userInfo, newEntity, type);
@@ -302,11 +304,34 @@ public class EntityServiceImpl implements EntityService {
 			}
 		});
 	}
-	
+
+	/**
+	 * Fire a sanitize event. This allows the type-specific provider to strip or
+	 * normalize server-controlled fields the client must not set directly. It runs
+	 * after validation and before the entity is persisted.
+	 */
+	private void fireSanitizeEvent(UserInfo userInfo, EventType eventType, Entity entity, EntityType type) {
+		EntityEvent event = new EntityEvent(eventType, null, userInfo);
+		metadataProviderFactory.getMetadataProvider(type).ifPresent(provider -> {
+			if (provider instanceof TypeSpecificEntitySanitizer) {
+				((TypeSpecificEntitySanitizer) provider).sanitizeEntity(entity, event);
+			}
+		});
+	}
+
 	@WriteTransaction
 	@Override
 	public <T extends Entity> T updateEntity(Long userId,
 			T updatedEntity, boolean newVersion, String activityId)
+			throws NotFoundException, ConflictingUpdateException,
+			DatastoreException, InvalidModelException, UnauthorizedException {
+		return updateEntity(userId, updatedEntity, newVersion, activityId, false);
+	}
+
+	@WriteTransaction
+	@Override
+	public <T extends Entity> T updateEntity(Long userId,
+			T updatedEntity, boolean newVersion, String activityId, boolean skipSanitization)
 			throws NotFoundException, ConflictingUpdateException,
 			DatastoreException, InvalidModelException, UnauthorizedException {
 		if(updatedEntity == null) throw new IllegalArgumentException("Entity cannot be null");
@@ -320,6 +345,11 @@ public class EntityServiceImpl implements EntityService {
 		EventType eventType = EventType.UPDATE;
 		// Fire the event
 		fireValidateEvent(userInfo, eventType, updatedEntity, type);
+		// Sanitization strips server-controlled fields a client must not set. Trusted internal callers (e.g. the grid
+		// export job, which must persist the validation file handle) can skip it.
+		if (!skipSanitization) {
+			fireSanitizeEvent(userInfo, eventType, updatedEntity, type);
+		}
 		// Keep the entity id
 		String entityId = updatedEntity.getId();
 		// Now do the update

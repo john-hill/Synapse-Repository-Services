@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -52,6 +53,7 @@ import org.sagebionetworks.repo.service.metadata.FileEntityMetadataProvider;
 import org.sagebionetworks.repo.service.metadata.MetadataProviderFactory;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificCreateProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificDefiningSqlProvider;
+import org.sagebionetworks.repo.service.metadata.TypeSpecificEntitySanitizer;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificUpdateProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -79,6 +81,8 @@ public class EntityServiceImplUnitTest {
 	TypeSpecificUpdateProvider<Project> mockProjectUpdateProvider;
 	@Mock
 	TypeSpecificCreateProvider<Project> mockProjectCreateProvider;
+	@Mock
+	TypeSpecificEntitySanitizer<Project> mockSanitizer;
 	@Mock
 	TypeSpecificDefiningSqlProvider<MaterializedView> mockMaterializedViewDefiningSqlProvider;
 	@Mock
@@ -157,6 +161,42 @@ public class EntityServiceImplUnitTest {
 		entityService.updateEntity(userInfo.getId(), project, newVersion, null);
 		verify(mockProjectCreateProvider, never()).entityCreated(any(UserInfo.class), any(Project.class));
 		verify(mockProjectUpdateProvider).entityUpdated(userInfo, project, newVersion);
+	}
+
+	@Test
+	public void testCreateEntityFiresSanitize() {
+		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
+		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.project)).thenReturn(Optional.of(mockSanitizer));
+		// Call under test.
+		entityService.createEntity(userInfo.getId(), project, null);
+
+		// Sanitize always fires on create, after validation.
+		verify(mockSanitizer).sanitizeEntity(eq(project), any(EntityEvent.class));
+	}
+
+	@Test
+	public void testUpdateEntityFiresSanitize() {
+		boolean newVersion = true;
+		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
+		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.project)).thenReturn(Optional.of(mockSanitizer));
+		when(mockEntityManager.updateEntity(userInfo, project, newVersion, null)).thenReturn(newVersion);
+		// Call under test — the existing 4-arg overload does not skip sanitization.
+		entityService.updateEntity(userInfo.getId(), project, newVersion, null);
+		verify(mockSanitizer).sanitizeEntity(eq(project), any(EntityEvent.class));
+	}
+
+	@Test
+	public void testUpdateEntityWithSkipSanitization() {
+		boolean newVersion = true;
+		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
+		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.project)).thenReturn(Optional.of(mockSanitizer));
+		when(mockEntityManager.updateEntity(userInfo, project, newVersion, null)).thenReturn(newVersion);
+		// Call under test — skipSanitization=true.
+		entityService.updateEntity(userInfo.getId(), project, newVersion, null, true);
+		// Validation (allTypesValidator) and the after-update hook still fire...
+		verify(mockAllTypesValidator).validateEntity(eq(project), any(EntityEvent.class));
+		// sanitize is skipped.
+		verify(mockSanitizer, never()).sanitizeEntity(any(Project.class), any(EntityEvent.class));
 	}
 
 	@Test
@@ -391,6 +431,6 @@ public class EntityServiceImplUnitTest {
 			entityService.validateDefiningSql(request);	
 		}).getMessage();
 		
-		assertEquals("entityType is required.", errorMessage); 
+		assertEquals("entityType is required.", errorMessage);
 	}
 }

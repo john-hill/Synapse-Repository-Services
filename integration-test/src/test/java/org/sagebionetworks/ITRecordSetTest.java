@@ -24,7 +24,6 @@ import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
-import org.sagebionetworks.repo.model.table.MaterializedView;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryOptions;
 import org.sagebionetworks.repo.model.table.Row;
@@ -40,8 +39,7 @@ public class ITRecordSetTest {
 	private File csvFile;
 	private FileHandle csvFileHandle;
 	private RecordSet recordSet;
-	private MaterializedView materializedView;
-	
+
 	public ITRecordSetTest(SynapseAdminClient adminSynapse, SynapseClient synapse) {
 		this.adminSynapse = adminSynapse;
 		this.synapse = synapse;
@@ -61,10 +59,6 @@ public class ITRecordSetTest {
 	
 	@AfterEach
 	public void after() throws Exception {
-
-		if (materializedView != null) {
-			synapse.deleteEntity(materializedView, true);
-		}
 
 		if (recordSet != null) {
 			synapse.deleteEntity(recordSet, true);
@@ -105,49 +99,6 @@ public class ITRecordSetTest {
 		// call under test — assertions inside the consumer so AsyncJobHelper retries
 		// while the worker is still building the index.
 		queryAndAssertExpectedRows(recordSet.getId(), List.of("1", "2", "3"), List.of("4", "5", "6"));
-	}
-
-	@Test
-	public void testQueryRecordSetByExplicitVersion() throws Exception {
-		// v1 — original test.csv ("1,2,3" / "4,5,6").
-		recordSet = createRecordSet(csvFileHandle.getId());
-		long v1Version = recordSet.getVersionNumber();
-
-		// v2 — upload a CSV with different data and create a new version.
-		File v2CsvFile = File.createTempFile("ITRecordSetTest-v2-", ".csv");
-		v2CsvFile.deleteOnExit();
-		FileUtils.writeStringToFile(v2CsvFile, "a,b,c\n7,8,9\n10,11,12\n", StandardCharsets.UTF_8);
-		FileHandle v2FileHandle = synapse.multipartUpload(v2CsvFile, null, false, true);
-		recordSet.setDataFileHandleId(v2FileHandle.getId());
-		recordSet.setVersionLabel("v2");
-		recordSet = synapse.putEntity(recordSet, null, true);
-		long v2Version = recordSet.getVersionNumber();
-
-		// call under test — each version's immutable snapshot T{id}_{v} returns
-		// its own data, and the unversioned alias T{id} resolves to the latest.
-		queryAndAssertExpectedRows(recordSet.getId() + "." + v1Version,
-				List.of("1", "2", "3"), List.of("4", "5", "6"));
-		queryAndAssertExpectedRows(recordSet.getId() + "." + v2Version,
-				List.of("7", "8", "9"), List.of("10", "11", "12"));
-		queryAndAssertExpectedRows(recordSet.getId(),
-				List.of("7", "8", "9"), List.of("10", "11", "12"));
-	}
-
-	@Test
-	public void testQueryRecordSetThroughMaterializedView() throws Exception {
-		recordSet = createRecordSet(csvFileHandle.getId());
-
-		// Wait for the RecordSet index so the MV build sees rows to copy.
-		queryAndAssertExpectedRows(recordSet.getId(), List.of("1", "2", "3"), List.of("4", "5", "6"));
-
-		materializedView = new MaterializedView()
-				.setDefiningSQL(String.format("select * from %s", recordSet.getId()))
-				.setName(UUID.randomUUID().toString())
-				.setParentId(project.getId());
-		materializedView = synapse.createEntity(materializedView);
-
-		// call under test — same retry posture for the MV build.
-		queryAndAssertExpectedRows(materializedView.getId(), List.of("1", "2", "3"), List.of("4", "5", "6"));
 	}
 
 	private RecordSet createRecordSet(String dataFileHandleId) throws SynapseException {

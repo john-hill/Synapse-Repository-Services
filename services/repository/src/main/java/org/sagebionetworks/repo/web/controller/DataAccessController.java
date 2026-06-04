@@ -334,7 +334,7 @@ public class DataAccessController {
 	public @ResponseBody EDucTemplatePage listEDucTemplates(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestParam(value = UrlHelpers.NEXT_PAGE_TOKEN_PARAM, required = false) String nextPageToken)
-			throws ServiceUnavailableException {
+			throws Exception {
 		return serviceProvider.getEDucService().listTemplates(userId, nextPageToken);
 	}
 	

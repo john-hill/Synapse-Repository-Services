@@ -2,11 +2,8 @@ package org.sagebionetworks.repo.service.docusign;
 
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.docusign.EDucManager;
-import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
-import org.sagebionetworks.repo.web.NotFoundException;
-import org.sagebionetworks.repo.web.ServiceUnavailableException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,8 +17,7 @@ public class EDucService {
 		this.eDucManager = eDucManager;
 	}
 
-	public EDucTemplatePage listTemplates(Long userId, String nextPageToken)
-			throws ServiceUnavailableException, NotFoundException, UnauthorizedException {
+	public EDucTemplatePage listTemplates(Long userId, String nextPageToken) throws Exception {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return eDucManager.listTemplates(userInfo, nextPageToken);
 	}

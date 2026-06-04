@@ -20,8 +20,7 @@ public class EDucManager {
 		this.docuSignClient = docuSignClient;
 	}
 
-	public EDucTemplatePage listTemplates(UserInfo userInfo, String nextPageToken)
-			throws ServiceUnavailableException, NotFoundException, UnauthorizedException {
+	public EDucTemplatePage listTemplates(UserInfo userInfo, String nextPageToken) throws Exception {
 		ValidateArgument.required(userInfo, "userInfo");
 		if (!AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo)) {
 			throw new UnauthorizedException("Only ACT member can perform this action.");

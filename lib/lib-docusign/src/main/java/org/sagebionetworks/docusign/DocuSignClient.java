@@ -62,8 +62,7 @@ public class DocuSignClient {
 	 * @return a page of templates; the {@code nextPageToken} field is left null
 	 *         (callers are responsible for assembling the Synapse-style token)
 	 */
-	public EDucTemplatePage listTemplates(int startPosition, int count)
-			throws ServiceUnavailableException, NotFoundException, UnauthorizedException {
+	public EDucTemplatePage listTemplates(int startPosition, int count) throws Exception {
 		try {
 			return listTemplatesOnce(startPosition, count, getAccessToken());
 		} catch (UnauthorizedException e) {
@@ -73,8 +72,7 @@ public class DocuSignClient {
 		}
 	}
 
-	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken)
-			throws ServiceUnavailableException, NotFoundException, UnauthorizedException {
+	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken) throws Exception {
 		TemplatesApi templatesApi = templatesApiFactory.create(config.getBasePath(), accessToken);
 		TemplatesApi.ListTemplatesOptions options = templatesApi.new ListTemplatesOptions();
 		options.setStartPosition(String.valueOf(startPosition));
@@ -84,7 +82,7 @@ public class DocuSignClient {
 			EnvelopeTemplateResults results = templatesApi.listTemplates(config.getAccountId(), options);
 			return toEDucTemplatePage(results);
 		} catch (ApiException e) {
-			handleApiException(e);
+			throw convertApiException(e);
 		}
 	}
 
@@ -167,17 +165,17 @@ public class DocuSignClient {
 		return Date.from(Instant.parse(iso8601));
 	}
 
-	static void handleApiException(ApiException e) throws ServiceUnavailableException {
+	static Exception convertApiException(ApiException e) throws ServiceUnavailableException {
 		int code = e.getCode();
 		switch (code) {
 			case 401:
-				throw new UnauthorizedException("DocuSign rejected the access token.", e);
+				return new UnauthorizedException("DocuSign rejected the access token.", e);
 			case 403:
-				throw new UnauthorizedException("DocuSign denied access for the configured user.", e);
+				return new UnauthorizedException("DocuSign denied access for the configured user.", e);
 			case 404:
-				throw new NotFoundException("DocuSign resource not found.", e);
+				return new NotFoundException("DocuSign resource not found.", e);
 			default:
-				throw new ServiceUnavailableException(
+				return new ServiceUnavailableException(
 						"Error " + code + " communicating with DocuSign.", e);
 		}
 	}

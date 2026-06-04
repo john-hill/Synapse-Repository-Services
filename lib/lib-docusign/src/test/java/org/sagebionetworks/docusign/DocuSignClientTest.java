@@ -226,17 +226,17 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testHandleApiExceptionMapping() {
-		assertThrows(UnauthorizedException.class,
-				() -> DocuSignClient.handleApiException(new ApiException(401, "x")));
-		assertThrows(UnauthorizedException.class,
-				() -> DocuSignClient.handleApiException(new ApiException(403, "x")));
-		assertThrows(NotFoundException.class,
-				() -> DocuSignClient.handleApiException(new ApiException(404, "x")));
-		assertThrows(ServiceUnavailableException.class,
-				() -> DocuSignClient.handleApiException(new ApiException(500, "x")));
-		assertThrows(ServiceUnavailableException.class,
-				() -> DocuSignClient.handleApiException(new ApiException(429, "x")));
+	public void testHandleApiExceptionMapping() throws Exception {
+		assertEquals(UnauthorizedException.class, 
+				DocuSignClient.convertApiException(new ApiException(401, "x")).getClass());
+		assertEquals(UnauthorizedException.class,
+				DocuSignClient.convertApiException(new ApiException(403, "x")).getClass());
+		assertEquals(NotFoundException.class,
+				DocuSignClient.convertApiException(new ApiException(404, "x")).getClass());
+		assertEquals(ServiceUnavailableException.class,
+				DocuSignClient.convertApiException(new ApiException(500, "x")).getClass());
+		assertEquals(ServiceUnavailableException.class,
+				DocuSignClient.convertApiException(new ApiException(429, "x")).getClass());
 	}
 
 	@Test

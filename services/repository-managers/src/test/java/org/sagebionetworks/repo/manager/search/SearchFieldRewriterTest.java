@@ -317,18 +317,6 @@ public class SearchFieldRewriterTest {
 	}
 
 	@Test
-	public void testRewriteRequestFieldsWithIdsHasNoColumnRef() throws IOException {
-		// `ids.values` are document IDs, never column names — must pass through untouched.
-		JsonNode dsl = parse("{\"ids\":{\"values\":[\"syn1\",\"syn2\"]}}");
-
-		// call under test
-		SearchFieldRewriter.rewriteRequestFields(dsl, NAME_ONLY, Surface.QUERY);
-
-		assertEquals("syn1", dsl.get("ids").get("values").get(0).asText());
-		assertEquals("syn2", dsl.get("ids").get("values").get(1).asText());
-	}
-
-	@Test
 	public void testRewriteRequestFieldsWithTermsAggOrderKeysLeftAlone() throws IOException {
 		// `order` keys are pseudo-keys (_count / _key) or sub-agg names — never columns.
 		// The walker must rewrite the explicit `field` and leave `order` keys verbatim,
@@ -644,19 +632,6 @@ public class SearchFieldRewriterTest {
 
 		assertEquals("100^3", dsl.get("multi_match").get("fields").get(0).asText());
 		assertEquals("101", dsl.get("multi_match").get("fields").get(1).asText());
-	}
-
-	@Test
-	public void testRewriteRequestFieldsWithIdsClauseUntouched() throws IOException {
-		// `ids.values` are document IDs, never column names — auto-router must not attempt
-		// to look them up nor route a sub-field.
-		JsonNode dsl = parse("{\"ids\":{\"values\":[\"syn1\",\"syn2\"]}}");
-
-		// call under test
-		SearchFieldRewriter.rewriteRequestFields(dsl, ROUTING, Surface.QUERY);
-
-		assertEquals("syn1", dsl.get("ids").get("values").get(0).asText());
-		assertEquals("syn2", dsl.get("ids").get("values").get(1).asText());
 	}
 
 	@Test

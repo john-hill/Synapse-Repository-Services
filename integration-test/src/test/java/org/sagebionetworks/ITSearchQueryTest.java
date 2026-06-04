@@ -3,6 +3,7 @@ package org.sagebionetworks;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.AsynchJobType;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
+import org.sagebionetworks.client.exceptions.SynapseBadRequestException;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
@@ -43,6 +46,19 @@ import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.dsl.Aggregation;
+import org.sagebionetworks.repo.model.search.dsl.FieldCollapse;
+import org.sagebionetworks.repo.model.search.dsl.Highlight;
+import org.sagebionetworks.repo.model.search.dsl.HighlightField;
+import org.sagebionetworks.repo.model.search.dsl.MatchAllQuery;
+import org.sagebionetworks.repo.model.search.dsl.MatchBoolPrefixFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.MatchFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.MatchPhraseFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.Query;
+import org.sagebionetworks.repo.model.search.dsl.Rescore;
+import org.sagebionetworks.repo.model.search.dsl.RescoreQuery;
+import org.sagebionetworks.repo.model.search.dsl.TermFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.TermsAggregation;
 import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 
@@ -93,11 +109,10 @@ public class ITSearchQueryTest {
 		}
 	}
 
-	/** Build a SearchQuery wrapping an opaque {@code match_all} clause — the
+	/** Build a SearchQuery wrapping a {@code match_all} clause — the
 	 * catalog-style minimum payload now that {@code query} is required. */
 	private static SearchQuery matchAllBody() {
-		return new SearchQuery().setQuery(
-				new org.json.JSONObject().put("match_all", new org.json.JSONObject()));
+		return new SearchQuery().setQuery(new Query().setMatch_all(new MatchAllQuery()));
 	}
 
 	/**
@@ -221,11 +236,11 @@ public class ITSearchQueryTest {
 		SearchIndexQuery postFilterQuery = new SearchIndexQuery();
 		postFilterQuery.setSearchIndexId(searchIndexId);
 		postFilterQuery.setSearchQuery(new SearchQuery()
-				.setQuery(new org.json.JSONObject().put("match_all", new org.json.JSONObject()))
-				.setAggregations(new org.json.JSONObject(
-						"{\"by_project\":{\"terms\":{\"field\":\"projectId\"}}}"))
-				.setPost_filter(new org.json.JSONObject(
-						"{\"term\":{\"projectId\":\"projA\"}}")));
+				.setQuery(new Query().setMatch_all(new MatchAllQuery()))
+				.setAggregations(Map.of("by_project",
+						new Aggregation().setTerms(new TermsAggregation().setField("projectId"))))
+				.setPost_filter(new Query().setTerm(
+						Map.of("projectId", new TermFieldOptions().setValue("projA")))));
 		postFilterQuery.setResponseParts(EnumSet.of(SearchQueryPart.TOTAL_HITS));
 
 		// call under test — post_filter + aggregations round-trip
@@ -243,8 +258,8 @@ public class ITSearchQueryTest {
 		SearchIndexQuery highlightQuery = new SearchIndexQuery();
 		highlightQuery.setSearchIndexId(searchIndexId);
 		highlightQuery.setSearchQuery(new SearchQuery()
-				.setQuery(new org.json.JSONObject("{\"match\":{\"title\":\"tumor\"}}"))
-				.setHighlight(new org.json.JSONObject("{\"fields\":{\"title\":{}}}")));
+				.setQuery(new Query().setMatch(Map.of("title", new MatchFieldOptions().setQuery("tumor"))))
+				.setHighlight(new Highlight().setFields(Map.of("title", new HighlightField()))));
 		highlightQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
 
 		// call under test — highlight round-trip
@@ -265,8 +280,8 @@ public class ITSearchQueryTest {
 		SearchIndexQuery collapseQuery = new SearchIndexQuery();
 		collapseQuery.setSearchIndexId(searchIndexId);
 		collapseQuery.setSearchQuery(new SearchQuery()
-				.setQuery(new org.json.JSONObject("{\"match\":{\"title\":\"tumor\"}}"))
-				.setCollapse(new org.json.JSONObject().put("field", "projectId")));
+				.setQuery(new Query().setMatch(Map.of("title", new MatchFieldOptions().setQuery("tumor"))))
+				.setCollapse(new FieldCollapse().setField("projectId")));
 		collapseQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
 
 		// call under test — collapse round-trip
@@ -285,13 +300,14 @@ public class ITSearchQueryTest {
 		SearchIndexQuery rescoreQuery = new SearchIndexQuery();
 		rescoreQuery.setSearchIndexId(searchIndexId);
 		rescoreQuery.setSearchQuery(new SearchQuery()
-				.setQuery(new org.json.JSONObject("{\"match\":{\"title\":\"tumor\"}}"))
-				.setRescore(new org.json.JSONObject(
-						"{\"window_size\":50,"
-						+ "\"query\":{"
-						+ "\"rescore_query\":{\"match_phrase\":{\"title\":\"amyloid plaques\"}},"
-						+ "\"query_weight\":1.0,"
-						+ "\"rescore_query_weight\":5.0}}")));
+				.setQuery(new Query().setMatch(Map.of("title", new MatchFieldOptions().setQuery("tumor"))))
+				.setRescore(new Rescore()
+						.setWindow_size(50L)
+						.setQuery(new RescoreQuery()
+								.setRescore_query(new Query().setMatch_phrase(
+										Map.of("title", new MatchPhraseFieldOptions().setQuery("amyloid plaques"))))
+								.setQuery_weight(1.0)
+								.setRescore_query_weight(5.0))));
 		rescoreQuery.setResponseParts(EnumSet.of(SearchQueryPart.HITS));
 
 		// call under test — rescore round-trip
@@ -401,8 +417,8 @@ public class ITSearchQueryTest {
 		SearchAutocompleteRequest autocompleteRequest = new SearchAutocompleteRequest()
 				.setSearchIndexId(searchIndex.getId())
 				.setSearchQuery(new SearchAutocompleteBody()
-						.setQuery(new org.json.JSONObject(
-								"{\"match_bool_prefix\":{\"geneName\":\"BRC\"}}")));
+						.setQuery(new Query().setMatch_bool_prefix(
+								Map.of("geneName", new MatchBoolPrefixFieldOptions().setQuery("BRC")))));
 
 		// call under test
 		SearchQueryResults autocompleteResults = synapse.searchAutocomplete(autocompleteRequest);
@@ -417,6 +433,24 @@ public class ITSearchQueryTest {
 			"autocomplete must always omit selectColumns");
 		assertNull(autocompleteResults.getAggregationResults(),
 			"autocomplete must always omit aggregationResults");
+	}
+
+	@Test
+	public void testStartSearchQueryWithUnsupportedKey() {
+		// An unsupported key anywhere in the typed search DSL is rejected with HTTP 400 at request
+		// submission (the SearchIndexQuery body round-trips through the boundary guard), before any
+		// async job is created — so this needs no built index.
+		FakeSearchQuery body = new FakeSearchQuery();
+		body.setQuery(new Query().setMatch_all(new MatchAllQuery()));
+		body.setNotPartOfSpecification("nope");
+		SearchIndexQuery request = new SearchIndexQuery()
+				.setSearchIndexId("syn1")
+				.setSearchQuery(body);
+
+		// call under test
+		String message = assertThrows(SynapseBadRequestException.class,
+				() -> synapse.startSearchIndexQuery(request)).getMessage();
+		assertEquals("JSON Element in Entity is Unsupported: notPartOfSpecification", message);
 	}
 
 	private void grantPublicRead(String entityId) throws SynapseException {

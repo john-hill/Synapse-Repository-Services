@@ -1,0 +1,17 @@
+{
+	"description": "A <a href=\"https://docs.opensearch.org/latest/aggregations/metric/sum/\"><code>sum</code></a> metric aggregation &mdash; the sum of a numeric column.",
+	"properties": {
+		"field": {
+			"type": "string",
+			"description": "Required. The numeric column to aggregate."
+		},
+		"missing": {
+			"type": "object",
+			"description": "Optional. Value substituted for documents missing <code>field</code>."
+		},
+		"format": {
+			"type": "string",
+			"description": "Optional. Format applied to the result value."
+		}
+	}
+}

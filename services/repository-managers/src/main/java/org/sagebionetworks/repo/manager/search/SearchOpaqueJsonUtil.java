@@ -348,12 +348,14 @@ public final class SearchOpaqueJsonUtil {
 
 	private static Query parseQuery(JsonNode node, SearchFieldRewriter.RoutingContext ctx,
 			boolean autocomplete) {
-		// Rebuild a clean node from supported clauses/keys only (rejects any unrecognized sibling
-		// and any forbidden key inside an opaque value in a single pass), then rewrite, deserialize,
-		// and run the typed caps on the clean node.
-		JsonNode clean = SearchDslSanitizer.sanitizeQuery(node, autocomplete);
-		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.QUERY);
-		Query query = fromJsonpTree(clean, Query._DESERIALIZER);
+		// The typed SearchQuery POJO already constrains the clause structure (unknown keys are
+		// dropped on deserialization and rejected at the request boundary). The remaining caller-
+		// controlled risk is a forbidden construct hidden inside an opaque leaf (a script in a
+		// term value, etc.), so scan for forbidden keys, then rewrite field references, deserialize
+		// to the typed OpenSearch query, and run the resource caps.
+		SearchDslSanitizer.scanForbiddenKeys(node, "query");
+		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.QUERY);
+		Query query = fromJsonpTree(node, Query._DESERIALIZER);
 		SearchDslValidator.validateQuery(query, autocomplete);
 		return query;
 	}
@@ -364,10 +366,10 @@ public final class SearchOpaqueJsonUtil {
 		if (node == null || node.isNull()) {
 			return Collections.emptyMap();
 		}
-		JsonNode clean = SearchDslSanitizer.sanitizeAggregations(node);
-		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.AGGREGATIONS);
+		SearchDslSanitizer.scanForbiddenKeys(node, "aggregations");
+		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.AGGREGATIONS);
 		Map<String, Aggregation> result = new LinkedHashMap<>();
-		Iterator<Map.Entry<String, JsonNode>> fields = clean.fields();
+		Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
 		while (fields.hasNext()) {
 			Map.Entry<String, JsonNode> entry = fields.next();
 			result.put(entry.getKey(), fromJsonpTree(entry.getValue(), Aggregation._DESERIALIZER));
@@ -377,29 +379,30 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	private static Highlight parseHighlight(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		JsonNode clean = SearchDslSanitizer.sanitizeHighlight(node);
-		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.HIGHLIGHT);
-		Highlight highlight = fromJsonpTree(clean, Highlight._DESERIALIZER);
+		SearchDslSanitizer.scanForbiddenKeys(node, "highlight");
+		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.HIGHLIGHT);
+		Highlight highlight = fromJsonpTree(node, Highlight._DESERIALIZER);
 		SearchDslValidator.validateHighlight(highlight);
 		return highlight;
 	}
 
 	private static FieldCollapse parseCollapse(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		JsonNode clean = SearchDslSanitizer.sanitizeCollapse(node);
-		SearchFieldRewriter.rewriteRequestFields(clean, ctx, SearchFieldRewriter.Surface.COLLAPSE);
-		FieldCollapse collapse = fromJsonpTree(clean, FieldCollapse._DESERIALIZER);
+		// FieldCollapse is fully typed (field + max_concurrent_group_searches); no opaque slot
+		// remains, so no forbidden-key scan is needed.
+		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.COLLAPSE);
+		FieldCollapse collapse = fromJsonpTree(node, FieldCollapse._DESERIALIZER);
 		SearchDslValidator.validateFieldCollapse(collapse);
 		return collapse;
 	}
 
 	static Rescore parseRescore(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		JsonNode clean = SearchDslSanitizer.sanitizeRescore(node);
-		JsonNode rescoreQueryNode = clean.path("query").path("rescore_query");
+		SearchDslSanitizer.scanForbiddenKeys(node, "rescore");
+		JsonNode rescoreQueryNode = node.path("query").path("rescore_query");
 		if (!rescoreQueryNode.isMissingNode()) {
 			SearchFieldRewriter.rewriteRequestFields(rescoreQueryNode, ctx,
 					SearchFieldRewriter.Surface.QUERY);
 		}
-		Rescore rescore = fromJsonpTree(clean, Rescore._DESERIALIZER);
+		Rescore rescore = fromJsonpTree(node, Rescore._DESERIALIZER);
 		SearchDslValidator.validateRescore(rescore);
 		return rescore;
 	}

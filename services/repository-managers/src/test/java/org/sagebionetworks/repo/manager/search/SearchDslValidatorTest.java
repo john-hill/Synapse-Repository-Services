@@ -35,7 +35,6 @@ import org.opensearch.client.opensearch.core.search.FieldCollapse;
 import org.opensearch.client.opensearch.core.search.Highlight;
 import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.HighlighterType;
-import org.opensearch.client.opensearch.core.search.InnerHits;
 import org.opensearch.client.opensearch.core.search.Rescore;
 import org.opensearch.client.opensearch.core.search.RescoreQuery;
 
@@ -177,18 +176,6 @@ public class SearchDslValidatorTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> SearchDslValidator.validateQuery(q, false));
 		assertTrue(ex.getMessage().contains("terms array"));
-	}
-
-	@Test
-	public void testValidateQueryWithIdsValuesAtCap() {
-		List<String> ids = new ArrayList<>();
-		for (int i = 0; i <= SearchDslValidator.MAX_VALUES_PER_CLAUSE; i++) {
-			ids.add(String.valueOf(i));
-		}
-		Query q = Query.of(b -> b.ids(i -> i.values(ids)));
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateQuery(q, false));
-		assertTrue(ex.getMessage().contains("ids.values"));
 	}
 
 	@Test
@@ -618,16 +605,6 @@ public class SearchDslValidatorTest {
 	}
 
 	@Test
-	public void testValidateFieldCollapseWithInnerHitsRejected() {
-		FieldCollapse c = FieldCollapse.of(b -> b.field("100")
-				.innerHits(InnerHits.of(ih -> ih.name("latest").size(3))));
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateFieldCollapse(c));
-		assertTrue(ex.getMessage().contains("inner_hits"));
-	}
-
-	@Test
 	public void testValidateFieldCollapseWithExcessiveConcurrentGroupSearchesRejected() {
 		FieldCollapse c = FieldCollapse.of(b -> b.field("100")
 				.maxConcurrentGroupSearches(99));
@@ -712,7 +689,6 @@ public class SearchDslValidatorTest {
 		leaves.add(Query.of(b -> b.prefix(p -> p.field("f").value("x"))));
 		leaves.add(Query.of(b -> b.wildcard(w -> w.field("f").value("x"))));
 		leaves.add(Query.of(b -> b.fuzzy(f -> f.field("f").value(FieldValue.of("x")))));
-		leaves.add(Query.of(b -> b.ids(i -> i.values("1"))));
 		leaves.add(Query.of(b -> b.simpleQueryString(s -> s.query("x"))));
 		leaves.add(Query.of(b -> b.matchAll(m -> m)));
 
@@ -721,7 +697,7 @@ public class SearchDslValidatorTest {
 		all.add(Query.of(b -> b.bool(bb -> bb.must(leaves.get(0)).filter(leaves.get(5)))));
 		all.add(Query.of(b -> b.disMax(dm -> dm.queries(leaves.get(1)))));
 		all.add(Query.of(b -> b.constantScore(cs -> cs.filter(leaves.get(8)))));
-		all.add(Query.of(b -> b.boosting(bo -> bo.positive(leaves.get(0)).negative(leaves.get(13))
+		all.add(Query.of(b -> b.boosting(bo -> bo.positive(leaves.get(0)).negative(leaves.get(12))
 				.negativeBoost(0.5f))));
 
 		EnumSet<Query.Kind> covered = EnumSet.noneOf(Query.Kind.class);
@@ -810,18 +786,6 @@ public class SearchDslValidatorTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> SearchDslValidator.validateAggregations(aggs));
 		assertTrue(ex.getMessage().contains("'date_range'"));
-	}
-
-	// -----------------------------------------------------------------------------
-	// Ids: empty values list accepted
-	// -----------------------------------------------------------------------------
-
-	@Test
-	public void testValidateQueryWithEmptyIdsAccepted() {
-		// Null/empty values doesn't trigger the cap; this exercises the (values == null)
-		// early-out path of validateIds.
-		Query q = Query.of(b -> b.ids(i -> i));
-		SearchDslValidator.validateQuery(q, false);
 	}
 
 	// -----------------------------------------------------------------------------

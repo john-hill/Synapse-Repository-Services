@@ -1,0 +1,45 @@
+{
+	"description": "A <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/histogram/\"><code>histogram</code></a> bucket aggregation over a numeric column. Must specify <code>extended_bounds</code> or <code>hard_bounds</code> so the bucket count is bounded.",
+	"properties": {
+		"field": {
+			"type": "string",
+			"description": "Required. The numeric column to bucket."
+		},
+		"interval": {
+			"type": "number",
+			"description": "Required. Bucket width. Must be positive."
+		},
+		"min_doc_count": {
+			"type": "integer",
+			"description": "Optional. Minimum document count for a bucket to be returned."
+		},
+		"offset": {
+			"type": "number",
+			"description": "Optional. Shifts bucket boundaries by this amount."
+		},
+		"keyed": {
+			"type": "boolean",
+			"description": "Optional. Whether to return buckets as a keyed object rather than an array."
+		},
+		"extended_bounds": {
+			"$ref": "org.sagebionetworks.repo.model.search.dsl.ExtendedBounds",
+			"description": "Optional. Forces buckets to span at least this min/max range."
+		},
+		"hard_bounds": {
+			"$ref": "org.sagebionetworks.repo.model.search.dsl.ExtendedBounds",
+			"description": "Optional. Restricts buckets to this min/max range (values outside are dropped)."
+		},
+		"order": {
+			"type": "object",
+			"description": "Optional. Bucket sort order &mdash; a <code>{metric: \"asc|desc\"}</code> object or an array of them."
+		},
+		"missing": {
+			"type": "object",
+			"description": "Optional. Bucket value assigned to documents missing <code>field</code>."
+		},
+		"format": {
+			"type": "string",
+			"description": "Optional. Format applied to the bucket key in the response."
+		}
+	}
+}

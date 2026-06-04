@@ -1,0 +1,33 @@
+{
+	"description": "Per-field options for a <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-phrase-prefix/\"><code>match_phrase_prefix</code></a> clause. Carried as the value of the field-keyed <code>match_phrase_prefix</code> map (the map key is the column name).",
+	"properties": {
+		"query": {
+			"type": "object",
+			"description": "Required. The phrase whose last term is treated as a prefix. A string."
+		},
+		"analyzer": {
+			"type": "string",
+			"description": "Optional. Analyzer used to tokenize the phrase. Defaults to the field's search analyzer."
+		},
+		"slop": {
+			"type": "integer",
+			"description": "Optional. Number of positions allowed between matching terms. Default <code>0</code>."
+		},
+		"max_expansions": {
+			"type": "integer",
+			"description": "Optional. Maximum number of terms the last (prefix) term expands into. Default <code>50</code>."
+		},
+		"zero_terms_query": {
+			"type": "string",
+			"description": "Optional. Behavior when the analyzer removes all tokens: <code>none</code> (default) or <code>all</code>."
+		},
+		"boost": {
+			"type": "number",
+			"description": "Optional. Multiplier for the relevance score of this clause. Default <code>1.0</code>."
+		},
+		"_name": {
+			"type": "string",
+			"description": "Optional. Label echoed back in matched-queries metadata."
+		}
+	}
+}

@@ -20,7 +20,6 @@ import org.opensearch.client.opensearch._types.query_dsl.BoostingQuery;
 import org.opensearch.client.opensearch._types.query_dsl.ConstantScoreQuery;
 import org.opensearch.client.opensearch._types.query_dsl.DisMaxQuery;
 import org.opensearch.client.opensearch._types.query_dsl.FuzzyQuery;
-import org.opensearch.client.opensearch._types.query_dsl.IdsQuery;
 import org.opensearch.client.opensearch._types.query_dsl.MatchBoolPrefixQuery;
 import org.opensearch.client.opensearch._types.query_dsl.MatchPhrasePrefixQuery;
 import org.opensearch.client.opensearch._types.query_dsl.MultiMatchQuery;
@@ -136,7 +135,7 @@ final class SearchDslValidator {
 			Query.Kind.Match, Query.Kind.MultiMatch, Query.Kind.MatchPhrase,
 			Query.Kind.MatchPhrasePrefix, Query.Kind.MatchBoolPrefix,
 			Query.Kind.Term, Query.Kind.Terms, Query.Kind.Range, Query.Kind.Exists,
-			Query.Kind.Prefix, Query.Kind.Wildcard, Query.Kind.Fuzzy, Query.Kind.Ids,
+			Query.Kind.Prefix, Query.Kind.Wildcard, Query.Kind.Fuzzy,
 			Query.Kind.SimpleQueryString, Query.Kind.MatchAll,
 			// compound
 			Query.Kind.Bool, Query.Kind.DisMax, Query.Kind.ConstantScore, Query.Kind.Boosting);
@@ -355,9 +354,10 @@ final class SearchDslValidator {
 	}
 
 	/**
-	 * Validate a {@link FieldCollapse} block. Rejects {@code inner_hits} (the per-group hit
-	 * lists are not surfaced on {@code SearchQueryResults}) and caps
-	 * {@code max_concurrent_group_searches}.
+	 * Validate a {@link FieldCollapse} block. Caps {@code max_concurrent_group_searches}. The
+	 * unsupported {@code inner_hits} key is rejected upstream &mdash; it is absent from the typed
+	 * {@code FieldCollapse} schema, so a caller-supplied {@code inner_hits} is rejected at the
+	 * request boundary before reaching here.
 	 */
 	static void validateFieldCollapse(FieldCollapse collapse) {
 		if (collapse == null) {
@@ -365,11 +365,6 @@ final class SearchDslValidator {
 		}
 		if (collapse.field().isEmpty()) {
 			throw new IllegalArgumentException("collapse.field is required");
-		}
-		List<?> innerHits = collapse.innerHits();
-		if (!innerHits.isEmpty()) {
-			throw new IllegalArgumentException(
-					"collapse.inner_hits is not supported (per-group hits are not surfaced on SearchQueryResults)");
 		}
 		Integer concurrent = collapse.maxConcurrentGroupSearches();
 		if (concurrent != null && concurrent > MAX_COLLAPSE_CONCURRENT_GROUP_SEARCHES) {
@@ -429,9 +424,6 @@ final class SearchDslValidator {
 			break;
 		case Terms:
 			validateTerms(query.terms());
-			break;
-		case Ids:
-			validateIds(query.ids());
 			break;
 		case MultiMatch:
 			validateMultiMatch(query.multiMatch());
@@ -523,15 +515,6 @@ final class SearchDslValidator {
 		if (values != null && values.size() > MAX_VALUES_PER_CLAUSE) {
 			throw new IllegalArgumentException("terms array for field '" + termsQuery.field()
 					+ "' has " + values.size() + " values; max is " + MAX_VALUES_PER_CLAUSE);
-		}
-	}
-
-	/** {@code ids.values} carries the same expansion risk as a {@code terms} array. */
-	static void validateIds(IdsQuery ids) {
-		List<String> values = ids.values();
-		if (values.size() > MAX_VALUES_PER_CLAUSE) {
-			throw new IllegalArgumentException("ids.values has " + values.size()
-					+ " entries; max is " + MAX_VALUES_PER_CLAUSE);
 		}
 	}
 

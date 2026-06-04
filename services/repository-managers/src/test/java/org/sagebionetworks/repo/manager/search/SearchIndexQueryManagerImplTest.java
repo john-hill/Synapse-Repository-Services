@@ -41,6 +41,9 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
+import org.sagebionetworks.repo.model.search.dsl.MatchFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.PrefixFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.Query;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
@@ -118,11 +121,20 @@ public class SearchIndexQueryManagerImplTest {
 		// OpenSearch DSL the manager forwards to OpenSearchManager. The manager doesn't
 		// inspect the body any more than this — its own validation lives in
 		// OpenSearchManagerImpl.executeSearch — so any non-null query slot works.
-		Map<String, Object> matchClause = new HashMap<>();
-		matchClause.put(NAME_COLUMN, "test");
-		Map<String, Object> queryDsl = new HashMap<>();
-		queryDsl.put("match", matchClause);
-		return new SearchQuery().setQuery(queryDsl);
+		return new SearchQuery().setQuery(matchQuery());
+	}
+
+	/** A minimal typed {@code match} query on {@link #NAME_COLUMN}. The manager forwards the body
+	 *  to OpenSearchManager without inspecting it (and OpenSearchManager is mocked), so any
+	 *  non-null query works. */
+	private static Query matchQuery() {
+		return new Query().setMatch(Map.of(NAME_COLUMN, new MatchFieldOptions().setQuery("test")));
+	}
+
+	/** A minimal typed {@code prefix} query on {@link #NAME_COLUMN}'s {@code .keyword} sub-field. */
+	private static Query prefixQuery() {
+		return new Query().setPrefix(
+				Map.of(NAME_COLUMN + ".keyword", new PrefixFieldOptions().setValue("te")));
 	}
 
 	/** Wrap a body in a SearchIndexQuery bound to {@link #SEARCH_INDEX_ID}. */
@@ -150,11 +162,7 @@ public class SearchIndexQueryManagerImplTest {
 	 * validation does not run.
 	 */
 	private static SearchAutocompleteBody buildAutocompleteBody() {
-		Map<String, Object> prefixArgs = new HashMap<>();
-		prefixArgs.put(NAME_COLUMN + ".keyword", "te");
-		Map<String, Object> prefixClause = new HashMap<>();
-		prefixClause.put("prefix", prefixArgs);
-		return new SearchAutocompleteBody().setQuery(prefixClause);
+		return new SearchAutocompleteBody().setQuery(prefixQuery());
 	}
 
 	/** Build a minimal SearchAutocompleteRequest bound to {@link #SEARCH_INDEX_ID}. */
@@ -428,14 +436,10 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.HITS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
-		Map<String, Object> prefixArgs = new HashMap<>();
-		prefixArgs.put(NAME_COLUMN + ".keyword", "te");
-		Map<String, Object> prefixClause = new HashMap<>();
-		prefixClause.put("prefix", prefixArgs);
 		Map<String, Object> source = new HashMap<>();
 		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
 		SearchAutocompleteBody body = new SearchAutocompleteBody()
-				.setQuery(prefixClause).set_source(source);
+				.setQuery(prefixQuery()).set_source(source);
 
 		// call under test
 		manager.autocomplete(user, new SearchAutocompleteRequest()
@@ -805,13 +809,9 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> matchClause = new HashMap<>();
-		matchClause.put(NAME_COLUMN, "test");
-		Map<String, Object> queryDsl = new HashMap<>();
-		queryDsl.put("match", matchClause);
 		Map<String, Object> source = new HashMap<>();
 		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
-		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(source);
+		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(source);
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -834,13 +834,9 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> matchClause = new HashMap<>();
-		matchClause.put(NAME_COLUMN, "test");
-		Map<String, Object> queryDsl = new HashMap<>();
-		queryDsl.put("match", matchClause);
 		Map<String, Object> source = new HashMap<>();
 		source.put("excludes", new ArrayList<>(Arrays.asList(DESC_COLUMN)));
-		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(source);
+		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(source);
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -862,14 +858,10 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> matchClause = new HashMap<>();
-		matchClause.put(NAME_COLUMN, "test");
-		Map<String, Object> queryDsl = new HashMap<>();
-		queryDsl.put("match", matchClause);
 		Map<String, Object> source = new HashMap<>();
 		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN, DESC_COLUMN)));
 		source.put("excludes", new ArrayList<>(Arrays.asList(DESC_COLUMN)));
-		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(source);
+		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(source);
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -890,11 +882,7 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> matchClause = new HashMap<>();
-		matchClause.put(NAME_COLUMN, "test");
-		Map<String, Object> queryDsl = new HashMap<>();
-		queryDsl.put("match", matchClause);
-		SearchQuery body = new SearchQuery().setQuery(queryDsl)
+		SearchQuery body = new SearchQuery().setQuery(matchQuery())
 				.set_source(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
 
 		// call under test
@@ -937,11 +925,7 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> matchClause = new HashMap<>();
-		matchClause.put(NAME_COLUMN, "test");
-		Map<String, Object> queryDsl = new HashMap<>();
-		queryDsl.put("match", matchClause);
-		SearchQuery body = new SearchQuery().setQuery(queryDsl).set_source(Boolean.FALSE);
+		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(Boolean.FALSE);
 
 		// call under test
 		SearchQueryResults results = manager.search(user,

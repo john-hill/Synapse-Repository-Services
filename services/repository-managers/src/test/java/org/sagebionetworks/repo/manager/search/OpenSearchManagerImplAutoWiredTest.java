@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.opensearch.client.opensearch._types.query_dsl.Query.Kind;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +29,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.json.JSONObject;
-import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
@@ -42,6 +42,30 @@ import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.dsl.Aggregation;
+import org.sagebionetworks.repo.model.search.dsl.BoolQuery;
+import org.sagebionetworks.repo.model.search.dsl.BoostingQuery;
+import org.sagebionetworks.repo.model.search.dsl.ConstantScoreQuery;
+import org.sagebionetworks.repo.model.search.dsl.DisMaxQuery;
+import org.sagebionetworks.repo.model.search.dsl.ExistsQuery;
+import org.sagebionetworks.repo.model.search.dsl.FieldCollapse;
+import org.sagebionetworks.repo.model.search.dsl.FuzzyFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.Highlight;
+import org.sagebionetworks.repo.model.search.dsl.HighlightField;
+import org.sagebionetworks.repo.model.search.dsl.MatchAllQuery;
+import org.sagebionetworks.repo.model.search.dsl.MatchBoolPrefixFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.MatchFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.MatchPhraseFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.MultiMatchQuery;
+import org.sagebionetworks.repo.model.search.dsl.PrefixFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.Query;
+import org.sagebionetworks.repo.model.search.dsl.RangeFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.Rescore;
+import org.sagebionetworks.repo.model.search.dsl.RescoreQuery;
+import org.sagebionetworks.repo.model.search.dsl.SimpleQueryStringQuery;
+import org.sagebionetworks.repo.model.search.dsl.TermFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.TermsAggregation;
+import org.sagebionetworks.repo.model.search.dsl.WildcardFieldOptions;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.util.TimeUtils;
@@ -331,7 +355,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// {prefix, match_phrase_prefix, match_bool_prefix} only — match_bool_prefix is the
 		// direct equivalent of the legacy multi_match{type:bool_prefix} shape.
 		SearchAutocompleteBody body = new SearchAutocompleteBody()
-				.setQuery(new JSONObject().put("match_bool_prefix", new JSONObject().put("term", "mit")));
+				.setQuery(new Query().setMatch_bool_prefix(
+						Map.of("term", new MatchBoolPrefixFieldOptions().setQuery("mit"))));
 
 		// call under test
 		SearchQueryResults results = waitForAutocomplete(body, columns, 1);
@@ -605,21 +630,19 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * {@code multi_match}.
 	 */
 	private SearchQueryResults runQuery(SearchQueryType queryType, String text, List<ColumnModel> columns) {
-		Map<String, Object> clauseBody = new HashMap<>();
-		clauseBody.put("query", text);
-		String clause;
+		Query query;
 		switch (queryType) {
 			case SIMPLE_QUERY_STRING:
-				clause = "simple_query_string";
+				query = new Query().setSimple_query_string(new SimpleQueryStringQuery().setQuery(text));
 				break;
 			case MULTI_MATCH:
-				clause = "multi_match";
+				query = new Query().setMulti_match(new MultiMatchQuery().setQuery(text));
 				break;
 			default:
 				throw new AssertionError("runQuery is only used for SIMPLE_QUERY_STRING / MULTI_MATCH");
 		}
 		SearchQuery body = new SearchQuery()
-				.setQuery(new JSONObject(Map.of(clause, clauseBody)))
+				.setQuery(query)
 				.setSize(10L)
 				.setFrom(0L);
 		return waitForSearch(body, columns, 1L);
@@ -676,7 +699,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// PLFM-9673 (long-terms keys came back null on INTEGER facets without explicit
 		// formatting). Each aggregation is keyed by column name so the response asserts
 		// can find them after AOSS rewrites the field references back to names.
-		Map<String, Object> aggsDsl = new LinkedHashMap<>();
+		Map<String, Aggregation> aggregations = new LinkedHashMap<>();
 		for (ColumnModel column : columns) {
 			if (casesByType.get(column.getColumnType()).expectedFacetValues == null) {
 				continue;
@@ -692,11 +715,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 					|| colType == ColumnType.LARGETEXT
 					|| colType == ColumnType.LINK;
 			String fieldRef = isTextLike ? column.getName() + ".keyword" : column.getName();
-			aggsDsl.put(column.getName(),
-					Map.of("terms", Map.of("field", fieldRef)));
+			aggregations.put(column.getName(),
+					new Aggregation().setTerms(new TermsAggregation().setField(fieldRef)));
 		}
 
-		SearchQuery body = matchAllBody().setAggregations(new JSONObject(aggsDsl));
+		SearchQuery body = matchAllBody().setAggregations(aggregations);
 		SearchQueryResults results = waitForSearch(body, columns, 1L);
 
 		assertEquals(1L, results.getTotalHits());
@@ -971,13 +994,12 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * {@code fields} to let OpenSearch search every indexed text-bearing field.
 	 */
 	private static SearchQuery simpleQueryStringBody(String text, List<String> fields) {
-		Map<String, Object> sqs = new HashMap<>();
-		sqs.put("query", text);
+		SimpleQueryStringQuery sqs = new SimpleQueryStringQuery().setQuery(text);
 		if (fields != null && !fields.isEmpty()) {
-			sqs.put("fields", fields);
+			sqs.setFields(new ArrayList<Object>(fields));
 		}
 		return new SearchQuery()
-				.setQuery(new JSONObject(Map.of("simple_query_string", sqs)))
+				.setQuery(new Query().setSimple_query_string(sqs))
 				.setSize(10L)
 				.setFrom(0L);
 	}
@@ -987,10 +1009,10 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return simpleQueryStringBody(text, null);
 	}
 
-	/** Build a body wrapping an opaque {@code match_all} clause. */
+	/** Build a body wrapping a {@code match_all} clause. */
 	private static SearchQuery matchAllBody() {
 		return new SearchQuery()
-				.setQuery(new JSONObject().put("match_all", new JSONObject()))
+				.setQuery(new Query().setMatch_all(new MatchAllQuery()))
 				.setSize(10L)
 				.setFrom(0L);
 	}
@@ -1041,60 +1063,72 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// Wait until both docs are visible, then issue every kind without re-polling.
 		waitForSearch(matchAllBody(), columns, 2);
 
-		Map<Query.Kind, Supplier<SearchQuery>> queries = new LinkedHashMap<>();
-		queries.put(Query.Kind.Match,
-				() -> queryBody(Map.of("match", Map.of("title", "amyloid"))));
-		queries.put(Query.Kind.MultiMatch,
-				() -> queryBody(Map.of("multi_match", Map.of("query", "amyloid", "fields", List.of("title")))));
-		queries.put(Query.Kind.MatchPhrase,
-				() -> queryBody(Map.of("match_phrase", Map.of("title", "amyloid plaques"))));
+		Map<Kind, Supplier<SearchQuery>> queries = new LinkedHashMap<>();
+		queries.put(Kind.Match,
+				() -> queryBody(new Query().setMatch(
+						Map.of("title", new MatchFieldOptions().setQuery("amyloid")))));
+		queries.put(Kind.MultiMatch,
+				() -> queryBody(new Query().setMulti_match(new MultiMatchQuery()
+						.setQuery("amyloid").setFields(List.of("title")))));
+		queries.put(Kind.MatchPhrase,
+				() -> queryBody(new Query().setMatch_phrase(
+						Map.of("title", new MatchPhraseFieldOptions().setQuery("amyloid plaques")))));
 		// MatchPhrasePrefix is omitted: the field rewriter auto-routes text columns to
 		// .keyword for term-family clauses (per the production routing table), but AOSS
 		// rejects phrase-prefix on keyword fields with "Can only use phrase prefix queries
 		// on text fields". Phrase-prefix is only valid against an analyzer-bound text
 		// column — already covered end-to-end by
 		// testRoundTripWithAutocompleteBootstrappedAnalyzer (with an AUTOCOMPLETE override).
-		queries.put(Query.Kind.MatchBoolPrefix,
-				() -> queryBody(Map.of("match_bool_prefix", Map.of("title", "amyloid pla"))));
-		queries.put(Query.Kind.Term,
-				() -> queryBody(Map.of("term", Map.of("year", 2024))));
-		queries.put(Query.Kind.Terms,
-				() -> queryBody(Map.of("terms", Map.of("year", List.of(2023, 2024)))));
-		queries.put(Query.Kind.Range,
-				() -> queryBody(Map.of("range", Map.of("year", Map.of("gte", 2024)))));
-		queries.put(Query.Kind.Exists,
-				() -> queryBody(Map.of("exists", Map.of("field", "title"))));
-		queries.put(Query.Kind.Prefix,
-				() -> queryBody(Map.of("prefix", Map.of("title", "amyl"))));
-		queries.put(Query.Kind.Wildcard,
-				() -> queryBody(Map.of("wildcard", Map.of("title", "amyloid*"))));
-		queries.put(Query.Kind.Fuzzy,
-				() -> queryBody(Map.of("fuzzy", Map.of("title", Map.of("value", "amyloid")))));
-		queries.put(Query.Kind.Ids,
-				() -> queryBody(Map.of("ids", Map.of("values", List.of("1", "2")))));
-		queries.put(Query.Kind.SimpleQueryString,
-				() -> queryBody(Map.of("simple_query_string", Map.of("query", "amyloid"))));
-		queries.put(Query.Kind.MatchAll,
+		queries.put(Kind.MatchBoolPrefix,
+				() -> queryBody(new Query().setMatch_bool_prefix(
+						Map.of("title", new MatchBoolPrefixFieldOptions().setQuery("amyloid pla")))));
+		queries.put(Kind.Term,
+				() -> queryBody(new Query().setTerm(
+						Map.of("year", new TermFieldOptions().setValue(2024)))));
+		queries.put(Kind.Terms,
+				() -> queryBody(new Query().setTerms(new JSONObject(
+						Map.of("year", List.of(2023, 2024))))));
+		queries.put(Kind.Range,
+				() -> queryBody(new Query().setRange(
+						Map.of("year", new RangeFieldOptions().setGte(2024)))));
+		queries.put(Kind.Exists,
+				() -> queryBody(new Query().setExists(new ExistsQuery().setField("title"))));
+		queries.put(Kind.Prefix,
+				() -> queryBody(new Query().setPrefix(
+						Map.of("title", new PrefixFieldOptions().setValue("amyl")))));
+		queries.put(Kind.Wildcard,
+				() -> queryBody(new Query().setWildcard(
+						Map.of("title", new WildcardFieldOptions().setValue("amyloid*")))));
+		queries.put(Kind.Fuzzy,
+				() -> queryBody(new Query().setFuzzy(
+						Map.of("title", new FuzzyFieldOptions().setValue("amyloid")))));
+		queries.put(Kind.SimpleQueryString,
+				() -> queryBody(new Query().setSimple_query_string(
+						new SimpleQueryStringQuery().setQuery("amyloid"))));
+		queries.put(Kind.MatchAll,
 				() -> matchAllBody());
-		queries.put(Query.Kind.Bool,
-				() -> queryBody(Map.of("bool",
-						Map.of("must", List.of(Map.of("match_all", Map.of())),
-								"filter", List.of(Map.of("term", Map.of("year", 2024)))))));
-		queries.put(Query.Kind.DisMax,
-				() -> queryBody(Map.of("dis_max",
-						Map.of("queries", List.of(Map.of("match", Map.of("title", "amyloid")),
-								Map.of("term", Map.of("year", 2024)))))));
-		queries.put(Query.Kind.ConstantScore,
-				() -> queryBody(Map.of("constant_score",
-						Map.of("filter", Map.of("term", Map.of("year", 2024))))));
-		queries.put(Query.Kind.Boosting,
-				() -> queryBody(Map.of("boosting",
-						Map.of("positive", Map.of("match", Map.of("title", "amyloid")),
-								"negative", Map.of("term", Map.of("year", 2023)),
-								"negative_boost", 0.5))));
+		queries.put(Kind.Bool,
+				() -> queryBody(new Query().setBool(new BoolQuery()
+						.setMust(List.of(new Query().setMatch_all(new MatchAllQuery())))
+						.setFilter(List.of(new Query().setTerm(
+								Map.of("year", new TermFieldOptions().setValue(2024))))))));
+		queries.put(Kind.DisMax,
+				() -> queryBody(new Query().setDis_max(new DisMaxQuery().setQueries(List.of(
+						new Query().setMatch(Map.of("title", new MatchFieldOptions().setQuery("amyloid"))),
+						new Query().setTerm(Map.of("year", new TermFieldOptions().setValue(2024))))))));
+		queries.put(Kind.ConstantScore,
+				() -> queryBody(new Query().setConstant_score(new ConstantScoreQuery().setFilter(
+						new Query().setTerm(Map.of("year", new TermFieldOptions().setValue(2024)))))));
+		queries.put(Kind.Boosting,
+				() -> queryBody(new Query().setBoosting(new BoostingQuery()
+						.setPositive(new Query().setMatch(
+								Map.of("title", new MatchFieldOptions().setQuery("amyloid"))))
+						.setNegative(new Query().setTerm(
+								Map.of("year", new TermFieldOptions().setValue(2023))))
+						.setNegative_boost(0.5))));
 
-		EnumSet<Query.Kind> covered = EnumSet.noneOf(Query.Kind.class);
-		for (Map.Entry<Query.Kind, Supplier<SearchQuery>> entry : queries.entrySet()) {
+		EnumSet<Kind> covered = EnumSet.noneOf(Kind.class);
+		for (Map.Entry<Kind, Supplier<SearchQuery>> entry : queries.entrySet()) {
 			SearchQuery body = entry.getValue().get();
 			// call under test — every kind must round-trip without throwing
 			SearchQueryResults result = openSearchManager.search(indexName, body, columns,
@@ -1106,8 +1140,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// Coverage guard: every allowlisted kind must appear in this round-trip except
 		// MatchPhrasePrefix (covered by testRoundTripWithAutocompleteBootstrappedAnalyzer).
-		EnumSet<Query.Kind> expected = EnumSet.copyOf(SearchDslValidator.ALLOWED_QUERY_KINDS);
-		expected.remove(Query.Kind.MatchPhrasePrefix);
+		EnumSet<Kind> expected = EnumSet.copyOf(SearchDslValidator.ALLOWED_QUERY_KINDS);
+		expected.remove(Kind.MatchPhrasePrefix);
 		assertEquals(expected, covered,
 				"every allowlisted query kind (except MatchPhrasePrefix) must appear in this round-trip");
 	}
@@ -1162,9 +1196,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * top-level keys. Used by {@link #testSearchWithEveryAllowedQueryKindRoundTrips} to
 	 * vary the inner clause shape per kind without rebuilding the rest of the envelope.
 	 */
-	private static SearchQuery queryBody(Map<String, Object> queryClause) {
+	private static SearchQuery queryBody(Query query) {
 		return new SearchQuery()
-				.setQuery(new JSONObject(queryClause))
+				.setQuery(query)
 				.setSize(10L)
 				.setFrom(0L);
 	}
@@ -1194,9 +1228,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 		waitForSearch(matchAllBody(), columns, 5);
 
 		SearchQuery body = new SearchQuery()
-				.setQuery(new JSONObject().put("match_all", new JSONObject()))
-				.setAggregations(new JSONObject("{\"by_status\":{\"terms\":{\"field\":\"status\"}}}"))
-				.setPost_filter(new JSONObject("{\"term\":{\"status\":\"ACTIVE\"}}"))
+				.setQuery(new Query().setMatch_all(new MatchAllQuery()))
+				.setAggregations(Map.of("by_status",
+						new Aggregation().setTerms(new TermsAggregation().setField("status"))))
+				.setPost_filter(new Query().setTerm(
+						Map.of("status", new TermFieldOptions().setValue("ACTIVE"))))
 				.setSize(10L)
 				.setFrom(0L);
 
@@ -1243,8 +1279,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 		waitForSearch(matchAllBody(), columns, 3);
 
 		SearchQuery body = new SearchQuery()
-				.setQuery(new JSONObject("{\"match\":{\"description\":\"tumor\"}}"))
-				.setHighlight(new JSONObject("{\"fields\":{\"description\":{}}}"))
+				.setQuery(new Query().setMatch(
+						Map.of("description", new MatchFieldOptions().setQuery("tumor"))))
+				.setHighlight(new Highlight().setFields(Map.of("description", new HighlightField())))
 				.setSize(10L)
 				.setFrom(0L);
 
@@ -1310,8 +1347,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 		waitForSearch(matchAllBody(), columns, 6);
 
 		SearchQuery collapseBody = new SearchQuery()
-				.setQuery(new JSONObject("{\"match\":{\"title\":\"amyloid\"}}"))
-				.setCollapse(new JSONObject().put("field", "projectId"))
+				.setQuery(new Query().setMatch(
+						Map.of("title", new MatchFieldOptions().setQuery("amyloid"))))
+				.setCollapse(new FieldCollapse().setField("projectId"))
 				.setSize(10L)
 				.setFrom(0L);
 
@@ -1335,13 +1373,15 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"collapse must surface both distinct projectId values");
 
 		SearchQuery rescoreBody = new SearchQuery()
-				.setQuery(new JSONObject("{\"match\":{\"title\":\"amyloid\"}}"))
-				.setRescore(new JSONObject(
-						"{\"window_size\":50,"
-						+ "\"query\":{"
-						+ "\"rescore_query\":{\"match_phrase\":{\"title\":\"amyloid plaques\"}},"
-						+ "\"query_weight\":1.0,"
-						+ "\"rescore_query_weight\":5.0}}"))
+				.setQuery(new Query().setMatch(
+						Map.of("title", new MatchFieldOptions().setQuery("amyloid"))))
+				.setRescore(new Rescore()
+						.setWindow_size(50L)
+						.setQuery(new RescoreQuery()
+								.setRescore_query(new Query().setMatch_phrase(
+										Map.of("title", new MatchPhraseFieldOptions().setQuery("amyloid plaques"))))
+								.setQuery_weight(1.0)
+								.setRescore_query_weight(5.0)))
 				.setSize(10L)
 				.setFrom(0L);
 

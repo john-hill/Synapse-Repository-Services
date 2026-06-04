@@ -78,6 +78,15 @@ import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
+import org.sagebionetworks.repo.model.search.dsl.AvgAggregation;
+import org.sagebionetworks.repo.model.search.dsl.FieldCollapse;
+import org.sagebionetworks.repo.model.search.dsl.MatchAllQuery;
+import org.sagebionetworks.repo.model.search.dsl.MatchBoolPrefixFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.MatchPhraseFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.Rescore;
+import org.sagebionetworks.repo.model.search.dsl.RescoreQuery;
+import org.sagebionetworks.repo.model.search.dsl.TermFieldOptions;
+import org.sagebionetworks.repo.model.search.dsl.TermsAggregation;
 import org.sagebionetworks.repo.model.search.SearchHighlight;
 import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
@@ -1946,7 +1955,8 @@ public class OpenSearchManagerImplTest {
 	 */
 	private static SearchQuery matchAllBody() {
 		return new SearchQuery()
-				.setQuery(new JSONObject().put("match_all", new JSONObject()))
+				.setQuery(new org.sagebionetworks.repo.model.search.dsl.Query()
+						.setMatch_all(new MatchAllQuery()))
 				.setFrom(0L)
 				.setSize(10L);
 	}
@@ -1958,7 +1968,8 @@ public class OpenSearchManagerImplTest {
 	 */
 	private static SearchAutocompleteBody matchPrefixBody() {
 		return new SearchAutocompleteBody()
-				.setQuery(new JSONObject().put("match_bool_prefix", new JSONObject().put("name", "te")));
+				.setQuery(new org.sagebionetworks.repo.model.search.dsl.Query().setMatch_bool_prefix(
+						Map.of("name", new MatchBoolPrefixFieldOptions().setQuery("te"))));
 	}
 
 	@Test
@@ -2028,7 +2039,8 @@ public class OpenSearchManagerImplTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
 		SearchQuery body = matchAllBody()
-				.setPost_filter(new JSONObject("{\"term\":{\"status.keyword\":\"ACTIVE\"}}"));
+				.setPost_filter(new org.sagebionetworks.repo.model.search.dsl.Query().setTerm(
+						Map.of("status.keyword", new TermFieldOptions().setValue("ACTIVE"))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -2052,7 +2064,8 @@ public class OpenSearchManagerImplTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
 		SearchQuery body = matchAllBody()
-				.setPost_filter(new JSONObject("{\"term\":{\"status\":\"ACTIVE\"}}"));
+				.setPost_filter(new org.sagebionetworks.repo.model.search.dsl.Query().setTerm(
+						Map.of("status", new TermFieldOptions().setValue("ACTIVE"))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -2075,8 +2088,9 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("status").setColumnType(ColumnType.STRING));
-		SearchQuery body = matchAllBody()
-				.setAggregations(new JSONObject("{\"by_status\":{\"terms\":{\"field\":\"status\"}}}"));
+		SearchQuery body = matchAllBody().setAggregations(Map.of("by_status",
+				new org.sagebionetworks.repo.model.search.dsl.Aggregation()
+						.setTerms(new TermsAggregation().setField("status"))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -2096,8 +2110,9 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("200").setName("score").setColumnType(ColumnType.DOUBLE));
-		SearchQuery body = matchAllBody()
-				.setAggregations(new JSONObject("{\"avg_score\":{\"avg\":{\"field\":\"score\"}}}"));
+		SearchQuery body = matchAllBody().setAggregations(Map.of("avg_score",
+				new org.sagebionetworks.repo.model.search.dsl.Aggregation()
+						.setAvg(new AvgAggregation().setField("score"))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -2133,7 +2148,7 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("projectId").setColumnType(ColumnType.STRING));
-		SearchQuery body = matchAllBody().setCollapse(new JSONObject().put("field", "projectId"));
+		SearchQuery body = matchAllBody().setCollapse(new FieldCollapse().setField("projectId"));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));
@@ -2153,9 +2168,11 @@ public class OpenSearchManagerImplTest {
 				.thenReturn(emptySearchResponse());
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
-		SearchQuery body = matchAllBody().setRescore(new JSONObject(
-				"{\"window_size\":50,"
-				+ "\"query\":{\"rescore_query\":{\"match_phrase\":{\"title\":\"alzheimers\"}}}}"));
+		SearchQuery body = matchAllBody().setRescore(new Rescore()
+				.setWindow_size(50L)
+				.setQuery(new RescoreQuery().setRescore_query(
+						new org.sagebionetworks.repo.model.search.dsl.Query().setMatch_phrase(
+								Map.of("title", new MatchPhraseFieldOptions().setQuery("alzheimers"))))));
 
 		// call under test
 		manager.search("search-index-syn1", body, columns, EnumSet.of(SearchQueryPart.HITS));

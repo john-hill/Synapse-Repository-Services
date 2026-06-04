@@ -159,15 +159,16 @@ public class SearchOpaqueJsonUtilTest {
 	@Test
 	public void testAsJsonStringWithJSONEntityHoldingAdapterField() throws Exception {
 		// Post-round-trip production shape: the async framework deserializes the request
-		// body via EntityFactory, so SearchQuery's opaque "query" field surfaces as a
+		// body via EntityFactory, so SearchQuery's opaque "_source" field surfaces as a
 		// JSONObjectAdapter. asJsonString must render the whole entity through the schema
 		// adapter — Jackson cannot serialize the nested JSONObjectAdapterImpl.
 		SearchQuery body = new SearchQuery()
-				.setQuery(new JSONObjectAdapterImpl("{\"match_all\":{}}"));
+				.set_source(new JSONObjectAdapterImpl("{\"includes\":[\"title\"]}"));
 
 		String out = SearchOpaqueJsonUtil.asJsonString(body);
 
-		assertEquals(0, new JSONObject(out).getJSONObject("query").getJSONObject("match_all").length());
+		assertEquals("title",
+				new JSONObject(out).getJSONObject("_source").getJSONArray("includes").getString(0));
 	}
 
 	@Test

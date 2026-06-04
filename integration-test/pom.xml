@@ -118,6 +118,11 @@
 							<org.sagebionetworks.cloudfront.keypair>${org.sagebionetworks.cloudfront.keypair}</org.sagebionetworks.cloudfront.keypair>
 							<org.sagebionetworks.cloudfront.domainname>${org.sagebionetworks.cloudfront.domainname}</org.sagebionetworks.cloudfront.domainname>
 							<org.sagebionetworks.cloudfront.private.key.secret>${org.sagebionetworks.cloudfront.private.key.secret}</org.sagebionetworks.cloudfront.private.key.secret>
+							<org.sagebionetworks.docusign.enabled>${org.sagebionetworks.docusign.enabled}</org.sagebionetworks.docusign.enabled>
+							<org.sagebionetworks.docusign.private.key>${org.sagebionetworks.docusign.private.key}</org.sagebionetworks.docusign.private.key>
+							<org.sagebionetworks.docusign.account.id>${org.sagebionetworks.docusign.account.id}</org.sagebionetworks.docusign.account.id>
+							<org.sagebionetworks.docusign.user.id>${org.sagebionetworks.docusign.user.id}</org.sagebionetworks.docusign.user.id>
+							<org.sagebionetworks.docusign.integration.key>${org.sagebionetworks.docusign.integration.key}</org.sagebionetworks.docusign.integration.key>
 						</systemProperties>
 					</container>
 					<configuration>

@@ -878,7 +878,6 @@ public class SearchManagementController {
 	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/prefix/"><code>prefix</code></a>
 	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/wildcard/"><code>wildcard</code></a>
 	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/fuzzy/"><code>fuzzy</code></a>
-	 * / <a href="https://docs.opensearch.org/latest/query-dsl/term/ids/"><code>ids</code></a>
 	 * / <a href="https://docs.opensearch.org/latest/query-dsl/full-text/simple-query-string/"><code>simple_query_string</code></a>
 	 * / <a href="https://docs.opensearch.org/latest/query-dsl/match-all/"><code>match_all</code></a>)
 	 * clauses. The server wraps the supplied subtree as a

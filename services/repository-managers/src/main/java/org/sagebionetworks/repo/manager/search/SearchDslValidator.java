@@ -78,7 +78,7 @@ final class SearchDslValidator {
 	static final int QUERY_MAX_CLAUSES = 256;
 	/**
 	 * Maximum number of values that may appear in an array carried inside a single clause:
-	 * applies to {@code terms} value arrays, {@code ids.values}, {@code multi_match.fields},
+	 * applies to {@code terms} value arrays, {@code multi_match.fields},
 	 * and {@code terms} aggregation {@code include}/{@code exclude} arrays. Any of these
 	 * would otherwise expand into many internal clauses or buckets and bypass
 	 * {@link #QUERY_MAX_CLAUSES} / {@link #MAX_AGG_SIZE}.

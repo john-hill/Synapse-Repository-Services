@@ -112,7 +112,6 @@ bash -c "mvn clean ${MVN_GOAL} ${EXTRA_ARGS} -U \
 -Dorg.sagebionetworks.id.generator.database.connection.url=jdbc:mysql://${org_sagebionetworks_repository_database_connection_url_in_container}/${db_name} \
 -Dorg.sagebionetworks.repository.database.username=${rds_user_name} \
 -Dorg.sagebionetworks.id.generator.database.username=${rds_user_name} \
--Dorg.sagebionetworks.stackEncryptionKey=${org_sagebionetworks_stackEncryptionKey} \
 ${AWS_CREDS} \
 -Dorg.sagebionetworks.stack.instance=${user} \
 -Dorg.sagebionetworks.developer=${user} \
@@ -133,6 +132,11 @@ ${AWS_CREDS} \
 -Dorg.sagebionetworks.cloudfront.keypair="${org_sagebionetworks_cloudfront_keypair}" \
 -Dorg.sagebionetworks.cloudfront.domainname="${org_sagebionetworks_cloudfront_domainname}" \
 -Dorg.sagebionetworks.cloudfront.private.key.secret="${org_sagebionetworks_cloudfront_private_key_secret}" \
+-Dorg.sagebionetworks.docusign.enabled="${org_sagebionetworks_docusign_enabled}" \
+-Dorg.sagebionetworks.docusign.private.key="${org_sagebionetworks_docusign_private_key}" \
+-Dorg.sagebionetworks.docusign.account.id="${org_sagebionetworks_docusign_account_id}" \
+-Dorg.sagebionetworks.docusign.user.id="${org_sagebionetworks_docusign_user_id}" \
+-Dorg.sagebionetworks.docusign.integration.key="${org_sagebionetworks_docusign_integration_key}" \
 -Duser.home=${HOME_DIR_WITHIN_CONTAINER}"
 
 clean_up_container ${build_container_name}

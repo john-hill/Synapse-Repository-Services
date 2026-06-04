@@ -58,7 +58,7 @@ public class DocuSignClient {
 	 * List a page of templates from the configured DocuSign account.
 	 *
 	 * @param startPosition 0-based offset into the DocuSign template set
-	 * @param count         page size to request from DocuSign
+	 * @param count page size to request from DocuSign
 	 * @return a page of templates; the {@code nextPageToken} field is left null
 	 *         (callers are responsible for assembling the Synapse-style token)
 	 */
@@ -80,15 +80,12 @@ public class DocuSignClient {
 		options.setStartPosition(String.valueOf(startPosition));
 		options.setCount(String.valueOf(count));
 
-		EnvelopeTemplateResults results;
 		try {
-			results = templatesApi.listTemplates(config.getAccountId(), options);
+			EnvelopeTemplateResults results = templatesApi.listTemplates(config.getAccountId(), options);
+			return toEDucTemplatePage(results);
 		} catch (ApiException e) {
 			handleApiException(e);
-			return null; // unreachable — handleApiException always throws
 		}
-
-		return toEDucTemplatePage(results);
 	}
 
 	private String getAccessToken() throws ServiceUnavailableException {

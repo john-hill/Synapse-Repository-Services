@@ -45,6 +45,12 @@
 			<groupId>com.docusign</groupId>
 			<artifactId>docusign-esign-java</artifactId>
 			<version>6.2.0</version>
+			<!-- Use the artifact docusign-esign-java-6.2.0-shaded.jar instead of 
+			the plain docusign-esign-java-6.2.0.jar. DocuSign publishes this pre-shaded 
+			variant of their SDK (with a shaded classifier) that bundles its transitive 
+			dependencies (Jersey, Jackson, etc.) inside the JAR under relocated packages. 
+			This is their way of avoiding version conflicts with whatever Jackson/Jersey 
+			the consuming project already uses.-->
 			<classifier>shaded</classifier>
 			<optional>true</optional>
 		</dependency>
@@ -71,11 +77,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.junit.platform</groupId>
-			<artifactId>junit-platform-runner</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<scope>test</scope>
@@ -83,11 +84,6 @@
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.junit.vintage</groupId>
-			<artifactId>junit-vintage-engine</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

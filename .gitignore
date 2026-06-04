@@ -9,3 +9,4 @@ target/
 *.iml
 *.pyc
 .claude/
+dependency-reduced-pom.xml

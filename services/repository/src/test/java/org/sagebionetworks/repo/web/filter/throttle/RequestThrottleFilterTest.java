@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.web.HttpRequestIdentifierUtils.SESSION_ID_COOKIE_NAME;
 import static org.sagebionetworks.repo.web.filter.throttle.ThrottleUtils.THROTTLED_HTTP_STATUS;
 
-import javax.servlet.FilterChain;
-import javax.servlet.http.Cookie;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.Cookie;
 
 import org.junit.Before;
 import org.junit.Test;

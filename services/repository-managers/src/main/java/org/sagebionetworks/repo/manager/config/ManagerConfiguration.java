@@ -83,6 +83,7 @@ import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
 import org.sagebionetworks.util.DefaultClock;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphoreImpl;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -454,8 +455,8 @@ public class ManagerConfiguration {
 
 	@Bean
 	public AgentClientProvider createAgentClientProvider(
-			BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
-			BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
+			@Qualifier("defaultBedrockAgentRuntimeAsyncClient") BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
+			@Qualifier("customBedrockAgentRuntimeAsyncClient") BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
 
 		return new AgentClientProvider(Map.of(AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
 				AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient));

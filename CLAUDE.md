@@ -4,9 +4,9 @@ Backend platform for Sage Bionetworks' Synapse — a collaborative research data
 
 ## Tech Stack
 
-- **Java 11** (do not use Java 17+ features)
-- **Spring 5.3.39** (Spring MVC, Spring JDBC, Spring AOP) — NOT Spring Boot, NOT Spring 6
-- **javax.servlet / javax.annotation** — NOT jakarta.* (Spring 6 migration pending)
+- **Java 21 LTS** (upgraded for Spring AI Bedrock AgentCore support)
+- **Spring 6.1.10** (Spring MVC, Spring JDBC, Spring AOP) — NOT Spring Boot
+- **jakarta.servlet / jakarta.annotation** — migrated from javax.* for Spring 6 compatibility
 - **MySQL 8.0** via Spring JdbcTemplate (no ORM, no Spring Data)
 - **Tomcat 9** (WAR deployment)
 - **Jackson 2.20.0**, Log4j 2, Guava 30.1.1
@@ -179,9 +179,9 @@ See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for th
 
 ## Critical Constraints
 
-1. **Java 11 only** — no var in lambdas, no records, no text blocks, no sealed classes
-2. **javax namespace** — not jakarta.*
-3. **Spring 5.3** — no Spring 6+ or Spring Boot APIs
+1. **Java 21 LTS** — Java 21 language features are now available (records, text blocks, pattern matching, sealed classes, virtual threads)
+2. **jakarta namespace** — migrated from javax.* for Spring 6 compatibility
+3. **Spring 6.1** — no Spring Boot APIs
 4. **Mockito 2.27** — no mockStatic, no Mockito 4/5 features
 5. **No Lombok**
 6. **No Spring Data** — all DB via JdbcTemplate

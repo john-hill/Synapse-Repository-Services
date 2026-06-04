@@ -11,6 +11,7 @@ import org.sagebionetworks.database.semaphore.CountingSemaphoreImpl;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAO;
 import org.sagebionetworks.repo.model.dbo.migration.MigrationTypeProvider;
 import org.sagebionetworks.repo.model.dbo.migration.MigrationTypeProviderImpl;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -67,29 +68,31 @@ public class ModelConfig {
 
 	// This is the primary transaction manager used by the application, it is also used by the semaphore
 	// but under a different name for clarity
+	@Primary
 	@Bean(name = {"txManager", "semaphoreTransactionManager"})
-	public PlatformTransactionManager txManager(DataSource dataSourcePool) {
+	public PlatformTransactionManager txManager(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
 		return new DataSourceTransactionManager(dataSourcePool);
 	}
 
 	@Bean
-	public PlatformTransactionManager migrationTxManager(DataSource migrationDataSourcePool) {
+	public PlatformTransactionManager migrationTxManager(@Qualifier("migrationDataSourcePool") DataSource migrationDataSourcePool) {
 		return new DataSourceTransactionManager(migrationDataSourcePool);
 	}
 
+	@Primary
 	@Bean
-	public JdbcTemplate jdbcTemplate(DataSource dataSourcePool) {
+	public JdbcTemplate jdbcTemplate(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
 		return new JdbcTemplate(dataSourcePool);
 	}
-	
+
 	@Bean
-	public JdbcTemplate migrationJdbcTemplate(DataSource migrationDataSourcePool) {
+	public JdbcTemplate migrationJdbcTemplate(@Qualifier("migrationDataSourcePool") DataSource migrationDataSourcePool) {
 		return new JdbcTemplate(migrationDataSourcePool);
 	}
 
 	@Primary
 	@Bean
-	public NamedParameterJdbcTemplate namedParameterJdbcTemplate(JdbcTemplate jdbcTemplate) {
+	public NamedParameterJdbcTemplate namedParameterJdbcTemplate(@Qualifier("jdbcTemplate") JdbcTemplate jdbcTemplate) {
 		return new NamedParameterJdbcTemplate(jdbcTemplate);
 	}
 
@@ -118,7 +121,7 @@ public class ModelConfig {
 	}
 	
 	@Bean
-	public CountingSemaphore countingSemaphore(DataSource dataSourcePool) {
+	public CountingSemaphore countingSemaphore(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
 		return new CountingSemaphoreImpl(dataSourcePool);
 	}
 	

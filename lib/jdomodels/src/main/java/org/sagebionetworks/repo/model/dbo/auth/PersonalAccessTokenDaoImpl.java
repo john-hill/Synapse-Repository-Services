@@ -87,7 +87,7 @@ public class PersonalAccessTokenDaoImpl implements PersonalAccessTokenDao {
 
 	private static final TableMapping<DBOPersonalAccessToken> PERSONAL_ACCESS_TOKEN_TABLE_MAPPING = (new DBOPersonalAccessToken()).getTableMapping();
 	// We serialize explicitly chosen fields, not the entire DTO, so no need to omit fields in the builder
-	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().build();
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"}).build();
 
 	public static DBOPersonalAccessToken personalAccessTokenDtoToDbo(AccessTokenRecord dto) {
 		DBOPersonalAccessToken dbo = new DBOPersonalAccessToken();

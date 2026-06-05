@@ -82,6 +82,7 @@ public class BulkDownloadDAOImpl implements BulkDownloadDAO {
 
 	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder()
 			.allowTypes(FileHandleAssociation.class)
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
 			.build();
 
 	@Autowired

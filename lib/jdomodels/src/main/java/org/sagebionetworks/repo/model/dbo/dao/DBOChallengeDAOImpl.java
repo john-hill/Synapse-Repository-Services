@@ -157,7 +157,7 @@ public class DBOChallengeDAOImpl implements ChallengeDAO {
 	private static final String SELECT_PARTICIPANTS_IN_REGISTERED_TEAM_COUNT =
 			"SELECT COUNT(*) "+SELECT_PARTICIPANTS_IN_REGISTERED_TEAM_CORE;
 
-	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(Challenge.class).build();
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(Challenge.class).allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"}).build();
 
 
 	@WriteTransaction

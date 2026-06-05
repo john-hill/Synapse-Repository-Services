@@ -30,7 +30,10 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.util.ValidateArgument;
 
 public class AccessRequirementUtils {
-	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(AccessRequirement.class).build();
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder()
+			.allowTypes(AccessRequirement.class)
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
+			.build();
 
 	// the convention is that the individual fields take precedence
 	// over the serialized objects.  When restoring the dto we first deserialize

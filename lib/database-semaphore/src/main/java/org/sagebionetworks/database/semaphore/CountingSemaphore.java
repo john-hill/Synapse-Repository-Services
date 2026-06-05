@@ -87,8 +87,15 @@ public interface CountingSemaphore {
 
 	/**
 	 * Get the number of lock rows in the database.
-	 * 
+	 *
 	 * @return
 	 */
 	public long getLockRowCount();
+
+	/**
+	 * Returns the current AUTO_INCREMENT value of the SEMAPHORE_LOCK table.
+	 *
+	 * @return The AUTO_INCREMENT value, or 1 if the table does not exist.
+	 */
+	public long getLockKeyAutoIncrement();
 }

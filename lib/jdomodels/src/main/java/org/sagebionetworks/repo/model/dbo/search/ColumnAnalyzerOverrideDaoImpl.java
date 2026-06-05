@@ -42,7 +42,8 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		dto.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
 		dto.setName(rs.getString("NAME"));
 		dto.setDescription(rs.getString("DESCRIPTION"));
-		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString("OVERRIDES"), ColumnAnalyzerOverrideEntry.class));
+		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(
+				rs.getString("OVERRIDES"), ColumnAnalyzerOverrideEntry.class));
 		dto.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
 		dto.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
 		dto.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));

@@ -19,10 +19,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -44,6 +46,7 @@ import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.ClockTable;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
@@ -387,6 +390,61 @@ public class RecordSetCreateGridHandlerTest {
 		snapshotHandler.close();
 
 		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), eq(clockTable), eq(userId), eq(mockFile));
+	}
+
+	@Test
+	public void testBuildSessionFromRecordSetReturnsEmptyBenefactorIds() throws IOException {
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD))
+				.thenReturn(AuthorizationStatus.authorized());
+		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
+
+		gridSession = new GridSession().setSessionId(gridSessionId);
+		when(mockGridDao.createGridSession(any())).thenReturn(gridSession);
+		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
+
+		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
+		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(any(), any(), any(), any(), any(), any(), any(), any());
+		when(mockCsvReader.readNext()).thenReturn(new String[]{"header"}, (String[]) null);
+
+		// call under test — RecordSet sources return empty set; checkSourceAccess() enforces authorization
+		CreateGridHandlerResult result = handler.createGrid(mockCallback, mockUser,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()), mockSnapshotStore);
+
+		assertEquals(Collections.emptySet(), result.getBenefactorIds());
+	}
+
+	@Test
+	public void testBuildSessionFromRecordSetPassesAuthorizationMode() throws IOException {
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD))
+				.thenReturn(AuthorizationStatus.authorized());
+		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
+
+		gridSession = new GridSession().setSessionId(gridSessionId);
+		when(mockGridDao.createGridSession(any())).thenReturn(gridSession);
+		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
+
+		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
+		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(any(), any(), any(), any(), any(), any(), any(), any());
+		when(mockCsvReader.readNext()).thenReturn(new String[]{"header"}, (String[]) null);
+
+		ArgumentCaptor<CreateGridSession> sessionCaptor = ArgumentCaptor.forClass(CreateGridSession.class);
+
+		// call under test
+		handler.createGrid(mockCallback, mockUser,
+				new CreateGridRequest().setRecordSetId(recordSet.getId())
+						.setAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR),
+				mockSnapshotStore);
+
+		verify(mockGridDao).createGridSession(sessionCaptor.capture());
+		assertEquals(AuthorizationMode.SOURCE_BENEFACTOR, sessionCaptor.getValue().getAuthorizationMode());
 	}
 
 	@Test

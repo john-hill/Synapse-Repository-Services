@@ -14,6 +14,12 @@ public interface SynonymSetDao {
 	List<SynonymSet> list(String organizationName, long limit, long offset);
 	List<SynonymSet> listAll(long limit, long offset);
 	Optional<SynonymSet> getByOrganizationAndName(String organizationName, String name);
+
+	/**
+	 * Given a list of qualified names ({orgName}-{name}), return the subset that does not
+	 * exist in the database. Used at create/update of a SearchConfiguration to validate
+	 * every referenced SynonymSet qname resolves before saving.
+	 */
 	List<String> findNonExistentNames(List<String> qualifiedNames);
 
 	/**

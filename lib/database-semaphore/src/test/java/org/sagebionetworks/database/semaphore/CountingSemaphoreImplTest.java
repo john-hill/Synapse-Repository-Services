@@ -459,6 +459,14 @@ public class CountingSemaphoreImplTest {
 	}
 
 	@Test
+	public void testGetLockKeyAutoIncrement() {
+		semaphore.attemptToAcquireLock(key, 60, 1, context);
+		// call under test
+		long autoIncrement = semaphore.getLockKeyAutoIncrement();
+		assertTrue(autoIncrement > 0);
+	}
+
+	@Test
 	@Timeout(value = 10, unit = TimeUnit.SECONDS)
 	public void testAttemptToAcquireSemaphoreLockWithBootstraping() {
 		JdbcTemplate jdbcTemplate = new JdbcTemplate(txManager.getDataSource());

@@ -2,11 +2,14 @@ package org.sagebionetworks.repo.model.dbo.grid;
 
 import java.util.Objects;
 
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
+
 public class CreateGridSession {
 	private Long userId;
 	private String sourceId;
 	private String schemaId;
 	private Long owner;
+	private AuthorizationMode authorizationMode;
 
 	public Long getUserId() {
 		return userId;
@@ -50,9 +53,18 @@ public class CreateGridSession {
 		return this;
 	}
 
+	public AuthorizationMode getAuthorizationMode() {
+		return authorizationMode;
+	}
+
+	public CreateGridSession setAuthorizationMode(AuthorizationMode authorizationMode) {
+		this.authorizationMode = authorizationMode;
+		return this;
+	}
+
 	@Override
 	public int hashCode() {
-		return Objects.hash(owner, schemaId, sourceId, userId);
+		return Objects.hash(authorizationMode, owner, schemaId, sourceId, userId);
 	}
 
 	@Override
@@ -64,14 +76,15 @@ public class CreateGridSession {
 		if (getClass() != obj.getClass())
 			return false;
 		CreateGridSession other = (CreateGridSession) obj;
-		return Objects.equals(owner, other.owner) && Objects.equals(schemaId, other.schemaId)
-				&& Objects.equals(sourceId, other.sourceId) && Objects.equals(userId, other.userId);
+		return Objects.equals(authorizationMode, other.authorizationMode) && Objects.equals(owner, other.owner)
+				&& Objects.equals(schemaId, other.schemaId) && Objects.equals(sourceId, other.sourceId)
+				&& Objects.equals(userId, other.userId);
 	}
 
 	@Override
 	public String toString() {
 		return "CreateGridSession [userId=" + userId + ", sourceId=" + sourceId + ", schemaId=" + schemaId + ", owner="
-				+ owner + "]";
+				+ owner + ", authorizationMode=" + authorizationMode + "]";
 	}
 
 }

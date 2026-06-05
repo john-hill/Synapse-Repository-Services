@@ -3,11 +3,13 @@ package org.sagebionetworks.repo.manager.grid.create;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -90,7 +92,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 
 		GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
-				.setSourceId(recordSet.getId()).setSchemaId(validationSchemaId.orElse(null)).setOwner(request.getOwnerPrincipalId()));
+				.setSourceId(recordSet.getId()).setSchemaId(validationSchemaId.orElse(null))
+				.setOwner(request.getOwnerPrincipalId()).setAuthorizationMode(request.getAuthorizationMode()));
 
 		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
 
@@ -158,7 +161,10 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 			throw new IllegalStateException(e);
 		}
 
-		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
+		// For RecordSet sources, checkSourceAccess() already enforces READ+DOWNLOAD+UPDATE
+		// on the source entity (and its benefactor), so no explicit benefactor IDs are needed.
+		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica)
+				.setBenefactorIds(Collections.emptySet());
 	}
 
 	List<ColumnModel> getSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {

@@ -125,14 +125,15 @@ public class DatasetCollectionIntegrationTest {
 				new EntityRef().setEntityId(datasetTwo.getId()).setVersionNumber(snapshotVersion)
 			)));
 
+		Long projectBenefactorId = KeyFactory.stringToKey(project.getId());
 		List<Row> expectedRows = Arrays.asList(
 			new Row().setRowId(KeyFactory.stringToKey(datasetOne.getId())).setVersionNumber(snapshotVersion)
-					.setEtag(datasetOne.getEtag()).setValues(Arrays.asList(datasetOne.getId(), datasetOne.getName(),
+					.setEtag(datasetOne.getEtag()).setBenefactorId(projectBenefactorId).setValues(Arrays.asList(datasetOne.getId(), datasetOne.getName(),
 							datasetOne.getDescription(), Long.toString(datasetOne.getCreatedOn().getTime()), datasetOne.getCreatedBy(),
 							datasetOne.getEtag(), Long.toString(datasetOne.getModifiedOn().getTime()), datasetOne.getModifiedBy(),
 							datasetOne.getSize().toString(), datasetOne.getChecksum(), datasetOne.getCount().toString())),
 				new Row().setRowId(KeyFactory.stringToKey(datasetTwo.getId())).setVersionNumber(snapshotVersion)
-						.setEtag(datasetTwo.getEtag()).setValues(Arrays.asList(datasetTwo.getId(), datasetTwo.getName(),
+						.setEtag(datasetTwo.getEtag()).setBenefactorId(projectBenefactorId).setValues(Arrays.asList(datasetTwo.getId(), datasetTwo.getName(),
 								datasetTwo.getDescription(), Long.toString(datasetTwo.getCreatedOn().getTime()), datasetTwo.getCreatedBy(),
 								datasetTwo.getEtag(), Long.toString(datasetTwo.getModifiedOn().getTime()), datasetTwo.getModifiedBy(),
 								datasetTwo.getSize().toString(), datasetTwo.getChecksum(), datasetTwo.getCount().toString()))
@@ -165,9 +166,10 @@ public class DatasetCollectionIntegrationTest {
 						new EntityRef().setEntityId(datasetOne.getId()).setVersionNumber(snapshotVersion)
 				)));
 
+		Long projectBenefactorId = KeyFactory.stringToKey(project.getId());
 		List<Row> expectedRows = Arrays.asList(
 				new Row().setRowId(KeyFactory.stringToKey(datasetOne.getId())).setVersionNumber(snapshotVersion)
-						.setEtag(datasetOne.getEtag()).setValues(Arrays.asList(datasetOne.getId(), datasetOne.getName(),
+						.setEtag(datasetOne.getEtag()).setBenefactorId(projectBenefactorId).setValues(Arrays.asList(datasetOne.getId(), datasetOne.getName(),
 								datasetOne.getDescription(), Long.toString(datasetOne.getCreatedOn().getTime()), datasetOne.getCreatedBy(),
 								datasetOne.getEtag(), Long.toString(datasetOne.getModifiedOn().getTime()), datasetOne.getModifiedBy(),
 								"0", null, "0"))

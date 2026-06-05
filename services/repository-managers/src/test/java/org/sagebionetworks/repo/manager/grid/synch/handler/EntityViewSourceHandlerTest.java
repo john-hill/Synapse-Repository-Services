@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeMap;
@@ -576,6 +577,28 @@ public class EntityViewSourceHandlerTest {
 
 		}
 		verifyNoMoreInteractionsOnAllMocks();
+	}
+
+	@Test
+	public void testGetBenefactorIds() throws Exception {
+		List<String> requiredColumns = Collections.emptyList();
+		List<ColumnModel> schema = List.of(
+				new ColumnModel().setColumnType(ColumnType.STRING).setName("aString"));
+		Long benefactorOne = 111L;
+		Long benefactorTwo = 222L;
+		// Two rows with distinct benefactor IDs, one row with a null benefactor (should be ignored)
+		List<Row> rows = List.of(
+				new Row().setRowId(1L).setVersionNumber(1L).setEtag("e1").setBenefactorId(benefactorOne).setValues(Arrays.asList("a")),
+				new Row().setRowId(2L).setVersionNumber(1L).setEtag("e2").setBenefactorId(benefactorTwo).setValues(Arrays.asList("b")),
+				new Row().setRowId(3L).setVersionNumber(1L).setEtag("e3").setBenefactorId(benefactorOne).setValues(Arrays.asList("c")),
+				new Row().setRowId(4L).setVersionNumber(1L).setEtag("e4").setValues(Arrays.asList("d")));
+
+		try (EntityViewSourceHandler handler = setupHandler(session, requiredColumns, schema, rows);
+				RowSourceItemReader reader = handler.getSourceRowReader()) {
+			// call under test
+			Set<Long> result = handler.getBenefactorIds();
+			assertEquals(Set.of(benefactorOne, benefactorTwo), result);
+		}
 	}
 
 }

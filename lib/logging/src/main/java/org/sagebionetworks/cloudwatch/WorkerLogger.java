@@ -69,8 +69,20 @@ public interface WorkerLogger {
 	void logWorkerTimeMetric(Class<?> workerClass, long timeMillis, Map<String, String> dimensions);
 
 	/**
+	 * Sends a CloudWatch gauge metric with a specific numeric value. The namespace follows the
+	 * pattern <{@link #WORKER_NAMESPACE} - stackInstance>, the worker (simple) class name is used
+	 * as the {@link #DIMENSION_WORKER_CLASS} dimension.
+	 *
+	 * @param workerClass The class whose {@link Class#getSimpleName()} will be used as the workerClass
+	 *                    dimension
+	 * @param metricName  The name of the metric
+	 * @param value       The numeric value to record
+	 */
+	void logWorkerGaugeMetric(Class<?> workerClass, String metricName, double value);
+
+	/**
 	 * Log a custom metric
-	 * 
+	 *
 	 * @param pd
 	 */
 	void logCustomMetric(ProfileData pd);

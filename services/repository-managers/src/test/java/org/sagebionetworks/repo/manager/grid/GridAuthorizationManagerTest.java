@@ -1,12 +1,17 @@
 package org.sagebionetworks.repo.manager.grid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -21,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.UserInfoTestHelper;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.entity.decider.UsersEntityAccessInfo;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityType;
@@ -31,6 +37,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +55,10 @@ public class GridAuthorizationManagerTest {
 
 	@Mock
 	private UserInfo mockUser;
+	@Mock
+	private UsersEntityAccessInfo mockAccessInfo1;
+	@Mock
+	private UsersEntityAccessInfo mockAccessInfo2;
 
 	private String gridSessionId;
 	private Long userId;
@@ -385,6 +396,79 @@ public class GridAuthorizationManagerTest {
 		assertThrows(IllegalArgumentException.class, () -> manager.validateGridOwner(mockUser, "not-a-number"));
 
 		verifyNoMoreInteractions(mockUserGroupDAO);
+	}
+
+	@Test
+	public void testHasGridSessionAccessWithSourceBenefactorModeWithEmptyBenefactors() {
+		when(mockGridDao.getAuthorizationMode(gridSessionId)).thenReturn(Optional.of(AuthorizationMode.SOURCE_BENEFACTOR));
+		when(mockGridDao.getSessionBenefactorIds(gridSessionId)).thenReturn(Collections.emptySet());
+		// call under test
+		AuthorizationStatus result = manager.hasGridSessionAccess(mockUser, gridSessionId);
+		assertEquals(AuthorizationStatus.authorized(), result);
+		verifyZeroInteractions(mockEntityAuthorizationManager);
+	}
+
+	@Test
+	public void testHasGridSessionAccessWithSourceBenefactorModeAuthorized() {
+		Set<Long> benefactorIds = Set.of(111L, 222L);
+		gridSource = new GridSource(entityId, EntityType.entityview);
+		when(mockGridDao.getAuthorizationMode(gridSessionId)).thenReturn(Optional.of(AuthorizationMode.SOURCE_BENEFACTOR));
+		when(mockGridDao.getSessionBenefactorIds(gridSessionId)).thenReturn(benefactorIds);
+		when(mockAccessInfo1.getEntityId()).thenReturn(111L);
+		when(mockAccessInfo1.getAuthorizationStatus()).thenReturn(AuthorizationStatus.authorized());
+		when(mockAccessInfo2.getEntityId()).thenReturn(222L);
+		when(mockAccessInfo2.getAuthorizationStatus()).thenReturn(AuthorizationStatus.authorized());
+		when(mockEntityAuthorizationManager.batchHasAccess(eq(mockUser), any(), eq(ACCESS_TYPE.UPDATE)))
+				.thenReturn(List.of(mockAccessInfo1, mockAccessInfo2));
+		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
+		when(mockEntityAuthorizationManager.hasAccess(mockUser, entityId.toString(), ACCESS_TYPE.READ))
+				.thenReturn(AuthorizationStatus.authorized());
+		// call under test
+		AuthorizationStatus result = manager.hasGridSessionAccess(mockUser, gridSessionId);
+		assertEquals(AuthorizationStatus.authorized(), result);
+	}
+
+	@Test
+	public void testHasGridSessionAccessWithSourceBenefactorModeSourceReadDenied() {
+		Set<Long> benefactorIds = Set.of(111L);
+		gridSource = new GridSource(entityId, EntityType.entityview);
+		when(mockGridDao.getAuthorizationMode(gridSessionId)).thenReturn(Optional.of(AuthorizationMode.SOURCE_BENEFACTOR));
+		when(mockGridDao.getSessionBenefactorIds(gridSessionId)).thenReturn(benefactorIds);
+		when(mockAccessInfo1.getEntityId()).thenReturn(111L);
+		when(mockAccessInfo1.getAuthorizationStatus()).thenReturn(AuthorizationStatus.authorized());
+		when(mockEntityAuthorizationManager.batchHasAccess(eq(mockUser), any(), eq(ACCESS_TYPE.UPDATE)))
+				.thenReturn(List.of(mockAccessInfo1));
+		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
+		when(mockEntityAuthorizationManager.hasAccess(mockUser, entityId.toString(), ACCESS_TYPE.READ))
+				.thenReturn(AuthorizationStatus.accessDenied("no read access"));
+		// call under test — all benefactors authorized but source READ denied
+		AuthorizationStatus result = manager.hasGridSessionAccess(mockUser, gridSessionId);
+		assertFalse(result.isAuthorized());
+	}
+
+	@Test
+	public void testHasGridSessionAccessWithSourceBenefactorModeAccessDenied() {
+		Set<Long> benefactorIds = Set.of(111L, 222L);
+		when(mockGridDao.getAuthorizationMode(gridSessionId)).thenReturn(Optional.of(AuthorizationMode.SOURCE_BENEFACTOR));
+		when(mockGridDao.getSessionBenefactorIds(gridSessionId)).thenReturn(benefactorIds);
+		when(mockAccessInfo1.getEntityId()).thenReturn(111L);
+		when(mockAccessInfo1.getAuthorizationStatus()).thenReturn(AuthorizationStatus.authorized());
+		// mockAccessInfo2 is not authorized — getEntityId() is not called for denied entries
+		when(mockAccessInfo2.getAuthorizationStatus()).thenReturn(AuthorizationStatus.accessDenied("no access"));
+		when(mockEntityAuthorizationManager.batchHasAccess(eq(mockUser), any(), eq(ACCESS_TYPE.UPDATE)))
+				.thenReturn(List.of(mockAccessInfo1, mockAccessInfo2));
+		// call under test
+		AuthorizationStatus result = manager.hasGridSessionAccess(mockUser, gridSessionId);
+		assertFalse(result.isAuthorized());
+	}
+
+	@Test
+	public void testGetRowLevelFilterUserInfoWithSourceBenefactorMode() {
+		when(mockGridDao.getAuthorizationMode(gridSessionId)).thenReturn(Optional.of(AuthorizationMode.SOURCE_BENEFACTOR));
+		// call under test
+		UserInfo result = manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
+		assertEquals(mockUser, result);
+		verifyZeroInteractions(mockEntityAuthorizationManager);
 	}
 
 }

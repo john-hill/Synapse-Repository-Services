@@ -25,6 +25,7 @@ import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -60,6 +61,7 @@ import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventP
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.RecordSet;
+import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
@@ -115,6 +117,10 @@ import com.amazonaws.services.s3.transfer.model.UploadResult;
 import au.com.bytecode.opencsv.CSVReader;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiAsyncClient;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.DeleteConnectionRequest;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.DeleteConnectionResponse;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.GoneException;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -157,7 +163,13 @@ public class GridManagerUnitTest {
 
 	@Mock
 	private GridAuthorizationManager mockGridAuthManager;
-	
+
+	@Mock
+	private org.sagebionetworks.repo.manager.UserManager mockUserManager;
+
+	@Mock
+	private software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiAsyncClient mockApiGatewayClient;
+
 	@Mock
 	private TransferManager mockTransferManager;
 
@@ -249,7 +261,8 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager,
+			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler),
+			mockGridAuthManager, mockUserManager, mockApiGatewayClient, mockTransferManager,
 			mockTransactionalMessenger, mockGridReplicaViewManager, mockPatchBuilderPublisher, mockSetValueProcessorFactory
 		);
 		
@@ -279,23 +292,24 @@ public class GridManagerUnitTest {
 		
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
-		
+
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-		
+
 		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
-		
+
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
-		
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
-	
+
 	@Test
 	public void testCreateGridWithTeamOwner() {
 		when(mockUser.getId()).thenReturn(userId);
@@ -305,24 +319,48 @@ public class GridManagerUnitTest {
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		GridReplica replica = new GridReplica().setGridSessionId(expected.getSessionId()).setReplicaId(replicaId);
-		
+
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
-		
+
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-		
+
 		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
-		
+
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
-		
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
+	}
+
+	@Test
+	public void testCreateGridStoresBenefactorIds() {
+		Set<Long> benefactorIds = Set.of(111L, 222L);
+		when(mockUser.getId()).thenReturn(userId);
+		CreateGridRequest request = new CreateGridRequest().setOwnerPrincipalId(null);
+		when(mockGridAuthManager.validateGridOwner(mockUser, null)).thenReturn(userId);
+		when(mockCreateGridHandler.canCreate(request)).thenReturn(true);
+
+		GridSession expected = new GridSession().setSessionId(gridSessionId);
+		GridReplica handlerReplica = new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId);
+		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
+				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(handlerReplica)
+						.setBenefactorIds(benefactorIds));
+		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
+				.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
+
+		// call under test
+		gridManager.createGrid(mockCallback, mockUser, request);
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, benefactorIds);
 	}
 	
 	
@@ -352,13 +390,14 @@ public class GridManagerUnitTest {
 
 		assertEquals(expected, result.getGridSession());
 
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
 		verifyConnectionEvent(EventSource.VALIDATION, replicaId + 1);
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
-	
+
 	@Test
 	public void testCreateGridWithNoReplica() {
 		when(mockUser.getId()).thenReturn(userId);
@@ -372,16 +411,17 @@ public class GridManagerUnitTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-		
+
 		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
-		
+
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 
 		assertEquals(expected, result.getGridSession());
-		
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
 	
@@ -2172,6 +2212,118 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(mockUser, buildUpdateRequest(replicaId));
 		});
+	}
+
+	@Test
+	public void testUpdateSessionBenefactorIdsDelegatesToDaoAndEvicts() {
+		Set<Long> benefactorIds = Set.of(111L, 222L);
+		doNothing().when(gridManager).evictUnauthorizedConnections(gridSessionId);
+
+		// call under test
+		gridManager.updateSessionBenefactorIds(gridSessionId, benefactorIds);
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, benefactorIds);
+		verify(gridManager).evictUnauthorizedConnections(gridSessionId);
+	}
+
+	@Test
+	public void testEvictUnauthorizedConnectionsWithUnauthorizedUser() {
+		Long connectedUserId = 999L;
+		GridConnectionInfo connection = new GridConnectionInfo()
+				.setConnectionId(connectionId)
+				.setSource(EventSource.WEBSOCKET)
+				.setCreatedBy(connectedUserId);
+		when(mockGridDao.listConnections(gridSessionId)).thenReturn(List.of(connection));
+		when(mockUserManager.getUserInfo(connectedUserId)).thenReturn(mockUser);
+		when(mockGridAuthManager.hasGridSessionAccess(mockUser, gridSessionId))
+				.thenReturn(AuthorizationStatus.accessDenied("no access"));
+		when(mockApiGatewayClient.deleteConnection(any(DeleteConnectionRequest.class)))
+				.thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+						DeleteConnectionResponse.builder().build()));
+
+		// call under test
+		gridManager.evictUnauthorizedConnections(gridSessionId);
+
+		verify(mockApiGatewayClient).deleteConnection(
+				eq(DeleteConnectionRequest.builder().connectionId(connectionId).build()));
+		verify(mockGridDao, never()).removeConnection(any());
+	}
+
+	@Test
+	public void testEvictUnauthorizedConnectionsWithAuthorizedUser() {
+		Long connectedUserId = 999L;
+		GridConnectionInfo connection = new GridConnectionInfo()
+				.setConnectionId(connectionId)
+				.setSource(EventSource.WEBSOCKET)
+				.setCreatedBy(connectedUserId);
+		when(mockGridDao.listConnections(gridSessionId)).thenReturn(List.of(connection));
+		when(mockUserManager.getUserInfo(connectedUserId)).thenReturn(mockUser);
+		when(mockGridAuthManager.hasGridSessionAccess(mockUser, gridSessionId))
+				.thenReturn(AuthorizationStatus.authorized());
+
+		// call under test
+		gridManager.evictUnauthorizedConnections(gridSessionId);
+
+		verify(mockApiGatewayClient, never()).deleteConnection(any(DeleteConnectionRequest.class));
+		verify(mockGridDao, never()).removeConnection(any());
+	}
+
+	@Test
+	public void testEvictUnauthorizedConnectionsSkipsNonWebsocket() {
+		GridConnectionInfo internalConnection = new GridConnectionInfo()
+				.setConnectionId(connectionId)
+				.setSource(EventSource.INTERNAL)
+				.setCreatedBy(userId);
+		when(mockGridDao.listConnections(gridSessionId)).thenReturn(List.of(internalConnection));
+
+		// call under test
+		gridManager.evictUnauthorizedConnections(gridSessionId);
+
+		verify(mockUserManager, never()).getUserInfo(any());
+		verify(mockGridAuthManager, never()).hasGridSessionAccess(any(), any());
+		verify(mockApiGatewayClient, never()).deleteConnection(any(DeleteConnectionRequest.class));
+	}
+
+	@Test
+	public void testEvictUnauthorizedConnectionsWithDeletedUser() {
+		Long connectedUserId = 999L;
+		GridConnectionInfo connection = new GridConnectionInfo()
+				.setConnectionId(connectionId)
+				.setSource(EventSource.WEBSOCKET)
+				.setCreatedBy(connectedUserId);
+		when(mockGridDao.listConnections(gridSessionId)).thenReturn(List.of(connection));
+		when(mockUserManager.getUserInfo(connectedUserId)).thenThrow(new NotFoundException("user deleted"));
+		when(mockApiGatewayClient.deleteConnection(any(DeleteConnectionRequest.class)))
+				.thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+						DeleteConnectionResponse.builder().build()));
+
+		// call under test — deleted user's stale connection must be force-closed
+		gridManager.evictUnauthorizedConnections(gridSessionId);
+
+		verify(mockApiGatewayClient).deleteConnection(
+				eq(DeleteConnectionRequest.builder().connectionId(connectionId).build()));
+	}
+
+	@Test
+	public void testEvictUnauthorizedConnectionsWithGoneConnection() {
+		Long connectedUserId = 999L;
+		GridConnectionInfo connection = new GridConnectionInfo()
+				.setConnectionId(connectionId)
+				.setSource(EventSource.WEBSOCKET)
+				.setCreatedBy(connectedUserId);
+		when(mockGridDao.listConnections(gridSessionId)).thenReturn(List.of(connection));
+		when(mockUserManager.getUserInfo(connectedUserId)).thenReturn(mockUser);
+		when(mockGridAuthManager.hasGridSessionAccess(mockUser, gridSessionId))
+				.thenReturn(AuthorizationStatus.accessDenied("no access"));
+		// GoneException wrapped in CompletionException — connection already closed
+		when(mockApiGatewayClient.deleteConnection(any(DeleteConnectionRequest.class)))
+				.thenReturn(java.util.concurrent.CompletableFuture.failedFuture(
+						GoneException.builder().build()));
+
+		// call under test — GoneException causes direct DB cleanup since $disconnect won't fire
+		gridManager.evictUnauthorizedConnections(gridSessionId);
+
+		verify(mockGridDao).removeConnection(connectionId);
 	}
 
 }

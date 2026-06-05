@@ -6,7 +6,7 @@ public interface UserStatusManager {
 	int INACTIVITY_DAYS = 370;
 
 	// Number of days of inactivity before the user receives a warning email (14 days before disable)
-	int INACTIVITY_WARNING_DAYS = 356;
+	int INACTIVITY_WARNING_DAYS = 355;
 
 	int disableInactiveUsers(int maxBatchSize);
 

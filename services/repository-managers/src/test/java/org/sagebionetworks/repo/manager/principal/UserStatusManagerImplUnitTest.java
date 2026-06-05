@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Date;
@@ -145,7 +147,7 @@ public class UserStatusManagerImplUnitTest {
 		when(mockUserManager.getUserInfo(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId()))
 				.thenReturn(sender);
 
-		doThrow(new RuntimeException("email service unavailable")).when(manager).sendInactivityWarningEmail(sender, userId1);
+		doThrow(new RuntimeException("email service unavailable")).when(manager).sendInactivityWarningEmail(sender, userId1, expectedDisableThreshold);
 		when(mockPrincipalNameProvider.getPrincipalName(userId2)).thenReturn("Bob");
 		when(mockTemplatedMessageSender.sendMessage(any())).thenReturn(new MessageToUser().setId("msg-1"));
 
@@ -164,20 +166,22 @@ public class UserStatusManagerImplUnitTest {
 		long userId = 42L;
 		UserInfo sender = new UserInfo(false);
 		sender.setId(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId());
+		// Build the disable date from a fixed local date so the formatted expiryDate is deterministic
+		Date disableDate = Date.from(LocalDate.of(2026, 6, 19).atStartOfDay(ZoneId.systemDefault()).toInstant());
 		when(mockPrincipalNameProvider.getPrincipalName(userId)).thenReturn("Alice");
 		when(mockTemplatedMessageSender.sendMessage(any())).thenReturn(new MessageToUser().setId("msg-1"));
 
 		ArgumentCaptor<MessageTemplate> templateCaptor = ArgumentCaptor.forClass(MessageTemplate.class);
 
 		// call under test
-		manager.sendInactivityWarningEmail(sender, userId);
+		manager.sendInactivityWarningEmail(sender, userId, disableDate);
 
 		verify(mockTemplatedMessageSender).sendMessage(templateCaptor.capture());
 		MessageTemplate captured = templateCaptor.getValue();
 
 		assertEquals("message/InactivityWarningNotification.html.vtl", captured.getTemplateFile());
 		assertEquals(Collections.singleton("42"), captured.getRecipients());
-		assertEquals(Map.of("displayName", "Alice"), captured.getContext());
+		assertEquals(Map.of("displayName", "Alice", "expiryDate", "2026-06-19"), captured.getContext());
 		assertEquals(true, captured.ignoreNotificationSettings());
 		assertEquals("Action Required: Your Synapse Account Will Be Disabled in 14 Days",
 				captured.getSubject().orElse(null));

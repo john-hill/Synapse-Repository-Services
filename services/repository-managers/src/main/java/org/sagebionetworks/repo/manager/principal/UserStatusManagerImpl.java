@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.principal;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Date;
@@ -93,7 +95,7 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 		for (Long userId : usersToWarn) {
 			try {
-				sendInactivityWarningEmail(sender, userId);
+				sendInactivityWarningEmail(sender, userId, disableThreshold);
 			} catch (Exception e) {
 				log.error("Failed to send inactivity warning email to user {}, marking as warned anyway", userId, e);
 			}
@@ -105,8 +107,12 @@ public class UserStatusManagerImpl implements UserStatusManager {
 	}
 
 	// package-private for unit testing
-	void sendInactivityWarningEmail(UserInfo sender, Long userId) {
-		Map<String, Object> context = Map.of("displayName", principalNameProvider.getPrincipalName(userId));
+	void sendInactivityWarningEmail(UserInfo sender, Long userId, Date disableDate) {
+		String disableDateStr = disableDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		Map<String, Object> context = Map.of(
+				"displayName", principalNameProvider.getPrincipalName(userId),
+				"expiryDate", disableDateStr
+		);
 		templatedMessageSender.sendMessage(
 				MessageTemplate.builder()
 						.withSender(sender)

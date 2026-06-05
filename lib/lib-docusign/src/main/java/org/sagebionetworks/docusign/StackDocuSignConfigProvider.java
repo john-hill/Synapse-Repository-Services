@@ -35,7 +35,7 @@ public class StackDocuSignConfigProvider implements DocuSignClientConfig {
 		if (pem == null) {
 			return null;
 		}
-		return pem.getBytes(StandardCharsets.UTF_8);
+		return pem.replace("\\n", "\n").getBytes(StandardCharsets.UTF_8);
 	}
 
 	@Override

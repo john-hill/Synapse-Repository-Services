@@ -1,5 +1,9 @@
 {
 	"description": "A <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/histogram/\"><code>histogram</code></a> bucket aggregation over a numeric column. Must specify <code>extended_bounds</code> or <code>hard_bounds</code> so the bucket count is bounded.",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.KeyedBucketOption" },
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.HistogramBoundsOptions" }
+	],
 	"properties": {
 		"field": {
 			"type": "string",
@@ -16,18 +20,6 @@
 		"offset": {
 			"type": "number",
 			"description": "Optional. Shifts bucket boundaries by this amount."
-		},
-		"keyed": {
-			"type": "boolean",
-			"description": "Optional. Whether to return buckets as a keyed object rather than an array."
-		},
-		"extended_bounds": {
-			"$ref": "org.sagebionetworks.repo.model.search.dsl.ExtendedBounds",
-			"description": "Optional. Forces buckets to span at least this min/max range."
-		},
-		"hard_bounds": {
-			"$ref": "org.sagebionetworks.repo.model.search.dsl.ExtendedBounds",
-			"description": "Optional. Restricts buckets to this min/max range (values outside are dropped)."
 		},
 		"order": {
 			"type": "object",

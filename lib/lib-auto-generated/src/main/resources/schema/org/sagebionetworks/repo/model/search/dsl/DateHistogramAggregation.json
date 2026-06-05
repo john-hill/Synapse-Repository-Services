@@ -1,5 +1,9 @@
 {
 	"description": "A <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/date-histogram/\"><code>date_histogram</code></a> bucket aggregation over a date column. Must specify <code>extended_bounds</code> or <code>hard_bounds</code> so the bucket count is bounded.",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.KeyedBucketOption" },
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.HistogramBoundsOptions" }
+	],
 	"properties": {
 		"field": {
 			"type": "string",
@@ -29,18 +33,6 @@
 			"type": "string",
 			"description": "Optional. UTC offset or IANA zone used to compute bucket boundaries."
 		},
-		"keyed": {
-			"type": "boolean",
-			"description": "Optional. Whether to return buckets as a keyed object rather than an array."
-		},
-		"extended_bounds": {
-			"$ref": "org.sagebionetworks.repo.model.search.dsl.ExtendedBounds",
-			"description": "Optional. Forces buckets to span at least this min/max range."
-		},
-		"hard_bounds": {
-			"$ref": "org.sagebionetworks.repo.model.search.dsl.ExtendedBounds",
-			"description": "Optional. Restricts buckets to this min/max range (values outside are dropped)."
-		},
 		"order": {
 			"type": "object",
 			"description": "Optional. Bucket sort order &mdash; a <code>{metric: \"asc|desc\"}</code> object or an array of them."
@@ -52,10 +44,6 @@
 		"format": {
 			"type": "string",
 			"description": "Optional. Date format applied to the bucket key in the response."
-		},
-		"params": {
-			"type": "object",
-			"description": "Optional. Additional aggregation parameters passed through to OpenSearch."
 		}
 	}
 }

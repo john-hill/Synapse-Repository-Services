@@ -33,14 +33,14 @@
 		},
 		"sort": {
 			"type": "array",
-			"description": "Optional. Result <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/sort/\">ordering</a>. OpenSearch sort shape (string column name, <code>{column: \"asc|desc\"}</code>, or <code>{column: {order: ...}}</code>). The pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted by relevance descending.",
+			"description": "Optional. Result <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/sort/\">ordering</a>, in native OpenSearch sort shape (a string column name, <code>{column: \"asc|desc\"}</code>, or <code>{column: {order: ..., mode: ..., missing: ...}}</code>) applied in order. Only the <code>field</code> and <code>_score</code> sort kinds are accepted &mdash; script and geo-distance sorts are rejected server-side. The pseudo-column <code>_score</code> sorts by relevance. When omitted, results are sorted by relevance descending.",
 			"items": {
 				"type": "object"
 			}
 		},
 		"_source": {
-			"type": "object",
-			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/retrieve-specific-fields/\">Source filter</a>. Accepts the full OpenSearch <code>SourceConfig</code> shape: a boolean, an array of column-name patterns (shorthand for <code>{includes: [...]}</code>), or <code>{includes: [...], excludes: [...]}</code>."
+			"$ref": "org.sagebionetworks.repo.model.search.dsl.SourceFilter",
+			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/retrieve-specific-fields/\">Source filter</a> selecting which columns are returned on each hit."
 		},
 		"from": {
 			"type": "integer",

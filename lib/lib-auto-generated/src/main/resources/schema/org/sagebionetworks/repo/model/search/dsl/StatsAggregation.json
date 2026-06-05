@@ -1,13 +1,12 @@
 {
 	"description": "A <a href=\"https://docs.opensearch.org/latest/aggregations/metric/stats/\"><code>stats</code></a> metric aggregation &mdash; count, min, max, avg, and sum of a numeric column in one pass.",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.MissingValueOption" }
+	],
 	"properties": {
 		"field": {
 			"type": "string",
 			"description": "Required. The numeric column to aggregate."
-		},
-		"missing": {
-			"type": "object",
-			"description": "Optional. Value substituted for documents missing <code>field</code>."
 		},
 		"format": {
 			"type": "string",

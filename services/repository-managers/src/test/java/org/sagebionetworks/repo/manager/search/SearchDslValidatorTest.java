@@ -13,7 +13,10 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.opensearch.client.json.JsonData;
+import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
+import org.opensearch.client.opensearch._types.SortOptions;
+import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.AggregationRange;
 import org.opensearch.client.opensearch._types.aggregations.DateRangeExpression;
@@ -60,52 +63,6 @@ public class SearchDslValidatorTest {
 				.must(Query.of(m -> m.match(mq -> mq.field("foo").query(FieldValue.of("x")))))
 				.filter(Query.of(m -> m.term(t -> t.field("bar").value(FieldValue.of("y")))))));
 		SearchDslValidator.validateQuery(q, false);
-	}
-
-	@Test
-	public void testValidateQueryWithEveryDisallowedKindRejected() {
-		// Coverage guard: every Query.Kind not in the allowlist must be rejected. This is the
-		// "exhaustive coverage" pattern from feedback_prefer_one_round_trip_test — drives the
-		// kind check from EnumSet.allOf so a future opensearch-java release that adds a new
-		// kind fails the test until it's deliberately allowlisted or denied here.
-		EnumSet<Query.Kind> disallowed = EnumSet.allOf(Query.Kind.class);
-		disallowed.removeAll(SearchDslValidator.ALLOWED_QUERY_KINDS);
-		// Skip kinds that are too painful to construct from scratch (they have required
-		// nested types that would need a deep fixture); the kind check runs first regardless,
-		// so we exercise it via Script which has a simple stub.
-		assertTrue(disallowed.contains(Query.Kind.Script));
-		assertTrue(disallowed.contains(Query.Kind.Wrapper));
-		assertTrue(disallowed.contains(Query.Kind.MoreLikeThis));
-		assertTrue(disallowed.contains(Query.Kind.GeoShape));
-		assertTrue(disallowed.contains(Query.Kind.HasChild));
-		assertTrue(disallowed.contains(Query.Kind.HasParent));
-		assertTrue(disallowed.contains(Query.Kind.Percolate));
-		assertTrue(disallowed.contains(Query.Kind.FunctionScore));
-		assertTrue(disallowed.contains(Query.Kind.ScriptScore));
-	}
-
-	@Test
-	public void testValidateQueryWithRowLevelFilterBypassKindsRejected() {
-		// Lock-in for the row-level-filtering audit (docs/search/search-dsl-row-level-filter-audit.md).
-		// These query kinds each defeat a future "(user query) AND (row-level filter)" wrap because
-		// they expand to, or read from, documents the filter inside req.query never tested:
-		//   - has_child / has_parent: join-expansion surfaces a related doc not bounded by the filter
-		//   - more_like_this / percolate: cross-index / stored-query reach
-		//   - wrapper: base64-encoded clause that bypasses this entire allowlist walk
-		// Unlike the membership guard above, this exercises the actual throw path on a constructed
-		// typed clause, so it fails if any kind is allowlisted AND its walk path lets it through.
-		List<Query> bypassClauses = List.of(
-				Query.of(b -> b.wrapper(w -> w.query("eyJtYXRjaF9hbGwiOnt9fQ=="))),
-				Query.of(b -> b.moreLikeThis(m -> m.fields("title").like(l -> l.text("anything")))),
-				Query.of(b -> b.hasChild(h -> h.type("child").query(q -> q.matchAll(m -> m)))),
-				Query.of(b -> b.hasParent(h -> h.parentType("parent").query(q -> q.matchAll(m -> m)))),
-				Query.of(b -> b.percolate(p -> p.field("query").id("1"))));
-		for (Query clause : bypassClauses) {
-			IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-					() -> SearchDslValidator.validateQuery(clause, false),
-					"expected '" + clause._kind() + "' to be rejected");
-			assertTrue(ex.getMessage().contains("query clause kind is not allowed"));
-		}
 	}
 
 	// -----------------------------------------------------------------------------
@@ -350,30 +307,6 @@ public class SearchDslValidatorTest {
 	}
 
 	@Test
-	public void testValidateAggregationsWithDisallowedKindRejected() {
-		Map<String, Aggregation> aggs = new LinkedHashMap<>();
-		aggs.put("bad", Aggregation.of(b -> b.global(g -> g)));
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateAggregations(aggs));
-		assertTrue(ex.getMessage().contains("aggregation kind is not allowed"));
-	}
-
-	@Test
-	public void testValidateAggregationsWithGlobalKindRejected() {
-		// Lock-in for the row-level-filtering audit: the `global` aggregation RESETS the agg scope
-		// to all documents in the index, escaping the row-level filter that will live inside
-		// req.query. If it were ever allowlisted, bucket counts/metrics would be computed over rows
-		// the caller cannot read. It must stay disabled. See
-		// docs/search/search-dsl-row-level-filter-audit.md §3.
-		Map<String, Aggregation> aggs = new LinkedHashMap<>();
-		aggs.put("escape_scope", Aggregation.of(b -> b.global(g -> g)
-				.aggregations("c", Aggregation.of(s -> s.valueCount(v -> v.field("f"))))));
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateAggregations(aggs));
-		assertTrue(ex.getMessage().contains("aggregation kind is not allowed"));
-	}
-
-	@Test
 	public void testValidateAggregationsWithTermsSizeAtCap() {
 		Map<String, Aggregation> aggs = new LinkedHashMap<>();
 		aggs.put("a", Aggregation.of(b -> b.terms(t -> t.field("f")
@@ -575,19 +508,6 @@ public class SearchDslValidatorTest {
 	}
 
 	@Test
-	public void testValidateHighlightWithDisallowedHighlightQueryKindRejected() {
-		// MoreLikeThis is not in the query allowlist; the recursive walkQuery call must
-		// reject it so callers can't smuggle disallowed clauses through highlight_query.
-		Query nested = Query.of(q -> q.moreLikeThis(m -> m.like(l -> l.text("x"))));
-		Map<String, HighlightField> fields = new LinkedHashMap<>();
-		fields.put("title", HighlightField.of(b -> b.highlightQuery(nested)));
-		Highlight h = Highlight.of(b -> b.fields(fields));
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateHighlight(h));
-		assertTrue(ex.getMessage().contains("not allowed"));
-	}
-
-	@Test
 	public void testValidateHighlightWithNull() {
 		assertThrows(IllegalArgumentException.class,
 				() -> SearchDslValidator.validateHighlight(null));
@@ -636,18 +556,6 @@ public class SearchDslValidatorTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> SearchDslValidator.validateRescore(r));
 		assertTrue(ex.getMessage().contains("window_size"));
-	}
-
-	@Test
-	public void testValidateRescoreWithDisallowedInnerKindRejected() {
-		// MoreLikeThis is not in the query allowlist; the inner walkQuery in validateRescore
-		// must reject it the same way a top-level query would.
-		Rescore r = Rescore.of(b -> b.windowSize(50)
-				.query(RescoreQuery.of(rq -> rq.rescoreQuery(
-						Query.of(q -> q.moreLikeThis(m -> m.like(l -> l.text("x"))))))));
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateRescore(r));
-		assertTrue(ex.getMessage().contains("not allowed"));
 	}
 
 	@Test
@@ -724,22 +632,6 @@ public class SearchDslValidatorTest {
 		aggs.put("parent", parent);
 		// call under test — recursion descends without throwing.
 		SearchDslValidator.validateAggregations(aggs);
-	}
-
-	// -----------------------------------------------------------------------------
-	// Highlight: top-level highlight_query (not the per-field variant)
-	// -----------------------------------------------------------------------------
-
-	@Test
-	public void testValidateHighlightWithTopLevelDisallowedHighlightQueryRejected() {
-		// MoreLikeThis is not in the query allowlist; the recursive walkQuery on the
-		// Highlight.highlightQuery() node must reject it at the top level the same way
-		// as it does on the per-field variant.
-		Query nested = Query.of(q -> q.moreLikeThis(m -> m.like(l -> l.text("x"))));
-		Highlight h = Highlight.of(b -> b.highlightQuery(nested).fields(new LinkedHashMap<>()));
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateHighlight(h));
-		assertTrue(ex.getMessage().contains("not allowed"));
 	}
 
 	// -----------------------------------------------------------------------------
@@ -879,15 +771,6 @@ public class SearchDslValidatorTest {
 				() -> SearchDslValidator.walkQuery(Query.of(b -> b.matchAll(m -> m)), 1,
 						new int[] { SearchDslValidator.QUERY_MAX_CLAUSES }));
 		assertTrue(ex.getMessage().contains("too many clauses"));
-	}
-
-	@Test
-	public void testWalkQueryWithDisallowedKindRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslValidator.walkQuery(Query.of(b -> b.wrapper(w -> w.query("eyJ9"))),
-						1, new int[] { 0 }));
-		assertTrue(ex.getMessage().contains("not allowed"));
 	}
 
 	// ---------- walkDisMax ----------
@@ -1104,15 +987,6 @@ public class SearchDslValidatorTest {
 	// ---------- walkAggregation / walkAggregationMap ----------
 
 	@Test
-	public void testWalkAggregationWithDisallowedKindRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslValidator.walkAggregation(Aggregation.of(b -> b.global(g -> g)), 1,
-						new int[] { 0 }));
-		assertTrue(ex.getMessage().contains("aggregation kind is not allowed"));
-	}
-
-	@Test
 	public void testWalkAggregationMapWithDepthOverLimitRejected() {
 		Map<String, Aggregation> map = new LinkedHashMap<>();
 		map.put("a", Aggregation.of(b -> b.terms(t -> t.field("f"))));
@@ -1163,77 +1037,37 @@ public class SearchDslValidatorTest {
 	// OpenSearch-client schema change relaxes the requirement.
 
 	// -----------------------------------------------------------------------------
-	// Top-level body allowlists (scanBodyTopLevelKeys / scanAutocompleteBodyTopLevelKeys)
+	// search_after / from exclusivity (validateSearchAfterFromExclusivity)
 	// -----------------------------------------------------------------------------
 
 	@Test
-	public void testScanBodyTopLevelKeysWithAllowedSubsetAccepted() throws Exception {
-		// One body containing every BODY_ALLOWED_KEY except search_after.
-		String json = "{\"query\":{},\"post_filter\":{},\"aggregations\":{},"
-				+ "\"highlight\":{},\"collapse\":{},\"rescore\":{},\"sort\":[],\"_source\":{},"
-				+ "\"from\":0,\"size\":10}";
-		// call under test — must not throw
-		SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(json));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithUnsupportedKeyRejected() throws Exception {
+	public void testValidateSearchAfterFromExclusivityWithSearchAfterAndPositiveFromRejected() throws Exception {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
-						"{\"query\":{},\"explain\":true}")));
-		assertTrue(ex.getMessage().contains("explain"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithNullRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.scanBodyTopLevelKeys(null));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithNonObjectRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree("[]")));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	@Test
-	public void testScanBodyTopLevelKeysWithSearchAfterAndPositiveFromRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+				() -> SearchDslValidator.validateSearchAfterFromExclusivity(MAPPER.readTree(
 						"{\"query\":{},\"search_after\":[\"x\"],\"from\":5}")));
 		assertTrue(ex.getMessage().contains("search_after"));
 		assertTrue(ex.getMessage().contains("from"));
 	}
 
 	@Test
-	public void testScanBodyTopLevelKeysWithSearchAfterAndZeroFromAccepted() throws Exception {
+	public void testValidateSearchAfterFromExclusivityWithSearchAfterAndZeroFromAccepted() throws Exception {
 		// from=0 alongside search_after is fine — the cursor takes precedence.
 		// call under test — must not throw
-		SearchDslValidator.scanBodyTopLevelKeys(MAPPER.readTree(
+		SearchDslValidator.validateSearchAfterFromExclusivity(MAPPER.readTree(
 				"{\"query\":{},\"search_after\":[\"x\"],\"from\":0}"));
 	}
 
 	@Test
-	public void testScanAutocompleteBodyTopLevelKeysWithQueryAndSourceAccepted() throws Exception {
-		// call under test — must not throw
-		SearchDslValidator.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
-				"{\"query\":{},\"_source\":{}}"));
+	public void testValidateSearchAfterFromExclusivityWithNullRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateSearchAfterFromExclusivity(null));
+		assertTrue(ex.getMessage().contains("body"));
 	}
 
 	@Test
-	public void testScanAutocompleteBodyTopLevelKeysWithDisallowedKeyRejected() throws Exception {
+	public void testValidateSearchAfterFromExclusivityWithNonObjectRejected() throws Exception {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.scanAutocompleteBodyTopLevelKeys(MAPPER.readTree(
-						"{\"query\":{},\"aggregations\":{}}")));
-		assertTrue(ex.getMessage().contains("aggregations"));
-	}
-
-	@Test
-	public void testScanAutocompleteBodyTopLevelKeysWithNullRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.scanAutocompleteBodyTopLevelKeys(null));
+				() -> SearchDslValidator.validateSearchAfterFromExclusivity(MAPPER.readTree("[]")));
 		assertTrue(ex.getMessage().contains("body"));
 	}
 
@@ -1332,5 +1166,333 @@ public class SearchDslValidatorTest {
 				() -> SearchDslValidator.validateSearchAfterShape(
 						MAPPER.readTree("{\"search_after\":\"x\"}")));
 		assertTrue(ex.getMessage().contains("body.search_after must be an array"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Opaque query leaf-value shape gate (validateQueryLeafShapes)
+	// -----------------------------------------------------------------------------
+
+	private static void validateQueryLeafShapes(String json) throws Exception {
+		SearchDslValidator.validateQueryLeafShapes(MAPPER.readTree(json));
+	}
+
+	private static void validateAggregationLeafShapes(String json) throws Exception {
+		SearchDslValidator.validateAggregationLeafShapes(MAPPER.readTree(json));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithNullAccepted() {
+		// call under test — a null/absent subtree is a no-op (deserializer handles structure).
+		assertDoesNotThrow(() -> SearchDslValidator.validateQueryLeafShapes(null));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMatchScalarQueryAccepted() throws Exception {
+		// call under test — scalar query value (string / number / boolean) is valid.
+		validateQueryLeafShapes("{\"match\":{\"title\":{\"query\":\"amyloid\"}}}");
+		validateQueryLeafShapes("{\"match\":{\"count\":{\"query\":5}}}");
+		validateQueryLeafShapes("{\"match\":{\"flag\":{\"query\":true}}}");
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMatchShorthandScalarAccepted() throws Exception {
+		// call under test — the shorthand {"match":{"col":"x"}} form is left for the deserializer.
+		assertDoesNotThrow(() -> validateQueryLeafShapes("{\"match\":{\"title\":\"amyloid\"}}"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMatchObjectQueryRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes("{\"match\":{\"title\":{\"query\":{\"nested\":\"obj\"}}}}"));
+		assertTrue(ex.getMessage().contains("match['title'].'query'"));
+		assertTrue(ex.getMessage().contains("an object"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMatchArrayQueryRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes("{\"match\":{\"title\":{\"query\":[1,2,3]}}}"));
+		assertTrue(ex.getMessage().contains("match['title'].'query'"));
+		assertTrue(ex.getMessage().contains("an array"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMatchMinimumShouldMatchScalarAccepted() throws Exception {
+		// minimum_should_match may be an integer or a percentage / formula string.
+		validateQueryLeafShapes("{\"match\":{\"title\":{\"query\":\"x\",\"minimum_should_match\":2}}}");
+		validateQueryLeafShapes("{\"match\":{\"title\":{\"query\":\"x\",\"minimum_should_match\":\"75%\"}}}");
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMatchMinimumShouldMatchObjectRejected() {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"match\":{\"title\":{\"query\":\"x\",\"minimum_should_match\":{\"bad\":1}}}}"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithTermObjectValueRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes("{\"term\":{\"status\":{\"value\":{\"bad\":1}}}}"));
+		assertTrue(ex.getMessage().contains("term['status'].'value'"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithRangeScalarBoundsAccepted() throws Exception {
+		// call under test — numeric and date-string bounds both collapse to "scalar".
+		validateQueryLeafShapes("{\"range\":{\"age\":{\"gte\":18,\"lt\":65}}}");
+		validateQueryLeafShapes("{\"range\":{\"created\":{\"gte\":\"2020-01-01\",\"lte\":\"2026-01-01\"}}}");
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithRangeObjectBoundRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes("{\"range\":{\"age\":{\"gte\":{\"nested\":\"obj\"}}}}"));
+		assertTrue(ex.getMessage().contains("range['age'].'gte'"));
+		assertTrue(ex.getMessage().contains("an object"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithRangeArrayBoundRejected() {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes("{\"range\":{\"age\":{\"gte\":[1,2,3]}}}"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithTermsScalarArrayAccepted() throws Exception {
+		// call under test — terms is field-keyed to an array of scalars; boost sibling is scalar.
+		validateQueryLeafShapes("{\"terms\":{\"tags\":[\"a\",\"b\",\"c\"],\"boost\":1.0}}");
+		validateQueryLeafShapes("{\"terms\":{\"ids\":[1,2,3]}}");
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithTermsArrayOfObjectsRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes("{\"terms\":{\"tags\":[\"a\",{\"nested\":1}]}}"));
+		assertTrue(ex.getMessage().contains("terms['tags'][1]"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMultiMatchAccepted() throws Exception {
+		// call under test
+		validateQueryLeafShapes(
+				"{\"multi_match\":{\"query\":\"amyloid\",\"fields\":[\"title^2\",\"abstract\"]}}");
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMultiMatchObjectQueryRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"multi_match\":{\"query\":{\"bad\":1},\"fields\":[\"title\"]}}"));
+		assertTrue(ex.getMessage().contains("multi_match.query"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithMultiMatchFieldsContainingObjectRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"multi_match\":{\"query\":\"x\",\"fields\":[\"title\",{\"bad\":1}]}}"));
+		assertTrue(ex.getMessage().contains("multi_match.fields[1]"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithSimpleQueryStringFieldsObjectRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"simple_query_string\":{\"query\":\"x\",\"fields\":[{\"bad\":1}]}}"));
+		assertTrue(ex.getMessage().contains("simple_query_string.fields[0]"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithBoolMinimumShouldMatchObjectRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"bool\":{\"should\":[],\"minimum_should_match\":{\"bad\":1}}}"));
+		assertTrue(ex.getMessage().contains("bool.minimum_should_match"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithObjectBoundNestedInBoolFilterRejected() {
+		// Recursion guard: a forbidden shape buried in bool.filter[*].range.gte must be reached.
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"bool\":{\"filter\":[{\"match_all\":{}},"
+								+ "{\"range\":{\"age\":{\"gte\":{\"deep\":\"obj\"}}}}]}}"));
+		assertTrue(ex.getMessage().contains("range['age'].'gte'"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithObjectValueNestedInConstantScoreRejected() {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"constant_score\":{\"filter\":{\"term\":{\"s\":{\"value\":{\"bad\":1}}}}}}"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithObjectValueNestedInBoostingRejected() {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"boosting\":{\"positive\":{\"match_all\":{}},"
+								+ "\"negative\":{\"prefix\":{\"t\":{\"value\":{\"bad\":1}}}}}}"));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesWithObjectValueNestedInDisMaxRejected() {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateQueryLeafShapes(
+						"{\"dis_max\":{\"queries\":[{\"wildcard\":{\"t\":{\"value\":{\"bad\":1}}}}]}}"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Opaque aggregation leaf-value shape gate (validateAggregationLeafShapes)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testValidateAggregationLeafShapesWithNullAccepted() {
+		// call under test — absent map is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.validateAggregationLeafShapes(null));
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithScalarBoundsAccepted() throws Exception {
+		// call under test
+		validateAggregationLeafShapes(
+				"{\"by_age\":{\"histogram\":{\"field\":\"age\",\"interval\":10,"
+						+ "\"extended_bounds\":{\"min\":0,\"max\":100}}}}");
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithObjectExtendedBoundRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateAggregationLeafShapes(
+						"{\"by_age\":{\"histogram\":{\"field\":\"age\","
+								+ "\"extended_bounds\":{\"min\":0,\"max\":{\"bad\":1}}}}}"));
+		assertTrue(ex.getMessage().contains("histogram.extended_bounds.max"));
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithObjectRangeFromRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateAggregationLeafShapes(
+						"{\"buckets\":{\"range\":{\"field\":\"age\","
+								+ "\"ranges\":[{\"from\":0,\"to\":10},{\"from\":{\"bad\":1},\"to\":20}]}}}"));
+		assertTrue(ex.getMessage().contains("range.ranges[1].from"));
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithTermsIncludeRegexAccepted() throws Exception {
+		// include / exclude may be a regex string OR an array of exact values.
+		validateAggregationLeafShapes("{\"a\":{\"terms\":{\"field\":\"f\",\"include\":\"^a.*\"}}}");
+		validateAggregationLeafShapes("{\"a\":{\"terms\":{\"field\":\"f\",\"include\":[\"a\",\"b\"]}}}");
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithTermsIncludeObjectRejected() {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateAggregationLeafShapes(
+						"{\"a\":{\"terms\":{\"field\":\"f\",\"include\":{\"bad\":1}}}}"));
+		assertTrue(ex.getMessage().contains("terms aggregation 'include'"));
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithTermsOrderObjectAccepted() throws Exception {
+		// `order` is a genuinely free-form sort object and must pass through untouched.
+		assertDoesNotThrow(() -> validateAggregationLeafShapes(
+				"{\"a\":{\"terms\":{\"field\":\"f\",\"order\":{\"_count\":\"desc\"}}}}"));
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithTermsMissingScalarAccepted() throws Exception {
+		// call under test
+		validateAggregationLeafShapes("{\"a\":{\"terms\":{\"field\":\"f\",\"missing\":\"N/A\"}}}");
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithMetricMissingObjectRejected() {
+		// `missing` is opaque on the metric aggregations too (MissingValueOption), not just terms.
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateAggregationLeafShapes(
+						"{\"a\":{\"avg\":{\"field\":\"f\",\"missing\":{\"bad\":1}}}}"));
+		assertTrue(ex.getMessage().contains("avg aggregation 'missing'"));
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithCardinalityMissingScalarAccepted() throws Exception {
+		// call under test
+		validateAggregationLeafShapes("{\"a\":{\"cardinality\":{\"field\":\"f\",\"missing\":0}}}");
+	}
+
+	@Test
+	public void testValidateAggregationLeafShapesWithObjectBoundInSubAggregationRejected() {
+		// Recursion guard: a forbidden shape inside a sub-aggregation must be reached.
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateAggregationLeafShapes(
+						"{\"outer\":{\"terms\":{\"field\":\"f\"},"
+								+ "\"aggregations\":{\"inner\":{\"histogram\":{\"field\":\"age\","
+								+ "\"extended_bounds\":{\"min\":{\"bad\":1},\"max\":10}}}}}}"));
+		assertTrue(ex.getMessage().contains("histogram.extended_bounds.min"));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Sort kind allowlist (validateSort)
+	// -----------------------------------------------------------------------------
+
+	@Test
+	public void testValidateSortWithFieldAndScoreKindsAccepted() {
+		List<SortOptions> sort = List.of(
+				SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field("year").order(SortOrder.Desc)))),
+				SortOptions.of(so -> so.score(sc -> sc.order(SortOrder.Desc))));
+		// call under test — both allowlisted kinds pass.
+		assertDoesNotThrow(() -> SearchDslValidator.validateSort(sort));
+	}
+
+	@Test
+	public void testValidateSortWithDocKindRejected() {
+		// _doc (internal Lucene order) is not on the allowlist. It deserializes to the Doc kind.
+		List<SortOptions> sort = List.of(SortOptions.of(so -> so.doc(d -> d.order(SortOrder.Asc))));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.validateSort(sort));
+		assertTrue(ex.getMessage().contains("sort kind is not allowed"));
+	}
+
+	@Test
+	public void testValidateSortWithNullRejected() {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.validateSort(null));
+	}
+
+	@Test
+	public void testAllowedSortKindsExcludesScriptAndGeoDistance() {
+		// Membership guard: the script and geo-distance sort kinds (the ones that run Painless /
+		// require geo fields) must never be on the allowlist. Constructing those typed variants
+		// requires deep fixtures (Script / GeoLocation), so this asserts the allowlist directly —
+		// parseSort rejects them via validateSort because they aren't members.
+		assertTrue(!SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Script));
+		assertTrue(!SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.GeoDistance));
+		assertTrue(!SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Doc));
+		assertTrue(SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Field));
+		assertTrue(SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Score));
 	}
 }

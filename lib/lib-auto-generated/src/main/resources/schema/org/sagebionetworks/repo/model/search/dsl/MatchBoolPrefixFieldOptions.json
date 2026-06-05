@@ -1,5 +1,10 @@
 {
 	"description": "Per-field options for a <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/match-bool-prefix/\"><code>match_bool_prefix</code></a> clause. Carried as the value of the field-keyed <code>match_bool_prefix</code> map (the map key is the column name).",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.ClauseScoringOptions" },
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.FuzzyMatchOptions" },
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.MinimumShouldMatchOption" }
+	],
 	"properties": {
 		"query": {
 			"type": "object",
@@ -9,41 +14,13 @@
 			"type": "string",
 			"description": "Optional. Boolean logic used to combine the analyzed terms: <code>or</code> (default) or <code>and</code>."
 		},
-		"minimum_should_match": {
-			"type": "object",
-			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/query-dsl/minimum-should-match/\">Minimum number of terms</a> a document must match. An integer or a percentage / formula string."
-		},
 		"analyzer": {
 			"type": "string",
 			"description": "Optional. Analyzer used to tokenize the query text. Defaults to the field's search analyzer."
 		},
-		"fuzziness": {
-			"type": "object",
-			"description": "Optional. Allowed <a href=\"https://docs.opensearch.org/latest/query-dsl/term/fuzzy/\">edit distance</a>: an integer or <code>AUTO</code>."
-		},
-		"fuzzy_rewrite": {
-			"type": "string",
-			"description": "Optional. How the fuzzy query is rewritten internally."
-		},
-		"fuzzy_transpositions": {
-			"type": "boolean",
-			"description": "Optional. Whether to count transpositions (ab &rarr; ba) as a single edit. Default <code>true</code>."
-		},
-		"prefix_length": {
-			"type": "integer",
-			"description": "Optional. Number of leading characters left unchanged when fuzzy matching."
-		},
 		"max_expansions": {
 			"type": "integer",
 			"description": "Optional. Maximum number of terms the final (prefix) term expands into. Default <code>50</code>."
-		},
-		"boost": {
-			"type": "number",
-			"description": "Optional. Multiplier for the relevance score of this clause. Default <code>1.0</code>."
-		},
-		"_name": {
-			"type": "string",
-			"description": "Optional. Label echoed back in matched-queries metadata."
 		}
 	}
 }

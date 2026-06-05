@@ -220,15 +220,14 @@ public final class SearchOpaqueJsonUtil {
 	 * Parse, validate, field-rewrite, typed-deserialize, and apply a caller-supplied
 	 * OpenSearch {@code _search} request body to {@code req}.
 	 *
-	 * <p>Each present sub-key is scanned against the top-level allowlist, scanned for
-	 * forbidden keys, field-rewritten (column name &rarr; column id, with auto-routing for
-	 * text-typed columns where the operation needs doc values), typed-deserialized,
-	 * structurally validated, and pushed onto the request builder.</p>
+	 * <p>Each present sub-key is scanned for forbidden keys, field-rewritten (column name &rarr;
+	 * column id, with auto-routing for text-typed columns where the operation needs doc values),
+	 * typed-deserialized, structurally validated, and pushed onto the request builder.</p>
 	 *
 	 * <p>Defaults applied: omitted {@code from} &rarr; 0; omitted {@code size} &rarr;
 	 * {@code defaultSize}; values past {@code maxSize} clamped. {@code search_after}
-	 * alongside {@code from > 0} is rejected upstream by
-	 * {@link SearchDslValidator#scanBodyTopLevelKeys}.</p>
+	 * alongside {@code from > 0} is rejected by
+	 * {@link SearchDslValidator#validateSearchAfterFromExclusivity}.</p>
 	 *
 	 * <p>Behavior gated by {@code options}: when {@link SearchQueryPart#HITS} is absent the
 	 * request goes out with {@code size=0} and sort / collapse / rescore / highlight /
@@ -264,19 +263,15 @@ public final class SearchOpaqueJsonUtil {
 	private static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
 			SearchRequest.Builder req, Set<SearchQueryPart> options,
 			int defaultSize, int maxSize, boolean autocomplete) {
-		// Pre-check the raw top-level keys (and the search_after/from conflict), then rebuild the
-		// body as a new node containing only the supported top-level keys; the per-surface parse
-		// paths below re-sanitize each sub-tree the same way, so the typed deserializer never sees
-		// a key we did not deliberately copy through.
-		JsonNode parsed = parse(opaque);
-		if (autocomplete) {
-			SearchDslValidator.scanAutocompleteBodyTopLevelKeys(parsed);
-		} else {
-			SearchDslValidator.scanBodyTopLevelKeys(parsed);
+		// The body is the generated SearchQuery / SearchAutocompleteBody POJO, so any key outside the
+		// schema was already rejected with HTTP 400 at the request boundary, and each surface with an
+		// opaque slot is forbidden-key scanned individually as it is parsed below. The one structural
+		// rule the schema can't express is the search_after / from > 0 conflict, which only applies to
+		// the full body.
+		JsonNode body = parse(opaque);
+		if (!autocomplete) {
+			SearchDslValidator.validateSearchAfterFromExclusivity(body);
 		}
-		JsonNode body = autocomplete
-				? SearchDslSanitizer.sanitizeAutocompleteBodyTopLevel(parsed)
-				: SearchDslSanitizer.sanitizeBodyTopLevel(parsed);
 
 		Query query = parseRequiredQuery(body, ctx, autocomplete);
 		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
@@ -348,12 +343,11 @@ public final class SearchOpaqueJsonUtil {
 
 	private static Query parseQuery(JsonNode node, SearchFieldRewriter.RoutingContext ctx,
 			boolean autocomplete) {
-		// The typed SearchQuery POJO already constrains the clause structure (unknown keys are
-		// dropped on deserialization and rejected at the request boundary). The remaining caller-
-		// controlled risk is a forbidden construct hidden inside an opaque leaf (a script in a
-		// term value, etc.), so scan for forbidden keys, then rewrite field references, deserialize
-		// to the typed OpenSearch query, and run the resource caps.
-		SearchDslSanitizer.scanForbiddenKeys(node, "query");
+		// The typed SearchQuery POJO already constrains the clause structure (any key outside the
+		// schema is rejected with HTTP 400 at the request boundary). Validate the opaque leaf shapes,
+		// then rewrite field references, deserialize to the typed OpenSearch query, and run the
+		// resource caps.
+		SearchDslValidator.validateQueryLeafShapes(node);
 		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.QUERY);
 		Query query = fromJsonpTree(node, Query._DESERIALIZER);
 		SearchDslValidator.validateQuery(query, autocomplete);
@@ -366,7 +360,7 @@ public final class SearchOpaqueJsonUtil {
 		if (node == null || node.isNull()) {
 			return Collections.emptyMap();
 		}
-		SearchDslSanitizer.scanForbiddenKeys(node, "aggregations");
+		SearchDslValidator.validateAggregationLeafShapes(node);
 		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.AGGREGATIONS);
 		Map<String, Aggregation> result = new LinkedHashMap<>();
 		Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
@@ -379,11 +373,34 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	private static Highlight parseHighlight(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		SearchDslSanitizer.scanForbiddenKeys(node, "highlight");
+		// Any embedded highlight_query (top-level or per-field) is a full Query subtree whose
+		// opaque leaf slots must pass the same shape gate as the main query.
+		validateHighlightQueryLeafShapes(node);
 		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.HIGHLIGHT);
 		Highlight highlight = fromJsonpTree(node, Highlight._DESERIALIZER);
 		SearchDslValidator.validateHighlight(highlight);
 		return highlight;
+	}
+
+	/**
+	 * Run the query leaf-shape gate over every {@code highlight_query} subtree in a highlight
+	 * block &mdash; the top-level one and each per-field one under {@code fields}.
+	 */
+	private static void validateHighlightQueryLeafShapes(JsonNode highlight) {
+		if (highlight == null || !highlight.isObject()) {
+			return;
+		}
+		SearchDslValidator.validateQueryLeafShapes(highlight.get("highlight_query"));
+		JsonNode fields = highlight.get("fields");
+		if (fields != null && fields.isObject()) {
+			Iterator<Map.Entry<String, JsonNode>> entries = fields.fields();
+			while (entries.hasNext()) {
+				JsonNode field = entries.next().getValue();
+				if (field != null && field.isObject()) {
+					SearchDslValidator.validateQueryLeafShapes(field.get("highlight_query"));
+				}
+			}
+		}
 	}
 
 	private static FieldCollapse parseCollapse(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
@@ -396,9 +413,9 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	static Rescore parseRescore(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		SearchDslSanitizer.scanForbiddenKeys(node, "rescore");
 		JsonNode rescoreQueryNode = node.path("query").path("rescore_query");
 		if (!rescoreQueryNode.isMissingNode()) {
+			SearchDslValidator.validateQueryLeafShapes(rescoreQueryNode);
 			SearchFieldRewriter.rewriteRequestFields(rescoreQueryNode, ctx,
 					SearchFieldRewriter.Surface.QUERY);
 		}
@@ -407,26 +424,31 @@ public final class SearchOpaqueJsonUtil {
 		return rescore;
 	}
 
+	/**
+	 * Parse the {@code sort} array in native OpenSearch sort shape (a bare column-name string,
+	 * {@code {column: "asc"|"desc"}}, or {@code {column: {order, mode, missing}}}), field-rewrite
+	 * the column references, and deserialize each element into a typed {@link SortOptions}. The
+	 * resulting kinds are then checked against {@link SearchDslValidator#ALLOWED_SORT_KINDS}, so
+	 * only {@code field} and {@code _score} sorts survive &mdash; the {@code script},
+	 * {@code _geo_distance}, and {@code _doc} sort kinds are rejected by not being on the allowlist.
+	 */
 	static List<SortOptions> parseSort(JsonNode body, SearchFieldRewriter.RoutingContext ctx) {
 		JsonNode node = body.get("sort");
-		if (node == null || node.isNull()) {
+		if (node == null || node.isNull() || (node.isArray() && node.isEmpty())) {
 			// Default: relevance descending. Mirrors the OpenSearch default sort when
 			// callers omit `sort` entirely.
 			return Collections.singletonList(SortOptions.of(so ->
 					so.field(FieldSort.of(fs -> fs.field("_score").order(SortOrder.Desc)))));
 		}
-		// Copy-construct a clean sort node (rejects _script / _geo_distance and any unsupported
-		// sort option) before any rewriting touches it.
-		JsonNode clean = SearchDslSanitizer.sanitizeSort(node);
-		// Top-level "sort" can be a bare string ("title") referring to a column by name —
-		// JsonNode mutation can't replace it, so wrap it in an array shorthand before walking.
+		// A bare top-level string ("title") is the column-name shorthand — JsonNode mutation can't
+		// replace it in place, so wrap it in the array shorthand before rewriting.
 		JsonNode walkable;
-		if (clean.isTextual() && !"_score".equals(clean.asText())) {
+		if (node.isTextual()) {
 			com.fasterxml.jackson.databind.node.ArrayNode wrapped = arrayNode();
-			wrapped.add(clean.asText());
+			wrapped.add(node.asText());
 			walkable = wrapped;
 		} else {
-			walkable = clean;
+			walkable = node;
 		}
 		SearchFieldRewriter.rewriteSortFields(walkable, ctx);
 		List<SortOptions> sort = new ArrayList<>();
@@ -437,13 +459,19 @@ public final class SearchOpaqueJsonUtil {
 		} else {
 			sort.add(fromJsonpTree(walkable, SortOptions._DESERIALIZER));
 		}
+		SearchDslValidator.validateSort(sort);
 		return sort;
 	}
 
+	/**
+	 * Parse the {@code _source} filter. The typed {@code SourceFilter} schema
+	 * ({@code {includes, excludes}}) is already the native OpenSearch {@code SourceFilter} shape,
+	 * so it is field-rewritten and deserialized directly; the boolean and bare-array shorthands
+	 * are rejected by the schema before this runs.
+	 */
 	private static SourceConfig parseSource(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
-		JsonNode clean = SearchDslSanitizer.sanitizeSource(node);
-		SearchFieldRewriter.rewriteSourceFields(clean, ctx);
-		return fromJsonpTree(clean, SourceConfig._DESERIALIZER);
+		SearchFieldRewriter.rewriteSourceFields(node, ctx);
+		return fromJsonpTree(node, SourceConfig._DESERIALIZER);
 	}
 
 	static List<FieldValue> parseSearchAfter(JsonNode body) {

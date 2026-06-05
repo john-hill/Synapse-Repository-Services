@@ -137,6 +137,13 @@ public class SearchIndexQueryManagerImplTest {
 				Map.of(NAME_COLUMN + ".keyword", new PrefixFieldOptions().setValue("te")));
 	}
 
+	/** A typed {@code _source} filter ({@code {includes, excludes}}) for the SearchQuery body. */
+	private static org.sagebionetworks.repo.model.search.dsl.SourceFilter sourceFilter(
+			List<String> includes, List<String> excludes) {
+		return new org.sagebionetworks.repo.model.search.dsl.SourceFilter()
+				.setIncludes(includes).setExcludes(excludes);
+	}
+
 	/** Wrap a body in a SearchIndexQuery bound to {@link #SEARCH_INDEX_ID}. */
 	private SearchIndexQuery buildRequest(SearchQuery body) {
 		return new SearchIndexQuery().setSearchIndexId(SEARCH_INDEX_ID).setSearchQuery(body);
@@ -436,8 +443,8 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.HITS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
-		Map<String, Object> source = new HashMap<>();
-		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
+		org.sagebionetworks.repo.model.search.dsl.SourceFilter source =
+				sourceFilter(new ArrayList<>(Arrays.asList(NAME_COLUMN)), null);
 		SearchAutocompleteBody body = new SearchAutocompleteBody()
 				.setQuery(prefixQuery()).set_source(source);
 
@@ -809,8 +816,8 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> source = new HashMap<>();
-		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN)));
+		org.sagebionetworks.repo.model.search.dsl.SourceFilter source =
+				sourceFilter(new ArrayList<>(Arrays.asList(NAME_COLUMN)), null);
 		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(source);
 
 		// call under test
@@ -834,8 +841,8 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> source = new HashMap<>();
-		source.put("excludes", new ArrayList<>(Arrays.asList(DESC_COLUMN)));
+		org.sagebionetworks.repo.model.search.dsl.SourceFilter source =
+				sourceFilter(null, new ArrayList<>(Arrays.asList(DESC_COLUMN)));
 		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(source);
 
 		// call under test
@@ -858,32 +865,10 @@ public class SearchIndexQueryManagerImplTest {
 				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
 				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
-		Map<String, Object> source = new HashMap<>();
-		source.put("includes", new ArrayList<>(Arrays.asList(NAME_COLUMN, DESC_COLUMN)));
-		source.put("excludes", new ArrayList<>(Arrays.asList(DESC_COLUMN)));
+		org.sagebionetworks.repo.model.search.dsl.SourceFilter source = sourceFilter(
+				new ArrayList<>(Arrays.asList(NAME_COLUMN, DESC_COLUMN)),
+				new ArrayList<>(Arrays.asList(DESC_COLUMN)));
 		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(source);
-
-		// call under test
-		SearchQueryResults results = manager.search(user,
-				buildRequest(body, SearchQueryPart.SELECT_COLUMNS));
-
-		assertEquals(1, results.getSelectColumns().size());
-		assertEquals(NAME_COLUMN, results.getSelectColumns().get(0).getName());
-	}
-
-	@Test
-	public void testSearchWithSelectColumnsAndSourceArrayShorthand() {
-		// _source as an array is the OpenSearch shorthand for _source.includes.
-		SearchIndex si = setupSearchIndex();
-		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
-		setupAuthMocks();
-		setupHappyPathMocks();
-		stubOpenSearchSearchReturns(
-				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
-				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
-
-		SearchQuery body = new SearchQuery().setQuery(matchQuery())
-				.set_source(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
 
 		// call under test
 		SearchQueryResults results = manager.search(user,
@@ -907,29 +892,6 @@ public class SearchIndexQueryManagerImplTest {
 		// call under test — body has no _source key (buildBody() omits it).
 		SearchQueryResults results = manager.search(user,
 				buildRequest(buildBody(), SearchQueryPart.SELECT_COLUMNS));
-
-		assertEquals(2, results.getSelectColumns().size());
-		assertEquals(NAME_COLUMN, results.getSelectColumns().get(0).getName());
-		assertEquals(DESC_COLUMN, results.getSelectColumns().get(1).getName());
-	}
-
-	@Test
-	public void testSearchWithSelectColumnsAndBooleanSource() {
-		// _source as a boolean (false → no source returned, true → all source) is not a name
-		// list; the manager treats this as "no narrowing" for SELECT_COLUMNS purposes.
-		SearchIndex si = setupSearchIndex();
-		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
-		setupAuthMocks();
-		setupHappyPathMocks();
-		stubOpenSearchSearchReturns(
-				EnumSet.of(SearchQueryPart.SELECT_COLUMNS),
-				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
-
-		SearchQuery body = new SearchQuery().setQuery(matchQuery()).set_source(Boolean.FALSE);
-
-		// call under test
-		SearchQueryResults results = manager.search(user,
-				buildRequest(body, SearchQueryPart.SELECT_COLUMNS));
 
 		assertEquals(2, results.getSelectColumns().size());
 		assertEquals(NAME_COLUMN, results.getSelectColumns().get(0).getName());
@@ -1084,10 +1046,10 @@ public class SearchIndexQueryManagerImplTest {
 	// ===================== branch coverage: extractSourceFilter =====================
 
 	/**
-	 * One test exercising every shape callers might supply on {@code body._source}.
-	 * The helper delegates to OpenSearch's {@code SourceConfig._DESERIALIZER}, which
-	 * is itself a {@code Boolean | SourceFilter} tagged union with {@code includes}
-	 * as a shortcut property — this covers every branch on the manager side.
+	 * One test exercising every shape the typed {@code body._source} ({@code SourceFilter}) can
+	 * take: absent, includes-only, excludes-only, and both. The helper deserializes the typed
+	 * {@code {includes, excludes}} (the native OpenSearch {@code SourceFilter} shape) straight
+	 * through — this covers every branch on the manager side.
 	 */
 	@Test
 	public void testExtractSourceFilterWithEverySourceShape() {
@@ -1099,54 +1061,22 @@ public class SearchIndexQueryManagerImplTest {
 		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(new SearchQuery()),
 				"absent _source → null");
 
-		// Boolean _source (Fetch variant) → null; the column trim is a no-op.
-		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(Boolean.TRUE)),
-				"Boolean true _source → null (Fetch variant)");
-		assertNull(SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(Boolean.FALSE)),
-				"Boolean false _source → null (Fetch variant)");
-
-		// List shorthand: top-level _source is an array of column names — deserializes
-		// to SourceFilter via the includes shortcut.
-		SourceFilter listShorthand = SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(Arrays.asList("title", "name")));
-		assertNotNull(listShorthand);
-		assertEquals(Arrays.asList("title", "name"), listShorthand.includes());
-		assertTrue(listShorthand.excludes() == null || listShorthand.excludes().isEmpty(),
-				"array shorthand → no excludes");
-
-		// Empty list shorthand → SourceFilter with empty includes; the column trim
-		// treats empty includes as "keep everything" (matching the includes-absent case).
-		SourceFilter emptyShorthand = SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(Collections.emptyList()));
-		assertNotNull(emptyShorthand);
-		assertTrue(emptyShorthand.includes() == null || emptyShorthand.includes().isEmpty(),
-				"empty array shorthand → empty includes");
-
-		// Map with includes array.
-		Map<String, Object> includesObj = new HashMap<>();
-		includesObj.put("includes", Arrays.asList("title", "name"));
+		// includes only.
 		SourceFilter includesOnly = SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(includesObj));
+				new SearchQuery().set_source(sourceFilter(Arrays.asList("title", "name"), null)));
 		assertNotNull(includesOnly);
 		assertEquals(Arrays.asList("title", "name"), includesOnly.includes());
 
-		// Map with excludes only — now actually surfaced (this is the bug fix: the old
-		// helper returned null and silently dropped the excludes).
-		Map<String, Object> excludesOnly = new HashMap<>();
-		excludesOnly.put("excludes", Arrays.asList("private"));
+		// excludes only.
 		SourceFilter excludesFilter = SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(excludesOnly));
+				new SearchQuery().set_source(sourceFilter(null, Arrays.asList("private"))));
 		assertNotNull(excludesFilter);
 		assertEquals(Arrays.asList("private"), excludesFilter.excludes());
 
-		// Map with both includes and excludes.
-		Map<String, Object> bothFields = new HashMap<>();
-		bothFields.put("includes", Arrays.asList("title", "name"));
-		bothFields.put("excludes", Arrays.asList("private"));
+		// both includes and excludes.
 		SourceFilter both = SearchIndexQueryManagerImpl.extractSourceFilter(
-				new SearchQuery().set_source(bothFields));
+				new SearchQuery().set_source(
+						sourceFilter(Arrays.asList("title", "name"), Arrays.asList("private"))));
 		assertNotNull(both);
 		assertEquals(Arrays.asList("title", "name"), both.includes());
 		assertEquals(Arrays.asList("private"), both.excludes());

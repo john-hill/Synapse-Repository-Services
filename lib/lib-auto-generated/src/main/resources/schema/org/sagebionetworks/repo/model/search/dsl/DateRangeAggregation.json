@@ -1,5 +1,8 @@
 {
 	"description": "A <a href=\"https://docs.opensearch.org/latest/aggregations/bucket/date-range/\"><code>date_range</code></a> bucket aggregation &mdash; one bucket per caller-defined date range.",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.KeyedBucketOption" }
+	],
 	"properties": {
 		"field": {
 			"type": "string",
@@ -15,10 +18,6 @@
 		"time_zone": {
 			"type": "string",
 			"description": "Optional. UTC offset or IANA zone used to interpret the range bounds."
-		},
-		"keyed": {
-			"type": "boolean",
-			"description": "Optional. Whether to return buckets as a keyed object rather than an array."
 		},
 		"missing": {
 			"type": "object",

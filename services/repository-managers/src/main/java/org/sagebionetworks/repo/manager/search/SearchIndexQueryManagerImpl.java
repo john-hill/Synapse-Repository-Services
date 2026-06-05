@@ -145,13 +145,13 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
 	/**
 	 * Parse the caller-supplied {@code body._source} into the OpenSearch typed
-	 * {@link SourceFilter}. Returns null when no filter is supplied, when {@code _source}
-	 * is a boolean (the {@code Fetch} variant), or when the body itself is null. The
-	 * array shorthand ({@code ["a","b"]}) deserializes as {@code {includes: ["a","b"]}}
-	 * via {@code SourceFilter}'s {@code shortcutProperty("includes")}.
+	 * {@link SourceFilter}. Returns null when no filter is supplied or the body itself is null.
+	 * The typed {@code {includes, excludes}} schema is the native {@code SourceFilter} shape, so
+	 * it deserializes straight through.
 	 */
 	static SourceFilter extractSourceFilter(SearchQuery body) {
-		Object source = body == null ? null : body.get_source();
+		org.sagebionetworks.repo.model.search.dsl.SourceFilter source =
+				body == null ? null : body.get_source();
 		if (source == null) {
 			return null;
 		}

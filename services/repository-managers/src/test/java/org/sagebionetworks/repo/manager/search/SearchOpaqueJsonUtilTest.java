@@ -159,16 +159,18 @@ public class SearchOpaqueJsonUtilTest {
 	@Test
 	public void testAsJsonStringWithJSONEntityHoldingAdapterField() throws Exception {
 		// Post-round-trip production shape: the async framework deserializes the request
-		// body via EntityFactory, so SearchQuery's opaque "_source" field surfaces as a
-		// JSONObjectAdapter. asJsonString must render the whole entity through the schema
+		// body via EntityFactory, so SearchQuery's opaque "sort" elements surface as
+		// JSONObjectAdapter values. asJsonString must render the whole entity through the schema
 		// adapter — Jackson cannot serialize the nested JSONObjectAdapterImpl.
 		SearchQuery body = new SearchQuery()
-				.set_source(new JSONObjectAdapterImpl("{\"includes\":[\"title\"]}"));
+				.setSort(java.util.Arrays.asList(
+						new JSONObjectAdapterImpl("{\"year\":{\"order\":\"desc\"}}")));
 
 		String out = SearchOpaqueJsonUtil.asJsonString(body);
 
-		assertEquals("title",
-				new JSONObject(out).getJSONObject("_source").getJSONArray("includes").getString(0));
+		assertEquals("desc",
+				new JSONObject(out).getJSONArray("sort").getJSONObject(0)
+						.getJSONObject("year").getString("order"));
 	}
 
 	@Test
@@ -1035,6 +1037,44 @@ public class SearchOpaqueJsonUtilTest {
 		assertEquals(SortOrder.Asc, sort.get(0).field().order());
 	}
 
+	@Test
+	public void testParseSortWithFieldAndModeAndMissing() {
+		// Native field sort carrying the full option set (mode + missing) round-trips.
+		JsonNode body = SearchOpaqueJsonUtil.parse(
+				"{\"sort\":[{\"year\":{\"order\":\"asc\",\"mode\":\"min\",\"missing\":\"_last\"}}]}");
+		// call under test
+		List<SortOptions> sort = SearchOpaqueJsonUtil.parseSort(body, nameOnly(Function.identity()));
+		assertEquals(1, sort.size());
+		assertEquals("year", sort.get(0).field().field());
+		assertEquals(SortOrder.Asc, sort.get(0).field().order());
+	}
+
+	@Test
+	public void testParseSortWithScriptSortRejected() {
+		// A native _script sort deserializes to the Script kind, which is not on
+		// ALLOWED_SORT_KINDS — validateSort rejects it (replacing the old sanitizer blocklist).
+		JsonNode body = SearchOpaqueJsonUtil.parse(
+				"{\"sort\":[{\"_script\":{\"type\":\"number\","
+						+ "\"script\":{\"source\":\"doc['x'].value\"},\"order\":\"asc\"}}]}");
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchOpaqueJsonUtil.parseSort(body, nameOnly(Function.identity())));
+		assertTrue(ex.getMessage().contains("sort kind is not allowed"));
+	}
+
+	@Test
+	public void testParseSortWithGeoDistanceSortRejected() {
+		// A _geo_distance sort never reaches OpenSearch: its geo-location body fails the typed
+		// SortOptions deserializer outright (Synapse indexes have no geo fields), so it is
+		// rejected with a RuntimeException before the validateSort kind allowlist would also
+		// reject the GeoDistance kind. Either way it cannot get through.
+		JsonNode body = SearchOpaqueJsonUtil.parse(
+				"{\"sort\":[{\"_geo_distance\":{\"loc\":[0,0],\"order\":\"asc\"}}]}");
+		assertThrows(RuntimeException.class,
+				// call under test
+				() -> SearchOpaqueJsonUtil.parseSort(body, nameOnly(Function.identity())));
+	}
+
 	// ===================== parseRescore =====================
 
 	@Test
@@ -1081,14 +1121,19 @@ public class SearchOpaqueJsonUtilTest {
 		return req.build();
 	}
 
+	/** The complete set of top-level keys the {@code SearchQuery} schema accepts on a search body. */
+	private static final Set<String> SEARCH_QUERY_TOP_LEVEL_KEYS = Set.of(
+			"query", "post_filter", "aggregations", "highlight", "collapse", "rescore",
+			"sort", "_source", "from", "size", "search_after");
+
 	/**
-	 * Single round trip exercising every key in {@link SearchDslValidator#BODY_ALLOWED_KEYS}
+	 * Single round trip exercising every top-level key the {@code SearchQuery} schema accepts
 	 * (except the mutually-exclusive {@code search_after} / {@code from > 0} pairing — covered
 	 * separately) in one body.
 	 *
-	 * <p>Coverage guard: any key in BODY_ALLOWED_KEYS that this fixture forgets to populate
-	 * causes the assertion to fail, so a future schema relaxation that adds a new top-level
-	 * key surfaces here until the fixture is updated.</p>
+	 * <p>Coverage guard: any key the fixture forgets to populate causes the assertion to fail, so a
+	 * future schema change that adds a new top-level key surfaces here until the fixture is
+	 * updated.</p>
 	 */
 	@Test
 	public void testApplyBodyToRequestWithEveryTopLevelKeyRoundTrips() {
@@ -1120,12 +1165,10 @@ public class SearchOpaqueJsonUtilTest {
 		assertEquals(5, req.from().intValue());
 		assertEquals(50, req.size().intValue());
 
-		// Coverage guard: every key in BODY_ALLOWED_KEYS must be reachable across this
-		// suite. This body covers everything except search_after — search_after
-		// is mutually exclusive with from > 0 (covered in
-		// testApplyBodyToRequestWithSearchAfterCursor). Adding a
-		// new top-level allowlisted key fails this assertion until a test for it is
-		// added.
+		// Coverage guard: every top-level key the SearchQuery schema accepts must be reachable across
+		// this suite. This body covers everything except search_after — search_after is mutually
+		// exclusive with from > 0 (covered in testApplyBodyToRequestWithSearchAfterCursor). Adding a
+		// new top-level key fails this assertion until a test for it is added.
 		Set<String> exercised = new LinkedHashSet<>();
 		JsonNode parsed = SearchOpaqueJsonUtil.parse(json);
 		Iterator<String> names = parsed.fieldNames();
@@ -1133,8 +1176,8 @@ public class SearchOpaqueJsonUtilTest {
 			exercised.add(names.next());
 		}
 		exercised.add("search_after");
-		assertEquals(SearchDslSanitizer.BODY_ALLOWED_KEYS, exercised,
-				"every BODY_ALLOWED_KEY must be exercised across the round-trip suite");
+		assertEquals(SEARCH_QUERY_TOP_LEVEL_KEYS, exercised,
+				"every SearchQuery top-level key must be exercised across the round-trip suite");
 	}
 
 	@Test
@@ -1151,7 +1194,7 @@ public class SearchOpaqueJsonUtilTest {
 
 	@Test
 	public void testApplyBodyToRequestWithSearchAfterAndPositiveFromRejected() {
-		// scanBodyTopLevelKeys rejects this combination; covers that branch directly.
+		// validateSearchAfterFromExclusivity rejects this combination; covers that branch directly.
 		String json = "{\"query\":{\"match_all\":{}},\"search_after\":[\"abc\"],\"from\":5}";
 
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -1223,16 +1266,6 @@ public class SearchOpaqueJsonUtilTest {
 		assertEquals(Boolean.FALSE, track.enabled());
 	}
 
-	@Test
-	public void testApplyBodyToRequestWithUnsupportedTopLevelKeyRejected() {
-		// scanBodyTopLevelKeys's allowlist branch.
-		String json = "{\"query\":{\"match_all\":{}},\"explain\":true}";
-
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> applyBody(json,
-						EnumSet.of(SearchQueryPart.HITS)));
-		assertTrue(ex.getMessage().contains("explain"));
-	}
 
 	@Test
 	public void testApplyBodyToRequestDefaultsAndClampsSize() {
@@ -1278,39 +1311,6 @@ public class SearchOpaqueJsonUtilTest {
 	}
 
 	@Test
-	public void testApplyAutocompleteBodyToRequestRejectsAggregationsKey() {
-		// Autocomplete's narrow allowlist excludes aggregations.
-		String json = "{\"query\":{\"prefix\":{\"title\":\"alz\"}},"
-				+ "\"aggregations\":{\"a\":{\"terms\":{\"field\":\"year\"}}}}";
-
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> applyAutocompleteBody(json,
-						EnumSet.of(SearchQueryPart.HITS)));
-		assertTrue(ex.getMessage().contains("aggregations"));
-	}
-
-	@Test
-	public void testApplyAutocompleteBodyToRequestRejectsHighlightKey() {
-		String json = "{\"query\":{\"prefix\":{\"title\":\"alz\"}},"
-				+ "\"highlight\":{\"fields\":{\"title\":{}}}}";
-
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> applyAutocompleteBody(json,
-						EnumSet.of(SearchQueryPart.HITS)));
-		assertTrue(ex.getMessage().contains("highlight"));
-	}
-
-	@Test
-	public void testApplyAutocompleteBodyToRequestRejectsSortKey() {
-		String json = "{\"query\":{\"prefix\":{\"title\":\"alz\"}},\"sort\":[\"title\"]}";
-
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> applyAutocompleteBody(json,
-						EnumSet.of(SearchQueryPart.HITS)));
-		assertTrue(ex.getMessage().contains("sort"));
-	}
-
-	@Test
 	public void testApplyAutocompleteBodyToRequestRejectsDisallowedTopLevelQueryKind() {
 		// match_all is in the general allowlist but not in ALLOWED_AUTOCOMPLETE_TOP_LEVEL.
 		String json = "{\"query\":{\"match_all\":{}}}";
@@ -1334,7 +1334,7 @@ public class SearchOpaqueJsonUtilTest {
 	@Test
 	public void testApplyBodyToRequestWithNegativeFromRejected() {
 		// Smoke test that applyBodyToRequest wires resolveFrom in; the per-branch boundary
-		// cases are covered directly in SearchDslSanitizerTest's resolveFrom / resolveSize tests.
+		// cases are covered directly in SearchDslValidatorTest's resolveFrom / resolveSize tests.
 		String json = "{\"query\":{\"match_all\":{}},\"from\":-1}";
 
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,

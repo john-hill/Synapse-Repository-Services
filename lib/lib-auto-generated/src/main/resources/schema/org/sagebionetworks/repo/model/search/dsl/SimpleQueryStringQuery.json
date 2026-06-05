@@ -1,5 +1,9 @@
 {
 	"description": "A <a href=\"https://docs.opensearch.org/latest/query-dsl/full-text/simple-query-string/\"><code>simple_query_string</code></a> full-text clause &mdash; a compact mini-DSL (<code>+</code>, <code>|</code>, <code>-</code>, <code>\"</code>, <code>*</code>, <code>()</code>) parsed leniently across the listed columns.",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.ClauseScoringOptions" },
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.MinimumShouldMatchOption" }
+	],
 	"properties": {
 		"query": {
 			"type": "string",
@@ -32,10 +36,6 @@
 			"type": "boolean",
 			"description": "Optional. Whether to auto-generate phrase queries for multi-term synonyms. Default <code>true</code>."
 		},
-		"minimum_should_match": {
-			"type": "object",
-			"description": "Optional. <a href=\"https://docs.opensearch.org/latest/query-dsl/minimum-should-match/\">Minimum number of terms</a> a document must match. An integer or a percentage / formula string."
-		},
 		"fuzzy_max_expansions": {
 			"type": "integer",
 			"description": "Optional. Maximum number of terms a fuzzy expansion will generate. Default <code>50</code>."
@@ -55,14 +55,6 @@
 		"quote_field_suffix": {
 			"type": "string",
 			"description": "Optional. Suffix appended to field names for quoted (exact-phrase) portions of the query."
-		},
-		"boost": {
-			"type": "number",
-			"description": "Optional. Multiplier for the relevance score of this clause. Default <code>1.0</code>."
-		},
-		"_name": {
-			"type": "string",
-			"description": "Optional. Label echoed back in matched-queries metadata."
 		}
 	}
 }

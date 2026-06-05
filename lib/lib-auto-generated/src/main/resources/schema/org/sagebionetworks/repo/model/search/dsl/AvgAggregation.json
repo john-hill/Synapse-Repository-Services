@@ -1,18 +1,10 @@
 {
 	"description": "An <a href=\"https://docs.opensearch.org/latest/aggregations/metric/average/\"><code>avg</code></a> metric aggregation &mdash; the mean value of a numeric column.",
+	"implements": [
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.MetricAggregation" },
+		{ "$ref": "org.sagebionetworks.repo.model.search.dsl.MissingValueOption" }
+	],
 	"properties": {
-		"field": {
-			"type": "string",
-			"description": "Required. The numeric column to aggregate."
-		},
-		"missing": {
-			"type": "object",
-			"description": "Optional. Value substituted for documents missing <code>field</code>."
-		},
-		"format": {
-			"type": "string",
-			"description": "Optional. Format applied to the result value."
-		},
 		"value_type": {
 			"type": "string",
 			"description": "Optional. Explicit value type for the field when it cannot be inferred."

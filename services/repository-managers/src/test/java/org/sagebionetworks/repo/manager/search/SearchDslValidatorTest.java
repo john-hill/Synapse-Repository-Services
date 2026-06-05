@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1037,43 +1038,7 @@ public class SearchDslValidatorTest {
 	// OpenSearch-client schema change relaxes the requirement.
 
 	// -----------------------------------------------------------------------------
-	// search_after / from exclusivity (validateSearchAfterFromExclusivity)
-	// -----------------------------------------------------------------------------
-
-	@Test
-	public void testValidateSearchAfterFromExclusivityWithSearchAfterAndPositiveFromRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateSearchAfterFromExclusivity(MAPPER.readTree(
-						"{\"query\":{},\"search_after\":[\"x\"],\"from\":5}")));
-		assertTrue(ex.getMessage().contains("search_after"));
-		assertTrue(ex.getMessage().contains("from"));
-	}
-
-	@Test
-	public void testValidateSearchAfterFromExclusivityWithSearchAfterAndZeroFromAccepted() throws Exception {
-		// from=0 alongside search_after is fine — the cursor takes precedence.
-		// call under test — must not throw
-		SearchDslValidator.validateSearchAfterFromExclusivity(MAPPER.readTree(
-				"{\"query\":{},\"search_after\":[\"x\"],\"from\":0}"));
-	}
-
-	@Test
-	public void testValidateSearchAfterFromExclusivityWithNullRejected() {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateSearchAfterFromExclusivity(null));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	@Test
-	public void testValidateSearchAfterFromExclusivityWithNonObjectRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> SearchDslValidator.validateSearchAfterFromExclusivity(MAPPER.readTree("[]")));
-		assertTrue(ex.getMessage().contains("body"));
-	}
-
-	// -----------------------------------------------------------------------------
-	// from / size / search_after resolution (resolveFrom / resolveSize /
-	// validateSearchAfterShape)
+	// from / size resolution (resolveFrom / resolveSize)
 	// -----------------------------------------------------------------------------
 
 	@Test
@@ -1086,14 +1051,6 @@ public class SearchDslValidatorTest {
 	public void testResolveFromWithValidValue() throws Exception {
 		// call under test
 		assertEquals(5, SearchDslValidator.resolveFrom(MAPPER.readTree("{\"from\":5}")));
-	}
-
-	@Test
-	public void testResolveFromWithNonIntegralRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslValidator.resolveFrom(MAPPER.readTree("{\"from\":1.5}")));
-		assertTrue(ex.getMessage().contains("body.from must be an integer"));
 	}
 
 	@Test
@@ -1132,40 +1089,11 @@ public class SearchDslValidatorTest {
 	}
 
 	@Test
-	public void testResolveSizeWithNonIntegralRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslValidator.resolveSize(MAPPER.readTree("{\"size\":1.5}"), 25, 100));
-		assertTrue(ex.getMessage().contains("body.size must be an integer"));
-	}
-
-	@Test
 	public void testResolveSizeWithNegativeRejected() throws Exception {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				// call under test
 				() -> SearchDslValidator.resolveSize(MAPPER.readTree("{\"size\":-1}"), 25, 100));
 		assertTrue(ex.getMessage().contains("body.size must be non-negative"));
-	}
-
-	@Test
-	public void testValidateSearchAfterShapeWithAbsentAccepted() throws Exception {
-		// call under test — must not throw
-		SearchDslValidator.validateSearchAfterShape(MAPPER.readTree("{\"query\":{}}"));
-	}
-
-	@Test
-	public void testValidateSearchAfterShapeWithArrayAccepted() throws Exception {
-		// call under test — must not throw
-		SearchDslValidator.validateSearchAfterShape(MAPPER.readTree("{\"search_after\":[\"x\",100]}"));
-	}
-
-	@Test
-	public void testValidateSearchAfterShapeWithNonArrayRejected() throws Exception {
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				// call under test
-				() -> SearchDslValidator.validateSearchAfterShape(
-						MAPPER.readTree("{\"search_after\":\"x\"}")));
-		assertTrue(ex.getMessage().contains("body.search_after must be an array"));
 	}
 
 	// -----------------------------------------------------------------------------
@@ -1536,5 +1464,318 @@ public class SearchDslValidatorTest {
 		assertTrue(!SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Doc));
 		assertTrue(SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Field));
 		assertTrue(SearchDslValidator.ALLOWED_SORT_KINDS.contains(SortOptions.Kind.Score));
+	}
+
+	// -----------------------------------------------------------------------------
+	// Leaf-shape helpers — direct per-branch coverage
+	// -----------------------------------------------------------------------------
+
+	// ---------- validateQueryLeafShapesInArray ----------
+
+	@Test
+	public void testValidateQueryLeafShapesInArrayWithNullReturns() {
+		// call under test — null array is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.validateQueryLeafShapesInArray(null));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesInArrayWithNonArrayReturns() throws Exception {
+		// call under test — a non-array node is left for the deserializer.
+		assertDoesNotThrow(() -> SearchDslValidator.validateQueryLeafShapesInArray(
+				MAPPER.readTree("{\"not\":\"an array\"}")));
+	}
+
+	@Test
+	public void testValidateQueryLeafShapesInArrayWithElementsRecurses() throws Exception {
+		// call under test — recurses into each element; a bad shape in any element is rejected.
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> SearchDslValidator.validateQueryLeafShapesInArray(MAPPER.readTree(
+						"[{\"match_all\":{}},{\"term\":{\"s\":{\"value\":{\"bad\":1}}}}]")));
+		assertTrue(ex.getMessage().contains("term['s'].'value'"));
+	}
+
+	// ---------- validateFieldKeyedScalarOptions ----------
+
+	@Test
+	public void testValidateFieldKeyedScalarOptionsWithAbsentClauseKindReturns() throws Exception {
+		// call under test — the named clause kind is absent (map == null), a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.validateFieldKeyedScalarOptions(
+				MAPPER.readTree("{\"other\":{}}"), "match", "query"));
+	}
+
+	@Test
+	public void testValidateFieldKeyedScalarOptionsWithNonObjectClauseKindReturns() throws Exception {
+		// call under test — the clause kind value is not an object, left for the deserializer.
+		assertDoesNotThrow(() -> SearchDslValidator.validateFieldKeyedScalarOptions(
+				MAPPER.readTree("{\"match\":\"scalar\"}"), "match", "query"));
+	}
+
+	@Test
+	public void testValidateFieldKeyedScalarOptionsWithShorthandScalarColumnSkipped() throws Exception {
+		// call under test — the {"match":{"col":"x"}} shorthand (column value is a scalar, not an
+		// options object) is acceptable and skipped.
+		assertDoesNotThrow(() -> SearchDslValidator.validateFieldKeyedScalarOptions(
+				MAPPER.readTree("{\"match\":{\"title\":\"amyloid\"}}"), "match", "query"));
+	}
+
+	@Test
+	public void testValidateFieldKeyedScalarOptionsWithObjectOptionRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.validateFieldKeyedScalarOptions(
+						MAPPER.readTree("{\"match\":{\"title\":{\"query\":{\"bad\":1}}}}"),
+						"match", "query"));
+		assertTrue(ex.getMessage().contains("match['title'].'query'"));
+	}
+
+	// ---------- validateSingleAggregationLeafShapes ----------
+
+	@Test
+	public void testValidateSingleAggregationLeafShapesWithNullReturns() {
+		// call under test — null aggregation is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.validateSingleAggregationLeafShapes(null));
+	}
+
+	@Test
+	public void testValidateSingleAggregationLeafShapesWithNonObjectReturns() throws Exception {
+		// call under test — a non-object aggregation node is left for the deserializer.
+		assertDoesNotThrow(() -> SearchDslValidator.validateSingleAggregationLeafShapes(
+				MAPPER.readTree("\"scalar\"")));
+	}
+
+	@Test
+	public void testValidateSingleAggregationLeafShapesWithBadMissingRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.validateSingleAggregationLeafShapes(
+						MAPPER.readTree("{\"sum\":{\"field\":\"f\",\"missing\":{\"bad\":1}}}")));
+		assertTrue(ex.getMessage().contains("sum aggregation 'missing'"));
+	}
+
+	// ---------- checkBoundsShape ----------
+
+	@Test
+	public void testCheckBoundsShapeWithNonObjectReturns() throws Exception {
+		// call under test — a missing/non-object aggregation body short-circuits.
+		assertDoesNotThrow(() -> SearchDslValidator.checkBoundsShape(
+				MAPPER.readTree("{}").path("histogram"), "histogram"));
+	}
+
+	@Test
+	public void testCheckBoundsShapeWithHardBoundsObjectMaxRejected() throws Exception {
+		// Exercises the hard_bounds branch (the extended_bounds branch is covered via the agg facade).
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.checkBoundsShape(
+						MAPPER.readTree("{\"hard_bounds\":{\"min\":0,\"max\":{\"bad\":1}}}"), "histogram"));
+		assertTrue(ex.getMessage().contains("histogram.hard_bounds.max"));
+	}
+
+	// ---------- checkMinMax ----------
+
+	@Test
+	public void testCheckMinMaxWithNullReturns() {
+		// call under test — absent bounds is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.checkMinMax(null, "histogram.extended_bounds"));
+	}
+
+	@Test
+	public void testCheckMinMaxWithNonObjectReturns() throws Exception {
+		// call under test — a scalar where the bounds object is expected is left alone.
+		assertDoesNotThrow(() -> SearchDslValidator.checkMinMax(
+				MAPPER.readTree("5"), "histogram.extended_bounds"));
+	}
+
+	@Test
+	public void testCheckMinMaxWithScalarMinAndMaxAccepted() throws Exception {
+		// call under test — both scalar bounds pass.
+		assertDoesNotThrow(() -> SearchDslValidator.checkMinMax(
+				MAPPER.readTree("{\"min\":0,\"max\":100}"), "histogram.extended_bounds"));
+	}
+
+	@Test
+	public void testCheckMinMaxWithObjectMinRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.checkMinMax(
+						MAPPER.readTree("{\"min\":{\"bad\":1},\"max\":100}"), "histogram.extended_bounds"));
+		assertTrue(ex.getMessage().contains("histogram.extended_bounds.min"));
+	}
+
+	// ---------- checkRangesShape ----------
+
+	@Test
+	public void testCheckRangesShapeWithNonObjectReturns() throws Exception {
+		// call under test — a missing/non-object aggregation body short-circuits.
+		assertDoesNotThrow(() -> SearchDslValidator.checkRangesShape(
+				MAPPER.readTree("{}").path("range"), "range"));
+	}
+
+	@Test
+	public void testCheckRangesShapeWithAbsentRangesReturns() throws Exception {
+		// call under test — no `ranges` key is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.checkRangesShape(
+				MAPPER.readTree("{\"field\":\"f\"}"), "range"));
+	}
+
+	@Test
+	public void testCheckRangesShapeWithNonArrayRangesReturns() throws Exception {
+		// call under test — a non-array `ranges` value is left for the deserializer.
+		assertDoesNotThrow(() -> SearchDslValidator.checkRangesShape(
+				MAPPER.readTree("{\"ranges\":\"nope\"}"), "range"));
+	}
+
+	@Test
+	public void testCheckRangesShapeWithNonObjectRangeElementSkipped() throws Exception {
+		// call under test — a non-object element in the ranges array is skipped (left for the
+		// deserializer), not treated as a from/to-bearing object.
+		assertDoesNotThrow(() -> SearchDslValidator.checkRangesShape(
+				MAPPER.readTree("{\"ranges\":[\"scalar\",{\"from\":0,\"to\":10}]}"), "range"));
+	}
+
+	@Test
+	public void testCheckRangesShapeWithObjectToBoundRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.checkRangesShape(
+						MAPPER.readTree("{\"ranges\":[{\"from\":0,\"to\":{\"bad\":1}}]}"), "range"));
+		assertTrue(ex.getMessage().contains("range.ranges[0].to"));
+	}
+
+	// ---------- isScalar ----------
+
+	@Test
+	public void testIsScalarAcrossNodeShapes() throws Exception {
+		// call under test — every shape branch.
+		assertFalse(SearchDslValidator.isScalar(null));
+		assertFalse(SearchDslValidator.isScalar(MAPPER.readTree("null")));
+		assertTrue(SearchDslValidator.isScalar(MAPPER.readTree("\"text\"")));
+		assertTrue(SearchDslValidator.isScalar(MAPPER.readTree("5")));
+		assertTrue(SearchDslValidator.isScalar(MAPPER.readTree("true")));
+		assertFalse(SearchDslValidator.isScalar(MAPPER.readTree("{}")));
+		assertFalse(SearchDslValidator.isScalar(MAPPER.readTree("[]")));
+	}
+
+	// ---------- describeShape ----------
+
+	@Test
+	public void testDescribeShapeAcrossNodeShapes() throws Exception {
+		// call under test — every shape branch.
+		assertEquals("null", SearchDslValidator.describeShape(null));
+		assertEquals("null", SearchDslValidator.describeShape(MAPPER.readTree("null")));
+		assertEquals("an object", SearchDslValidator.describeShape(MAPPER.readTree("{}")));
+		assertEquals("an array", SearchDslValidator.describeShape(MAPPER.readTree("[]")));
+		assertEquals("a scalar", SearchDslValidator.describeShape(MAPPER.readTree("\"x\"")));
+	}
+
+	// ---------- requireScalar ----------
+
+	@Test
+	public void testRequireScalarWithJavaNullReturns() {
+		// call under test — an absent (Java null) value is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalar(null, "label"));
+	}
+
+	@Test
+	public void testRequireScalarWithJsonNullReturns() throws Exception {
+		// call under test — an explicit JSON null is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalar(MAPPER.readTree("null"), "label"));
+	}
+
+	@Test
+	public void testRequireScalarWithScalarAccepted() throws Exception {
+		// call under test
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalar(MAPPER.readTree("\"x\""), "label"));
+	}
+
+	@Test
+	public void testRequireScalarWithObjectRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.requireScalar(MAPPER.readTree("{\"bad\":1}"), "label"));
+		assertTrue(ex.getMessage().contains("label must be a number, string, or boolean, not an object"));
+	}
+
+	// ---------- requireScalarArray ----------
+
+	@Test
+	public void testRequireScalarArrayWithJavaNullReturns() {
+		// call under test — an absent (Java null) value is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarArray(null, "label"));
+	}
+
+	@Test
+	public void testRequireScalarArrayWithJsonNullReturns() throws Exception {
+		// call under test — an explicit JSON null is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarArray(MAPPER.readTree("null"), "label"));
+	}
+
+	@Test
+	public void testRequireScalarArrayWithScalarArrayAccepted() throws Exception {
+		// call under test
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarArray(
+				MAPPER.readTree("[\"a\",1,true]"), "label"));
+	}
+
+	@Test
+	public void testRequireScalarArrayWithNonArrayRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.requireScalarArray(MAPPER.readTree("\"x\""), "label"));
+		assertTrue(ex.getMessage().contains("label must be an array"));
+	}
+
+	@Test
+	public void testRequireScalarArrayWithNonScalarElementRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.requireScalarArray(MAPPER.readTree("[\"a\",{\"bad\":1}]"), "label"));
+		assertTrue(ex.getMessage().contains("label[1] must be a number, string, or boolean, not an object"));
+	}
+
+	// ---------- requireScalarOrScalarArray ----------
+
+	@Test
+	public void testRequireScalarOrScalarArrayWithJavaNullReturns() {
+		// call under test — an absent (Java null) value is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarOrScalarArray(null, "label"));
+	}
+
+	@Test
+	public void testRequireScalarOrScalarArrayWithJsonNullReturns() throws Exception {
+		// call under test — an explicit JSON null is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarOrScalarArray(
+				MAPPER.readTree("null"), "label"));
+	}
+
+	@Test
+	public void testRequireScalarOrScalarArrayWithScalarAccepted() throws Exception {
+		// call under test
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarOrScalarArray(
+				MAPPER.readTree("\"x\""), "label"));
+	}
+
+	@Test
+	public void testRequireScalarOrScalarArrayWithScalarArrayAccepted() throws Exception {
+		// call under test — delegates to requireScalarArray.
+		assertDoesNotThrow(() -> SearchDslValidator.requireScalarOrScalarArray(
+				MAPPER.readTree("[\"a\",\"b\"]"), "label"));
+	}
+
+	@Test
+	public void testRequireScalarOrScalarArrayWithArrayOfObjectsRejected() throws Exception {
+		assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.requireScalarOrScalarArray(
+						MAPPER.readTree("[{\"bad\":1}]"), "label"));
+	}
+
+	@Test
+	public void testRequireScalarOrScalarArrayWithObjectRejected() throws Exception {
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> SearchDslValidator.requireScalarOrScalarArray(
+						MAPPER.readTree("{\"bad\":1}"), "label"));
+		assertTrue(ex.getMessage().contains("label must be a number, string, or boolean, or an array"));
 	}
 }

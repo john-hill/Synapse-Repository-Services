@@ -54,12 +54,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  * OpenSearch client adds but nobody wires into the allowlist is rejected here even if it somehow
  * survived deserialization.</p>
  *
- * <p>This class also owns the raw-{@link JsonNode} pre-checks on {@code SearchQuery.body} that run
- * <i>before</i> typed deserialization: the {@code search_after} / {@code from > 0} exclusivity rule
- * ({@link #validateSearchAfterFromExclusivity}), the {@code search_after} shape check
- * ({@link #validateSearchAfterShape}), and the {@code from} / {@code size} resolution
- * ({@link #resolveFrom} / {@link #resolveSize}). These operate on the untyped tree, so they live
- * here with the rest of the request validation. The top-level key allowlist itself is enforced by
+ * <p>This class also owns the {@code from} / {@code size} resolution on {@code SearchQuery.body}
+ * ({@link #resolveFrom} / {@link #resolveSize}) &mdash; the numeric-bound rules the {@code integer}
+ * schema type does not express. These run on the {@link JsonNode} tree, so they live here with the
+ * rest of the request validation. The top-level key allowlist itself is enforced by
  * the generated {@code SearchQuery} / {@code SearchAutocompleteBody} POJOs, which reject any key
  * outside the schema with HTTP 400 at the request boundary.</p>
  *
@@ -180,39 +178,21 @@ final class SearchDslValidator {
 	}
 
 	// --------------------------------------------------------------
-	// Raw-body pre-checks (pagination, cursor shape).
-	// These run on the untyped JsonNode before typed deserialization.
+	// Pagination resolution. The body has already round-tripped through the typed SearchQuery
+	// POJO, so `from` / `size` arrive as integral numbers (or absent); these only enforce the
+	// numeric bounds the integer schema type does not (negative, int-range, size clamp).
 	// --------------------------------------------------------------
 
 	/**
-	 * Reject {@code search_after} alongside {@code from > 0} (mutually exclusive). Both keys are
-	 * schema-legal, so this semantic rule cannot be expressed by the typed {@code SearchQuery} POJO
-	 * and is enforced here.
-	 */
-	static void validateSearchAfterFromExclusivity(JsonNode body) {
-		if (body == null || !body.isObject()) {
-			throw new IllegalArgumentException("body must be a JSON object");
-		}
-		JsonNode searchAfter = body.get("search_after");
-		JsonNode from = body.get("from");
-		if (searchAfter != null && !searchAfter.isNull() && from != null
-				&& from.isNumber() && from.asLong() > 0L) {
-			throw new IllegalArgumentException(
-					"body.search_after and body.from > 0 are mutually exclusive");
-		}
-	}
-
-	/**
-	 * Validate and resolve the effective {@code from} offset on a body. Defaults to {@code 0}
-	 * when absent; rejects non-integral values and anything outside {@code 0..Integer.MAX_VALUE}.
+	 * Resolve the effective {@code from} offset on a body. Defaults to {@code 0} when absent;
+	 * rejects negatives and anything above {@code Integer.MAX_VALUE} (the {@code SearchQuery.from}
+	 * schema type is {@code integer}, which the generated POJO carries as a {@code Long} and so
+	 * permits values outside the {@code int} range this needs to narrow into).
 	 */
 	static int resolveFrom(JsonNode body) {
 		JsonNode node = body.get("from");
 		if (node == null || node.isNull()) {
 			return 0;
-		}
-		if (!node.isIntegralNumber()) {
-			throw new IllegalArgumentException("body.from must be an integer");
 		}
 		long value = node.asLong();
 		if (value < 0L || value > Integer.MAX_VALUE) {
@@ -223,35 +203,19 @@ final class SearchDslValidator {
 	}
 
 	/**
-	 * Validate and resolve the effective {@code size} on a body. Defaults to {@code defaultSize}
-	 * when absent; rejects non-integral and negative values; clamps anything above
-	 * {@code maxSize} down to {@code maxSize}.
+	 * Resolve the effective {@code size} on a body. Defaults to {@code defaultSize} when absent;
+	 * rejects negative values; clamps anything above {@code maxSize} down to {@code maxSize}.
 	 */
 	static int resolveSize(JsonNode body, int defaultSize, int maxSize) {
 		JsonNode node = body.get("size");
 		if (node == null || node.isNull()) {
 			return defaultSize;
 		}
-		if (!node.isIntegralNumber()) {
-			throw new IllegalArgumentException("body.size must be an integer");
-		}
 		long value = node.asLong();
 		if (value < 0L) {
 			throw new IllegalArgumentException("body.size must be non-negative");
 		}
 		return (int) Math.min(value, maxSize);
-	}
-
-	/**
-	 * Validate the structural shape of {@code search_after}: when present and non-null it must be
-	 * a JSON array. The {@code search_after} / {@code from > 0} exclusivity rule is enforced
-	 * separately in {@link #validateSearchAfterFromExclusivity}.
-	 */
-	static void validateSearchAfterShape(JsonNode body) {
-		JsonNode node = body.get("search_after");
-		if (node != null && !node.isNull() && !node.isArray()) {
-			throw new IllegalArgumentException("body.search_after must be an array");
-		}
 	}
 
 	// --------------------------------------------------------------
@@ -344,7 +308,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void validateQueryLeafShapesInArray(JsonNode array) {
+	static void validateQueryLeafShapesInArray(JsonNode array) {
 		if (array == null || !array.isArray()) {
 			return;
 		}
@@ -379,7 +343,7 @@ final class SearchDslValidator {
 	 * value is a map of column name to its per-field options object, require each of the
 	 * listed opaque option keys to be a scalar when present.
 	 */
-	private static void validateFieldKeyedScalarOptions(JsonNode clause, String clauseKind,
+	static void validateFieldKeyedScalarOptions(JsonNode clause, String clauseKind,
 			String... scalarOptionKeys) {
 		JsonNode map = clause.get(clauseKind);
 		if (map == null || !map.isObject()) {
@@ -424,7 +388,7 @@ final class SearchDslValidator {
 			"terms", "min", "max", "sum", "avg", "stats", "extended_stats",
 			"value_count", "cardinality");
 
-	private static void validateSingleAggregationLeafShapes(JsonNode aggregation) {
+	static void validateSingleAggregationLeafShapes(JsonNode aggregation) {
 		if (aggregation == null || !aggregation.isObject()) {
 			return;
 		}
@@ -451,7 +415,7 @@ final class SearchDslValidator {
 		validateAggregationLeafShapes(aggregation.get("aggregations"));
 	}
 
-	private static void checkBoundsShape(JsonNode aggregationBody, String aggType) {
+	static void checkBoundsShape(JsonNode aggregationBody, String aggType) {
 		if (!aggregationBody.isObject()) {
 			return;
 		}
@@ -459,7 +423,7 @@ final class SearchDslValidator {
 		checkMinMax(aggregationBody.get("hard_bounds"), aggType + ".hard_bounds");
 	}
 
-	private static void checkMinMax(JsonNode bounds, String label) {
+	static void checkMinMax(JsonNode bounds, String label) {
 		if (bounds == null || !bounds.isObject()) {
 			return;
 		}
@@ -467,7 +431,7 @@ final class SearchDslValidator {
 		requireScalar(bounds.get("max"), label + ".max");
 	}
 
-	private static void checkRangesShape(JsonNode aggregationBody, String aggType) {
+	static void checkRangesShape(JsonNode aggregationBody, String aggType) {
 		if (!aggregationBody.isObject()) {
 			return;
 		}
@@ -484,11 +448,11 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static boolean isScalar(JsonNode node) {
+	static boolean isScalar(JsonNode node) {
 		return node != null && (node.isTextual() || node.isNumber() || node.isBoolean());
 	}
 
-	private static String describeShape(JsonNode node) {
+	static String describeShape(JsonNode node) {
 		if (node == null || node.isNull()) {
 			return "null";
 		}
@@ -501,7 +465,7 @@ final class SearchDslValidator {
 		return "a scalar";
 	}
 
-	private static void requireScalar(JsonNode value, String label) {
+	static void requireScalar(JsonNode value, String label) {
 		if (value == null || value.isNull()) {
 			return;
 		}
@@ -511,7 +475,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void requireScalarArray(JsonNode value, String label) {
+	static void requireScalarArray(JsonNode value, String label) {
 		if (value == null || value.isNull()) {
 			return;
 		}
@@ -527,7 +491,7 @@ final class SearchDslValidator {
 		}
 	}
 
-	private static void requireScalarOrScalarArray(JsonNode value, String label) {
+	static void requireScalarOrScalarArray(JsonNode value, String label) {
 		if (value == null || value.isNull() || isScalar(value)) {
 			return;
 		}

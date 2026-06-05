@@ -44,7 +44,7 @@
 		},
 		"from": {
 			"type": "integer",
-			"description": "Optional. Zero-based <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">pagination</a> offset; default <code>0</code>. Mutually exclusive with <code>search_after &gt; 0</code>."
+			"description": "Optional. Zero-based <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">pagination</a> offset; default <code>0</code>. Ignored when <code>search_after</code> is supplied (the cursor determines the page start)."
 		},
 		"size": {
 			"type": "integer",
@@ -52,7 +52,7 @@
 		},
 		"search_after": {
 			"type": "array",
-			"description": "Optional. Opaque <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">cursor</a> emitted as <code>nextSearchAfter</code> on the previous response. Pass back unchanged. Mutually exclusive with <code>from &gt; 0</code>.",
+			"description": "Optional. Opaque <a href=\"https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/\">cursor</a> emitted as <code>nextSearchAfter</code> on the previous response. Pass back unchanged. When supplied, <code>from</code> is ignored.",
 			"items": {
 				"type": "object"
 			}

@@ -1128,8 +1128,8 @@ public class SearchOpaqueJsonUtilTest {
 
 	/**
 	 * Single round trip exercising every top-level key the {@code SearchQuery} schema accepts
-	 * (except the mutually-exclusive {@code search_after} / {@code from > 0} pairing — covered
-	 * separately) in one body.
+	 * (except {@code search_after}, which forces {@code from} to 0 and is covered separately) in
+	 * one body.
 	 *
 	 * <p>Coverage guard: any key the fixture forgets to populate causes the assertion to fail, so a
 	 * future schema change that adds a new top-level key surfaces here until the fixture is
@@ -1166,9 +1166,9 @@ public class SearchOpaqueJsonUtilTest {
 		assertEquals(50, req.size().intValue());
 
 		// Coverage guard: every top-level key the SearchQuery schema accepts must be reachable across
-		// this suite. This body covers everything except search_after — search_after is mutually
-		// exclusive with from > 0 (covered in testApplyBodyToRequestWithSearchAfterCursor). Adding a
-		// new top-level key fails this assertion until a test for it is added.
+		// this suite. This body covers everything except search_after, which forces from to 0
+		// (covered in testApplyBodyToRequestWithSearchAfterCursor). Adding a new top-level key fails
+		// this assertion until a test for it is added.
 		Set<String> exercised = new LinkedHashSet<>();
 		JsonNode parsed = SearchOpaqueJsonUtil.parse(json);
 		Iterator<String> names = parsed.fieldNames();
@@ -1193,15 +1193,16 @@ public class SearchOpaqueJsonUtilTest {
 	}
 
 	@Test
-	public void testApplyBodyToRequestWithSearchAfterAndPositiveFromRejected() {
-		// validateSearchAfterFromExclusivity rejects this combination; covers that branch directly.
+	public void testApplyBodyToRequestWithSearchAfterAndPositiveFrom() {
+		// search_after wins over from: the caller's from > 0 is ignored and from is forced to 0.
 		String json = "{\"query\":{\"match_all\":{}},\"search_after\":[\"abc\"],\"from\":5}";
 
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> applyBody(json,
-						EnumSet.of(SearchQueryPart.HITS)));
-		assertTrue(ex.getMessage().contains("search_after"));
-		assertTrue(ex.getMessage().contains("from"));
+		// call under test
+		SearchRequest req = applyBody(json,
+				EnumSet.of(SearchQueryPart.HITS));
+
+		assertEquals(1, req.searchAfter().size());
+		assertEquals(0, req.from().intValue());
 	}
 
 	@Test

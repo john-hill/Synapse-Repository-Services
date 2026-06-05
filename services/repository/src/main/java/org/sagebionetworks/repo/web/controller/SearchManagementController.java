@@ -963,7 +963,8 @@ public class SearchManagementController {
 	 * <a href="https://docs.opensearch.org/latest/search-plugins/searching-data/paginate/">pagination</a>
 	 * offset; default
 	 * <code>0</code>. Maximum reach: <code>from + size</code> &le; ~10,000. For deeper
-	 * pagination, switch to <code>search_after</code>; the two are mutually exclusive.
+	 * pagination, switch to <code>search_after</code>; when a cursor is supplied
+	 * <code>from</code> is ignored.
 	 * </p>
 	 * <p>
 	 * <b><code>size</code></b> — optional. Maximum number of hits to return per page.

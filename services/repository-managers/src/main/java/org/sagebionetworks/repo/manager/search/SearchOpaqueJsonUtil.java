@@ -225,9 +225,8 @@ public final class SearchOpaqueJsonUtil {
 	 * typed-deserialized, structurally validated, and pushed onto the request builder.</p>
 	 *
 	 * <p>Defaults applied: omitted {@code from} &rarr; 0; omitted {@code size} &rarr;
-	 * {@code defaultSize}; values past {@code maxSize} clamped. {@code search_after}
-	 * alongside {@code from > 0} is rejected by
-	 * {@link SearchDslValidator#validateSearchAfterFromExclusivity}.</p>
+	 * {@code defaultSize}; values past {@code maxSize} clamped. When {@code search_after} is
+	 * present the cursor determines the page start and {@code from} is forced to 0.</p>
 	 *
 	 * <p>Behavior gated by {@code options}: when {@link SearchQueryPart#HITS} is absent the
 	 * request goes out with {@code size=0} and sort / collapse / rescore / highlight /
@@ -265,13 +264,8 @@ public final class SearchOpaqueJsonUtil {
 			int defaultSize, int maxSize, boolean autocomplete) {
 		// The body is the generated SearchQuery / SearchAutocompleteBody POJO, so any key outside the
 		// schema was already rejected with HTTP 400 at the request boundary, and each surface with an
-		// opaque slot is forbidden-key scanned individually as it is parsed below. The one structural
-		// rule the schema can't express is the search_after / from > 0 conflict, which only applies to
-		// the full body.
+		// opaque slot is forbidden-key scanned individually as it is parsed below.
 		JsonNode body = parse(opaque);
-		if (!autocomplete) {
-			SearchDslValidator.validateSearchAfterFromExclusivity(body);
-		}
 
 		Query query = parseRequiredQuery(body, ctx, autocomplete);
 		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
@@ -454,7 +448,8 @@ public final class SearchOpaqueJsonUtil {
 	}
 
 	static List<FieldValue> parseSearchAfter(JsonNode body) {
-		SearchDslValidator.validateSearchAfterShape(body);
+		// search_after is typed List<Object> on the SearchQuery POJO, so by the time the body
+		// reaches here it is an array (or absent); each element deserializes to a FieldValue below.
 		JsonNode node = body.get("search_after");
 		if (node == null || node.isNull()) {
 			return Collections.emptyList();

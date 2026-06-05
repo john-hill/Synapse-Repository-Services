@@ -952,9 +952,13 @@ public class SQLUtils {
 		builder.append(tableName);
 		builder.append(" SET ");
 		appendColumnNameForId(change.getNewColumn().getId(), builder);
-		builder.append(" = JSON_ARRAY(");
+		// Use IF to preserve SQL NULL as NULL: JSON_ARRAY(NULL) produces [null] not NULL,
+		// which ListStringParser rejects with "null value is not allowed".
+		builder.append(" = IF(");
 		appendColumnNameForId(change.getOldColumn().getId(), builder);
-		builder.append(")");
+		builder.append(" IS NULL, NULL, JSON_ARRAY(");
+		appendColumnNameForId(change.getOldColumn().getId(), builder);
+		builder.append("))");
 		return builder.toString();
 	}
 	

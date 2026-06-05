@@ -1454,6 +1454,48 @@ public class SearchDslValidatorTest {
 	}
 
 	// -----------------------------------------------------------------------------
+	// Highlight highlight_query leaf-shape gate (validateHighlightQueryLeafShapes)
+	// -----------------------------------------------------------------------------
+
+	private static void validateHighlightQueryLeafShapes(String json) throws Exception {
+		SearchDslValidator.validateHighlightQueryLeafShapes(MAPPER.readTree(json));
+	}
+
+	@Test
+	public void testValidateHighlightQueryLeafShapesWithNullAccepted() {
+		// call under test — a null/non-object highlight block is a no-op.
+		assertDoesNotThrow(() -> SearchDslValidator.validateHighlightQueryLeafShapes(null));
+	}
+
+	@Test
+	public void testValidateHighlightQueryLeafShapesWithScalarQueriesAccepted() throws Exception {
+		// call under test — scalar leaf values in both the top-level and per-field highlight_query pass.
+		validateHighlightQueryLeafShapes(
+				"{\"highlight_query\":{\"match\":{\"title\":{\"query\":\"x\"}}},"
+						+ "\"fields\":{\"title\":{\"highlight_query\":{\"term\":{\"status\":{\"value\":\"y\"}}}}}}");
+	}
+
+	@Test
+	public void testValidateHighlightQueryLeafShapesWithTopLevelObjectQueryRejected() {
+		// The top-level highlight_query subtree is run through the same query leaf-shape gate.
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateHighlightQueryLeafShapes(
+						"{\"highlight_query\":{\"match\":{\"title\":{\"query\":{\"bad\":1}}}}}"));
+		assertTrue(ex.getMessage().contains("match['title'].'query'"));
+	}
+
+	@Test
+	public void testValidateHighlightQueryLeafShapesWithPerFieldObjectQueryRejected() {
+		// A per-field highlight_query under `fields` is gated too.
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> validateHighlightQueryLeafShapes(
+						"{\"fields\":{\"title\":{\"highlight_query\":{\"term\":{\"status\":{\"value\":{\"bad\":1}}}}}}}"));
+		assertTrue(ex.getMessage().contains("term['status'].'value'"));
+	}
+
+	// -----------------------------------------------------------------------------
 	// Sort kind allowlist (validateSort)
 	// -----------------------------------------------------------------------------
 

@@ -354,6 +354,27 @@ final class SearchDslValidator {
 	}
 
 	/**
+	 * Run the query leaf-shape gate over every {@code highlight_query} subtree in a highlight
+	 * block &mdash; the top-level one and each per-field one under {@code fields}.
+	 */
+	static void validateHighlightQueryLeafShapes(JsonNode highlight) {
+		if (highlight == null || !highlight.isObject()) {
+			return;
+		}
+		validateQueryLeafShapes(highlight.get("highlight_query"));
+		JsonNode fields = highlight.get("fields");
+		if (fields != null && fields.isObject()) {
+			Iterator<Map.Entry<String, JsonNode>> entries = fields.fields();
+			while (entries.hasNext()) {
+				JsonNode field = entries.next().getValue();
+				if (field != null && field.isObject()) {
+					validateQueryLeafShapes(field.get("highlight_query"));
+				}
+			}
+		}
+	}
+
+	/**
 	 * For a field-keyed leaf clause ({@code match}, {@code term}, {@code range}, ...) whose
 	 * value is a map of column name to its per-field options object, require each of the
 	 * listed opaque option keys to be a scalar when present.

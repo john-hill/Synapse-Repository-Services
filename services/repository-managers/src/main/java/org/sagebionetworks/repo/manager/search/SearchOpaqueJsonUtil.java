@@ -375,32 +375,11 @@ public final class SearchOpaqueJsonUtil {
 	private static Highlight parseHighlight(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {
 		// Any embedded highlight_query (top-level or per-field) is a full Query subtree whose
 		// opaque leaf slots must pass the same shape gate as the main query.
-		validateHighlightQueryLeafShapes(node);
+		SearchDslValidator.validateHighlightQueryLeafShapes(node);
 		SearchFieldRewriter.rewriteRequestFields(node, ctx, SearchFieldRewriter.Surface.HIGHLIGHT);
 		Highlight highlight = fromJsonpTree(node, Highlight._DESERIALIZER);
 		SearchDslValidator.validateHighlight(highlight);
 		return highlight;
-	}
-
-	/**
-	 * Run the query leaf-shape gate over every {@code highlight_query} subtree in a highlight
-	 * block &mdash; the top-level one and each per-field one under {@code fields}.
-	 */
-	private static void validateHighlightQueryLeafShapes(JsonNode highlight) {
-		if (highlight == null || !highlight.isObject()) {
-			return;
-		}
-		SearchDslValidator.validateQueryLeafShapes(highlight.get("highlight_query"));
-		JsonNode fields = highlight.get("fields");
-		if (fields != null && fields.isObject()) {
-			Iterator<Map.Entry<String, JsonNode>> entries = fields.fields();
-			while (entries.hasNext()) {
-				JsonNode field = entries.next().getValue();
-				if (field != null && field.isObject()) {
-					SearchDslValidator.validateQueryLeafShapes(field.get("highlight_query"));
-				}
-			}
-		}
 	}
 
 	private static FieldCollapse parseCollapse(JsonNode node, SearchFieldRewriter.RoutingContext ctx) {

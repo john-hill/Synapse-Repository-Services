@@ -2,16 +2,23 @@ package org.sagebionetworks.docusign;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.StackConfiguration;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.sagebionetworks.StackConfigurationSingleton;
 
-@ExtendWith(SpringExtension.class)
+
+/*
+ * This test suite checks that all the Docusign parameters are getting passed through
+ */
 public class DocuSignClientConfigTest {
-	@Autowired
-	private StackConfiguration stackConfiguration;
+
+	private static StackConfiguration stackConfiguration;
+	
+	@BeforeAll
+	public static void beforeAll() throws Exception {
+		stackConfiguration = StackConfigurationSingleton.singleton();
+	}
 	
 	@Test
 	public void testGetDocuSignAccountId() throws Exception {

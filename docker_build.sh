@@ -51,8 +51,7 @@ fi
 
 MVN_GOAL=install
 if [ ${build_deploy} ]; then
-#	MVN_GOAL=deploy
-	MVN_GOAL=verify
+	MVN_GOAL=deploy
 	SETTINGS_XML="<settings><servers><server><id>sagebionetworks</id><username>${artifactory_username}</username><password>${artifactory_password}</password></server></servers></settings>"
 fi
 

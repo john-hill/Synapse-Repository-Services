@@ -11,22 +11,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch.OpenSearchClient;
-import org.opensearch.client.opensearch._types.ErrorCause;
-import org.opensearch.client.opensearch._types.FieldSort;
-import org.opensearch.client.opensearch._types.FieldValue;
-import org.opensearch.client.opensearch._types.OpenSearchException;
-import org.opensearch.client.opensearch._types.Refresh;
-import org.opensearch.client.opensearch._types.ShardSearchFailure;
-import org.opensearch.client.opensearch._types.ShardStatistics;
-import org.opensearch.client.opensearch._types.SortOptions;
-import org.opensearch.client.opensearch._types.SortOrder;
-import org.opensearch.client.opensearch._types.aggregations.Aggregate;
-import org.opensearch.client.opensearch._types.aggregations.Aggregation;
-import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
+import org.opensearch.client.opensearch._types.*;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.CharFilter;
 import org.opensearch.client.opensearch._types.analysis.CustomAnalyzer;
@@ -34,9 +28,6 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
-import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
-import org.opensearch.client.opensearch._types.query_dsl.Query;
-import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.CountRequest;
@@ -46,48 +37,31 @@ import org.opensearch.client.opensearch.core.IndexRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
-import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.indices.AnalyzeRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
-import org.sagebionetworks.repo.model.search.FacetRequest;
-import org.sagebionetworks.repo.model.search.FacetSortField;
-import org.sagebionetworks.repo.model.search.KeyRange;
-import org.sagebionetworks.repo.model.search.KeyValues;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
+import org.sagebionetworks.repo.model.search.SearchHighlight;
 import org.sagebionetworks.repo.model.search.SearchHit;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
-import org.sagebionetworks.repo.model.search.SearchQueryType;
-import org.sagebionetworks.repo.model.search.SortDirection;
-import org.sagebionetworks.repo.model.search.SortField;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.repo.model.table.FacetColumnResult;
-import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
-import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
-import org.sagebionetworks.repo.model.table.FacetType;
-import org.sagebionetworks.table.cluster.ColumnTypeInfo;
-import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 /**
  * Wraps the OpenSearch Java client for all AOSS index lifecycle (create / delete /
  * writability probe), bulk-document indexing, and query execution (search and autocomplete).
- * Static helpers (component-reference rewriting, error classification, bulk-failure message
- * building) are package-private for unit testing.
  *
  * <p>Each {@link #createIndex} call receives a map of qualified-name &rarr; resolved analyzer
  * JSON; the manager merges every analyzer's owned components and analyzer entries into a
@@ -153,9 +127,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
 	private static final String SUB_FIELD_KEYWORD = "keyword";
 	private static final String INDEX_NOT_FOUND_EXCEPTION = "index_not_found_exception";
-	// AOSS reports a concurrent index-delete attempt with a reason text containing
-	// "concurrent deletes". Package-visible so callers can recognize and translate
-	// it into a recoverable SQS retry.
+	// Reason-text fragment AOSS includes when a concurrent index-delete is in flight;
+	// callers translate this into a recoverable SQS retry.
 	static final String CONCURRENT_DELETES_MARKER = "concurrent deletes";
 	/**
 	 * OpenSearch reserved analyzer name. The SearchConfiguration's primary TextAnalyzer
@@ -202,7 +175,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final int DEFAULT_LIMIT = 25;
 	private static final int MAX_LIMIT = 100;
 	private static final int AUTOCOMPLETE_MAX_LIMIT = 8;
-	private static final int DEFAULT_FACET_SIZE = 25;
 
 	private final OpenSearchClient openSearchClient;
 
@@ -238,7 +210,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String appliedConfigJson = request.toJsonString();
 			CreateIndexResponse response = openSearchClient.indices().create(request);
 
-			if (!Boolean.TRUE.equals(response.acknowledged())) {
+			if (!response.acknowledged()) {
 				throw new IllegalStateException("Search index " + indexName + " creation was not acknowledged.");
 			}
 
@@ -383,9 +355,12 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * never reference local registry components and are returned as-is.
 	 *
 	 * <p>The OpenSearch Java client's list-typed builders ({@code filter(List)},
-	 * {@code charFilter(List)}) are <i>additive</i> &mdash; they append to whatever the
-	 * source builder already holds, so {@code toBuilder()} cannot be used here. Construct
-	 * a fresh {@link CustomAnalyzer} instead and copy the scalar fields explicitly.</p>
+	 * {@code charFilter(List)}) are <i>additive</i> &mdash; they append to the source
+	 * builder's existing list, so {@code toBuilder()} would duplicate the chain. Instead,
+	 * round-trip through the JSON shape: serialize the source {@link CustomAnalyzer},
+	 * mutate only the three chain keys we own, and deserialize back. Any scalar / list /
+	 * object field the OpenSearch client adds in a future version flows through the JSON
+	 * tree untouched, so new fields cannot be silently dropped.</p>
 	 */
 	static Analyzer rewriteOwnedReferences(Analyzer analyzer, String aossKey,
 			Set<String> ownedCharFilters, Set<String> ownedFilters, Set<String> ownedTokenizers) {
@@ -393,39 +368,33 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			return analyzer;
 		}
 		CustomAnalyzer source = analyzer.custom();
-		List<String> charFilterChain = rewriteChain(source.charFilter(), aossKey, ownedCharFilters);
-		List<String> filterChain = rewriteChain(source.filter(), aossKey, ownedFilters);
-		String tokenizer = source.tokenizer();
-		String rewrittenTokenizer = (tokenizer != null && ownedTokenizers.contains(tokenizer))
-				? aossKey + "__" + tokenizer : tokenizer;
-		CustomAnalyzer rebuilt = CustomAnalyzer.of(b -> {
-			if (rewrittenTokenizer != null) {
-				b.tokenizer(rewrittenTokenizer);
-			}
-			if (charFilterChain != null && !charFilterChain.isEmpty()) {
-				b.charFilter(charFilterChain);
-			}
-			if (filterChain != null && !filterChain.isEmpty()) {
-				b.filter(filterChain);
-			}
-			if (source.positionIncrementGap() != null) {
-				b.positionIncrementGap(source.positionIncrementGap());
-			}
-			if (source.positionOffsetGap() != null) {
-				b.positionOffsetGap(source.positionOffsetGap());
-			}
-			return b;
-		});
+		boolean tokenizerOwned = ownedTokenizers.contains(source.tokenizer());
+		boolean charFilterHasOwned = source.charFilter().stream().anyMatch(ownedCharFilters::contains);
+		boolean filterHasOwned = source.filter().stream().anyMatch(ownedFilters::contains);
+		if (!tokenizerOwned && !charFilterHasOwned && !filterHasOwned) {
+			return analyzer;
+		}
+		ObjectNode tree = (ObjectNode) SearchOpaqueJsonUtil.toJsonpTree(source);
+		if (tokenizerOwned) {
+			tree.put("tokenizer", aossKey + "__" + source.tokenizer());
+		}
+		if (charFilterHasOwned) {
+			rewriteChainArray((ArrayNode) tree.get("char_filter"), aossKey, ownedCharFilters);
+		}
+		if (filterHasOwned) {
+			rewriteChainArray((ArrayNode) tree.get("filter"), aossKey, ownedFilters);
+		}
+		CustomAnalyzer rebuilt = SearchOpaqueJsonUtil.fromJsonpTree(tree, CustomAnalyzer._DESERIALIZER);
 		return Analyzer.of(b -> b.custom(rebuilt));
 	}
 
-	private static List<String> rewriteChain(List<String> chain, String aossKey, Set<String> owned) {
-		if (chain == null || chain.isEmpty()) {
-			return chain;
+	private static void rewriteChainArray(ArrayNode chain, String aossKey, Set<String> owned) {
+		for (int i = 0; i < chain.size(); i++) {
+			JsonNode element = chain.get(i);
+			if (element.isTextual() && owned.contains(element.asText())) {
+				chain.set(i, chain.textNode(aossKey + "__" + element.asText()));
+			}
 		}
-		return chain.stream()
-				.map(name -> owned.contains(name) ? aossKey + "__" + name : name)
-				.collect(Collectors.toList());
 	}
 
 	/**
@@ -1016,128 +985,70 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
+	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
-		return executeSearch(indexName, query, columns, options);
+		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false);
 	}
 
 	@Override
-	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
+	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
-		query.setQueryType(SearchQueryType.PREFIX);
-		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
-			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
-		}
-		return executeSearch(indexName, query, columns, options);
+		// Autocomplete does not accept a caller-supplied size; force the server cap as both
+		// default and ceiling.
+		return executeSearch(indexName, body, columns, options,
+				AUTOCOMPLETE_MAX_LIMIT, AUTOCOMPLETE_MAX_LIMIT, true);
 	}
 
 	// ---- Private helpers ----
 
-	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
-			Set<SearchQueryPart> options) {
-
+	/**
+	 * Build the column-name &rarr; column-id routing context for the target index.
+	 */
+	private static SearchFieldRewriter.RoutingContext routingContextFor(List<ColumnModel> columns) {
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
 		Map<String, ColumnModel> columnMap = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
-
-		SearchQueryType queryType = query.getQueryType() != null ? query.getQueryType()
-				: SearchQueryType.SIMPLE_QUERY_STRING;
-		String queryText = query.getQueryText();
-		// SearchQuery.offset / .limit are Long; OpenSearch's `from` / `size` are int.
-		// Validate up-front instead of letting Long.intValue() silently wrap a value
-		// past Integer.MAX_VALUE into a negative int that AOSS interprets unpredictably.
-		long offsetLong = query.getOffset() != null ? query.getOffset() : 0L;
-		ValidateArgument.requirement(offsetLong >= 0L && offsetLong <= Integer.MAX_VALUE,
-				"offset must be between 0 and " + Integer.MAX_VALUE);
-		int offset = (int) offsetLong;
-
-		long limitLong = query.getLimit() != null ? query.getLimit() : DEFAULT_LIMIT;
-		ValidateArgument.requirement(limitLong >= 0L, "limit must be non-negative");
-		int limit = (int) Math.min(limitLong, MAX_LIMIT);
-		String fuzziness = query.getFuzziness();
-
-		if (queryText == null || queryText.trim().isEmpty()) {
-			queryType = SearchQueryType.MATCH_ALL;
-		}
-
-		final SearchQueryType finalQueryType = queryType;
-		final String finalQueryText = queryText;
-
-		List<String> resolvedQueryFields = resolveQueryFields(query.getQueryFields(), columns, true);
-
-		BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
-
-		Query mainQuery = buildMainQuery(finalQueryType, finalQueryText, resolvedQueryFields, fuzziness);
-		boolBuilder.must(mainQuery);
-
-		addFilters(boolBuilder, query, columnMap, nameToId);
-
-		// Skip aggregation construction entirely when the caller didn't ask for FACETS.
-		Map<String, Aggregation> aggregations = options.contains(SearchQueryPart.FACETS)
-				? buildAggregations(query.getFacetRequests(), columnMap, nameToId)
-				: Collections.emptyMap();
-
-		Map<String, HighlightField> highlightFields = null;
-		if (options.contains(SearchQueryPart.HITS) && Boolean.TRUE.equals(query.getHighlight())) {
-			highlightFields = buildHighlightFields(columns);
-		}
-
-		List<String> returnFields = query.getReturnFields();
-
-		List<SortOptions> sortOptions = options.contains(SearchQueryPart.HITS)
-				? buildSortOptions(query.getSort(), columnMap, nameToId)
-				: Collections.emptyList();
-
-		Map<String, String> idToName = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
-
-		return callSearchApi(indexName, boolBuilder, offset, limit, aggregations,
-				highlightFields, returnFields, sortOptions, idToName, options);
+		return new SearchFieldRewriter.RoutingContext() {
+			@Override public String mapName(String name) {
+				return nameToId.getOrDefault(name, name);
+			}
+			@Override public boolean isTextLike(String columnId) {
+				ColumnModel column = columnMap.get(columnId);
+				if (column == null) {
+					return false;
+				}
+				ColumnType columnType = column.getColumnType();
+				return ColumnTypeToOpenSearchMapping.isTextType(columnType)
+						|| ColumnTypeToOpenSearchMapping.isLinkType(columnType);
+			}
+		};
 	}
 
 	@SuppressWarnings("rawtypes")
-	SearchQueryResults callSearchApi(String indexName, BoolQuery.Builder boolBuilder,
-			int offset, int limit, Map<String, Aggregation> aggregations,
-			Map<String, HighlightField> highlightFields, List<String> returnFields,
-			List<SortOptions> sortOptions, Map<String, String> idToName,
-			Set<SearchQueryPart> options) {
-		boolean returnHits = options.contains(SearchQueryPart.HITS);
-		boolean returnTotalHits = options.contains(SearchQueryPart.TOTAL_HITS);
+	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete) {
+		Map<String, String> idToName = columns.stream()
+				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
+		SearchFieldRewriter.RoutingContext ctx = routingContextFor(columns);
+		// One-element holder: the request builder lambda can't return a value, so
+		// applyBodyToRequest reports the resolved `from` through this slot.
+		int[] effectiveFrom = new int[1];
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
-				req.query(q -> q.bool(boolBuilder.build()));
-				req.from(offset);
-				// size=0 when hits aren't requested — saves source fetch + transport cost
-				req.size(returnHits ? limit : 0);
-				if (returnTotalHits) {
-					// Use a count value instead of enabled(true) — the boolean form caps at 10k
-					req.trackTotalHits(t -> t.count(Integer.MAX_VALUE));
-				} else {
-					req.trackTotalHits(t -> t.enabled(false));
-				}
-
-				if (!aggregations.isEmpty()) {
-					req.aggregations(aggregations);
-				}
-				// Highlights and source filters are meaningless without hits.
-				if (returnHits) {
-					if (highlightFields != null && !highlightFields.isEmpty()) {
-						req.highlight(h -> h.fields(highlightFields));
-					}
-					if (returnFields != null && !returnFields.isEmpty()) {
-						req.source(src -> src.filter(f -> f.includes(returnFields)));
-					}
-					if (!sortOptions.isEmpty()) {
-						req.sort(sortOptions);
-					}
-				}
-
+				// Timeout defines when incomplete results should be returned, giving
+				// a 10s grace period before requests are canceled.
+				req.timeout("50s");
+				req.cancelAfterTimeInterval(t -> t.time("60s"));
+				effectiveFrom[0] = autocomplete
+						? SearchOpaqueJsonUtil.applyAutocompleteBodyToRequest(
+								body, ctx, req, options, defaultSize)
+						: SearchOpaqueJsonUtil.applyBodyToRequest(
+								body, ctx, req, options, defaultSize, maxSize);
 				return req;
 			}, Map.class);
-
-			return convertResponse(response, indexName, offset, idToName, options);
+			return convertResponse(response, indexName, effectiveFrom[0], idToName, options);
 		} catch (OpenSearchException e) {
 			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
 				throw new IllegalStateException("Search index is still building. Please try again later.", e);
@@ -1147,298 +1058,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to execute search on search index: " + indexName, e);
 		}
-	}
-
-	Query buildMainQuery(SearchQueryType queryType, String queryText, List<String> fields, String fuzziness) {
-		switch (queryType) {
-			case SIMPLE_QUERY_STRING:
-				return Query.of(q -> q.simpleQueryString(sqs -> {
-					sqs.query(queryText);
-					if (fields != null && !fields.isEmpty()) {
-						sqs.fields(fields);
-					}
-					return sqs;
-				}));
-			case MATCH:
-				ValidateArgument.requiredNotEmpty(fields, "fields for MATCH query");
-				String matchField = stripBoost(fields.get(0));
-				return Query.of(q -> q.match(m -> {
-					m.field(matchField).query(FieldValue.of(queryText));
-					if (fuzziness != null) {
-						m.fuzziness(fuzziness);
-					}
-					return m;
-				}));
-			case MULTI_MATCH:
-				return Query.of(q -> q.multiMatch(mm -> {
-					mm.query(queryText);
-					if (fields != null && !fields.isEmpty()) {
-						mm.fields(fields);
-					}
-					if (fuzziness != null) {
-						mm.fuzziness(fuzziness);
-					}
-					return mm;
-				}));
-			case MATCH_PHRASE:
-				ValidateArgument.requiredNotEmpty(fields, "fields for MATCH_PHRASE query");
-				String phraseField = stripBoost(fields.get(0));
-				return Query.of(q -> q.matchPhrase(mp -> mp.field(phraseField).query(queryText)));
-			case PREFIX:
-				return Query.of(q -> q.multiMatch(mm -> {
-					mm.query(queryText);
-					mm.type(TextQueryType.BoolPrefix);
-					if (fields != null && !fields.isEmpty()) {
-						mm.fields(fields);
-					}
-					return mm;
-				}));
-			case WILDCARD:
-				ValidateArgument.requiredNotEmpty(fields, "fields for WILDCARD query");
-				String wildcardField = stripBoost(fields.get(0));
-				return Query.of(q -> q.wildcard(w -> w.field(wildcardField).value(queryText)));
-			case MATCH_ALL:
-				return Query.of(q -> q.matchAll(m -> m));
-			default:
-				throw new IllegalArgumentException("Unsupported query type: " + queryType);
-		}
-	}
-
-	private void addFilters(BoolQuery.Builder boolBuilder, SearchQuery query,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		addTermsFilters(boolBuilder, query.getTermsFilters(), columnMap, nameToId);
-		addRangeFilters(boolBuilder, query.getRangeFilters(), columnMap, nameToId);
-		addExistsFilters(boolBuilder, query.getExistsFilters(), nameToId, false);
-		addExistsFilters(boolBuilder, query.getNotExistsFilters(), nameToId, true);
-	}
-
-	private void addTermsFilters(BoolQuery.Builder boolBuilder, List<KeyValues> termsFilters,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (termsFilters == null) {
-			return;
-		}
-		for (KeyValues kvs : termsFilters) {
-			String columnId = nameToId.getOrDefault(kvs.getKey(), kvs.getKey());
-			ColumnModel column = columnMap.get(columnId);
-			String fieldName = getFilterFieldName(columnId, columnMap);
-			List<FieldValue> fieldValues = kvs.getValues().stream()
-					.map(v -> toTermsFilterValue(v, column))
-					.collect(Collectors.toList());
-			Query termsQuery = Query.of(q -> q.terms(t -> t
-					.field(fieldName)
-					.terms(tv -> tv.value(fieldValues))));
-			if (Boolean.TRUE.equals(kvs.getNot())) {
-				boolBuilder.mustNot(termsQuery);
-			} else {
-				boolBuilder.filter(termsQuery);
-			}
-		}
-	}
-
-	/**
-	 * Wrap a terms-filter string in the typed {@link FieldValue} variant matching the
-	 * column's scalar type. Each element of a {@code _LIST} column carries the list's
-	 * non-list type, so single-value matches against the list field hit AOSS's term
-	 * dictionary in the same shape the indexer wrote (long, double, boolean) instead
-	 * of relying on AOSS's string→number coercion.
-	 */
-	static FieldValue toTermsFilterValue(String raw, ColumnModel column) {
-		if (column == null) {
-			return FieldValue.of(raw);
-		}
-		ColumnType scalarType = ColumnTypeListMappings.isList(column.getColumnType())
-				? ColumnTypeListMappings.nonListType(column.getColumnType())
-				: column.getColumnType();
-		Object parsed = ColumnTypeInfo.getInfoForType(scalarType).parseValueForDatabaseWrite(raw);
-		if (parsed instanceof Long) {
-			return FieldValue.of((Long) parsed);
-		}
-		if (parsed instanceof Double) {
-			return FieldValue.of((Double) parsed);
-		}
-		if (parsed instanceof Boolean) {
-			return FieldValue.of((Boolean) parsed);
-		}
-		return FieldValue.of(String.valueOf(parsed));
-	}
-
-	private void addRangeFilters(BoolQuery.Builder boolBuilder, List<KeyRange> rangeFilters,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (rangeFilters == null) {
-			return;
-		}
-		for (KeyRange kr : rangeFilters) {
-			String columnId = nameToId.getOrDefault(kr.getKey(), kr.getKey());
-			ColumnModel column = columnMap.get(columnId);
-			String fieldName = getFilterFieldName(columnId, columnMap);
-			Query rangeQuery = Query.of(q -> q.range(r -> {
-				r.field(fieldName);
-				if (kr.getMin() != null) {
-					r.gte(toRangeBound(kr.getMin(), column));
-				}
-				if (kr.getMax() != null) {
-					r.lte(toRangeBound(kr.getMax(), column));
-				}
-				return r;
-			}));
-			boolBuilder.filter(rangeQuery);
-		}
-	}
-
-	/**
-	 * Parse a range bound string into a typed {@link JsonData} matching the column's
-	 * scalar type. KeyRange values arrive as strings per the schema, but a numeric
-	 * column wants a JSON number on the wire (otherwise OpenSearch may fall back to
-	 * lexicographic comparison on a keyword field, e.g. "10" &lt; "9"). Delegates to
-	 * the same {@link ColumnTypeInfo} parser the table API uses, which handles all
-	 * three accepted DATE wire formats (epoch-ms, SQL date, ISO-8601). Unknown columns
-	 * fall through as raw strings so the existing relaxed-name behavior is preserved.
-	 */
-	static JsonData toRangeBound(String raw, ColumnModel column) {
-		if (column == null) {
-			return JsonData.of(raw);
-		}
-		ColumnType scalarType = ColumnTypeListMappings.isList(column.getColumnType())
-				? ColumnTypeListMappings.nonListType(column.getColumnType())
-				: column.getColumnType();
-		Object parsed = ColumnTypeInfo.getInfoForType(scalarType).parseValueForDatabaseWrite(raw);
-		return JsonData.of(parsed);
-	}
-
-	// Package-private for branch-coverage tests.
-	void addExistsFilters(BoolQuery.Builder boolBuilder, List<String> fields,
-			Map<String, String> nameToId, boolean negate) {
-		if (fields == null) {
-			return;
-		}
-		for (String fieldName : fields) {
-			String fieldId = nameToId.getOrDefault(fieldName, fieldName);
-			Query existsQuery = Query.of(q -> q.exists(e -> e.field(fieldId)));
-			if (negate) {
-				boolBuilder.mustNot(existsQuery);
-			} else {
-				boolBuilder.filter(existsQuery);
-			}
-		}
-	}
-
-	Map<String, Aggregation> buildAggregations(List<FacetRequest> facetRequests,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (facetRequests == null || facetRequests.isEmpty()) {
-			return Collections.emptyMap();
-		}
-
-		Map<String, Aggregation> aggregations = new HashMap<>();
-		for (FacetRequest facet : facetRequests) {
-			String columnId = nameToId.getOrDefault(facet.getColumnName(), facet.getColumnName());
-			ColumnModel column = columnMap.get(columnId);
-			// JSON columns are mapped as `object`/`dynamic`, not as a leaf doc-values field, so
-			// a `terms` aggregation against them silently returns zero buckets. Reject up-front
-			// rather than handing the caller an empty facet result they can't explain.
-			ValidateArgument.requirement(
-					column == null || !ColumnTypeToOpenSearchMapping.isJsonType(column.getColumnType()),
-					"Cannot facet on JSON column: " + facet.getColumnName());
-			String fieldName = getFilterFieldName(columnId, columnMap);
-			int maxValues = facet.getMaxValueCount() != null ? facet.getMaxValueCount().intValue() : DEFAULT_FACET_SIZE;
-
-			String sortField = facet.getSortField() == FacetSortField.KEY ? "_key" : "_count";
-			SortOrder sortOrder = (facet.getSortDirection() != null && facet.getSortDirection() == SortDirection.ASC)
-					? SortOrder.Asc : SortOrder.Desc;
-			final String finalSortField = sortField;
-			final SortOrder finalSortOrder = sortOrder;
-
-			aggregations.put(columnId, Aggregation.of(a -> a
-					.terms(t -> t.field(fieldName).size(maxValues)
-							.order(List.of(Map.of(finalSortField, finalSortOrder))))));
-		}
-		return aggregations;
-	}
-
-	Map<String, HighlightField> buildHighlightFields(List<ColumnModel> columns) {
-		Map<String, HighlightField> highlightFields = new HashMap<>();
-		for (ColumnModel column : columns) {
-			String columnId = column.getId();
-			ColumnType colType = column.getColumnType();
-			if (!ColumnTypeToOpenSearchMapping.isTextType(colType) && !ColumnTypeToOpenSearchMapping.isLinkType(colType)) {
-				continue;
-			}
-			highlightFields.put(columnId, HighlightField.of(h -> h));
-		}
-		return highlightFields;
-	}
-
-	List<SortOptions> buildSortOptions(List<SortField> sortFields,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
-		if (sortFields == null || sortFields.isEmpty()) {
-			return Collections.singletonList(
-				SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field("_score").order(SortOrder.Desc))))
-			);
-		}
-		return sortFields.stream()
-				.map(sf -> {
-					String sortField;
-					if ("_score".equals(sf.getColumnName())) {
-						sortField = "_score";
-					} else {
-						String columnId = nameToId.getOrDefault(sf.getColumnName(), sf.getColumnName());
-						sortField = getFilterFieldName(columnId, columnMap);
-					}
-					SortOrder order = (sf.getDirection() == SortDirection.ASC) ? SortOrder.Asc : SortOrder.Desc;
-					return SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field(sortField).order(order))));
-				})
-				.collect(Collectors.toList());
-	}
-
-	String getFilterFieldName(String columnId, Map<String, ColumnModel> columnMap) {
-		ColumnModel column = columnMap.get(columnId);
-		if (column == null) {
-			return columnId;
-		}
-
-		ColumnType colType = column.getColumnType();
-
-		// TEXT and LINK both map to text fields with a `.keyword` sub-field for exact match.
-		if (ColumnTypeToOpenSearchMapping.isTextType(colType)
-				|| ColumnTypeToOpenSearchMapping.isLinkType(colType)) {
-			return columnId + "." + SUB_FIELD_KEYWORD;
-		}
-
-		return columnId;
-	}
-
-	String getSearchFieldName(String columnId) {
-		// Search-path fields use the main analyzed field for TEXT/LINK; the `.keyword`
-		// sub-field is only consulted by filter / sort code paths above.
-		return columnId;
-	}
-
-	List<String> resolveQueryFields(List<String> queryFields, List<ColumnModel> columns,
-			boolean forSearch) {
-		if (queryFields == null || queryFields.isEmpty()) {
-			return null;
-		}
-
-		Map<String, ColumnModel> columnMap = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
-		Map<String, String> nameToIdLocal = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-
-		return queryFields.stream()
-				.map(field -> {
-					String boost = null;
-					String fieldName = field;
-					int caretIndex = field.indexOf('^');
-					if (caretIndex > 0) {
-						fieldName = field.substring(0, caretIndex);
-						boost = field.substring(caretIndex);
-					}
-					String columnId = nameToIdLocal.getOrDefault(fieldName, fieldName);
-					String resolved = forSearch
-							? getSearchFieldName(columnId)
-							: getFilterFieldName(columnId, columnMap);
-					return boost != null ? resolved + boost : resolved;
-				})
-				.collect(Collectors.toList());
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -1451,17 +1070,31 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			results.setTotalHits(response.hits().total() != null ? response.hits().total().value() : 0L);
 		}
 
+		List<Hit<Map>> hits = response.hits().hits();
 		if (options.contains(SearchQueryPart.HITS)) {
-			List<SearchHit> hits = new ArrayList<>();
-			for (Hit<Map> hit : response.hits().hits()) {
-				hits.add(convertHit(hit, idToName));
+			List<SearchHit> converted = new ArrayList<>();
+			for (Hit<Map> hit : hits) {
+				converted.add(convertHit(hit, idToName));
 			}
-			results.setHits(hits);
+			results.setHits(converted);
 		}
 
-		if (options.contains(SearchQueryPart.FACETS)
-				&& response.aggregations() != null && !response.aggregations().isEmpty()) {
-			results.setFacets(convertAggregations(response.aggregations(), idToName));
+		// Aggregations: serialize the raw response block to JSON, rewrite column-id field
+		// references back to column names, and surface as the opaque aggregationResults
+		// string. Always populate when the response carried aggregations (the request
+		// already gated whether to ask for them).
+		if (response.aggregations() != null && !response.aggregations().isEmpty()) {
+			results.setAggregationResults(SearchOpaqueJsonUtil.serializeAggregations(
+					response.aggregations(), id -> idToName.getOrDefault(id, id)));
+		}
+
+		// Pagination cursor: when hits are requested and the page is full, emit the last
+		// hit's sort values as the next-page cursor; null when the page is short or empty.
+		if (options.contains(SearchQueryPart.HITS) && !hits.isEmpty()) {
+			List<FieldValue> sortValues = hits.get(hits.size() - 1).sort();
+			if (!sortValues.isEmpty()) {
+				results.setNextSearchAfter(SearchOpaqueJsonUtil.toSearchAfterCursor(sortValues));
+			}
 		}
 
 		return results;
@@ -1489,12 +1122,20 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			searchHit.setFields(fields);
 		}
 
-		if (hit.highlight() != null && !hit.highlight().isEmpty()) {
-			searchHit.setHighlights(convertHighlights(hit.highlight(), idToName));
+		Map<String, List<String>> rawHighlights = hit.highlight();
+		if (!rawHighlights.isEmpty()) {
+			List<SearchHighlight> highlights = rawHighlights.entrySet().stream()
+					.map(e -> new SearchHighlight()
+							.setName(idToName.getOrDefault(e.getKey(), e.getKey()))
+							.setSnippets(e.getValue()))
+					.collect(Collectors.toList());
+			searchHit.setHighlights(highlights);
 		}
 
 		return searchHit;
 	}
+
+	private static final ObjectMapper FIELD_VALUE_MAPPER = new ObjectMapper();
 
 	/**
 	 * Stringify a value from an AOSS hit's {@code _source} for {@link SearchFieldValue#setValue(String)}.
@@ -1502,13 +1143,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * so clients can parse them back; scalars use {@link String#valueOf(Object)} so a raw {@code String}
 	 * column is not double-quoted in the response. Mirrors the pattern at {@code SQLUtils#bindListColumns}
 	 * (lib-table-cluster) which serializes typed Java lists for the table index DB the same way.
-	 *
-	 * <p>Jackson is used (not {@code org.json}) because the latter coerces every numeric value
-	 * through {@code double}, silently truncating long ids past 2^53 — a real problem for
-	 * Synapse entity / file-handle ids, which sit comfortably above that bound.</p>
 	 */
-	private static final ObjectMapper FIELD_VALUE_MAPPER = new ObjectMapper();
-
 	static String convertFieldValue(Object value) {
 		if (value == null) {
 			return null;
@@ -1517,80 +1152,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			try {
 				return FIELD_VALUE_MAPPER.writeValueAsString(value);
 			} catch (JsonProcessingException e) {
-				throw new IllegalStateException(
-						"Failed to serialize search field value: " + value, e);
+				throw new IllegalStateException("Failed to serialize search field value: " + value, e);
 			}
 		}
 		return String.valueOf(value);
-	}
-
-	List<SearchFieldValue> convertHighlights(Map<String, List<String>> highlightMap,
-			Map<String, String> idToName) {
-		List<SearchFieldValue> highlights = new ArrayList<>();
-		for (Map.Entry<String, List<String>> entry : highlightMap.entrySet()) {
-			String fieldName = idToName.getOrDefault(entry.getKey(), entry.getKey());
-			SearchFieldValue hv = new SearchFieldValue();
-			hv.setName(fieldName);
-			hv.setValue(String.join(" ... ", entry.getValue()));
-			highlights.add(hv);
-		}
-		return highlights;
-	}
-
-	List<FacetColumnResult> convertAggregations(Map<String, Aggregate> aggregations,
-			Map<String, String> idToName) {
-		List<FacetColumnResult> facets = new ArrayList<>();
-		for (Map.Entry<String, Aggregate> entry : aggregations.entrySet()) {
-			String columnName = idToName.getOrDefault(entry.getKey(), entry.getKey());
-			Aggregate aggregate = entry.getValue();
-
-			if (aggregate.isSterms()) {
-				List<FacetColumnResultValueCount> valueCounts = aggregate.sterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(bucket.key(), bucket.docCount()))
-						.collect(Collectors.toList());
-				facets.add(buildFacetResult(columnName, valueCounts));
-			} else if (aggregate.isLterms()) {
-				List<FacetColumnResultValueCount> valueCounts = aggregate.lterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(
-								longBucketKeyToString(bucket.keyAsString(), bucket.key()), bucket.docCount()))
-						.collect(Collectors.toList());
-				facets.add(buildFacetResult(columnName, valueCounts));
-			} else if (aggregate.isDterms()) {
-				List<FacetColumnResultValueCount> valueCounts = aggregate.dterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(String.valueOf(bucket.key()), bucket.docCount()))
-						.collect(Collectors.toList());
-				facets.add(buildFacetResult(columnName, valueCounts));
-			}
-		}
-		return facets;
-	}
-
-	FacetColumnResultValues buildFacetResult(String columnName, List<FacetColumnResultValueCount> valueCounts) {
-		FacetColumnResultValues result = new FacetColumnResultValues();
-		result.setColumnName(columnName);
-		result.setFacetType(FacetType.enumeration);
-		result.setFacetValues(valueCounts);
-		return result;
-	}
-
-	FacetColumnResultValueCount buildFacetValueCount(String key, long docCount) {
-		FacetColumnResultValueCount vc = new FacetColumnResultValueCount();
-		vc.setValue(key);
-		vc.setCount(docCount);
-		vc.setIsSelected(false);
-		return vc;
-	}
-
-	// LongTermsBucket.keyAsString() is populated for fields with an implicit format
-	// (BOOLEAN → "true"/"false", date → ISO string) but is null for plain LONG fields
-	// because we don't set an explicit `format` on the terms aggregation. Prefer it
-	// when present so booleans render as "true"/"false" rather than "1"/"0", and fall
-	// back to the typed key for the LONG case.
-	static String longBucketKeyToString(String keyAsString, LongTermsBucketKey key) {
-		if (keyAsString != null) {
-			return keyAsString;
-		}
-		return key.isSigned() ? String.valueOf(key.signed()) : key.unsigned();
 	}
 
 	/**
@@ -1680,11 +1245,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		if (columnAnalyzerOverrides == null) {
 			return map;
 		}
-		for (ColumnAnalyzerOverride cao : columnAnalyzerOverrides) {
-			if (cao.getOverrides() == null) {
+		for (ColumnAnalyzerOverride override : columnAnalyzerOverrides) {
+			if (override.getOverrides() == null) {
 				continue;
 			}
-			for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+			for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
 				String columnId = nameToId.get(entry.getColumnName());
 				if (columnId != null) {
 					map.putIfAbsent(columnId, entry);
@@ -1692,11 +1257,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 		}
 		return map;
-	}
-
-	String stripBoost(String fieldSpec) {
-		int caretIndex = fieldSpec.indexOf('^');
-		return caretIndex > 0 ? fieldSpec.substring(0, caretIndex) : fieldSpec;
 	}
 
 	Long toLong(Object value) {

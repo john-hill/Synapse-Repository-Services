@@ -133,11 +133,13 @@ ${AWS_CREDS} \
 -Dorg.sagebionetworks.cloudfront.domainname="${org_sagebionetworks_cloudfront_domainname}" \
 -Dorg.sagebionetworks.cloudfront.private.key.secret="${org_sagebionetworks_cloudfront_private_key_secret}" \
 -Dorg.sagebionetworks.docusign.enabled="${org_sagebionetworks_docusign_enabled}" \
--Dorg.sagebionetworks.docusign.private.key="${org_sagebionetworks_docusign_private_key}" \
+-Dorg.sagebionetworks.docusign.private.key='${org_sagebionetworks_docusign_private_key}' \
 -Dorg.sagebionetworks.docusign.account.id="${org_sagebionetworks_docusign_account_id}" \
 -Dorg.sagebionetworks.docusign.user.id="${org_sagebionetworks_docusign_user_id}" \
 -Dorg.sagebionetworks.docusign.integration.key="${org_sagebionetworks_docusign_integration_key}" \
 -Duser.home=${HOME_DIR_WITHIN_CONTAINER}"
+
+# above it's critical use single quotes around '${org_sagebionetworks_docusign_private_key}' since the value has space characters
 
 clean_up_container ${build_container_name}
 

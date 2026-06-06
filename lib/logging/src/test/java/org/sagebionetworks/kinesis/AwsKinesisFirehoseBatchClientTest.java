@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
@@ -99,7 +99,7 @@ public class AwsKinesisFirehoseBatchClientTest {
 		
 		assertEquals("The streamName is required.", errorMessage);
 		
-		verifyZeroInteractions(mockKinesisFirehoseClient);
+		verifyNoInteractions(mockKinesisFirehoseClient);
 	}
 	
 	@Test
@@ -114,7 +114,7 @@ public class AwsKinesisFirehoseBatchClientTest {
 		
 		assertEquals("The batch is required.", errorMessage);
 		
-		verifyZeroInteractions(mockKinesisFirehoseClient);
+		verifyNoInteractions(mockKinesisFirehoseClient);
 	}
 	
 	@Test
@@ -129,7 +129,7 @@ public class AwsKinesisFirehoseBatchClientTest {
 		
 		assertEquals("The batch size must be greater than 0 and and less or equal than 500", errorMessage);
 		
-		verifyZeroInteractions(mockKinesisFirehoseClient);
+		verifyNoInteractions(mockKinesisFirehoseClient);
 	}
 	
 	@Test
@@ -144,7 +144,7 @@ public class AwsKinesisFirehoseBatchClientTest {
 		
 		assertEquals("The batch size must be greater than 0 and and less or equal than 500", errorMessage);
 		
-		verifyZeroInteractions(mockKinesisFirehoseClient);
+		verifyNoInteractions(mockKinesisFirehoseClient);
 	}
 	
 	@Test
@@ -161,7 +161,7 @@ public class AwsKinesisFirehoseBatchClientTest {
 		
 		assertEquals("The batch of records exceeds the maximum allowed request size of " + AwsKinesisFirehoseConstants.REQUEST_SIZE_LIMIT, errorMessage);
 		
-		verifyZeroInteractions(mockKinesisFirehoseClient);
+		verifyNoInteractions(mockKinesisFirehoseClient);
 	}
 	
 	@Test

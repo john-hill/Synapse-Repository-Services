@@ -14,7 +14,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -270,8 +270,8 @@ public class TableViewUpdateRequestManagerTest {
 		
 		assertEquals("When creating a view snapshot no changes can be included in the request.", result);
 		
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableViewManger);
+		verifyNoInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableViewManger);
 	}
 	
 	@Test

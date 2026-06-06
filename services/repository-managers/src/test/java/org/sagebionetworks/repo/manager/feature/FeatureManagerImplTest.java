@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 
@@ -225,7 +225,7 @@ public class FeatureManagerImplTest {
 		
 		assertEquals("You must be an administrator to perform this operation.", errorMessage);
 
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 
 	@Test
@@ -240,7 +240,7 @@ public class FeatureManagerImplTest {
 		
 		assertEquals("The user is required.", errorMessage);
 
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 	@Test
@@ -255,7 +255,7 @@ public class FeatureManagerImplTest {
 		
 		assertEquals("The feature is required.", errorMessage);
 
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 	@Test
@@ -327,7 +327,7 @@ public class FeatureManagerImplTest {
 			manager.setFeatureStatus(user, feature, status);
 		});
 
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 	@Test
@@ -349,7 +349,7 @@ public class FeatureManagerImplTest {
 		assertEquals("The user is required.", errorMessage);
 
 		
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 	@Test
@@ -371,7 +371,7 @@ public class FeatureManagerImplTest {
 		assertEquals("The feature is required.", errorMessage);
 
 		
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 	@Test
@@ -388,7 +388,7 @@ public class FeatureManagerImplTest {
 		
 		assertEquals("The status is required.", errorMessage);
 
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 	@Test
@@ -405,7 +405,7 @@ public class FeatureManagerImplTest {
 		
 		assertEquals("The status.enabled is required.", errorMessage);
 
-		verifyZeroInteractions(mockFeatureStatusDao);
+		verifyNoInteractions(mockFeatureStatusDao);
 	}
 	
 }

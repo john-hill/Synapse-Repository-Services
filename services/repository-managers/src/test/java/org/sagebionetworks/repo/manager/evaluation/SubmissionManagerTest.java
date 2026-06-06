@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -296,7 +295,7 @@ public class SubmissionManagerTest {
     	when(mockNodeManager.getNode(any(UserInfo.class), eq(ENTITY_ID))).thenReturn(mockNode);
     	when(mockEvalPermissionsManager.hasAccess(eq(userInfo), eq(EVAL_ID), eq(ACCESS_TYPE.SUBMIT))).thenReturn(AuthorizationStatus.authorized());
     	when(mockEvalPermissionsManager.hasAccess(eq(ownerInfo), eq(EVAL_ID), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
-    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch((List<SubmissionStatus>)anyObject())).thenReturn(Long.parseLong(EVAL_ID));
+    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch(any())).thenReturn(Long.parseLong(EVAL_ID));
 
     	// by default we say that individual submissions are within quota
     	// (specific tests will change this)
@@ -366,7 +365,7 @@ public class SubmissionManagerTest {
        	when(mockEvalPermissionsManager.hasAccess(eq(userInfo), eq(EVAL_ID), eq(ACCESS_TYPE.READ_PRIVATE_SUBMISSION))).thenReturn(AuthorizationStatus.accessDenied(""));
        	when(mockEvalPermissionsManager.hasAccess(eq(userInfo), eq(EVAL_ID), eq(ACCESS_TYPE.UPDATE_SUBMISSION))).thenReturn(AuthorizationStatus.accessDenied(""));
        	when(mockEvalPermissionsManager.hasAccess(eq(userInfo), eq(EVAL_ID), eq(ACCESS_TYPE.DELETE_SUBMISSION))).thenReturn(AuthorizationStatus.accessDenied(""));
-    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch((List<SubmissionStatus>)anyObject())).thenReturn(Long.parseLong(EVAL_ID));
+    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch(any())).thenReturn(Long.parseLong(EVAL_ID));
 
 
     	// by default we say that individual submissions are within quota
@@ -895,7 +894,7 @@ public class SubmissionManagerTest {
 	@Test
 	public void testBadBatch() throws Exception {
 		when(mockEvalPermissionsManager.hasAccess(eq(ownerInfo), eq(EVAL_ID), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
-    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch((List<SubmissionStatus>)anyObject())).thenReturn(Long.parseLong(EVAL_ID));
+    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch(any())).thenReturn(Long.parseLong(EVAL_ID));
 
 		// baseline:  all is good
 		submissionManager.updateSubmissionStatusBatch(ownerInfo, EVAL_ID, batch);
@@ -959,7 +958,7 @@ public class SubmissionManagerTest {
 	@Test
 	public void testConflictingBatchUpdate() throws Exception {
 		when(mockEvalPermissionsManager.hasAccess(eq(ownerInfo), eq(EVAL_ID), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
-    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch((List<SubmissionStatus>)anyObject())).thenReturn(Long.parseLong(EVAL_ID));
+    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch(any())).thenReturn(Long.parseLong(EVAL_ID));
 
 		// baseline:  all is OK
 		submissionManager.updateSubmissionStatusBatch(ownerInfo, EVAL_ID, batch);
@@ -983,7 +982,7 @@ public class SubmissionManagerTest {
 	@Test
 	public void testBatchResponseToken() throws Exception {
 		when(mockEvalPermissionsManager.hasAccess(eq(ownerInfo), eq(EVAL_ID), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
-    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch((List<SubmissionStatus>)anyObject())).thenReturn(Long.parseLong(EVAL_ID));
+    	when(mockSubmissionStatusDAO.getEvaluationIdForBatch(any())).thenReturn(Long.parseLong(EVAL_ID));
 
 		batch.setIsFirstBatch(true);
 		batch.setIsLastBatch(false);

@@ -14,7 +14,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -1822,7 +1822,7 @@ public class JsonSchemaManagerImplTest {
 		assertEquals(nodeIds, nodeIdCaptor.getAllValues());
 		verify(mockSchemaDao).getObjectIdsBoundToSchemaIterator(versionInfo.getSchemaId());
 		verify(mockNodeDao, never()).getNodeTypeById(any());
-		verifyZeroInteractions(mockTransactionalMessenger);
+		verifyNoInteractions(mockTransactionalMessenger);
 
 	}
 

@@ -10,7 +10,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -532,7 +532,7 @@ public class AsynchJobStatusManagerImplTest {
 		assertEquals(startedJobId, status.getJobId());
 		verify(mockAsynchJobStatusDao, times(1)).startJob(any(), any(AsynchronousRequestBody.class));
 		verify(mockAsynchJobQueuePublisher, times(1)).publishMessage(status);
-		verifyZeroInteractions(mockJobHashProvider);
+		verifyNoInteractions(mockJobHashProvider);
 	}
 	
 	@Test

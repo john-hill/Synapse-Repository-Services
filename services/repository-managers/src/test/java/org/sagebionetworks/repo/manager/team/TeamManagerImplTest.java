@@ -445,10 +445,10 @@ public class TeamManagerImplTest {
 		when(mockTeamDAO.get(team1.getId())).thenReturn(new Team());
 		when(mockTeamDAO.get(team2.getId())).thenReturn(new Team());
 		when(mockPrincipalManager.isAliasValid(any(String.class), eq(AliasType.TEAM_NAME))).thenReturn(true);
-		Mockito.verifyZeroInteractions(mockTeamDAO);
-		Mockito.verifyZeroInteractions(mockBasicDAO);
-		Mockito.verifyZeroInteractions(mockPrincipalAliasDAO);
-		Mockito.verifyZeroInteractions(mockAclManager);
+		Mockito.verifyNoInteractions(mockTeamDAO);
+		Mockito.verifyNoInteractions(mockBasicDAO);
+		Mockito.verifyNoInteractions(mockPrincipalAliasDAO);
+		Mockito.verifyNoInteractions(mockAclManager);
 
 		teamManagerImpl.setTeamsToBootstrap(toBootstrap);
 		teamManagerImpl.bootstrapTeams();

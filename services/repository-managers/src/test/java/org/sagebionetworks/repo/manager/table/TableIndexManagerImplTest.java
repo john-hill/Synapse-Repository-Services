@@ -22,7 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -1816,9 +1816,9 @@ public class TableIndexManagerImplTest {
 		assertEquals(original, ex.getCause());
 		assertEquals("org.springframework.dao.PessimisticLockingFailureException: Some exception", ex.getMessage());
 		
-		verifyZeroInteractions(mockMetadataProvider);
-		verifyZeroInteractions(mockObjectFieldModelResolver);
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockMetadataProvider);
+		verifyNoInteractions(mockObjectFieldModelResolver);
+		verifyNoInteractions(mockIndexDao);
 	}
 
 	@Test
@@ -2215,9 +2215,9 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.updateSearchIndex(indexDescription, rows.iterator());
 		
-		verifyZeroInteractions(mockSearchProcessor);
+		verifyNoInteractions(mockSearchProcessor);
 		
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 		
 	}
 	
@@ -2263,8 +2263,8 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.updateSearchIndex(indexDescription, rowData);
 		
-		verifyZeroInteractions(mockSearchProcessor);
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockSearchProcessor);
+		verifyNoInteractions(mockIndexDao);
 		
 	}
 		
@@ -2493,7 +2493,7 @@ public class TableIndexManagerImplTest {
 		
 		verify(mockIndexDao).getMaxCurrentCompleteVersionForTable(tableId);
 		verifyNoMoreInteractions(mockIndexDao);
-		verifyZeroInteractions(mockManagerSupport);
+		verifyNoInteractions(mockManagerSupport);
 	}
 	
 	@Test
@@ -2651,7 +2651,7 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.populateFileHandleIndex(index, schema);
 
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 	}
 	
 	@Test
@@ -2768,7 +2768,7 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.validateSchemaChangeToMediumText(tableId, columnChanges);
 		
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 	}
 	
 	@Test
@@ -2783,7 +2783,7 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.validateSchemaChangeToMediumText(tableId, columnChanges);
 		
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 	}
 	
 	@Test
@@ -2798,7 +2798,7 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.validateSchemaChangeToMediumText(tableId, columnChanges);
 		
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 	}
 	
 	@Test
@@ -2813,7 +2813,7 @@ public class TableIndexManagerImplTest {
 		// Call under test
 		manager.validateSchemaChangeToMediumText(tableId, columnChanges);
 		
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 	}
 	
 	@Test
@@ -2906,7 +2906,7 @@ public class TableIndexManagerImplTest {
 		
 		assertEquals(0, result);
 		
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 		
 	}
 	
@@ -3064,7 +3064,7 @@ public class TableIndexManagerImplTest {
 	public void testSetViewScopeIndexWithNonHierarchyFilter() {
 		// call under test
 		manager.setViewScopeIndex(tableId.getId(), mockFilter);
-		verifyZeroInteractions(mockIndexDao);
+		verifyNoInteractions(mockIndexDao);
 	}
 			
 	@SuppressWarnings("unchecked")

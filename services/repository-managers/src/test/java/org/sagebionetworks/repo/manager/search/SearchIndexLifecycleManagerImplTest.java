@@ -14,7 +14,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -846,7 +846,7 @@ public class SearchIndexLifecycleManagerImplTest {
 				manager.resolveAnalyzers(Collections.singletonMap("org-noop", ta));
 
 		assertEquals(1, resolved.size());
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test

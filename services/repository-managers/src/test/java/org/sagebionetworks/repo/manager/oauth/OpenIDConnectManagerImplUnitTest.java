@@ -14,7 +14,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager.getScopeHash;
 import static org.sagebionetworks.repo.manager.oauth.claimprovider.GA4GHPassportClaimProvider.VISA_CLAIM_NAME;
@@ -649,7 +649,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		authorizationRequest.setAuthenticatedAt(now);
 		assertEquals(authorizationRequest, capturedAuthRequest);
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 		
 	}
 
@@ -662,7 +662,7 @@ public class OpenIDConnectManagerImplUnitTest {
 			openIDConnectManagerImpl.authorizeClient(anonymousUserInfo, authorizationRequest);
 		});
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 
 	@Test
@@ -678,7 +678,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		assertEquals(OAuthErrorCode.invalid_client, ex.getError());
 		assertEquals("invalid_client Invalid OAuth Client ID: 42", ex.getMessage());
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 
 	@Test
@@ -695,7 +695,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		
 		verify(mockOauthClientDao).isOauthClientVerified(OAUTH_CLIENT_ID);
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -713,7 +713,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		
 		assertEquals(OAuthErrorCode.invalid_redirect_uri, e.getError());
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 
 	@Test

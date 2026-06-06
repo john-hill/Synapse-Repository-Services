@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -215,7 +215,7 @@ public class SESNotificationManagerTest {
 			assertFalse(result.isPresent());
 		}
 
-		verifyZeroInteractions(mockNotification);
+		verifyNoInteractions(mockNotification);
 
 	}
 
@@ -277,7 +277,7 @@ public class SESNotificationManagerTest {
 
 		verify(mockNotificationDao).saveNotification(expected);
 		verify(mockProvider).getQuarantinedEmails(mockBounce, messageId);
-		verifyZeroInteractions(mockEmailQuaranineDao);
+		verifyNoInteractions(mockEmailQuaranineDao);
 	}
 	
 	@Test
@@ -311,8 +311,8 @@ public class SESNotificationManagerTest {
 		
 		assertEquals(QuarantinedEmailBatch.EMPTY_BATCH, result);
 		
-		verifyZeroInteractions(mockBounce);
-		verifyZeroInteractions(mockProvider);
+		verifyNoInteractions(mockBounce);
+		verifyNoInteractions(mockProvider);
 		
 	}
 	
@@ -329,7 +329,7 @@ public class SESNotificationManagerTest {
 		assertEquals(QuarantinedEmailBatch.EMPTY_BATCH, result);
 		
 		verify(mockBounce).getRecipients();
-		verifyZeroInteractions(mockProvider);	
+		verifyNoInteractions(mockProvider);	
 	}
 	
 	@Test

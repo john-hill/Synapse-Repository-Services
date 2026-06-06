@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.manager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyCollectionOf;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -77,7 +77,7 @@ public class CloudMailInManagerImplTest {
 		fromAlias.setPrincipalId(104L);
 		when(principalAliasDAO.findPrincipalWithAlias("foo@bar.com")).thenReturn(fromAlias);
 		
-		when(principalAliasDAO.listPrincipalAliases(anyCollectionOf(Long.class))).thenReturn(recipientPrincipalAliases);
+		when(principalAliasDAO.listPrincipalAliases(anyCollection())).thenReturn(recipientPrincipalAliases);
 		
 		List<MessageToUserAndBody> mtubs = 
 				cloudMailInManager.convertMessage(message, NOTIFICATION_UNSUBSCRIBE_ENDPOINT);
@@ -126,7 +126,7 @@ public class CloudMailInManagerImplTest {
 		fromAlias.setPrincipalId(104L);
 		when(principalAliasDAO.findPrincipalWithAlias("foo@bar.com")).thenReturn(fromAlias);
 		
-		when(principalAliasDAO.listPrincipalAliases(anyCollectionOf(Long.class))).thenReturn(recipientPrincipalAliases);
+		when(principalAliasDAO.listPrincipalAliases(anyCollection())).thenReturn(recipientPrincipalAliases);
 		
 		List<MessageToUserAndBody> mtubs = 
 				cloudMailInManager.convertMessage(message, NOTIFICATION_UNSUBSCRIBE_ENDPOINT);
@@ -193,7 +193,7 @@ public class CloudMailInManagerImplTest {
 		Set<String> validAndInvalidRecepientUserNames = new HashSet<String>(
 				Arrays.asList(new String[]{"baz", "invalid"}));
 		
-		when(principalAliasDAO.listPrincipalAliases(anyCollectionOf(Long.class))).thenReturn(recipientPrincipalAliases);
+		when(principalAliasDAO.listPrincipalAliases(anyCollection())).thenReturn(recipientPrincipalAliases);
 		
 		UserProfile userProfile = new UserProfile();
 		userProfile.setFirstName("FOO");
@@ -310,7 +310,7 @@ public class CloudMailInManagerImplTest {
 		
 		recipientUserNames.add("baz");
 		recipientPrincipalAliases.add(toAlias);
-		when(principalAliasDAO.listPrincipalAliases(anyCollectionOf(Long.class))).thenReturn(recipientPrincipalAliases);
+		when(principalAliasDAO.listPrincipalAliases(anyCollection())).thenReturn(recipientPrincipalAliases);
 		
 		// check that case doesn't matter
 		PrincipalLookupResults plrs = cloudMailInManager.
@@ -411,7 +411,7 @@ public class CloudMailInManagerImplTest {
 		fromAlias.setPrincipalId(104L);
 		when(principalAliasDAO.findPrincipalWithAlias("foo@bar.com")).thenReturn(fromAlias);
 		
-		when(principalAliasDAO.listPrincipalAliases(anyCollectionOf(Long.class))).thenReturn(recipientPrincipalAliases);
+		when(principalAliasDAO.listPrincipalAliases(anyCollection())).thenReturn(recipientPrincipalAliases);
 		
 		cloudMailInManager.authorizeMessage(ach);
 	}
@@ -428,7 +428,7 @@ public class CloudMailInManagerImplTest {
 		toAlias.setPrincipalId(101L);
 		recipientPrincipalAliases.add(toAlias);
 		recipientUserNames.add("baz");
-		when(principalAliasDAO.listPrincipalAliases(anyCollectionOf(Long.class))).thenReturn(recipientPrincipalAliases);
+		when(principalAliasDAO.listPrincipalAliases(anyCollection())).thenReturn(recipientPrincipalAliases);
 		
 		cloudMailInManager.authorizeMessage(ach);
 	}

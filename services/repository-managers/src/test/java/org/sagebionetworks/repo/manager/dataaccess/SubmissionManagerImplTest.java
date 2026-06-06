@@ -17,7 +17,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -1692,9 +1692,9 @@ public class SubmissionManagerImplTest {
 		
 		assertEquals(expected, result);
 		
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAccessRequirementDao);
-		verifyZeroInteractions(mockAuthManager);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAccessRequirementDao);
+		verifyNoInteractions(mockAuthManager);
 		
 	}
 	
@@ -1796,7 +1796,7 @@ public class SubmissionManagerImplTest {
 		assertEquals(result, submission);
 
 		verify(mockSubmissionDao).getSubmission(submissionId);
-		verifyZeroInteractions(mockAuthManager);
+		verifyNoInteractions(mockAuthManager);
 	}
 
 	@Test
@@ -1842,8 +1842,8 @@ public class SubmissionManagerImplTest {
 		
 		assertEquals("userInfo is required.", result);
 		
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAuthManager);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAuthManager);
 	}
 	
 	@Test
@@ -1856,8 +1856,8 @@ public class SubmissionManagerImplTest {
 		
 		assertEquals("submissionId is required.", result);
 		
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAuthManager);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAuthManager);
 	}
 
 	@Test
@@ -1870,8 +1870,8 @@ public class SubmissionManagerImplTest {
 
 		assertEquals("submissionId is required.", result);
 
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 	}
 
 	@Test
@@ -1884,8 +1884,8 @@ public class SubmissionManagerImplTest {
 
 		assertEquals("userInfo is required.", result);
 
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 	}
 
 	@Test
@@ -1901,7 +1901,7 @@ public class SubmissionManagerImplTest {
 		assertEquals("The user is not an accessor to the submission.", result);
 
 		verify(mockSubmissionDao).getSubmission(submissionId);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 	}
 
 	@Test
@@ -1980,9 +1980,9 @@ public class SubmissionManagerImplTest {
 
 		assertEquals("request is required.", result);
 
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAccessApprovalDao);
-		verifyZeroInteractions(mockAccessRequirementDao);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessRequirementDao);
 	}
 
 	@Test
@@ -1995,9 +1995,9 @@ public class SubmissionManagerImplTest {
 
 		assertEquals("userInfo is required.", result);
 
-		verifyZeroInteractions(mockSubmissionDao);
-		verifyZeroInteractions(mockAccessApprovalDao);
-		verifyZeroInteractions(mockAccessRequirementDao);
+		verifyNoInteractions(mockSubmissionDao);
+		verifyNoInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessRequirementDao);
 	}
 
 	@Test
@@ -2066,8 +2066,8 @@ public class SubmissionManagerImplTest {
 				request.getAccessRequirementId(), null, request.getSubmissionState(),
 				NextPageToken.DEFAULT_LIMIT + 1, NextPageToken.DEFAULT_OFFSET);
 
-		verifyZeroInteractions(mockAccessApprovalDao);
-		verifyZeroInteractions(mockAccessRequirementDao);
+		verifyNoInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessRequirementDao);
 	}
 
 	@Test

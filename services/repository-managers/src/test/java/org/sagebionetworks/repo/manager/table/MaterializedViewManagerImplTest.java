@@ -16,7 +16,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -35,7 +35,6 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
-import org.mockito.Matchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -515,7 +514,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The id of the materialized view is required.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -531,7 +530,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The definingSQL of the materialized view is required and must not be the empty string.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -547,7 +546,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The definingSQL of the materialized view is required and must not be the empty string.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -563,7 +562,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The definingSQL of the materialized view is required and must not be a blank string.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -629,8 +628,8 @@ public class MaterializedViewManagerImplTest {
 		
 		assertEquals("The tableId is required.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
-		verifyZeroInteractions(mockTableIndexManager);
+		verifyNoInteractions(mockMaterializedViewDao);
+		verifyNoInteractions(mockTableIndexManager);
 	}
 	
 	@Test
@@ -655,8 +654,8 @@ public class MaterializedViewManagerImplTest {
 		
 		assertEquals("MaterializedView snapshots not currently supported", message);
 		
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableIndexManager);
+		verifyNoInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableIndexManager);
 	}
 	
 	@Test

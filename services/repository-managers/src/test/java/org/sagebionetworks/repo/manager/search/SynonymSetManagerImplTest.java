@@ -11,7 +11,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -69,8 +69,8 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, validSynonymSet()));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test
@@ -82,8 +82,8 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.update(user, validSynonymSet().setId("1")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test
@@ -95,8 +95,8 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.delete(user, "1"));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test
@@ -108,9 +108,9 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(anon, validSynonymSet()));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(synonymSetDao);
-		verifyZeroInteractions(organizationDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(synonymSetDao);
+		verifyNoInteractions(organizationDao);
 	}
 
 	// --- ACL authorization (user is Sage employee) ---
@@ -127,7 +127,7 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, validSynonymSet()));
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test
@@ -158,7 +158,7 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		SynonymSet result = manager.create(admin, input);
 		assertNotNull(result);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Public read ---
@@ -169,7 +169,7 @@ public class SynonymSetManagerImplTest {
 
 		// call under test
 		manager.get(new UserInfo(false), "1");
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Deletion ---
@@ -391,7 +391,7 @@ public class SynonymSetManagerImplTest {
 		// call under test
 		manager.update(admin, input);
 
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 		verify(synonymSetDao).update(2L, input);
 	}
 }

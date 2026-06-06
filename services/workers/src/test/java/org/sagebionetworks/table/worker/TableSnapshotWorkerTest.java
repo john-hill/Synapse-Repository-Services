@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -154,8 +154,8 @@ public class TableSnapshotWorkerTest {
 		// Call under test
 		worker.run(mockCallback, mockMessage, event);
 		
-		verifyZeroInteractions(mockTableManager);
-		verifyZeroInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableManager);
+		verifyNoInteractions(mockTableManagerSupport);
 	}
 	
 	@Test
@@ -169,8 +169,8 @@ public class TableSnapshotWorkerTest {
 		// Call under test
 		worker.run(mockCallback, mockMessage, event);
 		
-		verifyZeroInteractions(mockTableManager);
-		verifyZeroInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableManager);
+		verifyNoInteractions(mockTableManagerSupport);
 	}
 	
 	@Test
@@ -186,8 +186,8 @@ public class TableSnapshotWorkerTest {
 		// Call under test
 		worker.run(mockCallback, mockMessage, event);
 
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableManager);
+		verifyNoInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableManager);
 	}
 
 }

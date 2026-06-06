@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyListOf;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -619,7 +619,7 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), eq(DEFAULT_REALM_ID))).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyList(), eq(DEFAULT_REALM_ID))).thenReturn(headers);
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		
 		// call under test
@@ -645,7 +645,7 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), eq(DEFAULT_REALM_ID))).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyList(), eq(DEFAULT_REALM_ID))).thenReturn(headers);
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		
 		// call under test

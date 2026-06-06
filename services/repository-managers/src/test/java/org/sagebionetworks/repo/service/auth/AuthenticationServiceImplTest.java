@@ -10,7 +10,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
@@ -860,7 +860,7 @@ public class AuthenticationServiceImplTest {
 		service.revokeAllSessionAccessTokens(userId, userId);
 		
 		verify(mockOidcTokenManger).revokeOIDCAccessTokens(userId);
-		verifyZeroInteractions(mockUserManager);
+		verifyNoInteractions(mockUserManager);
 	}
 	
 	@Test
@@ -886,6 +886,6 @@ public class AuthenticationServiceImplTest {
 		
 		assertEquals("You are not authorized to perform this operation.", message);
 		
-		verifyZeroInteractions(mockOidcTokenManger);
+		verifyNoInteractions(mockOidcTokenManger);
 	}
 }

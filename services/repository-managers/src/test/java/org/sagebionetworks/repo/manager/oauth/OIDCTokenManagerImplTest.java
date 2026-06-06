@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.security.PublicKey;
@@ -158,7 +158,7 @@ public class OIDCTokenManagerImplTest {
 		// This checks the other fields set in the method under test
 		jwtValidation(oidcToken, false, NONCE);
 		
-		verifyZeroInteractions(mockAccessTokenDao);
+		verifyNoInteractions(mockAccessTokenDao);
 	}
 
 	/**
@@ -343,7 +343,7 @@ public class OIDCTokenManagerImplTest {
 		// This checks the other fields set in the method under test
 		jwtValidation(accessToken, false, null/* no nonce */);
 		
-		verifyZeroInteractions(mockAccessTokenDao);
+		verifyNoInteractions(mockAccessTokenDao);
 
 	}
 
@@ -382,7 +382,7 @@ public class OIDCTokenManagerImplTest {
 		assertEquals(now/1000L+60, claims.getExpiration().getTime()/1000L);
 		assertEquals(Arrays.asList(OAuthScope.values()), ClaimsJsonUtil.getScopeFromClaims(claims));
 		
-		verifyZeroInteractions(mockAccessTokenDao);
+		verifyNoInteractions(mockAccessTokenDao);
 	}
 
 	@Test
@@ -471,7 +471,7 @@ public class OIDCTokenManagerImplTest {
 		// This checks the other fields set in the method under test
 		jwtValidation(accessToken, true, null/* no nonce */);
 		
-		verifyZeroInteractions(mockAccessTokenDao);
+		verifyNoInteractions(mockAccessTokenDao);
 	}
 	
 	@Test
@@ -551,6 +551,6 @@ public class OIDCTokenManagerImplTest {
 		assertEquals(now.getTime()/1000, claims.getIssuedAt().getTime()/1000);
 		assertEquals(now.getTime()/1000 + expirationsSec, claims.getExpiration().getTime()/1000);
 		
-		verifyZeroInteractions(mockAccessTokenDao);
+		verifyNoInteractions(mockAccessTokenDao);
 	}
 }

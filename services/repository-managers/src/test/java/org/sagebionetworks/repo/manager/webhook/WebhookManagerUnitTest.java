@@ -12,7 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
@@ -188,7 +188,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The specified object is not valid.", result);
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 		
 	@Test
@@ -215,7 +215,7 @@ public class WebhookManagerUnitTest {
 		
 		// The two invocations only make one db call
 		verify(mockWebhookDao).getAllowedDomainsPatterns();
-		verifyZeroInteractions(mockWebhookAuthorizationManager);
+		verifyNoInteractions(mockWebhookAuthorizationManager);
 	}
 	
 	@Test
@@ -250,7 +250,7 @@ public class WebhookManagerUnitTest {
 			webhookManager.validateCreateOrUpdateRequest(userInfo, request);
 		});
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 	
 	@Test
@@ -265,7 +265,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The objectType is required.", result);
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 	
 	@Test
@@ -280,7 +280,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The eventTypes is required and must not be empty.", result);
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 	
 	@Test
@@ -295,7 +295,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The objectId is required.", result);
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 	
 	@Test
@@ -310,7 +310,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("isEnabled is required.", result);
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 	
 	static Stream<Arguments> testValidateCreateOrUpdateWebhookRequestWithInvalidEndpoint() {
@@ -338,7 +338,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals(expectedMessage, result);
 		
-		verifyZeroInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
+		verifyNoInteractions(mockWebhookAuthorizationManager, mockWebhookDao);
 	}
 	
 	@Test
@@ -498,7 +498,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The userInfo is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -511,7 +511,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The webhookId is required and must not be the empty string.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -544,7 +544,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The userInfo is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -559,7 +559,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The request is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -688,7 +688,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("Cannot verify the webhook at this time.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -756,7 +756,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The userInfo is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -769,7 +769,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The webhookId is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -782,7 +782,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The request is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -795,7 +795,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The verificationCode is required and must not be the empty string.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}	
 	
 	@ParameterizedTest
@@ -940,7 +940,7 @@ public class WebhookManagerUnitTest {
 		webhookManager.processEntityChange(SynapseEventType.CREATE, eventTimestamp, entityId);
 		
 		verify(webhookManager, never()).publishWebhookMessage(any(), any());
-		verifyZeroInteractions(mockWebhookDao, mockWebhookAuthorizationManager);
+		verifyNoInteractions(mockWebhookDao, mockWebhookAuthorizationManager);
 	}
 	
 	@Test
@@ -978,7 +978,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The webhookId is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 		
 	}
 	
@@ -992,7 +992,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The messageId is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 		
 	}
 	
@@ -1039,7 +1039,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The webhookId is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -1052,7 +1052,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The messageId is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test
@@ -1065,7 +1065,7 @@ public class WebhookManagerUnitTest {
 		
 		assertEquals("The status is required.", result);
 		
-		verifyZeroInteractions(mockWebhookDao);
+		verifyNoInteractions(mockWebhookDao);
 	}
 	
 	@Test

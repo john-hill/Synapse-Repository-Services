@@ -10,7 +10,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -222,7 +222,7 @@ public class EntityAclManagerImplUnitTest {
 		entityAclManager.updateACL(updatedAcl, mockUser);
 		// project stats should be called for all new users
 		verify(mockProjectStatsManager).updateProjectStats(eq(addedPrincipalId), eq(entityId), eq(ObjectType.ENTITY), any(Date.class));
-		verifyZeroInteractions(mockTransactionalMessenger);
+		verifyNoInteractions(mockTransactionalMessenger);
 	}
 	
 	@Test

@@ -9,7 +9,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -241,7 +241,7 @@ public class RecurrentAthenaQueryManagerTest {
 		
 		verify(mockAthenaSupport).getQueryExecutionStatus(mockQueryExecution.getQueryExecutionId());
 		verify(mockAthenaSupport).getQueryResultsPage(mockQueryExecution.getQueryExecutionId(), mockRowMapper, null, RecurrentAthenaQueryManagerImpl.MAX_QUERY_RESULTS);
-		verifyZeroInteractions(mockProcessor);
+		verifyNoInteractions(mockProcessor);
 		verify(mockSqsClient, never()).sendMessage(any());
 	}
 	
@@ -262,7 +262,7 @@ public class RecurrentAthenaQueryManagerTest {
 		
 		verify(mockAthenaSupport).getQueryExecutionStatus(mockQueryExecution.getQueryExecutionId());
 		verify(mockAthenaSupport).getQueryResultsPage(mockQueryExecution.getQueryExecutionId(), mockRowMapper, null, RecurrentAthenaQueryManagerImpl.MAX_QUERY_RESULTS);
-		verifyZeroInteractions(mockProcessor);
+		verifyNoInteractions(mockProcessor);
 		verify(mockSqsClient, never()).sendMessage(any());
 	}
 	

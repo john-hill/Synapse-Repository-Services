@@ -16,7 +16,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.table.QueryOptions.BUNDLE_MASK_QUERY_COLUMN_MODELS;
 import static org.sagebionetworks.repo.model.table.QueryOptions.BUNDLE_MASK_QUERY_COUNT;
@@ -1720,7 +1720,7 @@ public class TableQueryManagerImplTest {
 		long count = manager.runCountQuery(query, mockTableIndexDAO);
 		assertEquals(1l, count);
 		// no need to run a query for a simple aggregate
-		verifyZeroInteractions(mockQueryCacheManager);
+		verifyNoInteractions(mockQueryCacheManager);
 	}
 	
 	@Test

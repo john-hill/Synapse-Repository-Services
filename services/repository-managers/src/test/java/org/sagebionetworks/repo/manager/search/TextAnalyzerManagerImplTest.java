@@ -13,7 +13,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -99,7 +99,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.create(nonSageUser, input));
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	@Test
@@ -153,7 +153,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer result = manager.create(adminUser, input);
 
 		assertNotNull(result);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Get ---
@@ -165,7 +165,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		assertEquals("1", manager.get(new UserInfo(false), 1L).getId());
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	@Test
@@ -185,7 +185,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.update(nonSageUser, input));
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	@Test
@@ -258,7 +258,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testDeleteAsNonSageUserThrows() {
 		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.delete(nonSageUser, 1L));
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	@Test
@@ -382,7 +382,7 @@ public class TextAnalyzerManagerImplTest {
 			.setOrganizationName("test-org").setName("test").setSettings(null);
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.create(adminUser, bad));
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	@Test
@@ -501,7 +501,7 @@ public class TextAnalyzerManagerImplTest {
 		assertTrue(e.getMessage().contains("Invalid qualified name format"),
 			"Format error must mention qualified-name: " + e.getMessage());
 		verify(textAnalyzerDao, never()).create(any(), any());
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test
@@ -584,8 +584,8 @@ public class TextAnalyzerManagerImplTest {
 			"Error must list the rejected sibling key(s): " + e.getMessage());
 		assertTrue(e.getMessage().contains("default")
 			&& e.getMessage().contains("default_search"));
-		verifyZeroInteractions(textAnalyzerDao);
-		verifyZeroInteractions(synonymSetDao);
+		verifyNoInteractions(textAnalyzerDao);
+		verifyNoInteractions(synonymSetDao);
 	}
 
 	@Test
@@ -596,8 +596,8 @@ public class TextAnalyzerManagerImplTest {
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
 
-		verifyZeroInteractions(textAnalyzerDao);
-		verifyZeroInteractions(openSearchManager);
+		verifyNoInteractions(textAnalyzerDao);
+		verifyNoInteractions(openSearchManager);
 	}
 
 	// --- validateSettings (package-private): direct branch coverage ---
@@ -699,7 +699,7 @@ public class TextAnalyzerManagerImplTest {
 						.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
 				when(textAnalyzerDao.create(any(), eq(2L))).thenReturn(input.setId("1"));
 				manager.create(admin, input);
-				verifyZeroInteractions(aclDao);
+				verifyNoInteractions(aclDao);
 				verify(textAnalyzerDao).create(any(), eq(2L));
 				break;
 			}
@@ -711,7 +711,7 @@ public class TextAnalyzerManagerImplTest {
 				when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
 				when(textAnalyzerDao.update(any(), eq(2L))).thenReturn(input);
 				manager.update(admin, input);
-				verifyZeroInteractions(aclDao);
+				verifyNoInteractions(aclDao);
 				verify(textAnalyzerDao).update(any(), eq(2L));
 				break;
 			}
@@ -720,7 +720,7 @@ public class TextAnalyzerManagerImplTest {
 						.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
 				when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
 				manager.delete(admin, 1L);
-				verifyZeroInteractions(aclDao);
+				verifyNoInteractions(aclDao);
 				verify(textAnalyzerDao).delete(1L);
 				break;
 			}

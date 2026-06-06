@@ -12,7 +12,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -73,8 +73,8 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(columnAnalyzerOverrideDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(columnAnalyzerOverrideDao);
 	}
 
 	@Test
@@ -85,8 +85,8 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		assertThrows(UnauthorizedException.class, () ->
 			manager.update(user, new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(columnAnalyzerOverrideDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(columnAnalyzerOverrideDao);
 	}
 
 	@Test
@@ -97,8 +97,8 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		assertThrows(UnauthorizedException.class, () ->
 			manager.delete(user, "1"));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(columnAnalyzerOverrideDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(columnAnalyzerOverrideDao);
 	}
 
 	@Test
@@ -170,7 +170,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		ColumnAnalyzerOverride result = manager.create(admin, input);
 		assertNotNull(result);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	@Test
@@ -183,7 +183,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		ColumnAnalyzerOverride result = manager.update(admin, request);
 		assertNotNull(result);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	@Test
@@ -195,7 +195,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		manager.delete(admin, "1");
 		verify(columnAnalyzerOverrideDao).delete("1");
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Public read ---
@@ -204,7 +204,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testGetIsPublicNoAuthCheck() {
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride()));
 		manager.get(new UserInfo(false), "1");
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Deletion ---
@@ -389,7 +389,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
 			manager.create(admin, new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("invalid-name")));
 		assertTrue(ex.getMessage().contains("Resource name must start with a letter"));
-		verifyZeroInteractions(columnAnalyzerOverrideDao);
+		verifyNoInteractions(columnAnalyzerOverrideDao);
 	}
 
 	// --- Entry analyzer name validation ---
@@ -446,7 +446,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		// call under test
 		manager.create(admin, request);
 
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 		verify(columnAnalyzerOverrideDao).create(eq(1L), any());
 	}
 
@@ -466,7 +466,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		// call under test
 		manager.create(admin, request);
 
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	@Test
@@ -488,7 +488,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		// call under test
 		manager.create(admin, request);
 
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 		verify(columnAnalyzerOverrideDao).create(eq(1L), any());
 	}
 
@@ -536,7 +536,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		// call under test
 		manager.create(admin, request);
 
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	@Test
@@ -562,7 +562,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 				() -> manager.create(admin, request));
 		assertTrue(ex.getMessage().contains("analyzer settings"),
 				"expected typed-deserializer rejection, got: " + ex.getMessage());
-		verifyZeroInteractions(textAnalyzerDao);
-		verifyZeroInteractions(columnAnalyzerOverrideDao);
+		verifyNoInteractions(textAnalyzerDao);
+		verifyNoInteractions(columnAnalyzerOverrideDao);
 	}
 }

@@ -12,7 +12,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -229,8 +229,8 @@ public class EvaluationManagerTest {
 		}).getMessage();
 
 		assertEquals("Evaluation ID is required.", errorMessage);
-		verifyZeroInteractions(mockEvaluationDAO);
-		verifyZeroInteractions(mockPermissionsManager);
+		verifyNoInteractions(mockEvaluationDAO);
+		verifyNoInteractions(mockPermissionsManager);
 	}
 	
 	@Test
@@ -247,7 +247,7 @@ public class EvaluationManagerTest {
 		
 		assertEquals(expected, ex);
 		verify(mockEvaluationDAO).get(eq(EVALUATION_ID));
-		verifyZeroInteractions(mockPermissionsManager);
+		verifyNoInteractions(mockPermissionsManager);
 	}
 
 
@@ -469,7 +469,7 @@ public class EvaluationManagerTest {
 
 		assertEquals(expectedErrorMessage, errorMsg);
 
-		verifyZeroInteractions(mockEvaluationDAO);
+		verifyNoInteractions(mockEvaluationDAO);
 	}
 
 	@Test
@@ -550,7 +550,7 @@ public class EvaluationManagerTest {
 
 		assertEquals(expectedErrorMessage, errorMsg);
 
-		verifyZeroInteractions(mockEvaluationDAO);
+		verifyNoInteractions(mockEvaluationDAO);
 	}
 
 	@Test
@@ -790,8 +790,8 @@ public class EvaluationManagerTest {
 		}).getMessage();
 
 		assertEquals("UserInfo cannot be null", message);
-		verifyZeroInteractions(mockEvaluationDAO);
-		verifyZeroInteractions(mockPermissionsManager);
+		verifyNoInteractions(mockEvaluationDAO);
+		verifyNoInteractions(mockPermissionsManager);
 	}
 
 	@Test
@@ -850,7 +850,7 @@ public class EvaluationManagerTest {
 		}).getMessage();
 
 		assertEquals("EvaluationRound can not end before it starts", message);
-		verifyZeroInteractions(mockEvaluationDAO);
+		verifyNoInteractions(mockEvaluationDAO);
 	}
 
 	@Test
@@ -1314,7 +1314,7 @@ public class EvaluationManagerTest {
 			evaluationManager.migrateSubmissionQuota(ownerInfo, EVALUATION_ID);
 		});
 
-		verifyZeroInteractions(mockEvaluationDAO);
+		verifyNoInteractions(mockEvaluationDAO);
 	}
 
 	private EvaluationRoundLimit newLimit(EvaluationRoundLimitType type, long maxSubmission){

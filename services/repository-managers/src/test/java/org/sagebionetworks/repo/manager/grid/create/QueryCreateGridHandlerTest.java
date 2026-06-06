@@ -13,7 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -310,7 +310,7 @@ public class QueryCreateGridHandlerTest {
 		long maxRowsPerPage = 1L;
 		// call under test
 		assertEquals(Long.MAX_VALUE, handler.getMaxRowSizeBytes(maxRowsPerPage));
-		verifyZeroInteractions(mockQueryManager);
+		verifyNoInteractions(mockQueryManager);
 	}
 
 	@Test
@@ -318,7 +318,7 @@ public class QueryCreateGridHandlerTest {
 		long maxRowsPerPage = 0L;
 		// call under test
 		assertEquals(Long.MAX_VALUE, handler.getMaxRowSizeBytes(maxRowsPerPage));
-		verifyZeroInteractions(mockQueryManager);
+		verifyNoInteractions(mockQueryManager);
 	}
 
 	@Test

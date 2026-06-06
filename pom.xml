@@ -380,6 +380,13 @@
 				<scope>test</scope>
 			</dependency>
 			<dependency>
+				<groupId>org.mockito</groupId>
+				<artifactId>mockito-inline</artifactId>
+				<version>${mockito.version}</version>
+				<scope>test</scope>
+			</dependency>
+			
+			<dependency>
 				<groupId>joda-time</groupId>
 				<artifactId>joda-time</artifactId>
 				<version>2.7</version>
@@ -944,7 +951,7 @@
 					<version>3.0.0-M3</version>
 					<configuration>
 						<runOrder>alphabetical</runOrder>
-						<argLine>--add-opens java.base/java.util=ALL-UNNAMED</argLine>
+						<argLine>--add-opens java.base/java.util=ALL-UNNAMED -Xshare:off -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar @{argLine}</argLine>
 					</configuration>
 				</plugin>
 				<!-- Make a WAR file -->
@@ -1005,6 +1012,14 @@
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-dependency-plugin</artifactId>
 					<version>2.7</version>
+					<executions>
+						<execution>
+							<phase>generate-test-resources</phase>
+							<goals>
+								<goal>properties</goal>
+							</goals>
+						</execution>
+					</executions>
 				</plugin>
 				<plugin>
 					<groupId>org.sagebionetworks</groupId>
@@ -1106,7 +1121,7 @@
 		<junit.jupiter.version>5.10.2</junit.jupiter.version>
 		<junit.vintage.version>5.10.2</junit.vintage.version>
 		<junit.platform.version>1.10.2</junit.platform.version>
-		<mockito.version>2.27.0</mockito.version>
+		<mockito.version>5.23.0</mockito.version>
 		<com.google.cloud.version>1.77.0</com.google.cloud.version>
 		<jsoup.version>1.14.2</jsoup.version>
 		<bouncycastle.version>1.82</bouncycastle.version>

@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -247,7 +247,7 @@ public class AdministrationServiceImplTest {
 			adminService.expireQuarantinedEmail(nonAdminUserId, new ExpireQuarantinedEmailRequest().setEmail("email@sagebase.org"));
 		});
 		
-		verifyZeroInteractions(mockEmailQuarantineDao);
+		verifyNoInteractions(mockEmailQuarantineDao);
 	}
 	
 	@Test
@@ -260,7 +260,7 @@ public class AdministrationServiceImplTest {
 		
 		assertEquals("The request is required.", result);
 		
-		verifyZeroInteractions(mockEmailQuarantineDao);
+		verifyNoInteractions(mockEmailQuarantineDao);
 	}
 	
 	@Test
@@ -273,7 +273,7 @@ public class AdministrationServiceImplTest {
 		
 		assertEquals("The request.email is required and must not be the empty string.", result);
 		
-		verifyZeroInteractions(mockEmailQuarantineDao);
+		verifyNoInteractions(mockEmailQuarantineDao);
 	}
 	
 	@Test

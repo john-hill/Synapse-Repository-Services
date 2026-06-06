@@ -6,7 +6,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.ACCESS_TYPE.CHANGE_SETTINGS;
 import static org.sagebionetworks.repo.model.ACCESS_TYPE.REVIEW_SUBMISSIONS;
@@ -113,7 +113,7 @@ public class DataAccessSubmissionNotificationManagerImplTest {
 		// call under test
 		managerSpy.sendNotificationToReviewers(dataAccessSubmissionId);
 		
-		verifyZeroInteractions(mockAclDao);
+		verifyNoInteractions(mockAclDao);
 		verify(mockSubmissionDao).getSubmission(dataAccessSubmissionId);
 		verify(managerSpy, never()).sendNotificationMessageToReviewer(any(), any(), any());
 	}

@@ -1,7 +1,7 @@
 package org.sagebionetworks.asynchronous.workers.sqs;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyListOf;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -122,11 +122,11 @@ public class ChangeMessageBatchProcessorTest {
 				queueName, mockBatchRunner);
 		// setup RecoverableMessageException failures
 		doThrow(new Exception()).when(mockBatchRunner).run(
-				any(ProgressCallback.class), anyListOf(ChangeMessage.class));
+				any(ProgressCallback.class), anyList());
 		// call under test
 		processor.run(mockProgressCallback, awsMessage);
 		verify(mockBatchRunner).run(any(ProgressCallback.class),
-				anyListOf(ChangeMessage.class));
+				anyList());
 		verify(mockAwsSQSClient).sendMessage(queueUrl,
 				EntityFactory.createJSONStringForEntity(one));
 		verify(mockAwsSQSClient).sendMessage(queueUrl,

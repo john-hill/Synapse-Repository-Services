@@ -38,7 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -339,7 +339,7 @@ public class TeamServiceTest {
 		verify(mockUserManager).getUserInfo(userId);
 		verify(mockUserManager).getUserInfo(principalId);
 				
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 		
 		assertEquals("User auser is already in team foo bar.", message.getMessage());
 

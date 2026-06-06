@@ -36,7 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -143,7 +143,7 @@ public class BasicAuthenticationFilterTest {
 		
 		verifyRejectRequest("{\"concreteType\":\"org.sagebionetworks.repo.model.ErrorResponse\",\"reason\":\"Some message\"}");
 		
-		verifyZeroInteractions(mockConsumer);
+		verifyNoInteractions(mockConsumer);
 	}
 	
 	@Test

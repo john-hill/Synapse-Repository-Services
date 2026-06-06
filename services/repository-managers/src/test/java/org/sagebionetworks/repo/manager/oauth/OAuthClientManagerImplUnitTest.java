@@ -15,7 +15,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -472,7 +472,7 @@ public class OAuthClientManagerImplUnitTest {
 			oauthClientManagerImpl.createOpenIDConnectClient(anonymousUserInfo, oauthClient);
 		});
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -758,7 +758,7 @@ public class OAuthClientManagerImplUnitTest {
 		assertNotEquals(toUpdate.getEtag(), updated.getEtag());
 		assertEquals(toUpdate.getSector_identifier(), updated.getSector_identifier());
 		assertTrue(updated.getVerified());
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -779,7 +779,7 @@ public class OAuthClientManagerImplUnitTest {
 			oauthClientManagerImpl.updateOpenIDConnectClient(anonymousUserInfo, toUpdate);
 		});
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -800,7 +800,7 @@ public class OAuthClientManagerImplUnitTest {
 			oauthClientManagerImpl.updateOpenIDConnectClient(userInfo, toUpdate);
 		});
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -836,7 +836,7 @@ public class OAuthClientManagerImplUnitTest {
 		});
 		
 		verify(mockOauthClientDao, never()).deleteOAuthClient(OAUTH_CLIENT_ID);
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -873,7 +873,7 @@ public class OAuthClientManagerImplUnitTest {
 		});
 
 		verify(mockOauthClientDao, never()).setOAuthClientSecretHash(eq(OAUTH_CLIENT_ID), anyString(), anyString());
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	private static final String CLIENT_SECRET = "some secret";
@@ -960,7 +960,7 @@ public class OAuthClientManagerImplUnitTest {
 		
 		assertEquals("User info is required.", ex.getMessage());
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -982,7 +982,7 @@ public class OAuthClientManagerImplUnitTest {
 		
 		assertEquals("Client ID is required and must not be a blank string.", ex.getMessage());
 		
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 	}
 	
 	@Test
@@ -999,8 +999,8 @@ public class OAuthClientManagerImplUnitTest {
 		});
 		
 		verify(mockAuthManager).isACTTeamMemberOrAdmin(userInfo);
-		verifyZeroInteractions(mockOauthClientDao);
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockOauthClientDao);
+		verifyNoInteractions(mockNotificationManager);
 		
 	}
 	
@@ -1015,8 +1015,8 @@ public class OAuthClientManagerImplUnitTest {
 			oauthClientManagerImpl.updateOpenIDConnectClientVerifiedStatus(userInfo, clientId, etag, verifiedStatus);
 		});
 		
-		verifyZeroInteractions(mockOauthClientDao);
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockOauthClientDao);
+		verifyNoInteractions(mockNotificationManager);
 		
 	}	
 
@@ -1039,7 +1039,7 @@ public class OAuthClientManagerImplUnitTest {
 		verify(mockAuthManager).isACTTeamMemberOrAdmin(userInfo);
 		verify(mockOauthClientDao).selectOAuthClientForUpdate(clientId);
 		verify(mockOauthClientDao, times(0)).updateOAuthClient(any());
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 		
 	}
 	
@@ -1062,7 +1062,7 @@ public class OAuthClientManagerImplUnitTest {
 		verify(mockAuthManager).isACTTeamMemberOrAdmin(userInfo);
 		verify(mockOauthClientDao).selectOAuthClientForUpdate(clientId);
 		verify(mockOauthClientDao, times(0)).updateOAuthClient(any());
-		verifyZeroInteractions(mockNotificationManager);
+		verifyNoInteractions(mockNotificationManager);
 		
 	}
 	

@@ -9,7 +9,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -165,7 +165,7 @@ public class AccessControlListManagerTest {
 			aclManager.create(userInfo, acl, ObjectType.ENTITY , userInfo.getId());
 		}).getMessage();
 		assertEquals("All principals in the ACL must be from the same realm.", message);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	@Test
@@ -179,7 +179,7 @@ public class AccessControlListManagerTest {
 		}).getMessage();
 
 		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", message);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 
 		//admin is also not allowed to change other realm acl
 		adminUser.setRealmId("1");

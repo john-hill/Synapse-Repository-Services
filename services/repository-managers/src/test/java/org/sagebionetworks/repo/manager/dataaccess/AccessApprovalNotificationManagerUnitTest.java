@@ -15,7 +15,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -275,7 +275,7 @@ public class AccessApprovalNotificationManagerUnitTest {
 	
 		assertEquals(expected, result);
 		verify(mockFeatureManager).isUserInTestingGroup(recipient);
-		verifyZeroInteractions(mockProdDetector);
+		verifyNoInteractions(mockProdDetector);
 	}
 	
 	@Test
@@ -896,7 +896,7 @@ public class AccessApprovalNotificationManagerUnitTest {
 		boolean result = manager.isSendReminder(notificationType, approval, existingNotification);
 		
 		assertEquals(expected, result);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 	}
 	
 	@Test
@@ -1045,7 +1045,7 @@ public class AccessApprovalNotificationManagerUnitTest {
 		boolean result = manager.isSendReminder(notificationType, approval, existingNotification);
 		
 		assertEquals(expected, result);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 	}
 	
 	@Test
@@ -1069,7 +1069,7 @@ public class AccessApprovalNotificationManagerUnitTest {
 		boolean result = manager.isSendReminder(notificationType, approval, existingNotification);
 		
 		assertEquals(expected, result);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 	}
 		
 	@Test
@@ -1155,7 +1155,7 @@ public class AccessApprovalNotificationManagerUnitTest {
 		managerSpy.processAccessApproval(notificationType, approvalId);
 		
 		verify(mockFeatureManager).isFeatureEnabled(Feature.DATA_ACCESS_NOTIFICATIONS);
-		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyNoInteractions(mockAccessApprovalDao);
 		verify(managerSpy, never()).sendMessageIfNeeded(any(), any());
 	}
 	
@@ -1217,7 +1217,7 @@ public class AccessApprovalNotificationManagerUnitTest {
 		assertFalse(result.isPresent());
 		
 		verify(mockAccessRequirementDao).get(requirementId.toString());
-		verifyZeroInteractions(accessRequirement);
+		verifyNoInteractions(accessRequirement);
 	}
 	
 	@Test

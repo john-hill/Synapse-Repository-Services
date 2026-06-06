@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -87,7 +87,7 @@ public class StatisticsManagerTest {
 			manager.getStatistics(mockUserInfo, mockRequest);
 		});
 
-		verifyZeroInteractions(mockProvider);
+		verifyNoInteractions(mockProvider);
 	}
 	
 	@Test
@@ -105,7 +105,7 @@ public class StatisticsManagerTest {
 
 		assertEquals(mockResponse, response);
 		verify(mockUserInfo).isAdmin();
-		verifyZeroInteractions(mockAuthManager);
+		verifyNoInteractions(mockAuthManager);
 		verify(mockProvider).getObjectStatistics(mockRequest);
 	}
 	

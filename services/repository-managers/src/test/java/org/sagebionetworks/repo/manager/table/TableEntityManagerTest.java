@@ -119,7 +119,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyListOf;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -130,7 +130,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -693,7 +693,7 @@ public class TableEntityManagerTest {
 		assertNotNull(deleteRows);
 
 		// verify the correct row set was generated
-		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyListOf(ColumnModel.class), any(SparseChangeSetDto.class), eq(transactionId), eq(false));
+		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyList(), any(SparseChangeSetDto.class), eq(transactionId), eq(false));
 		verify(mockTableManagerSupport).validateTableWriteAccess(user, idAndVersion);
 	}
 	
@@ -815,7 +815,7 @@ public class TableEntityManagerTest {
 		// call under test
 		manager.appendRows(user, tableId, replace, mockTransactionContext);
 
-		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyListOf(ColumnModel.class), any(SparseChangeSetDto.class), anyLong(), eq(true));
+		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyList(), any(SparseChangeSetDto.class), anyLong(), eq(true));
 
 		verify(mockFileDao).getFileHandleIdsCreatedByUser(anyLong(), any(List.class));
 		verify(mockTableManagerSupport).validateTableWriteAccess(user, idAndVersion);
@@ -864,10 +864,10 @@ public class TableEntityManagerTest {
 		manager.appendRows(user, tableId, replace, mockTransactionContext);
 		
 
-		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyListOf(ColumnModel.class), any(SparseChangeSetDto.class), anyLong(), eq(false));
+		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyList(), any(SparseChangeSetDto.class), anyLong(), eq(false));
 
 		verify(mockTableManagerSupport).validateTableWriteAccess(user, idAndVersion);
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 	}
 
 	@Test
@@ -897,7 +897,7 @@ public class TableEntityManagerTest {
 
 		manager.appendRows(user, tableId, replace, mockTransactionContext);
 
-		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyListOf(ColumnModel.class), any(SparseChangeSetDto.class), anyLong(), eq(true));
+		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), eq(range.getEtag()), eq(range.getVersionNumber()), anyList(), any(SparseChangeSetDto.class), anyLong(), eq(true));
 		verify(mockFileDao).getFileHandleIdsCreatedByUser(anyLong(), any(List.class));
 		verify(mockTableManagerSupport).validateTableWriteAccess(user, idAndVersion);
 	}
@@ -1374,7 +1374,7 @@ public class TableEntityManagerTest {
 		manager.validateSchemaUpdateRequest(mockProgressCallbackVoid, user, request, null);
 		verify(mockColumModelManager).calculateNewSchemaIdsAndValidate(tableId, changes, newColumnIds);
 		// temp table should not be used.
-		verify(mockIndexManager, never()).alterTempTableSchema(any(IdAndVersion.class), anyListOf(ColumnChangeDetails.class));
+		verify(mockIndexManager, never()).alterTempTableSchema(any(IdAndVersion.class), anyList());
 	}
 		
 	@Test
@@ -1980,8 +1980,8 @@ public class TableEntityManagerTest {
 		
 		assertFalse(result);
 		
-		verifyZeroInteractions(mockTruthDao);
-		verifyZeroInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTruthDao);
+		verifyNoInteractions(mockTableManagerSupport);
 	}
 	
 	@Test
@@ -2061,7 +2061,7 @@ public class TableEntityManagerTest {
 		assertEquals(expectedResult, result);
 		
 		verify(managerSpy).updateSearchStatus(user, tableId, searchChangeRequest.getSearchEnabled(), mockTransactionContext);
-		verifyZeroInteractions(mockNodeManager);
+		verifyNoInteractions(mockNodeManager);
 		
 	}
 	
@@ -2089,7 +2089,7 @@ public class TableEntityManagerTest {
 		verify(managerSpy).updateSearchStatus(user, tableId, searchChangeRequest.getSearchEnabled(), mockTransactionContext);
 		verify(mockNodeManager).getNode(user, tableId);
 		verify(mockNodeManager).update(user, expectedTableNode, null, false);
-		verifyZeroInteractions(mockNodeManager);
+		verifyNoInteractions(mockNodeManager);
 		
 	}
 		
@@ -2298,8 +2298,8 @@ public class TableEntityManagerTest {
 		
 		assertEquals("tableId is required.", result.getMessage());
 		
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableSnapshotDao);
+		verifyNoInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableSnapshotDao);
 	}
 	
 	@Test
@@ -2313,8 +2313,8 @@ public class TableEntityManagerTest {
 		
 		assertEquals("The tableId.version is required.", result.getMessage());
 		
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableSnapshotDao);
+		verifyNoInteractions(mockTableManagerSupport);
+		verifyNoInteractions(mockTableSnapshotDao);
 	}
 	
 	@Test
@@ -2336,7 +2336,7 @@ public class TableEntityManagerTest {
 		verify(mockTableManagerSupport).getTableType(idAndVersion);
 		
 		verifyNoMoreInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableSnapshotDao);
+		verifyNoInteractions(mockTableSnapshotDao);
 	}
 	
 	@Test

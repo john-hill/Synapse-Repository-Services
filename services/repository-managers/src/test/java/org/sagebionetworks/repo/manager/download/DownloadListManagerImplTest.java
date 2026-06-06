@@ -19,7 +19,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils.createColumn;
 
@@ -1119,7 +1119,7 @@ public class DownloadListManagerImplTest {
 		
 		assertEquals("The recursive option is not supported for a dataset.", errorMessage);
 		
-		verifyZeroInteractions(mockNodeDao, mockDownloadListDao);
+		verifyNoInteractions(mockNodeDao, mockDownloadListDao);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
 	}
 	
@@ -1177,7 +1177,7 @@ public class DownloadListManagerImplTest {
 		
 		assertEquals("Invalid parentId.", errorMessage);
 		
-		verifyZeroInteractions(mockDownloadListDao, mockEntityAuthorizationManager);
+		verifyNoInteractions(mockDownloadListDao, mockEntityAuthorizationManager);
 	}
 
 	@Test

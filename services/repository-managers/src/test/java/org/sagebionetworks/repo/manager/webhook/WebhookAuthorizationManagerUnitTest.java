@@ -8,7 +8,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Set;
@@ -125,7 +125,7 @@ public class WebhookAuthorizationManagerUnitTest {
 		// Call under test
 		assertEquals(AuthorizationStatus.authorized(), manager.getReadAuthorizationStatus(userInfo, SynapseObjectType.ENTITY, "123"));
 		
-		verifyZeroInteractions(mockAuthorizationManager);
+		verifyNoInteractions(mockAuthorizationManager);
 	}
 	
 	@Test

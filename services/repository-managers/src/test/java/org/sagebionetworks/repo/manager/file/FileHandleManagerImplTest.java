@@ -21,7 +21,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.file.FileHandleManagerImpl.MAX_REQUESTS_PER_CALL;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
@@ -445,7 +445,7 @@ public class FileHandleManagerImplTest {
 		assertSame(validResults, handle);
 
 		// This method does not call auth manager.
-		verifyZeroInteractions(mockAuthorizationManager);
+		verifyNoInteractions(mockAuthorizationManager);
 	}
 
 	@Test
@@ -526,7 +526,7 @@ public class FileHandleManagerImplTest {
 		verify(mockAuthorizationManager).canAccessRawFileHandleByCreator(mockUser, fileHandleId, validResults.getCreatedBy());
 		verify(mockFileHandleDao).delete(fileHandleId);
 		
-		verifyZeroInteractions(mockS3Client);
+		verifyNoInteractions(mockS3Client);
 		
 	}
 	
@@ -552,7 +552,7 @@ public class FileHandleManagerImplTest {
 		verify(mockAuthorizationManager).canAccessRawFileHandleByCreator(mockUser, fileHandleId, googleCloudFileHandle.getCreatedBy());
 		verify(mockFileHandleDao).delete(fileHandleId);
 		
-		verifyZeroInteractions(mockGoogleCloudStorageClient);
+		verifyNoInteractions(mockGoogleCloudStorageClient);
 		
 	}
 	
@@ -1087,7 +1087,7 @@ public class FileHandleManagerImplTest {
 		assertNotNull(result);
 		assertEquals(mockUser.getId().toString(), result.getCreatedBy());
 
-		verifyZeroInteractions(mockProjectSettingsManager, mockStorageLocationDao);
+		verifyNoInteractions(mockProjectSettingsManager, mockStorageLocationDao);
 	}
 	
 	@Test
@@ -1197,7 +1197,7 @@ public class FileHandleManagerImplTest {
 		
 		verify(mockAuthorizationManager, never()).canDownLoadFile(any(UserInfo.class), any(List.class));
 		// Verifies that download stats are not sent
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 		assertEquals(expectedURL, redirectURL);
 	}
 	
@@ -2351,7 +2351,7 @@ public class FileHandleManagerImplTest {
 		assertNotNull(result.getPreviewPreSignedURL());
 		verify(mockFileHandleDao, times(2)).getAllFileHandlesBatch(any(Iterable.class));
 		// Verifies that download stats are never sent
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 	}
 
 	@Test
@@ -2389,7 +2389,7 @@ public class FileHandleManagerImplTest {
 		assertNull(result.getPreviewPreSignedURL());
 		verify(mockFileHandleDao).getAllFileHandlesBatch(any(Iterable.class));
 		// Verifies that download stats are never sent
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 	}
 
 	@Test
@@ -2423,7 +2423,7 @@ public class FileHandleManagerImplTest {
 		assertNotNull(result.getFileHandle());
 		assertNull(result.getPreSignedURL());
 		// Verifies that download stats are never sent);
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 	}
 
 	@Test
@@ -2457,7 +2457,7 @@ public class FileHandleManagerImplTest {
 		assertNotNull(result.getFileHandle());
 		assertNull(result.getPreSignedURL());
 		// Verifies that download stats are never sent
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 	}
 	
 	@Test
@@ -2530,7 +2530,7 @@ public class FileHandleManagerImplTest {
 		// no urls should be generated.
 		verify(mockS3Client, never()).generatePresignedUrl(any(GeneratePresignedUrlRequest.class));
 		// Verifies that download stats are never sent
-		verifyZeroInteractions(messenger);
+		verifyNoInteractions(messenger);
 	}
 
 
@@ -3148,7 +3148,7 @@ public class FileHandleManagerImplTest {
 		
 		assertEquals(expectedUrl, url);
 		
-		verifyZeroInteractions(mockCloudWatchClient);
+		verifyNoInteractions(mockCloudWatchClient);
 		
 	}
 	

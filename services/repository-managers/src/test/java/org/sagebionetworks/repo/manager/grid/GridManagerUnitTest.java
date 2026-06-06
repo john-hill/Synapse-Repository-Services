@@ -14,7 +14,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -463,7 +463,7 @@ public class GridManagerUnitTest {
 
 		}).getMessage();
 		assertEquals("user is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -477,7 +477,7 @@ public class GridManagerUnitTest {
 
 		}).getMessage();
 		assertEquals("request is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -496,7 +496,7 @@ public class GridManagerUnitTest {
 			gridManager.validGridSessionAccess(mockUser, gridSessionId);
 		}).getMessage();
 		assertEquals("user is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -508,7 +508,7 @@ public class GridManagerUnitTest {
 			gridManager.validGridSessionAccess(mockUser, gridSessionId);
 		}).getMessage();
 		assertEquals("gridSessionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -688,7 +688,7 @@ public class GridManagerUnitTest {
 			gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 		}).getMessage();
 		assertEquals("Grid replica not found.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -699,7 +699,7 @@ public class GridManagerUnitTest {
 			gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 		}).getMessage();
 		assertEquals("user is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -710,7 +710,7 @@ public class GridManagerUnitTest {
 			gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 		}).getMessage();
 		assertEquals("gridSessionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -721,7 +721,7 @@ public class GridManagerUnitTest {
 			gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 		}).getMessage();
 		assertEquals("replicaId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -787,7 +787,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("Invalid request", message);
 
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -800,7 +800,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("user is required.", message);
 
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -813,7 +813,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("context is required.", message);
 
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -824,7 +824,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("connection is required.", message);
 
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -841,7 +841,7 @@ public class GridManagerUnitTest {
 			gridManager.removeReplicatConnection(EventType.MESSAGE, connectionId);
 		}).getMessage();
 		assertEquals("Invalid request", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -851,7 +851,7 @@ public class GridManagerUnitTest {
 			gridManager.removeReplicatConnection(null, connectionId);
 		}).getMessage();
 		assertEquals("type is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -862,7 +862,7 @@ public class GridManagerUnitTest {
 			gridManager.removeReplicatConnection(EventType.DISCONNECT, connectionId);
 		}).getMessage();
 		assertEquals("connectionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -880,7 +880,7 @@ public class GridManagerUnitTest {
 			gridManager.removeReplicaConnection(connectionId);
 		}).getMessage();
 		assertEquals("connectionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -914,7 +914,7 @@ public class GridManagerUnitTest {
 			gridManager.listActiveConnections(connectionId);
 		}).getMessage();
 		assertEquals("connectionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -999,8 +999,8 @@ public class GridManagerUnitTest {
 			gridManager.savePatch(eventContext, patchId, patchBody.toString());
 		}).getMessage();
 		assertEquals("Patch replicaId does not match the connection replicaId.", message);
-		verifyZeroInteractions(mockS3Client);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1045,7 +1045,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("The requested patch has expired: LogicalTimestamp [replicaId=88, sequenceNumber=777]", message);
 
-		verifyZeroInteractions(mockS3Client);
+		verifyNoInteractions(mockS3Client);
 	}
 
 	@Test
@@ -1058,7 +1058,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("sessionId is required.", message);
 
-		verifyZeroInteractions(mockS3Client);
+		verifyNoInteractions(mockS3Client);
 	}
 
 	@Test
@@ -1071,7 +1071,7 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("patch is required.", message);
 
-		verifyZeroInteractions(mockS3Client);
+		verifyNoInteractions(mockS3Client);
 	}
 
 	@Test
@@ -1142,7 +1142,7 @@ public class GridManagerUnitTest {
 			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
 		}).getMessage();
 		assertEquals("Must login to perform this action", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1153,7 +1153,7 @@ public class GridManagerUnitTest {
 			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
 		}).getMessage();
 		assertEquals("user is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1164,7 +1164,7 @@ public class GridManagerUnitTest {
 			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
 		}).getMessage();
 		assertEquals("request is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1284,7 +1284,7 @@ public class GridManagerUnitTest {
 			gridManager.saveSnapshot(null, clockTable, createdBy, mockSnapshotFile);
 		}).getMessage();
 		assertEquals("sessionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1296,7 +1296,7 @@ public class GridManagerUnitTest {
 			gridManager.saveSnapshot(gridSessionId, null, createdBy, mockSnapshotFile);
 		}).getMessage();
 		assertEquals("clockTable is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1308,7 +1308,7 @@ public class GridManagerUnitTest {
 			gridManager.saveSnapshot(gridSessionId, clockTable, null, mockSnapshotFile);
 		}).getMessage();
 		assertEquals("createdBy is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1321,7 +1321,7 @@ public class GridManagerUnitTest {
 			gridManager.saveSnapshot(gridSessionId, clockTable, createdBy, null);
 		}).getMessage();
 		assertEquals("snapshotFile is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 
@@ -1336,7 +1336,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.saveSnapshot(gridSessionId, clockTable, createdBy, mockSnapshotFile);
 		});
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1368,7 +1368,7 @@ public class GridManagerUnitTest {
 		Optional<URL> result = gridManager.getLatestSnapshotPresignedUrl(eventContext);
 
 		assertTrue(result.isEmpty());
-		verifyZeroInteractions(mockSynapseS3Client);
+		verifyNoInteractions(mockSynapseS3Client);
 	}
 
 	@Test
@@ -1380,7 +1380,7 @@ public class GridManagerUnitTest {
 			gridManager.getLatestSnapshotPresignedUrl(eventContext);
 		}).getMessage();
 		assertEquals("context is required.", message);
-		verifyZeroInteractions(mockGridDao, mockSynapseS3Client);
+		verifyNoInteractions(mockGridDao, mockSynapseS3Client);
 	}
 
 	@Test
@@ -1451,7 +1451,7 @@ public class GridManagerUnitTest {
 		assertEquals(1, json.getJSONArray("body").length());
 		assertEquals(patchBody.toString(), json.getJSONArray("body").getJSONArray(0).toString());
 
-		verifyZeroInteractions(mockSynapseS3Client);
+		verifyNoInteractions(mockSynapseS3Client);
 	}
 
 	@Test
@@ -1469,7 +1469,7 @@ public class GridManagerUnitTest {
 		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, Collections.emptyList());
 
 		assertTrue(result.isEmpty());
-		verifyZeroInteractions(mockSynapseS3Client);
+		verifyNoInteractions(mockSynapseS3Client);
 	}
 
 	@Test
@@ -1715,7 +1715,7 @@ public class GridManagerUnitTest {
 			gridManager.listReplicas(mockUser, request);
 		}).getMessage();
 		assertEquals("user is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1725,7 +1725,7 @@ public class GridManagerUnitTest {
 			gridManager.listReplicas(mockUser, null);
 		}).getMessage();
 		assertEquals("request is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	@Test
@@ -1737,7 +1737,7 @@ public class GridManagerUnitTest {
 			gridManager.listReplicas(mockUser, request);
 		}).getMessage();
 		assertEquals("request.gridSessionId is required.", message);
-		verifyZeroInteractions(mockGridDao);
+		verifyNoInteractions(mockGridDao);
 	}
 
 	private GridQueryJobRequest buildQueryRequest(Long replicaId) {
@@ -1777,7 +1777,7 @@ public class GridManagerUnitTest {
 			gridManager.queryGrid(null, buildQueryRequest(replicaId));
 		}).getMessage();
 		assertEquals("user is required.", message);
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -1787,7 +1787,7 @@ public class GridManagerUnitTest {
 			gridManager.queryGrid(mockUser, null);
 		}).getMessage();
 		assertEquals("request is required.", message);
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -1798,7 +1798,7 @@ public class GridManagerUnitTest {
 			gridManager.queryGrid(mockUser, request);
 		}).getMessage();
 		assertEquals("request.sessionId is required.", message);
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -1809,7 +1809,7 @@ public class GridManagerUnitTest {
 			gridManager.queryGrid(mockUser, request);
 		}).getMessage();
 		assertEquals("request.replicaId is required.", message);
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -1820,7 +1820,7 @@ public class GridManagerUnitTest {
 			gridManager.queryGrid(mockUser, request);
 		}).getMessage();
 		assertEquals("request.queryRequest is required.", message);
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -1832,7 +1832,7 @@ public class GridManagerUnitTest {
 			gridManager.queryGrid(mockUser, request);
 		}).getMessage();
 		assertEquals("request.queryRequest.query is required.", message);
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -1864,7 +1864,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
 		});
-		verifyZeroInteractions(mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridReplicaViewManager);
 		verify(mockGridDao, never()).getSingletonConnection(any(), any());
 	}
 
@@ -1878,7 +1878,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
 		});
-		verifyZeroInteractions(mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -2122,7 +2122,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(null, buildUpdateRequest(replicaId));
 		});
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -2132,7 +2132,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(mockUser, request);
 		});
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -2142,7 +2142,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(mockUser, request);
 		});
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -2151,7 +2151,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(mockUser, null);
 		});
-		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridDao, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -2162,7 +2162,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(mockUser, buildUpdateRequest(replicaId));
 		});
-		verifyZeroInteractions(mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridReplicaViewManager);
 		verify(mockGridDao, never()).getSingletonConnection(any(), any());
 	}
 
@@ -2175,7 +2175,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.updateGrid(mockUser, buildUpdateRequest(replicaId));
 		});
-		verifyZeroInteractions(mockGridReplicaViewManager);
+		verifyNoInteractions(mockGridReplicaViewManager);
 	}
 
 	@Test

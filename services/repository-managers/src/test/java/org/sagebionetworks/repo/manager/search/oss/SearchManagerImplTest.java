@@ -64,7 +64,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -145,7 +145,7 @@ public class SearchManagerImplTest {
         assertEquals(1, request.operations().size());
         assertEquals(DeleteOperation.class, request.operations().get(0).delete().getClass());
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, request.operations().get(0).delete().index());
-        verifyZeroInteractions(mockLog);
+        verifyNoInteractions(mockLog);
     }
 
     @Test
@@ -154,7 +154,7 @@ public class SearchManagerImplTest {
 
         //call under test
         mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
-        verifyZeroInteractions(mockSearchClient);
+        verifyNoInteractions(mockSearchClient);
     }
 
     @Test

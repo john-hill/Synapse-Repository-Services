@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_BENEFACTOR;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ETAG;
@@ -660,7 +660,7 @@ public class SQLTranslatorUtilsTest {
 		assertEquals("anInt", results.getName());
 		assertEquals(ColumnType.INTEGER, results.getColumnType());
 		assertEquals(null, results.getId());
-		verifyZeroInteractions(mapper);
+		verifyNoInteractions(mapper);
 	}
 	
 	@Test
@@ -672,7 +672,7 @@ public class SQLTranslatorUtilsTest {
 		assertEquals("CAST(foo AS INTEGER)", results.getName());
 		assertEquals(ColumnType.INTEGER, results.getColumnType());
 		assertEquals(null, results.getId());
-		verifyZeroInteractions(mapper);
+		verifyNoInteractions(mapper);
 	}
 	
 	@Test

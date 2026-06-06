@@ -9,7 +9,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrapImpl.OBJECTS_TO_BOOTSTRAP;
 
@@ -250,7 +250,7 @@ public class SynapseSchemaBootstrapImplTest {
 		bootstrapSpy.registerSchemaIfDoesNotExist(admin, jsonSchema);
 		verify(bootstrapSpy).getNextPatchNumberIfNeeded(organizationName, schemaName, jsonSchema);
 		// empty optional signals there is no work to do.
-		verifyZeroInteractions(mockJsonSchemaManager);
+		verifyNoInteractions(mockJsonSchemaManager);
 	}
 	
 	@Test
@@ -274,7 +274,7 @@ public class SynapseSchemaBootstrapImplTest {
 		// call under test
 		bootstrap.createOrganizationIfDoesNotExist(admin);
 		verify(mockJsonSchemaManager).getOrganizationByName(admin, organizationName);
-		verifyZeroInteractions(mockJsonSchemaManager);
+		verifyNoInteractions(mockJsonSchemaManager);
 	}
 	
 	@Test

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Date;
@@ -91,7 +91,7 @@ public class PortalManagerUnitTest {
 			manager.createPortal(user, request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -104,7 +104,7 @@ public class PortalManagerUnitTest {
 			manager.createPortal(user, request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -117,7 +117,7 @@ public class PortalManagerUnitTest {
 			manager.createPortal(user, request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -130,7 +130,7 @@ public class PortalManagerUnitTest {
 			manager.createPortal(user, request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -150,7 +150,7 @@ public class PortalManagerUnitTest {
 			manager.createPortal(user, request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -162,7 +162,7 @@ public class PortalManagerUnitTest {
 		// Call under test
 		assertEquals(portal, manager.updatePortal(user, portal.getId(), request));
 
-		verifyZeroInteractions(mockAclManager);
+		verifyNoInteractions(mockAclManager);
 	}
 
 	@Test
@@ -219,7 +219,7 @@ public class PortalManagerUnitTest {
 			manager.updatePortal(user, "123", request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -230,7 +230,7 @@ public class PortalManagerUnitTest {
 			manager.updatePortal(user, null, request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -243,7 +243,7 @@ public class PortalManagerUnitTest {
 			manager.updatePortal(user, "123", request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -256,7 +256,7 @@ public class PortalManagerUnitTest {
 			manager.updatePortal(user, "123", request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test
@@ -276,7 +276,7 @@ public class PortalManagerUnitTest {
 			manager.updatePortal(user, "123", request);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAclManager, mockPortalDao);
+		verifyNoInteractions(mockAclManager, mockPortalDao);
 	}
 
 	@Test

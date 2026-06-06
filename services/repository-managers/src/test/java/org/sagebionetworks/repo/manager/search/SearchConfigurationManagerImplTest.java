@@ -11,7 +11,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -83,8 +83,8 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new SearchConfiguration().setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -96,8 +96,8 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.update(user, new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -109,9 +109,9 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(anon, new SearchConfiguration().setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(searchConfigurationDao);
-		verifyZeroInteractions(organizationDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
+		verifyNoInteractions(organizationDao);
 	}
 
 	// --- ACL authorization (user is Sage employee) ---
@@ -128,7 +128,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new SearchConfiguration().setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -157,7 +157,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		SearchConfiguration result = manager.create(admin, input);
 		assertNotNull(result);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Public read ---
@@ -168,7 +168,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		manager.get(new UserInfo(false), "1");
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	// --- Not found ---
@@ -366,8 +366,8 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		String message = assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(anon, request)).getMessage();
 		assertEquals("Must login to perform this action", message);
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -382,7 +382,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		String message = assertThrows(IllegalArgumentException.class, () -> manager.bindSearchConfigToEntity(user, request)).getMessage();
 		assertEquals("entityId is required and must not be the empty string.", message);
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -397,7 +397,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		String message = assertThrows(IllegalArgumentException.class, () -> manager.bindSearchConfigToEntity(user, request)).getMessage();
 		assertEquals("searchConfigurationId is required and must not be the empty string.", message);
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -443,8 +443,8 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		String message = assertThrows(UnauthorizedException.class, () -> manager.clearSearchConfigBinding(anon, "syn123")).getMessage();
 		assertEquals("Must login to perform this action", message);
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	// --- Hierarchy walk for getSearchConfigBinding ---
@@ -483,7 +483,7 @@ public class SearchConfigurationManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
 			manager.create(admin, new SearchConfiguration().setOrganizationName("test-org").setName("9invalid")));
 		assertEquals(SearchResourceConstants.RESOURCE_NAME_PATTERN_MSG, ex.getMessage());
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	// --- Reference name validation ---
@@ -499,7 +499,7 @@ public class SearchConfigurationManagerImplTest {
 				.setOrganizationName("test-org").setName("MyConfig")
 				.setDefaultAnalyzer(Map.of("$ref", "noHyphenHere"))));
 		assertTrue(ex.getMessage().contains("Invalid qualified name format"));
-		verifyZeroInteractions(searchConfigurationDao);
+		verifyNoInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -593,7 +593,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		manager.create(admin, created);
 
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 		verify(searchConfigurationDao).create(eq(1L), any());
 	}
 
@@ -614,7 +614,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		manager.create(admin, created);
 
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(textAnalyzerDao);
 		verify(searchConfigurationDao).create(eq(1L), any());
 	}
 
@@ -637,8 +637,8 @@ public class SearchConfigurationManagerImplTest {
 				() -> manager.create(admin, toCreate));
 		assertTrue(ex.getMessage().contains("analyzer settings"),
 				"expected typed-deserializer rejection, got: " + ex.getMessage());
-		verifyZeroInteractions(searchConfigurationDao);
-		verifyZeroInteractions(textAnalyzerDao);
+		verifyNoInteractions(searchConfigurationDao);
+		verifyNoInteractions(textAnalyzerDao);
 	}
 
 	// --- bindSearchConfigToEntity authorization & user.isAdmin shortcuts ---
@@ -653,8 +653,8 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(user, req));
-		verifyZeroInteractions(searchConfigurationDao);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	@Test
@@ -686,8 +686,8 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.clearSearchConfigBinding(user, "syn123"));
-		verifyZeroInteractions(searchConfigurationDao);
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(searchConfigurationDao);
+		verifyNoInteractions(aclDao);
 	}
 
 	@Test
@@ -719,7 +719,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		manager.bindSearchConfigToEntity(admin, req);
 
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 		verify(searchConfigurationDao).bindSearchConfigToObject(42L, 123L, "entity", 2L);
 	}
 
@@ -732,7 +732,7 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		manager.clearSearchConfigBinding(admin, "syn123");
 
-		verifyZeroInteractions(aclDao);
+		verifyNoInteractions(aclDao);
 		verify(searchConfigurationDao).clearSearchConfigBinding(123L, "entity");
 	}
 }

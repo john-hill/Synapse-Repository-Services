@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anySetOf;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -392,7 +392,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -404,7 +404,7 @@ public class UserProfileManagerImplUnitTest {
 		assertNotNull(results.getResults());
 		assertNull(results.getNextPageToken());
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -426,7 +426,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -438,7 +438,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should only be called once for the userToGetFor.
-		verify(mockAuthorizationManager, times(1)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(1)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -457,7 +457,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -467,7 +467,7 @@ public class UserProfileManagerImplUnitTest {
 				adminUserInfo, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should only be called once the userToGetFor
-		verify(mockAuthorizationManager, times(1)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(1)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -487,7 +487,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -499,7 +499,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should only be called once the userToGetFor
-		verify(mockAuthorizationManager, times(1)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(1)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -518,7 +518,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -529,7 +529,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -550,7 +550,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -561,7 +561,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -582,7 +582,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -593,7 +593,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -614,7 +614,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -625,7 +625,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public.
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublic(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -647,7 +647,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -659,7 +659,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public, and the user
 		Set<Long> expectedUserToGetGroups = UserProfileManagerImpl.getGroupsMinusPublicAndSelf(userToGetFor);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -681,7 +681,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		
@@ -694,7 +694,7 @@ public class UserProfileManagerImplUnitTest {
 				caller, userToGetFor, teamToFetchId, type, sortColumn, sortDirection, nextPageToken);
 		assertNotNull(results);
 		// Accessible projects should be called once for the userToGetFor and once for the caller.
-		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySetOf(Long.class));
+		verify(mockAuthorizationManager, times(2)).getAccessibleProjectIds(anySet());
 		// the groups for the userToGetFor should exclude public, and the user
 		Set<Long> expectedUserToGetGroups = Sets.newHashSet(teamToFetchId);
 		verify(mockAuthorizationManager).getAccessibleProjectIds(expectedUserToGetGroups);
@@ -728,7 +728,7 @@ public class UserProfileManagerImplUnitTest {
 
 		when(userToGetFor.getGroups()).thenReturn(userToGetForGroups);
 		
-		when(mockAuthorizationManager.getAccessibleProjectIds(anySetOf(Long.class))).thenReturn(
+		when(mockAuthorizationManager.getAccessibleProjectIds(anySet())).thenReturn(
 				visibleProjectsOne,
 				visibleProjectsTwo
 				);		

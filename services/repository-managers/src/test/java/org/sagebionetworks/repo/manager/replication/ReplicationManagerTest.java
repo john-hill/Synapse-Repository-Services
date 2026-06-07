@@ -13,7 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -282,7 +282,7 @@ public class ReplicationManagerTest {
 		verify(managerSpy, never()).pushSubviewsBackToQueue(any(), any());
 		verify(managerSpy, never()).createReconcileIterator(any());
 		verify(mockTableIndexManager, never()).resetViewSynchronizeLock(any(), any());
-		verifyZeroInteractions(mockReplicationMessageManager);
+		verifyNoMoreInteractions(mockReplicationMessageManager);
 	}
 
 	@Test
@@ -369,7 +369,7 @@ public class ReplicationManagerTest {
 		verify(managerSpy, never()).pushSubviewsBackToQueue(any(), any());
 		verify(managerSpy).createReconcileIterator(mockFilter);
 
-		verifyZeroInteractions(mockReplicationMessageManager);
+		verifyNoMoreInteractions(mockReplicationMessageManager);
 
 		verify(mockLogger).info("Finished reconcile for ENTITY view: 'syn123'.");
 	}
@@ -432,9 +432,9 @@ public class ReplicationManagerTest {
 		// call under test
 		ViewFilter filter = managerSpy.getFilter(viewId, type);
 		assertEquals(expected, filter);
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockIndexProviderFactory);
-		verifyZeroInteractions(mockMetadataIndexProvider);
+		verifyNoMoreInteractions(mockTableManagerSupport);
+		verifyNoMoreInteractions(mockIndexProviderFactory);
+		verifyNoMoreInteractions(mockMetadataIndexProvider);
 	}
 
 	@Test
@@ -446,9 +446,9 @@ public class ReplicationManagerTest {
 			managerSpy.getFilter(viewId, type);
 		}).getMessage();
 		assertEquals("Unknown type: ACCESS_CONTROL_LIST", message);
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockIndexProviderFactory);
-		verifyZeroInteractions(mockMetadataIndexProvider);
+		verifyNoMoreInteractions(mockTableManagerSupport);
+		verifyNoMoreInteractions(mockIndexProviderFactory);
+		verifyNoMoreInteractions(mockMetadataIndexProvider);
 	}
 
 
@@ -476,7 +476,7 @@ public class ReplicationManagerTest {
 		// call under test
 		ReplicationType resultReplicationType = managerSpy.getReplicationType(viewId, type);
 		assertEquals(expectedReplicationType, resultReplicationType);
-		verifyZeroInteractions(mockTableManagerSupport);
+		verifyNoMoreInteractions(mockTableManagerSupport);
 	}
 
 	@Test
@@ -488,7 +488,7 @@ public class ReplicationManagerTest {
 			managerSpy.getReplicationType(viewId, type);
 		}).getMessage();
 		assertEquals("Unknown type: ACCESS_CONTROL_LIST", message);
-		verifyZeroInteractions(mockTableManagerSupport);
+		verifyNoMoreInteractions(mockTableManagerSupport);
 	}
 
 

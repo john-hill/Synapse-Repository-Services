@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySetOf;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -97,7 +97,7 @@ public class SubscriptionManagerImplTest {
 				// return the benefactors unmodified.
 				return (Set<Long>) invocation.getArguments()[1];
 			}
-		}).when(mockAclDao).getAccessibleBenefactors(anySetOf(Long.class), anySetOf(Long.class), any(ObjectType.class),
+		}).when(mockAclDao).getAccessibleBenefactors(anySet(), anySet(), any(ObjectType.class),
 				any(ACCESS_TYPE.class));
 		
 		projectIds = Sets.newHashSet(123L,456L);

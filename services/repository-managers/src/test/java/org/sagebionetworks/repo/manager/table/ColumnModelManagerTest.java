@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyListOf;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -120,7 +119,7 @@ public class ColumnModelManagerTest {
 				TableModelTestUtils.createColumn(333L),
 				TableModelTestUtils.createColumn(555L)
 				);
-		lenient().when(mockColumnModelDAO.getColumnModels(anyListOf(String.class))).thenReturn(newSchema);
+		lenient().when(mockColumnModelDAO.getColumnModels(any())).thenReturn(newSchema);
 
 		underLimitSchemaIds = Lists.newArrayList();
 		underLimitSchema = Lists.newArrayList();
@@ -677,7 +676,7 @@ public class ColumnModelManagerTest {
 		List<ColumnChange> changes = TableModelTestUtils.createAddUpdateDeleteColumnChange();
 		List<ColumnModel> columns = TableModelTestUtils.createColumnsForChanges(changes);
 		
-		when(mockColumnModelDAO.getColumnModels(anyListOf(String.class))).thenReturn(columns);
+		when(mockColumnModelDAO.getColumnModels(any())).thenReturn(columns);
 		
 		List<ColumnChangeDetails> expected = Lists.newArrayList(
 				new ColumnChangeDetails(null, columns.get(0)),
@@ -766,7 +765,7 @@ public class ColumnModelManagerTest {
 			changes.add(change);
 			newSchemaIds.add(cm.getId());
 		}
-		when(mockColumnModelDAO.getColumnModels(anyListOf(String.class))).thenReturn(overLimitSchema);
+		when(mockColumnModelDAO.getColumnModels(any())).thenReturn(overLimitSchema);
 		try {
 			// call under test.
 			columnModelManager.calculateNewSchemaIdsAndValidate(tableId, changes, newSchemaIds);

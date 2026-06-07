@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -895,7 +894,7 @@ public class DiscussionThreadManagerImplTest {
 		assertEquals(result, threadManager.getThreadsForEntity(userInfo, "syn3", 2L, 0L, DiscussionThreadOrder.PINNED_AND_LAST_ACTIVITY, true));
 		verify(mockThreadDao).getDistinctProjectIdsOfThreadsReferencesEntityIds(eq(entityIds));
 		verify(mockAclDao).getAccessibleBenefactors(any(), eq(projectIds), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ));
-		verify(mockThreadDao).getThreadsForEntity(anyLong(), any(), any(), (DiscussionThreadOrder) anyObject(), anyBoolean(), (DiscussionFilter) anyObject(), (Set) anyObject());
+		verify(mockThreadDao).getThreadsForEntity(anyLong(), any(), any(), (DiscussionThreadOrder) any(), anyBoolean(), (DiscussionFilter) any(), (Set) any());
 	}
 
 	@Test

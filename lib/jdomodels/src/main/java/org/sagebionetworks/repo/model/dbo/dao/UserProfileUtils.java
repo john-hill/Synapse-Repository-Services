@@ -19,7 +19,7 @@ import org.sagebionetworks.repo.model.message.Settings;
 
 public class UserProfileUtils {
 	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder()
-			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**", "java.util.**"})
 			.allowTypes(UserProfile.class).build();
 
 	public static void copyDtoToDbo(UserProfile dto, DBOUserProfile dbo) throws DatastoreException{

@@ -13,7 +13,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -168,7 +168,7 @@ public class ProjectSettingsManagerImplUnitTest {
 
 		// Call under test
 		assertThrows(UnauthorizedException.class, () -> projectSettingsManagerImpl.getProjectSettingByProjectAndType(userInfo, PROJECT_ID, ProjectSettingsType.upload));
-		verifyZeroInteractions(mockProjectSettingDao);
+		verifyNoMoreInteractions(mockProjectSettingDao);
 	}
 
 	@Test
@@ -673,7 +673,7 @@ public class ProjectSettingsManagerImplUnitTest {
 		assertFalse(result);
 
 		// We never call trash.
-		verifyZeroInteractions(mockTrashManager);
+		verifyNoMoreInteractions(mockTrashManager);
 	}
 
 	@Test
@@ -955,7 +955,7 @@ public class ProjectSettingsManagerImplUnitTest {
 		// Method under test.
 		boolean result = projectSettingsManagerImpl.isStsStorageLocationSetting((ProjectSetting) null);
 		assertFalse(result);
-		verifyZeroInteractions(mockStorageLocationDAO);
+		verifyNoMoreInteractions(mockStorageLocationDAO);
 	}
 
 	@Test
@@ -967,7 +967,7 @@ public class ProjectSettingsManagerImplUnitTest {
 		// Method under test.
 		boolean result = projectSettingsManagerImpl.isStsStorageLocationSetting(input);
 		assertFalse(result);
-		verifyZeroInteractions(mockStorageLocationDAO);
+		verifyNoMoreInteractions(mockStorageLocationDAO);
 	}
 
 	@Test
@@ -1070,7 +1070,7 @@ public class ProjectSettingsManagerImplUnitTest {
 			projectSettingsManagerImpl.setDefaultProjectStorageLimits(uploadDestinationListSetting);
 		}).getMessage());
 		
-		verifyZeroInteractions(mockStorageLimitsManager);
+		verifyNoMoreInteractions(mockStorageLimitsManager);
 	}
 
 }

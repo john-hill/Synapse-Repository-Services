@@ -37,7 +37,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME;
 
@@ -168,8 +168,8 @@ class OAuthScopeInterceptorTest {
 		verify(mockRequest).getHeader(AuthorizationConstants.SYNAPSE_HEADER_SERVICE_NAME);
 		
 		verifyNoMoreInteractions(mockRequest);
-		verifyZeroInteractions(mockResponse);
-		verifyZeroInteractions(mockHandler);
+		verifyNoMoreInteractions(mockResponse);
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
@@ -308,7 +308,7 @@ class OAuthScopeInterceptorTest {
 		assertTrue(result);
 		
 		verify(mockRequest).getHeader(AuthorizationConstants.SYNAPSE_HEADER_SERVICE_NAME);
-		verifyZeroInteractions(mockResponse);
-		verifyZeroInteractions(mockHandler);
+		verifyNoMoreInteractions(mockResponse);
+		verifyNoMoreInteractions(mockHandler);
 	}
 }

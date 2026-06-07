@@ -15,7 +15,7 @@ import org.sagebionetworks.repo.service.metadata.EventType;
 import org.sagebionetworks.repo.service.metadata.FolderMetadataProvider;
 
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,7 +58,7 @@ public class FolderMetadataProviderTest {
 		event.setType(EventType.CREATE);
 		// Method under test - Does not call StsManager.
 		provider.validateEntity(newFolder, event);
-		verifyZeroInteractions(mockStsManager);
+		verifyNoMoreInteractions(mockStsManager);
 	}
 
 	@Test
@@ -67,7 +67,7 @@ public class FolderMetadataProviderTest {
 		newFolder.setParentId(OLD_PARENT_ID);
 		// Method under test - Does not call StsManager.
 		provider.validateEntity(newFolder, event);
-		verifyZeroInteractions(mockStsManager);
+		verifyNoMoreInteractions(mockStsManager);
 	}
 
 	@Test

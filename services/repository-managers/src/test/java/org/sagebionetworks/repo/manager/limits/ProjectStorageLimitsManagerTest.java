@@ -7,7 +7,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -420,7 +420,7 @@ public class ProjectStorageLimitsManagerTest {
 		// Call under test
 		manager.sendProjectStorageNotifications();
 		
-		verifyZeroInteractions(mockMessenger);
+		verifyNoMoreInteractions(mockMessenger);
 		
 		manager.getProjectStorageUsage(planManagerUser, "123");
 		manager.getProjectStorageUsage(planManagerUser, "123");
@@ -779,7 +779,7 @@ public class ProjectStorageLimitsManagerTest {
 			manager.validateStorageLocationId(storageLocationId);
 		}).getMessage());
 		
-		verifyZeroInteractions(mockStorageLocationDao);
+		verifyNoMoreInteractions(mockStorageLocationDao);
 	}
 	
 }

@@ -14,7 +14,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
@@ -575,11 +575,11 @@ public class UserManagerImplUnitTest {
 		verify(mockPrincipalAliasDAO).findPrincipalWithAlias(user.getEmail());
 		verifyNoMoreInteractions(mockPrincipalAliasDAO);
 		
-		verifyZeroInteractions(mockPrincipalOidcDao);
-		verifyZeroInteractions(mockUserGroupDAO);
-		verifyZeroInteractions(mockAuthDAO);
-		verifyZeroInteractions(userProfileDAO);
-		verifyZeroInteractions(notificationEmailDao);
+		verifyNoMoreInteractions(mockPrincipalOidcDao);
+		verifyNoMoreInteractions(mockUserGroupDAO);
+		verifyNoMoreInteractions(mockAuthDAO);
+		verifyNoMoreInteractions(userProfileDAO);
+		verifyNoMoreInteractions(notificationEmailDao);
 	}
 	
 	@Test
@@ -602,11 +602,11 @@ public class UserManagerImplUnitTest {
 		verify(mockPrincipalAliasDAO).findPrincipalWithAlias(user.getUserName());
 		
 		verifyNoMoreInteractions(mockPrincipalAliasDAO);
-		verifyZeroInteractions(mockPrincipalOidcDao);
-		verifyZeroInteractions(mockUserGroupDAO);
-		verifyZeroInteractions(mockAuthDAO);
-		verifyZeroInteractions(userProfileDAO);
-		verifyZeroInteractions(notificationEmailDao);
+		verifyNoMoreInteractions(mockPrincipalOidcDao);
+		verifyNoMoreInteractions(mockUserGroupDAO);
+		verifyNoMoreInteractions(mockAuthDAO);
+		verifyNoMoreInteractions(userProfileDAO);
+		verifyNoMoreInteractions(notificationEmailDao);
 	}
 	
 	@Test
@@ -631,11 +631,11 @@ public class UserManagerImplUnitTest {
 		verify(mockPrincipalOidcDao).findBindingForSubject(user.getOauthProvider(), user.getSubject());
 		
 		verifyNoMoreInteractions(mockPrincipalAliasDAO);
-		verifyZeroInteractions(mockPrincipalOidcDao);
-		verifyZeroInteractions(mockUserGroupDAO);
-		verifyZeroInteractions(mockAuthDAO);
-		verifyZeroInteractions(userProfileDAO);
-		verifyZeroInteractions(notificationEmailDao);
+		verifyNoMoreInteractions(mockPrincipalOidcDao);
+		verifyNoMoreInteractions(mockUserGroupDAO);
+		verifyNoMoreInteractions(mockAuthDAO);
+		verifyNoMoreInteractions(userProfileDAO);
+		verifyNoMoreInteractions(notificationEmailDao);
 	}
 	
 	@Test

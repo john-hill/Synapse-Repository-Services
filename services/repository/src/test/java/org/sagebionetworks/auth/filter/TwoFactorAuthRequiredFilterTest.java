@@ -3,7 +3,7 @@ package org.sagebionetworks.auth.filter;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -62,7 +62,7 @@ public class TwoFactorAuthRequiredFilterTest {
 		// Call under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
 		
-		verifyZeroInteractions(mockGroupMemberDao, mockAuthDao, mockFeatureManager);
+		verifyNoMoreInteractions(mockGroupMemberDao, mockAuthDao, mockFeatureManager);
 		
 		verify(mockFilterChain).doFilter(mockHttpRequest, mockHttpResponse);
 	}
@@ -78,7 +78,7 @@ public class TwoFactorAuthRequiredFilterTest {
 		// Call under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
 		
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 		
 		verify(mockFilterChain).doFilter(mockHttpRequest, mockHttpResponse);
 	}
@@ -125,7 +125,7 @@ public class TwoFactorAuthRequiredFilterTest {
 		// Call under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
 		
-		verifyZeroInteractions(mockGroupMemberDao);
+		verifyNoMoreInteractions(mockGroupMemberDao);
 		
 		verify(mockFilterChain).doFilter(mockHttpRequest, mockHttpResponse);
 	}

@@ -13,7 +13,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -1323,7 +1323,7 @@ public class OpenSearchManagerImplTest {
 		long indexed = manager.bulkIndex("search-index-syn1", Collections.emptyList());
 
 		assertEquals(0L, indexed);
-		verifyZeroInteractions(openSearchClient);
+		verifyNoMoreInteractions(openSearchClient);
 	}
 
 	@Test
@@ -1820,7 +1820,7 @@ public class OpenSearchManagerImplTest {
 		// call under test
 		manager.waitForDocumentCount("search-index-syn1", 0L);
 
-		verifyZeroInteractions(openSearchClient);
+		verifyNoMoreInteractions(openSearchClient);
 	}
 
 	private static org.opensearch.client.opensearch.core.CountResponse countResponse(long count) {

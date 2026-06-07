@@ -36,6 +36,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -3583,6 +3584,72 @@ public class TableWorkerIntegrationTest {
 				List<Long> expectedIds = Arrays.asList(referenceSet.getRows().get(1).getRowId());
 				assertEquals(expectedIds, queryResult.getQueryResults().getRows().stream().map(Row::getRowId).collect(Collectors.toList()));
 			});
+	}
+
+	@Test
+	public void testSchemaChangeFromEntityIdToEntityIdListWithNullCell() throws Exception {
+		// PLFM-9706: converting ENTITYID -> ENTITYID_LIST when a row has a null cell
+		// caused the column to be unqueryable because at conversion-time, JSON_ARRAY(NULL)
+		// produces [null], which ListStringParser rejects during the index rebuild.
+		//
+		// If MySQL full text search is enabled on the table, it also enters the PROCESSING_FAILED
+		// state for the same reason.
+		schema = Lists.newArrayList(
+				columnManager.createColumnModel(adminUserInfo, new ColumnModel().setColumnType(ColumnType.STRING).setName("string")),
+				columnManager.createColumnModel(adminUserInfo, new ColumnModel().setColumnType(ColumnType.ENTITYID).setName("id"))
+		);
+
+		headers = TableModelUtils.getIds(schema);
+
+		// Search must be enabled for processing to fail, otherwise it just fails at query-time
+		tableId = asyncHelper.createTable(adminUserInfo, UUID.randomUUID().toString(), projectId, headers, true).getId();
+
+		// One row with a real entity-id value, one row with a null cell.
+		List<Row> rows = Arrays.asList(
+			TableModelTestUtils.createRow(null, null, "valuePresent", (String) "syn123"),
+			TableModelTestUtils.createRow(null, null, "valueAbsent", (String) null)
+		);
+
+		RowSet rowSet = new RowSet();
+		rowSet.setRows(rows);
+		rowSet.setHeaders(TableModelUtils.getSelectColumns(schema));
+		rowSet.setTableId(tableId);
+
+		referenceSet = appendRows(adminUserInfo, tableId, rowSet, mockProgressCallback);
+
+		assertEquals(TableState.AVAILABLE, waitForTableProcessing(tableId).getState());
+
+		// Change the column type from ENTITYID to ENTITYID_LIST via a TableUpdateTransactionRequest.
+		ColumnModel idListColumn = columnManager.createColumnModel(adminUserInfo,
+				new ColumnModel().setColumnType(ColumnType.ENTITYID_LIST).setName("id"));
+
+		ColumnChange idColumnChange = new ColumnChange();
+		idColumnChange.setOldColumnId(schema.get(1).getId());
+		idColumnChange.setNewColumnId(idListColumn.getId());
+
+		TableSchemaChangeRequest schemaChangeRequest = new TableSchemaChangeRequest();
+		schemaChangeRequest.setChanges(Collections.singletonList(idColumnChange));
+		schemaChangeRequest.setEntityId(tableId);
+
+		TableUpdateTransactionRequest transactionRequest = new TableUpdateTransactionRequest();
+		transactionRequest.setChanges(Collections.singletonList((TableUpdateRequest) schemaChangeRequest));
+		transactionRequest.setEntityId(tableId);
+
+		// call under test
+		asyncHelper.assertJobResponse(adminUserInfo, transactionRequest, Assertions::assertNotNull, MAX_WAIT_MS);
+
+		// The table must reach AVAILABLE, not PROCESSING_FAILED.
+		assertEquals(TableState.AVAILABLE, waitForTableProcessing(tableId).getState());
+
+
+		// Verify the data round-trips correctly: the non-null row should have a
+		// single-element list and the null row should remain null.
+		waitForConsistentQuery(adminUserInfo, "select * from " + tableId + " order by row_id", null, null, (queryResult) -> {
+			List<Row> resultRows = queryResult.getQueryResults().getRows();
+			assertEquals(2, resultRows.size());
+			assertEquals("[\"syn123\"]", resultRows.get(0).getValues().get(1), "expected [\"syn123\"] for row with syn123, got: " + resultRows.get(0).getValues().get(1));
+			assertNull(resultRows.get(1).getValues().get(1));
+		});
 	}
 
 	@Test

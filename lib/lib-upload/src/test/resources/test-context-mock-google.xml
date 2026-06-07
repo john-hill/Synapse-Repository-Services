@@ -22,7 +22,7 @@
 	<bean id="googleCloudStorageClient" class="org.mockito.Mockito"
 		factory-method="mock">
 		<constructor-arg
-			value="org.sagebionetworks.googlecloud.SynapseGoogleCloudStorageClientImpl" />
+			value="org.sagebionetworks.googlecloud.SynapseGoogleCloudStorageClient" />
 	</bean>
 
 </beans>

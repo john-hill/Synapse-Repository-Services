@@ -1,5 +1,18 @@
 package org.sagebionetworks.repo.manager.entity;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.ERR_MSG_YOU_LACK_ACCESS_TO_REQUESTED_ENTITY_TEMPLATE;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,7 +21,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.authentication.TwoFactorAuthManager;
 import org.sagebionetworks.repo.manager.entity.decider.AccessContext;
 import org.sagebionetworks.repo.manager.entity.decider.UsersEntityAccessInfo;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -28,19 +40,6 @@ import org.sagebionetworks.repo.model.download.EnableTwoFa;
 import org.sagebionetworks.repo.model.download.MeetAccessRequirement;
 import org.sagebionetworks.repo.model.download.RequestDownload;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
-
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.sagebionetworks.repo.model.AuthorizationConstants.ERR_MSG_YOU_LACK_ACCESS_TO_REQUESTED_ENTITY_TEMPLATE;
 
 @ExtendWith(MockitoExtension.class)
 public class EntityAuthorizationManagerUnitTest {
@@ -787,7 +786,7 @@ public class EntityAuthorizationManagerUnitTest {
 	
 	@Test
 	public void testGetActionsRequiredForDownloadWithAuthorized() {
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.authorized()))).when(manager).batchHasAccess(any(), any(), any());
 
@@ -803,7 +802,7 @@ public class EntityAuthorizationManagerUnitTest {
 
 	@Test
 	public void testGetActionsRequiredForDownloadWithNoRestrictions() {
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.accessDenied("no")))).when(manager).batchHasAccess(any(), any(), any());
 
@@ -825,7 +824,7 @@ public class EntityAuthorizationManagerUnitTest {
 	public void testGetActionsRequiredForDownloadWithNonExistentEntity() {
 		permissionsState.withDoesEntityExist(false);
 		
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.accessDenied("no")))).when(manager).batchHasAccess(any(), any(), any());
 
@@ -842,7 +841,7 @@ public class EntityAuthorizationManagerUnitTest {
 
 	@Test
 	public void testGetActionsRequiredForDownloadWithMetRestrictions() {
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.accessDenied("no")))).when(manager).batchHasAccess(any(), any(), any());
 		
@@ -863,7 +862,7 @@ public class EntityAuthorizationManagerUnitTest {
 
 	@Test
 	public void testGetActionsRequiredForDownloadWithMixedRestrictions() {
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		restrictionStatus.withRestrictionStatus(List.of(
 				new UsersRequirementStatus().withIsUnmet(false).withRequirementId(432L),
 				new UsersRequirementStatus().withIsUnmet(true).withRequirementId(321L)));
@@ -888,7 +887,7 @@ public class EntityAuthorizationManagerUnitTest {
 	public void testGetActionsRequiredForDownloadWithNullRestrictionStatus() {
 		accessContext.withRestrictionStatus(null);
 		
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.accessDenied("no")))).when(manager).batchHasAccess(any(), any(), any());
 		
@@ -901,7 +900,7 @@ public class EntityAuthorizationManagerUnitTest {
 
 	@Test
 	public void testGetActionsRequiredForDownloadWithMultipleUnmetRestrictions() {
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		restrictionStatus.withRestrictionStatus(List.of(
 				new UsersRequirementStatus().withIsUnmet(true).withRequirementId(432L),
 				new UsersRequirementStatus().withIsUnmet(true).withRequirementId(321L)));
@@ -927,7 +926,7 @@ public class EntityAuthorizationManagerUnitTest {
 	@Test
 	public void testGetActionsRequiredForDownloadWithUnmetRestrictionsAndUnmetTwoFaRestriction() {
 		
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		restrictionStatus.withRestrictionStatus(List.of(
 				new UsersRequirementStatus().withIsUnmet(true).withRequirementId(432L).withIsTwoFaRequired(false),
 				new UsersRequirementStatus().withIsUnmet(true).withRequirementId(789L).withIsTwoFaRequired(true)));
@@ -955,7 +954,7 @@ public class EntityAuthorizationManagerUnitTest {
 	@Test
 	public void testGetActionsRequiredForDownloadWithMetTwoFaRestriction() {
 		
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.accessDenied("no")))).when(manager).batchHasAccess(any(), any(), any());
 		
@@ -977,7 +976,7 @@ public class EntityAuthorizationManagerUnitTest {
 	
 	@Test
 	public void testGetActionsRequiredForDownloadWithUnmetTwoFaRestriction() {
-		EntityAuthorizationManagerImpl manager = Mockito.spy(entityAuthManager);
+		EntityAuthorizationManagerImpl manager = entityAuthManager;
 		
 		doReturn(List.of(new UsersEntityAccessInfo(accessContext, AuthorizationStatus.accessDenied("no")))).when(manager).batchHasAccess(any(), any(), any());
 		

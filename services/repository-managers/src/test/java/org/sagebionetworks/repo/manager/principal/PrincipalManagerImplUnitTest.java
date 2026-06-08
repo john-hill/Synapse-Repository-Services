@@ -12,7 +12,6 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
@@ -771,26 +770,26 @@ public class PrincipalManagerImplUnitTest {
 	@Test
 	public void testGetPrincipalNameWithUser() {
 		Long principalId = 123L;
-		when(mockPrincipalAliasDAO.listPrincipalAliases(any(), any())).thenReturn(List.of(
+		when(mockPrincipalAliasDAO.listPrincipalAliases(any(), any(AliasType[].class))).thenReturn(List.of(
 				new PrincipalAlias().setAlias("foo").setType(AliasType.USER_NAME)
 		));
 		// call under test
 		String name = manager.getPrincipalName(principalId);
 		assertEquals("foo", name);
-		
+
 		verify(mockPrincipalAliasDAO).listPrincipalAliases(principalId, AliasType.USER_NAME, AliasType.TEAM_NAME);
 	}
-	
+
 	@Test
 	public void testGetPrincipalNameWithTeam() {
 		Long principalId = 123L;
-		when(mockPrincipalAliasDAO.listPrincipalAliases(any(), any())).thenReturn(List.of(
+		when(mockPrincipalAliasDAO.listPrincipalAliases(any(), any(AliasType[].class))).thenReturn(List.of(
 				new PrincipalAlias().setAlias("bar").setType(AliasType.TEAM_NAME)
 		));
 		// call under test
 		String name = manager.getPrincipalName(principalId);
 		assertEquals("bar", name);
-		
+
 		verify(mockPrincipalAliasDAO).listPrincipalAliases(principalId, AliasType.USER_NAME, AliasType.TEAM_NAME);
 	}
 	

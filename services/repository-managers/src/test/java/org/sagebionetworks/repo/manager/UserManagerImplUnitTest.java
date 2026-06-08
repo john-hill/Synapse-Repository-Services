@@ -373,7 +373,7 @@ public class UserManagerImplUnitTest {
 	
 	@Test
 	public void testLookupUserByUsernameOrEmail() {
-		when(mockPrincipalAliasDAO.findPrincipalWithAlias(eq(alias), any())).thenReturn(principalAlias);
+		when(mockPrincipalAliasDAO.findPrincipalWithAlias(eq(alias), any(AliasType[].class))).thenReturn(principalAlias);
 		// call under test
 		PrincipalAlias pa = userManager.lookupUserByUsernameOrEmail(alias);
 		assertEquals(principalAlias, pa);

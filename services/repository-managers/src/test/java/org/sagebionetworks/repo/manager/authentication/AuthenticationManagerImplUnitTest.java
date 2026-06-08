@@ -588,7 +588,7 @@ public class AuthenticationManagerImplUnitTest {
 	public void testFindUserForAuthenticationWithUserFound(){
 		PrincipalAlias principalAlias = new PrincipalAlias();
 		principalAlias.setPrincipalId(userId);
-		when(mockPrincipalAliasDAO.findPrincipalWithAlias(anyString(), ArgumentMatchers.<AliasType>any())).thenReturn(principalAlias);
+		when(mockPrincipalAliasDAO.findPrincipalWithAlias(anyString(), any(AliasType[].class))).thenReturn(principalAlias);
 
 		//method under test
 		assertEquals(userId, (Long) authManager.findUserIdForAuthentication(username));
@@ -598,7 +598,7 @@ public class AuthenticationManagerImplUnitTest {
 
 	@Test
 	public void testFindUserForAuthenticationWithUserNotFound(){
-		when(mockPrincipalAliasDAO.findPrincipalWithAlias(anyString(), ArgumentMatchers.<AliasType>any())).thenReturn(null);
+		when(mockPrincipalAliasDAO.findPrincipalWithAlias(anyString(), any(AliasType[].class))).thenReturn(null);
 		
 		String message = assertThrows(UnauthenticatedException.class, ()->{
 			authManager.findUserIdForAuthentication(username);

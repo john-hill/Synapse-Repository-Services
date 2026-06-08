@@ -18,7 +18,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -1494,7 +1493,7 @@ public class TableManagerSupportTest {
 	public void testTryRunWithTableNoExclusiveLockWithIdAndVersion() throws Exception {
 
 		doReturn("some result").when(managerSpy).tryRunWithTableNonExclusiveLock(any(), any(), any(),
-				any(String.class));
+				any(IdAndVersion[].class));
 		IdAndVersion one = IdAndVersionParser.parseIdAndVersion("syn123");
 		IdAndVersion two = IdAndVersionParser.parseIdAndVersion("syn456");
 
@@ -1503,8 +1502,7 @@ public class TableManagerSupportTest {
 				one, two);
 		assertEquals("some result", result);
 
-		verify(managerSpy).tryRunWithTableNonExclusiveLock(mockCallback, lockContext, mockCallable,
-				TableModelUtils.getTableSemaphoreKey(one), TableModelUtils.getTableSemaphoreKey(two));
+		verify(managerSpy).tryRunWithTableNonExclusiveLock(mockCallback, lockContext, mockCallable, one, two);
 	}
 	
 	@Test

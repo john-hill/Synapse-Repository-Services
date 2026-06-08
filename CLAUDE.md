@@ -82,7 +82,11 @@ platform (root)
 - Unit tests: `*Test.java` — JUnit 5 + Mockito 2.27
   - `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`
 - Integration tests: `IT*.java` (in integration-test module)
-- Mockito 2.27 — no `mockStatic` or Mockito 4/5 APIs
+- **Mockito 5.23.0** — strict stubbing is enabled by default
+  - **Functional/lambda parameters**: When mocking methods that accept functional interfaces (e.g., OpenSearch Java client's `search(Function<...>, Class)`), use `doAnswer()` to execute the lambda parameter. The lambda must be invoked to trigger validation logic inside it. See `OpenSearchManagerImplTest.stubSearchToExecuteLambda()` for the pattern.
+  - **Varargs parameters**: When a method has varargs and the implementation passes an array, match with the array type. Example: for `method(String... keys)` called with `String[]`, use `any(String[].class)` not `any(String.class)`. For `method(IdAndVersion... ids)` called with `IdAndVersion[]`, use `any(IdAndVersion[].class)`.
+  - **Overloaded methods**: When mocking overloaded methods, be explicit about which overload to match — using `any()` without type can cause ambiguous method reference errors.
+  - **No lenient stubbing**: Lenient stubbing (`@MockitoSettings(strictness = Strictness.LENIENT)`) is not allowed in this codebase — fix argument matchers instead.
 - **Test method naming**: `test<methodUnderTest>With<condition>` — e.g., `testCreateWithNonSageUser`, `testGetWithNonExistentId`, `testListWithMultipleOrganizations`. For IT CRUD lifecycle tests: `testCRUDWith<context>`.
 - **Test method structure**: Mark the primary method being tested with a `// call under test` comment directly above it — this makes each test's intent immediately clear during review
 - **Verify no downstream calls after exceptions**: After `assertThrows`, verify that mocked methods past the exception point were NOT called — use `verifyZeroInteractions(mock)` or `verify(mock, never()).method(...)`

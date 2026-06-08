@@ -78,7 +78,7 @@ public class AccessControlListManagerTest {
 		Set<Long> benefactors = Sets.newHashSet(1L,2L);
 		// call under test
 		aclManager.getAccessibleBenefactors(userInfo, ObjectType.ENTITY, benefactors);
-		verify(aclDao, times(1)).getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE.class));
+		verify(aclDao, times(1)).getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE[].class));
 	}
 	
 	@Test
@@ -93,7 +93,7 @@ public class AccessControlListManagerTest {
 	@Test
 	public void testCanReadBenefactorsTrashNonAdmin(){
 		Set<Long> benefactors = Sets.newHashSet(AuthorizationManagerImpl.TRASH_FOLDER_ID);
-		when(aclDao.getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE.class))).thenReturn(benefactors);
+		when(aclDao.getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE[].class))).thenReturn(benefactors);
 		// call under test
 		Set<Long> results = aclManager.getAccessibleBenefactors(userInfo, ObjectType.ENTITY, benefactors);
 		assertNotNull(results);

@@ -62,15 +62,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import org.mockito.ArgumentMatchers;
+
 @ExtendWith(MockitoExtension.class)
 public class SearchManagerImplTest {
 
     ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+
+    // For Mockito 5: captured BulkRequest from functional API
+    private BulkRequest capturedBulkRequest;
 
     ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
     @Mock
@@ -98,6 +104,38 @@ public class SearchManagerImplTest {
         mockSearchManager = new SearchManagerImpl(mockLoggerProvider, mockTranslator, mockOpenSearchIndexInitializer, mockSearchClient, mockSearchDocumentDriver);
     }
 
+    /**
+     * Helper method for Mockito 5 compatibility: Sets up a stub that executes the lambda
+     * parameter for bulk() so the BulkRequest can be built, captured, and returned.
+     */
+    private void stubBulkToExecuteLambda(BulkResponse response) throws IOException {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.function.Function<BulkRequest.Builder, org.opensearch.client.util.ObjectBuilder<BulkRequest>> fn =
+                invocation.getArgument(0);
+            BulkRequest.Builder builder = new BulkRequest.Builder();
+            fn.apply(builder);
+            capturedBulkRequest = builder.build(); // Capture the built request
+            return response;
+        }).when(mockSearchClient).bulk(ArgumentMatchers.<java.util.function.Function>any());
+    }
+
+    /**
+     * Helper method for Mockito 5 compatibility: Sets up a stub that executes the lambda
+     * parameter for bulk() and then throws an exception.
+     */
+    private void stubBulkToThrow(Exception exception) throws IOException {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.function.Function<BulkRequest.Builder, org.opensearch.client.util.ObjectBuilder<BulkRequest>> fn =
+                invocation.getArgument(0);
+            BulkRequest.Builder builder = new BulkRequest.Builder();
+            fn.apply(builder);
+            capturedBulkRequest = builder.build(); // Capture even when throwing
+            throw exception;
+        }).when(mockSearchClient).bulk(ArgumentMatchers.<java.util.function.Function>any());
+    }
+
 
     @Test
     public void testADDDocumentChangeMessages() throws IOException {
@@ -110,16 +148,15 @@ public class SearchManagerImplTest {
                 .result(String.valueOf(Result.Created))
                 .operationType(OperationType.Create)
                 .build();
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenReturn(new BulkResponse.Builder()
+        stubBulkToExecuteLambda(new BulkResponse.Builder()
                 .items(List.of(item)).errors(false).took(1L).build());
 
         //call under test
         mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
-        verify(mockSearchClient).bulk(bulkRequestArgumentCaptor.capture());
-        BulkRequest request = bulkRequestArgumentCaptor.getValue();
-        assertEquals(1, request.operations().size());
-        assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, request.operations().get(0).index().index());
-        assertEquals(request.operations().get(0).index().document(), document.getFields());
+        verify(mockSearchClient).bulk(ArgumentMatchers.<java.util.function.Function>any());
+        assertEquals(1, capturedBulkRequest.operations().size());
+        assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedBulkRequest.operations().get(0).index().index());
+        assertEquals(capturedBulkRequest.operations().get(0).index().document(), document.getFields());
     }
 
     @Test
@@ -135,16 +172,15 @@ public class SearchManagerImplTest {
                 .operationType(OperationType.Delete)
                 .build();
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenReturn(new BulkResponse.Builder()
+        stubBulkToExecuteLambda(new BulkResponse.Builder()
                 .items(List.of(item)).errors(false).took(1L).build());
 
         //call under test
         mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
-        verify(mockSearchClient).bulk(bulkRequestArgumentCaptor.capture());
-        BulkRequest request = bulkRequestArgumentCaptor.getValue();
-        assertEquals(1, request.operations().size());
-        assertEquals(DeleteOperation.class, request.operations().get(0).delete().getClass());
-        assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, request.operations().get(0).delete().index());
+        verify(mockSearchClient).bulk(ArgumentMatchers.<java.util.function.Function>any());
+        assertEquals(1, capturedBulkRequest.operations().size());
+        assertEquals(DeleteOperation.class, capturedBulkRequest.operations().get(0).delete().getClass());
+        assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedBulkRequest.operations().get(0).delete().index());
         verifyNoMoreInteractions(mockLog);
     }
 
@@ -184,7 +220,7 @@ public class SearchManagerImplTest {
                 .operationType(OperationType.Delete)
                 .build();
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenReturn(new BulkResponse.Builder()
+        stubBulkToExecuteLambda(new BulkResponse.Builder()
                 .items(List.of(itemAdd, itemAdd2, itemDel)).errors(false).took(1L).build());
 
         assertThrows(RecoverableMessageException.class, () -> {
@@ -208,7 +244,7 @@ public class SearchManagerImplTest {
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
                 .thenReturn(Optional.of(document));
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(exception);
+        stubBulkToThrow(exception);
 
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
@@ -224,7 +260,7 @@ public class SearchManagerImplTest {
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
                 .thenReturn(Optional.of(document));
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(exception);
+        stubBulkToThrow(exception);
 
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test

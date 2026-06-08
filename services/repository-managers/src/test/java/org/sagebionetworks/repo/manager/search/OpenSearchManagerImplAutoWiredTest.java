@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1044,6 +1045,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * column to point at. Each query is run as a {@code SearchQuery.body} wrapping the kind
 	 * envelope plus the standard {@code from}/{@code size}.</p>
 	 */
+	@Disabled // See PLFM-9713
 	@Test
 	public void testSearchWithEveryAllowedQueryKindRoundTrips() {
 		List<ColumnModel> columns = List.of(

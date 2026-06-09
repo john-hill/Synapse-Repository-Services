@@ -108,10 +108,10 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 
 		try {
 			IndexDescription versionedDescription = new RecordSetIndexDescription(versionedKey, targetVersion);
-			IndexDescription entityDescription = bindDefaultVersion
-					? new RecordSetIndexDescription(entityKey, targetVersion)
-					: null;
-
+			IndexDescription entityDescription = null;
+			if (bindDefaultVersion) {
+				entityDescription = new RecordSetIndexDescription(entityKey, targetVersion);
+			}
 			RecordSet recordSet = entityManager.getEntityForVersion(getAdminUser(),
 					entityKey.getId().toString(), targetVersion, RecordSet.class);
 			FileHandle dataFileHandle = fileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId());

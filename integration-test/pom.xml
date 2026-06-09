@@ -86,7 +86,7 @@
 					<wait>${org.sagebionetworks.integration.debug}</wait>
 					<!-- Container configuration -->
 					<container>
-						<containerId>tomcat8x</containerId>
+						<containerId>tomcat10x</containerId>
 						<timeout>360000</timeout>
 						<!-- Download and install tomcat -->
 						<zipUrlInstaller>
@@ -128,6 +128,8 @@
 								<!-- -Xnoagent -->
 								-Xmx2048m
 								-Xms1024m
+								<!--This paramter is need to get XStream to work on Java 17+ and can be removed when we remove XStream -->
+								--add-opens java.base/java.util=ALL-UNNAMED
 							</cargo.jvmargs>							
 						</properties>
 					</configuration>

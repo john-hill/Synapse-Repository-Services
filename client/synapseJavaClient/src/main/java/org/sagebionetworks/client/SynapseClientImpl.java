@@ -5538,7 +5538,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
 	@Override
 	public PrincipalAliasResponse getPrincipalAlias(PrincipalAliasRequest request) throws SynapseException {
-		return postJSONEntity(getRepoEndpoint(), PRINCIPAL+"/alias/", request, PrincipalAliasResponse.class);
+		return postJSONEntity(getRepoEndpoint(), PRINCIPAL+"/alias", request, PrincipalAliasResponse.class);
 	}
 
 	@Override
@@ -6508,7 +6508,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public AgentRegistration createOrGetAgentRegistration(AgentRegistrationRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");;
-		return putJSONEntity(getRepoEndpoint(), "/agent/registration/", request, AgentRegistration.class);
+		return putJSONEntity(getRepoEndpoint(), "/agent/registration", request, AgentRegistration.class);
 	}
 
 	@Override

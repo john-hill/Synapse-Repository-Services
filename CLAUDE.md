@@ -4,11 +4,11 @@ Backend platform for Sage Bionetworks' Synapse — a collaborative research data
 
 ## Tech Stack
 
-- **Java 21 LTS** (upgraded for Spring AI Bedrock AgentCore support)
-- **Spring 6.1.10** (Spring MVC, Spring JDBC, Spring AOP) — NOT Spring Boot
+- **Java 21 LTS**
+- **Spring 6.x** (Spring MVC, Spring JDBC, Spring AOP) — NOT Spring Boot
 - **jakarta.servlet / jakarta.annotation** — migrated from javax.* for Spring 6 compatibility
-- **MySQL 8.0** via Spring JdbcTemplate (no ORM, no Spring Data)
-- **Tomcat 9** (WAR deployment)
+- **MySQL 8.x** via Spring JdbcTemplate (no ORM, no Spring Data)
+- **Tomcat 10x** (WAR deployment)
 - **Jackson 2.20.0**, Log4j 2, Guava 30.1.1
 - **AWS SDK v1** (1.12.x) + **AWS SDK v2** (2.29.x), Google Cloud Storage
 - **No Lombok**
@@ -82,7 +82,7 @@ platform (root)
 - Unit tests: `*Test.java` — JUnit 5 + Mockito 2.27
   - `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`
 - Integration tests: `IT*.java` (in integration-test module)
-- **Mockito 5.23.0** — strict stubbing is enabled by default
+- **Mockito 5.x** — strict stubbing is enabled by default
   - **Functional/lambda parameters**: When mocking methods that accept functional interfaces (e.g., OpenSearch Java client's `search(Function<...>, Class)`), use `doAnswer()` to execute the lambda parameter. The lambda must be invoked to trigger validation logic inside it. See `OpenSearchManagerImplTest.stubSearchToExecuteLambda()` for the pattern.
   - **Varargs parameters**: When a method has varargs and the implementation passes an array, match with the array type. Example: for `method(String... keys)` called with `String[]`, use `any(String[].class)` not `any(String.class)`. For `method(IdAndVersion... ids)` called with `IdAndVersion[]`, use `any(IdAndVersion[].class)`.
   - **Overloaded methods**: When mocking overloaded methods, be explicit about which overload to match — using `any()` without type can cause ambiguous method reference errors.

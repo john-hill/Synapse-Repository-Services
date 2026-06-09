@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
 import org.springframework.web.accept.ContentNegotiationManager;
 import org.springframework.web.accept.ContentNegotiationStrategy;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver;
 
@@ -89,5 +90,15 @@ public class RepoWebConfiguration implements WebMvcConfigurer {
 		return new ExceptionContentNegotiationStrategy(exceptionSerializer.getSupportedMediaTypes());
 	}
 	
+
+	@Override
+	public void configurePathMatch(PathMatchConfigurer configurer) {
+		/**
+		 * With this set to true, calls with trailing slashes will "work". For example,
+		 * 'repo/v1/version/'. If set to false, and a trailing slash is provided the
+		 * caller will get a 404.
+		 */
+		configurer.setUseTrailingSlashMatch(true);
+	}
 	
 }

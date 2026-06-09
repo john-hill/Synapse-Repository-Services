@@ -5538,7 +5538,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
 	@Override
 	public PrincipalAliasResponse getPrincipalAlias(PrincipalAliasRequest request) throws SynapseException {
-		return postJSONEntity(getRepoEndpoint(), PRINCIPAL+"/alias", request, PrincipalAliasResponse.class);
+		return postJSONEntity(getRepoEndpoint(), PRINCIPAL+"/alias/", request, PrincipalAliasResponse.class);
 	}
 
 	@Override

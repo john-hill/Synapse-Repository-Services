@@ -1133,7 +1133,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		for (Map.Entry<Kind, Supplier<SearchQuery>> entry : queries.entrySet()) {
 			SearchQuery body = entry.getValue().get();
 			// call under test — every kind must round-trip without throwing
-			SearchQueryResults result = openSearchManager.search(indexName, body, columns,
+			SearchQueryResults result = searchWithRetry(body, columns,
 					EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
 			assertNotNull(result, "kind " + entry.getKey() + " produced null result");
 			assertNotNull(result.getTotalHits(), "kind " + entry.getKey() + " missing totalHits");
@@ -1239,8 +1239,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setFrom(0L);
 
 		// call under test — post_filter narrows hits; aggregations stay at full population
-		SearchQueryResults results = openSearchManager.search(indexName, body, columns,
-				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+		SearchQueryResults results = waitForSearchHits(body, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 2);
 
 		assertEquals(2L, results.getTotalHits(),
 				"totalHits must reflect post_filter narrowing — only ACTIVE rows");
@@ -1288,8 +1288,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setFrom(0L);
 
 		// call under test — highlight payload round-trips and SearchHit.highlights is populated
-		SearchQueryResults results = openSearchManager.search(indexName, body, columns,
-				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+		SearchQueryResults results = waitForSearchHits(body, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 3);
 
 		assertEquals(3L, results.getTotalHits());
 		assertNotNull(results.getHits());

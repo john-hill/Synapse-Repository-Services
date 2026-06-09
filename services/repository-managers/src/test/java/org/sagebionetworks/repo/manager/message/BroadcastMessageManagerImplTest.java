@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -415,7 +415,7 @@ public class BroadcastMessageManagerImplTest {
 			// call under test
 			manager.broadcastMessage(mockUser, mockCallback, change);
 		});
-		verifyZeroInteractions(mockBroadcastMessageDao);
+		verifyNoMoreInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
@@ -429,7 +429,7 @@ public class BroadcastMessageManagerImplTest {
 		manager.broadcastMessage(mockUser, mockCallback, change);
 		// should be ignored
 		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
-		verifyZeroInteractions(mockBroadcastMessageDao);
+		verifyNoMoreInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
@@ -444,7 +444,7 @@ public class BroadcastMessageManagerImplTest {
 		manager.broadcastMessage(mockUser, mockCallback, change);
 		// should be ignored
 		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
-		verifyZeroInteractions(mockBroadcastMessageDao);
+		verifyNoMoreInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
@@ -460,7 +460,7 @@ public class BroadcastMessageManagerImplTest {
 		manager.broadcastMessage(mockUser, mockCallback, change);
 		// should be ignored
 		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
-		verifyZeroInteractions(mockBroadcastMessageDao);
+		verifyNoMoreInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test

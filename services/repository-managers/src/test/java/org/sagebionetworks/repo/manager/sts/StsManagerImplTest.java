@@ -194,8 +194,8 @@ public class StsManagerImplTest {
 
 	@Test
 	public void getTemporaryCredentials_readWrite() {
-		when(mockAuthManager.hasAccess(any(), any(), any())).thenReturn(mockAuthStatus);
-		
+		when(mockAuthManager.hasAccess(any(), any(), any(ACCESS_TYPE[].class))).thenReturn(mockAuthStatus);
+
 		// Mock dependencies.
 		setupFolderWithProjectSetting(/*isSts*/ true, STS_STORAGE_LOCATION_ID);
 
@@ -334,8 +334,8 @@ public class StsManagerImplTest {
 
 	@Test
 	public void getTemporaryCredentials_synapseStorageCantReadWrite() {
-		when(mockAuthManager.hasAccess(any(), any(), any())).thenReturn(mockAuthStatus);
-		
+		when(mockAuthManager.hasAccess(any(), any(), any(ACCESS_TYPE[].class))).thenReturn(mockAuthStatus);
+
 		// Mock dependencies.
 		setupFolderWithProjectSetting(/*isSts*/ true, STS_STORAGE_LOCATION_ID);
 

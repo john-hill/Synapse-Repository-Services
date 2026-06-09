@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.manager.webhook;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.webhook.WebhookMetricsCollector.METRIC_FAIL_COUNT;
 import static org.sagebionetworks.repo.manager.webhook.WebhookMetricsCollector.METRIC_REQ_COUNT;
@@ -90,7 +90,7 @@ public class WebhookMetricsCollectorUnitTest {
 		// Call under test
 		collector.collectMetrics();
 		
-		verifyZeroInteractions(mockMetricsClient);
+		verifyNoMoreInteractions(mockMetricsClient);
 	}
 	
 	@Test

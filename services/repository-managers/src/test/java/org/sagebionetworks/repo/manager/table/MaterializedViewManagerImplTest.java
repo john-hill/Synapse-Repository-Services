@@ -16,7 +16,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -35,7 +35,6 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
-import org.mockito.Matchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -515,7 +514,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The id of the materialized view is required.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -531,7 +530,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The definingSQL of the materialized view is required and must not be the empty string.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -547,7 +546,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The definingSQL of the materialized view is required and must not be the empty string.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -563,7 +562,7 @@ public class MaterializedViewManagerImplTest {
 
 		assertEquals("The definingSQL of the materialized view is required and must not be a blank string.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 
 	}
 
@@ -629,8 +628,8 @@ public class MaterializedViewManagerImplTest {
 		
 		assertEquals("The tableId is required.", message);
 
-		verifyZeroInteractions(mockMaterializedViewDao);
-		verifyZeroInteractions(mockTableIndexManager);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockTableIndexManager);
 	}
 	
 	@Test
@@ -655,8 +654,8 @@ public class MaterializedViewManagerImplTest {
 		
 		assertEquals("MaterializedView snapshots not currently supported", message);
 		
-		verifyZeroInteractions(mockTableManagerSupport);
-		verifyZeroInteractions(mockTableIndexManager);
+		verifyNoMoreInteractions(mockTableManagerSupport);
+		verifyNoMoreInteractions(mockTableIndexManager);
 	}
 	
 	@Test
@@ -756,7 +755,7 @@ public class MaterializedViewManagerImplTest {
 			ProgressingCallable runner = (ProgressingCallable) invocation.getArguments()[2];
 			runner.call(callback);
 			return null;
-		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		
 		when(mockTableManagerSupport.getTableSchema(any())).thenReturn(syn123Schema); 
 		IndexDescription indexDescription = setupMaterializedView(idAndVersion, "select * from syn456");
@@ -793,7 +792,7 @@ public class MaterializedViewManagerImplTest {
 			ProgressingCallable runner = (ProgressingCallable) invocation.getArguments()[2];
 			runner.call(callback);
 			return null;
-		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 
 		when(mockTableManagerSupport.getTableSchema(any())).thenReturn(syn123Schema);
 		IndexDescription indexDescription = setupMaterializedView(idAndVersion, "select * from syn456 join syn789");
@@ -843,7 +842,7 @@ public class MaterializedViewManagerImplTest {
 		verify(managerSpy).bindSchemaToView(eq(idAndVersion), any(QueryTranslator.class));
 		verify(mockTableManagerSupport).getTableStatusOrCreateIfNotExists(dependentIdAndVersions[0]);
 		verify(mockTableManagerSupport).getTableStatusOrCreateIfNotExists(dependentIdAndVersions[1]);
-		verify(mockTableManagerSupport, never()).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		verify(mockTableManagerSupport, never()).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		verify(managerSpy, never()).createOrRebuildViewHoldingWriteLockAndAllDependentReadLocks(any(), any(), anyBoolean());
 	}
 	
@@ -872,7 +871,7 @@ public class MaterializedViewManagerImplTest {
 		verify(managerSpy).bindSchemaToView(eq(idAndVersion), any(QueryTranslator.class));
 		verify(mockTableManagerSupport).getTableStatusOrCreateIfNotExists(dependentIdAndVersions[0]);
 		verify(mockTableManagerSupport).getTableStatusOrCreateIfNotExists(dependentIdAndVersions[1]);
-		verify(mockTableManagerSupport, never()).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		verify(mockTableManagerSupport, never()).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		verify(managerSpy, never()).createOrRebuildViewHoldingWriteLockAndAllDependentReadLocks(any(), any(), anyBoolean());
 	}
 	
@@ -882,7 +881,7 @@ public class MaterializedViewManagerImplTest {
 			ProgressCallback callback = (ProgressCallback) invocation.getArguments()[0];
 			ProgressingCallable runner = (ProgressingCallable) invocation.getArguments()[2];
 			return runner.call(callback);
-		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		
 		doAnswer(invocation -> {
 			ProgressCallback callback = (ProgressCallback) invocation.getArguments()[0];
@@ -946,7 +945,7 @@ public class MaterializedViewManagerImplTest {
 			ProgressCallback callback = (ProgressCallback) invocation.getArguments()[0];
 			ProgressingCallable runner = (ProgressingCallable) invocation.getArguments()[2];
 			return runner.call(callback);
-		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		
 		MaterializedViewIndexDescription indexDescription = setupMaterializedView(idAndVersion, "select * from syn123 join syn456");
 		
@@ -985,7 +984,7 @@ public class MaterializedViewManagerImplTest {
 			ProgressCallback callback = (ProgressCallback) invocation.getArguments()[0];
 			ProgressingCallable runner = (ProgressingCallable) invocation.getArguments()[2];
 			return runner.call(callback);
-		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		
 		MaterializedViewIndexDescription indexDescription = setupMaterializedView(idAndVersion, "select * from syn123 join syn456");
 		IndexDescription temporaryIndex = new MaterializedViewIndexDescription(temporaryId,
@@ -1065,7 +1064,7 @@ public class MaterializedViewManagerImplTest {
 		idAndVersion = IdAndVersion.parse("syn123");
 		IdAndVersion temporaryId = IdAndVersion.parse("syn-123");
 
-		doThrow(LockUnavilableException.class).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion.class));
+		doThrow(LockUnavilableException.class).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(), any(IdAndVersion[].class));
 		
 		setupMaterializedView(idAndVersion, "select * from syn123 join syn456");
 		
@@ -1203,7 +1202,7 @@ public class MaterializedViewManagerImplTest {
 		List<IdAndVersion> ids = List.of(one, two);
 		doReturn(TableState.AVAILABLE).when(managerSpy).getDependencyStateSummary(any());
 		doReturn(true).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(),
-				any(IdAndVersion.class));
+				any(IdAndVersion[].class));
 
 		/// call under test
 		boolean result = managerSpy.tryRunWithNonExclusiveLockOnAvailableDependecies(mockProgressCallback,
@@ -1221,7 +1220,7 @@ public class MaterializedViewManagerImplTest {
 		List<IdAndVersion> ids = List.of(one, two);
 		doReturn(TableState.AVAILABLE).when(managerSpy).getDependencyStateSummary(any());
 		doReturn(false).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(), any(), any(),
-				any(IdAndVersion.class));
+				any(IdAndVersion[].class));
 
 		/// call under test
 		boolean result = managerSpy.tryRunWithNonExclusiveLockOnAvailableDependecies(mockProgressCallback,

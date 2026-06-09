@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -72,7 +72,7 @@ public class VirtualTableIndexDescriptionTest {
 			new VirtualTableIndexDescription(idAndVersion, definingSql, mockLookup);
 		}).getMessage();
 		assertEquals("Defining SQL cannot reference itself", message);
-		verifyZeroInteractions(mockLookup);
+		verifyNoMoreInteractions(mockLookup);
 	}
 	
 	@Test

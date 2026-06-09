@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.snapshot.workers.writers.VerificationSubmissionObjectRecordWriter.LIMIT;
 
@@ -66,7 +66,7 @@ public class VerificationSubmissionObjectRecordWriterTest {
 		Message message = MessageUtils.buildMessage(ChangeType.DELETE, "123", ObjectType.VERIFICATION_SUBMISSION, "etag", System.currentTimeMillis());
 		ChangeMessage changeMessage = MessageUtils.extractMessageBody(message);
 		writer.buildAndWriteRecords(mockCallback, Arrays.asList(changeMessage));
-		verifyZeroInteractions(logger);
+		verifyNoMoreInteractions(logger);
 	}
 
 	@Test
@@ -89,7 +89,7 @@ public class VerificationSubmissionObjectRecordWriterTest {
 		Message message = MessageUtils.buildMessage(ChangeType.CREATE, "123", ObjectType.VERIFICATION_SUBMISSION, "etag", System.currentTimeMillis());
 		ChangeMessage changeMessage = MessageUtils.extractMessageBody(message);
 		writer.buildAndWriteRecords(mockCallback, Arrays.asList(changeMessage));
-		verifyZeroInteractions(logger);
+		verifyNoMoreInteractions(logger);
 	}
 
 	@Test

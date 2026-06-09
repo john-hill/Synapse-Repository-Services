@@ -13,7 +13,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -57,10 +56,10 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
+import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryOptions;
@@ -77,6 +76,8 @@ import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockType;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+
+import net.bytebuddy.implementation.MethodAccessorFactory.AccessType;
 
 @ExtendWith(MockitoExtension.class)
 public class QueryCreateGridHandlerTest {
@@ -310,7 +311,7 @@ public class QueryCreateGridHandlerTest {
 		long maxRowsPerPage = 1L;
 		// call under test
 		assertEquals(Long.MAX_VALUE, handler.getMaxRowSizeBytes(maxRowsPerPage));
-		verifyZeroInteractions(mockQueryManager);
+		verifyNoMoreInteractions(mockQueryManager);
 	}
 
 	@Test
@@ -318,7 +319,7 @@ public class QueryCreateGridHandlerTest {
 		long maxRowsPerPage = 0L;
 		// call under test
 		assertEquals(Long.MAX_VALUE, handler.getMaxRowSizeBytes(maxRowsPerPage));
-		verifyZeroInteractions(mockQueryManager);
+		verifyNoMoreInteractions(mockQueryManager);
 	}
 
 	@Test
@@ -448,7 +449,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
 				queryOptions)).thenReturn(queryResultBundle);
-		when(mockQueryManager.runQueryAsStream(any(), any(), any(), any(), any())).thenReturn(new QueryResultBundle());
+		when(mockQueryManager.runQueryAsStream(any(), any(), any(), any(), any(ACCESS_TYPE[].class))).thenReturn(new QueryResultBundle());
 		doReturn(Optional.empty()).when(handler).getSchemaId(mockUser, tableId, rows);
 		when(mockGridDao.createGridSession(any())).thenReturn(new GridSession().setSessionId(gridSessionId));
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);

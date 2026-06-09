@@ -13,7 +13,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -349,7 +349,7 @@ public class CurationTaskManagerImplUnitTest {
 		}).getMessage();
 		assertEquals("For input string: \"not a number\"", message);
 		
-        verifyZeroInteractions(mockCurationTaskDao, mockAclManager);
+        verifyNoMoreInteractions(mockCurationTaskDao, mockAclManager);
 	}
 
     @Test
@@ -391,7 +391,7 @@ public class CurationTaskManagerImplUnitTest {
         }).getMessage();
         assertTrue(message.contains("Cannot specify both"));
 
-        verifyZeroInteractions(mockCurationTaskDao, mockAclManager);
+        verifyNoMoreInteractions(mockCurationTaskDao, mockAclManager);
     }
 
     @Test

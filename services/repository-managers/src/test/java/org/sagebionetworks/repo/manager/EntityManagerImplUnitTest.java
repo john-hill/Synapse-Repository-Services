@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyListOf;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anySetOf;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
@@ -21,7 +21,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.EntityManagerImpl.DEFAULT_SORT_BY;
 import static org.sagebionetworks.repo.manager.EntityManagerImpl.DEFAULT_SORT_DIRECTION;
@@ -408,7 +407,7 @@ public class EntityManagerImplUnitTest {
 		when(mockEntityAclManager.getNonvisibleChildren(mockUser, childRequest.getParentId()))
 				.thenReturn(nonvisibleChildren);
 
-		when(mockNodeManager.getChildren(anyString(), anyListOf(EntityType.class), anySetOf(Long.class),
+		when(mockNodeManager.getChildren(anyString(), anyList(), anySet(),
 				any(SortBy.class), any(Direction.class), anyLong(), anyLong())).thenReturn(childPage);
 
 		ChildStatsResponse statsReponse = new ChildStatsResponse().withSumFileSizesBytes(123L).withTotalChildCount(4L);
@@ -458,7 +457,7 @@ public class EntityManagerImplUnitTest {
 	@Test
 	public void testGetChildrenNullParentId() {
 
-		when(mockNodeManager.getChildren(anyString(), anyListOf(EntityType.class), anySetOf(Long.class),
+		when(mockNodeManager.getChildren(anyString(), anyList(), anySet(),
 				any(SortBy.class), any(Direction.class), anyLong(), anyLong())).thenReturn(childPage);
 
 		ChildStatsResponse statsReponse = new ChildStatsResponse().withSumFileSizesBytes(123L).withTotalChildCount(4L);
@@ -516,7 +515,7 @@ public class EntityManagerImplUnitTest {
 		when(mockEntityAclManager.getNonvisibleChildren(mockUser, childRequest.getParentId()))
 				.thenReturn(nonvisibleChildren);
 
-		when(mockNodeManager.getChildren(anyString(), anyListOf(EntityType.class), anySetOf(Long.class),
+		when(mockNodeManager.getChildren(anyString(), anyList(), anySet(),
 				any(SortBy.class), any(Direction.class), anyLong(), anyLong())).thenReturn(childPage);
 
 		ChildStatsResponse statsReponse = new ChildStatsResponse().withSumFileSizesBytes(123L).withTotalChildCount(4L);
@@ -919,7 +918,7 @@ public class EntityManagerImplUnitTest {
 		verify(entityManagerSpy).getEntity(entityId, null);
 		verify(mockNodeManager).getUserAnnotations(entityId);
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 	
 	@Test
@@ -969,7 +968,7 @@ public class EntityManagerImplUnitTest {
 		verify(entityManagerSpy).getEntity(entityId, null);
 		verify(mockNodeManager).getUserAnnotations(entityId);
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 
 	@Test
@@ -982,7 +981,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verifyNoMoreInteractions(mockNodeManager);
 		verifyNoMoreInteractions(mockAnnotationTranslator);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 	
 	@Test
@@ -1024,7 +1023,7 @@ public class EntityManagerImplUnitTest {
 		verify(entityManagerSpy).getEntity(entityId, null);
 		verify(mockNodeManager).getUserAnnotations(entityId);
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 	
 	@Test
@@ -1076,7 +1075,7 @@ public class EntityManagerImplUnitTest {
 		verify(entityManagerSpy).getEntity(entityId, null);
 		verify(mockNodeManager).getUserAnnotations(entityId);
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 	
 	@Test
@@ -1088,7 +1087,7 @@ public class EntityManagerImplUnitTest {
 		});
 		verifyNoMoreInteractions(mockNodeManager);
 		verifyNoMoreInteractions(mockAnnotationTranslator);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 	
 	@Test
@@ -1600,7 +1599,7 @@ public class EntityManagerImplUnitTest {
 			entityManager.getDerivedAnnotationKeys(mockUser, entityId);
 		});
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
-		verifyZeroInteractions(mockDerivedAnnotationDao);
+		verifyNoMoreInteractions(mockDerivedAnnotationDao);
 	}
 	
 	@Test

@@ -6,7 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -180,7 +180,7 @@ public class UserStatusManagerImplUnitTest {
 
 		assertEquals(0, result);
 		// On staging we skip entirely: no users queried, no emails sent, nothing marked warned
-		verifyZeroInteractions(mockUserStatusDao, mockTemplatedMessageSender, mockUserManager,
+		verifyNoInteractions(mockUserStatusDao, mockTemplatedMessageSender, mockUserManager,
 				mockPrincipalNameProvider, mockClock);
 		verify(mockProdDetector).isProductionStack();
 	}
@@ -194,7 +194,7 @@ public class UserStatusManagerImplUnitTest {
 
 		assertEquals(0, result);
 		// When the stack cannot be detected we conservatively skip just like staging
-		verifyZeroInteractions(mockUserStatusDao, mockTemplatedMessageSender, mockUserManager,
+		verifyNoInteractions(mockUserStatusDao, mockTemplatedMessageSender, mockUserManager,
 				mockPrincipalNameProvider, mockClock);
 		verify(mockProdDetector).isProductionStack();
 	}

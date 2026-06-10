@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -16,6 +17,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +31,7 @@ import org.sagebionetworks.repo.manager.message.MessageTemplate;
 import org.sagebionetworks.repo.manager.message.PrincipalNameProvider;
 import org.sagebionetworks.repo.manager.message.TemplatedMessageSender;
 import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
+import org.sagebionetworks.repo.manager.stack.ProdDetector;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
@@ -56,12 +59,16 @@ public class UserStatusManagerImplUnitTest {
 	@Mock
 	private PrincipalNameProvider mockPrincipalNameProvider;
 
+	@Mock
+	private ProdDetector mockProdDetector;
+
 	@Spy
 	@InjectMocks
 	private UserStatusManagerImpl manager;
 
 	@Test
 	public void testWarnInactiveUsersWithNoUsersToWarn() {
+		when(mockProdDetector.isProductionStack()).thenReturn(Optional.of(true));
 		Instant now = Instant.now();
 		when(mockClock.now()).thenReturn(Date.from(now));
 		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
@@ -78,6 +85,7 @@ public class UserStatusManagerImplUnitTest {
 
 	@Test
 	public void testWarnInactiveUsers() {
+		when(mockProdDetector.isProductionStack()).thenReturn(Optional.of(true));
 		long userId1 = 111L;
 		long userId2 = 222L;
 		Instant now = Instant.now();
@@ -106,6 +114,7 @@ public class UserStatusManagerImplUnitTest {
 
 	@Test
 	public void testWarnInactiveUsersWithBootstrapPrincipal() {
+		when(mockProdDetector.isProductionStack()).thenReturn(Optional.of(true));
 		long userId = 111L;
 		long bootstrapId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		Instant now = Instant.now();
@@ -133,6 +142,7 @@ public class UserStatusManagerImplUnitTest {
 
 	@Test
 	public void testWarnInactiveUsersWithEmailFailure() {
+		when(mockProdDetector.isProductionStack()).thenReturn(Optional.of(true));
 		long userId1 = 111L;
 		long userId2 = 222L;
 		Instant now = Instant.now();
@@ -159,6 +169,34 @@ public class UserStatusManagerImplUnitTest {
 		verify(mockTemplatedMessageSender, times(1)).sendMessage(any());
 		// both users must be marked warned regardless of email failure
 		verify(mockUserStatusDao).setDisableWarningSentOn(List.of(userId1, userId2));
+	}
+
+	@Test
+	public void testWarnInactiveUsersWithStagingStack() {
+		when(mockProdDetector.isProductionStack()).thenReturn(Optional.of(false));
+
+		// call under test
+		int result = manager.warnInactiveUsers(500);
+
+		assertEquals(0, result);
+		// On staging we skip entirely: no users queried, no emails sent, nothing marked warned
+		verifyZeroInteractions(mockUserStatusDao, mockTemplatedMessageSender, mockUserManager,
+				mockPrincipalNameProvider, mockClock);
+		verify(mockProdDetector).isProductionStack();
+	}
+
+	@Test
+	public void testWarnInactiveUsersWithUndetectableStack() {
+		when(mockProdDetector.isProductionStack()).thenReturn(Optional.empty());
+
+		// call under test
+		int result = manager.warnInactiveUsers(500);
+
+		assertEquals(0, result);
+		// When the stack cannot be detected we conservatively skip just like staging
+		verifyZeroInteractions(mockUserStatusDao, mockTemplatedMessageSender, mockUserManager,
+				mockPrincipalNameProvider, mockClock);
+		verify(mockProdDetector).isProductionStack();
 	}
 
 	@Test

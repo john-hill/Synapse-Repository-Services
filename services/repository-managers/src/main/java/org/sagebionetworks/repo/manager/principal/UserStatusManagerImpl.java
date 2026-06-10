@@ -17,6 +17,7 @@ import org.sagebionetworks.repo.manager.message.MessageTemplate;
 import org.sagebionetworks.repo.manager.message.PrincipalNameProvider;
 import org.sagebionetworks.repo.manager.message.TemplatedMessageSender;
 import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
+import org.sagebionetworks.repo.manager.stack.ProdDetector;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
@@ -41,15 +42,19 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 	private PrincipalNameProvider principalNameProvider;
 
+	private ProdDetector prodDetector;
+
 	public UserStatusManagerImpl(UserStatusDao userStatusDao, UserManager userManager,
 			OpenIDConnectManager oidcTokenManager, Clock clock,
-			TemplatedMessageSender templatedMessageSender, PrincipalNameProvider principalNameProvider) {
+			TemplatedMessageSender templatedMessageSender, PrincipalNameProvider principalNameProvider,
+			ProdDetector prodDetector) {
 		this.userStatusDao = userStatusDao;
 		this.userManager = userManager;
 		this.oidcTokenManager = oidcTokenManager;
 		this.clock = clock;
 		this.templatedMessageSender = templatedMessageSender;
 		this.principalNameProvider = principalNameProvider;
+		this.prodDetector = prodDetector;
 	}
 
 
@@ -80,6 +85,13 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 	@Override
 	public int warnInactiveUsers(int maxBatchSize) {
+		// The inactive user warning email is only sent from the production stack to avoid sending
+		// duplicate emails from both the production and staging stacks. If the stack cannot be
+		// detected we conservatively skip sending.
+		if (!prodDetector.isProductionStack().orElse(false)) {
+			return 0;
+		}
+
 		Date warningThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
 		Date disableThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_DAYS, ChronoUnit.DAYS));
 

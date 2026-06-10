@@ -98,24 +98,31 @@ public class UserStatusDaoImplTest {
 	}
 
 	@Test
-	public void testResetStatusToEnabled() {
-		// set realistic disabled status (last seen more than 180 days ago and set disabled by worker)
+	public void testEnableUser() {
+		// Set realistic disabled status: inactive, warned, then disabled
 		Date lastSeenOn = Date.from(Instant.now().minus(181, ChronoUnit.DAYS));
 		userStatusDao.setLastSeenOn(List.of(userId), lastSeenOn);
+		userStatusDao.setDisableWarningSentOn(List.of(userId));
 		userStatusDao.setDisabled(userId, true);
 
 		assertTrue(userStatusDao.isDisabled(userId));
-		assertEquals(lastSeenOn, userStatusDao.getLastSeenOn(userId).orElseThrow());
 
 		Instant instantNow = Instant.now();
 
 		// call under test
-		userStatusDao.resetStatusToEnabled(userId);
+		userStatusDao.enableUser(userId);
 
 		assertFalse(userStatusDao.isDisabled(userId));
 		Date updatedLastSeenOn = userStatusDao.getLastSeenOn(userId).orElseThrow();
 		assertTrue(updatedLastSeenOn.after(Date.from(instantNow.minus(1, ChronoUnit.MINUTES))),
 				"LAST_SEEN_ON should be updated to approximately now");
+
+		// Verify DISABLE_WARNING_SENT_ON was cleared: backdate LAST_SEEN_ON into the warning
+		// window — the user should reappear in the warn batch, proving the warning flag was reset
+		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
+		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
+		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
+		assertEquals(List.of(userId), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10));
 	}
 
 	@Test

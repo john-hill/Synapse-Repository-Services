@@ -139,7 +139,7 @@ public class UserStatusManagerImpl implements UserStatusManager {
 	@Override
 	@WriteTransaction
 	public void resetUserStatusToEnabled(Long targetUserId) {
-		userStatusDao.resetStatusToEnabled(targetUserId);
+		userStatusDao.enableUser(targetUserId);
 	}
 
 }

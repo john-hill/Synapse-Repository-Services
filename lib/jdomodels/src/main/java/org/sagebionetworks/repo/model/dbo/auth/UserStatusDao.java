@@ -12,7 +12,7 @@ public interface UserStatusDao {
 	
 	void setDisabled(long principalId, boolean disabled);
 
-	void resetStatusToEnabled(long principalId);
+	void enableUser(long principalId);
 
 	boolean isDisabled(long principalId);
 	

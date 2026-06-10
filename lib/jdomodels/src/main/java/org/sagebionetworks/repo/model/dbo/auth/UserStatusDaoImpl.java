@@ -26,14 +26,13 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	public void setLastSeenOn(List<Long> principalIds, Date lastSeenOn) {
 		jdbcTemplate.batchUpdate(
 				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, LAST_SEEN_ON, DISABLED)"
-				+ " VALUES (?, UUID(), ?, false)"
-				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = ?, DISABLE_WARNING_SENT_ON = NULL",
+				+ " VALUES (?, UUID(), ?, false) AS new_row"
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = new_row.LAST_SEEN_ON, DISABLE_WARNING_SENT_ON = NULL",
 				new BatchPreparedStatementSetter() {
 					@Override
 					public void setValues(PreparedStatement ps, int i) throws SQLException {
 						ps.setLong(1, principalIds.get(i));
 						ps.setTimestamp(2, new Timestamp(lastSeenOn.getTime()));
-						ps.setTimestamp(3, new Timestamp(lastSeenOn.getTime()));
 					}
 					@Override
 					public int getBatchSize() {
@@ -54,18 +53,18 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	public void setDisabled(long principalId, boolean disabled) {
 		jdbcTemplate.update(
 				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, DISABLED)"
-				+ " VALUES (?, UUID(), ?)"
-				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), DISABLED = ?",
-				principalId, disabled, disabled);
+				+ " VALUES (?, UUID(), ?) AS new_row"
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), DISABLED = new_row.DISABLED",
+				principalId, disabled);
 	}
 
 	@WriteTransaction
 	@Override
-	public void resetStatusToEnabled(long principalId) {
+	public void enableUser(long principalId) {
 		jdbcTemplate.update(
 				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, LAST_SEEN_ON, DISABLED)"
 				+ " VALUES (?, UUID(), NOW(3), false)"
-				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = NOW(3), DISABLED = false",
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = NOW(3), DISABLED = false, DISABLE_WARNING_SENT_ON = NULL",
 				principalId);
 	}
 

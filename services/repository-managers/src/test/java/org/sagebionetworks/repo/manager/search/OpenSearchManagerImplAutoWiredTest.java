@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.opensearch.client.opensearch._types.query_dsl.Query.Kind;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,15 +20,15 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.json.JSONObject;
+import org.opensearch.client.opensearch._types.query_dsl.Query.Kind;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
@@ -41,8 +40,6 @@ import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.dsl.Aggregation;
 import org.sagebionetworks.repo.model.search.dsl.BoolQuery;
 import org.sagebionetworks.repo.model.search.dsl.BoostingQuery;
@@ -67,6 +64,8 @@ import org.sagebionetworks.repo.model.search.dsl.SimpleQueryStringQuery;
 import org.sagebionetworks.repo.model.search.dsl.TermFieldOptions;
 import org.sagebionetworks.repo.model.search.dsl.TermsAggregation;
 import org.sagebionetworks.repo.model.search.dsl.WildcardFieldOptions;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.util.TimeUtils;
@@ -1045,7 +1044,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * column to point at. Each query is run as a {@code SearchQuery.body} wrapping the kind
 	 * envelope plus the standard {@code from}/{@code size}.</p>
 	 */
-	@Disabled // See PLFM-9713
 	@Test
 	public void testSearchWithEveryAllowedQueryKindRoundTrips() {
 		List<ColumnModel> columns = List.of(

@@ -77,8 +77,6 @@ import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockType;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 
-import net.bytebuddy.implementation.MethodAccessorFactory.AccessType;
-
 @ExtendWith(MockitoExtension.class)
 public class QueryCreateGridHandlerTest {
 	

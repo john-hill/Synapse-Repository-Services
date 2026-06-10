@@ -26,7 +26,7 @@ env:
 phases:
   install:
     runtime-versions:
-      java: corretto11
+      java: corretto21
     commands: |
       # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-install-cli.html
       echo "Installing MySQL CLI"

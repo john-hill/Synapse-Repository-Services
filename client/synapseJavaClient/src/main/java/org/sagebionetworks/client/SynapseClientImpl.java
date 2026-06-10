@@ -423,6 +423,7 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
@@ -6516,7 +6517,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public AgentRegistration createOrGetAgentRegistration(AgentRegistrationRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");;
-		return putJSONEntity(getRepoEndpoint(), "/agent/registration/", request, AgentRegistration.class);
+		return putJSONEntity(getRepoEndpoint(), "/agent/registration", request, AgentRegistration.class);
 	}
 
 	@Override
@@ -6862,7 +6863,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public SearchQueryResults searchAutocomplete(SearchIndexQuery request) throws SynapseException {
+	public SearchQueryResults searchAutocomplete(SearchAutocompleteRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_AUTOCOMPLETE, request, SearchQueryResults.class);
 	}

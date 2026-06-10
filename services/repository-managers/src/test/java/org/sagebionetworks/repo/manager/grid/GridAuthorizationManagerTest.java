@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -117,7 +117,7 @@ public class GridAuthorizationManagerTest {
 
 		assertEquals("Unsupported grid source type: " + type.name(), message);
 
-		verifyZeroInteractions(mockEntityAuthorizationManager);
+		verifyNoMoreInteractions(mockEntityAuthorizationManager);
 	}
 
 	@Test
@@ -130,7 +130,7 @@ public class GridAuthorizationManagerTest {
 		AuthorizationStatus status = manager.hasGridSessionAccess(mockUser, gridSessionId);
 		assertEquals(AuthorizationStatus.authorized(), status);
 
-		verifyZeroInteractions(mockEntityAuthorizationManager);
+		verifyNoMoreInteractions(mockEntityAuthorizationManager);
 	}
 
 	@Test
@@ -144,7 +144,7 @@ public class GridAuthorizationManagerTest {
 
 		assertEquals("Grid session not found: " + gridSessionId, message);
 
-		verifyZeroInteractions(mockEntityAuthorizationManager);
+		verifyNoMoreInteractions(mockEntityAuthorizationManager);
 	}
 
 	@Test
@@ -161,7 +161,7 @@ public class GridAuthorizationManagerTest {
 
 		assertEquals("You are not authorized to access this resource.", message);
 
-		verifyZeroInteractions(mockEntityAuthorizationManager);
+		verifyNoMoreInteractions(mockEntityAuthorizationManager);
 	}
 
 	@Test
@@ -405,7 +405,7 @@ public class GridAuthorizationManagerTest {
 		// call under test
 		AuthorizationStatus result = manager.hasGridSessionAccess(mockUser, gridSessionId);
 		assertEquals(AuthorizationStatus.authorized(), result);
-		verifyZeroInteractions(mockEntityAuthorizationManager);
+		verifyNoMoreInteractions(mockEntityAuthorizationManager);
 	}
 
 	@Test
@@ -468,7 +468,7 @@ public class GridAuthorizationManagerTest {
 		// call under test
 		UserInfo result = manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
 		assertEquals(mockUser, result);
-		verifyZeroInteractions(mockEntityAuthorizationManager);
+		verifyNoMoreInteractions(mockEntityAuthorizationManager);
 	}
 
 }

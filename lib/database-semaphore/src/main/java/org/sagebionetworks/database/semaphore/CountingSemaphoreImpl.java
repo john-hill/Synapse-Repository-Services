@@ -50,6 +50,10 @@ public class CountingSemaphoreImpl implements CountingSemaphore {
 
 	private static final String COUNT_LOCK_ROWS = "SELECT COUNT(*) FROM SEMAPHORE_LOCK";
 
+	private static final String SQL_GET_AUTO_INCREMENT =
+			"SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES" +
+			" WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'SEMAPHORE_LOCK'";
+
 	private static final String CALL_REFRESH_SEMAPHORE_LOCK = "CALL refreshSemaphoreLock(?, ?)";
 
 	private static final String CALL_RELEASE_SEMAPHORE_LOCK = "CALL releaseSemaphoreLock(?)";
@@ -121,7 +125,7 @@ public class CountingSemaphoreImpl implements CountingSemaphore {
 			this.jdbcTemplate.update(Utils.loadStringFromClassPath(String.format(PROCEDURE_DDL_SQL_TEMPLATE, name)));
 		} catch (DataAccessException e) {
 			String message = String.format(PROCEDURE_EXITS_TEMPLATE, name);
-			if (e.getMessage().contains(message)) {
+			if (e.getCause().getMessage().contains(message)) {
 				log.info(message);
 			} else {
 				throw e;
@@ -216,6 +220,12 @@ public class CountingSemaphoreImpl implements CountingSemaphore {
 	@Override
 	public long getLockRowCount() {
 		return jdbcTemplate.queryForObject(COUNT_LOCK_ROWS, Long.class) ;
+	}
+
+	@Override
+	public long getLockKeyAutoIncrement() {
+		Long value = jdbcTemplate.queryForObject(SQL_GET_AUTO_INCREMENT, Long.class);
+		return value != null ? value : 1L;
 	}
 
 }

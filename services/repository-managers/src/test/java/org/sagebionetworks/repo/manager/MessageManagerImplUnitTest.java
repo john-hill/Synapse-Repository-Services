@@ -12,7 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -416,7 +416,7 @@ public class MessageManagerImplUnitTest {
 		});
 		
 		verify(mockEmailQuarantineDao).isQuarantined(RECIPIENT_EMAIL);
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 	}
 	
 	@Test
@@ -548,7 +548,7 @@ public class MessageManagerImplUnitTest {
 		});
 		
 		verify(mockEmailQuarantineDao).isQuarantined(RECIPIENT_EMAIL);
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 
 	}
 
@@ -586,7 +586,7 @@ public class MessageManagerImplUnitTest {
 		// Call under test
 		messageManager.sendDeliveryFailureEmail(MESSAGE_ID, errors);
 		
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 	}
 	
 	@Test
@@ -604,7 +604,7 @@ public class MessageManagerImplUnitTest {
 		});
 		
 		verify(mockEmailQuarantineDao).isQuarantined(CREATOR_EMAIL);
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 	}
 	
 	@Test
@@ -662,7 +662,7 @@ public class MessageManagerImplUnitTest {
 		
 		verify(mockEmailQuarantineDao).isQuarantined(RECIPIENT_EMAIL);
 		assertEquals(ImmutableList.of("Cannot deliver message to recipient (" + RECIPIENT_ID + "). The recipient does not have a valid notification email."), errors);
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 	}
 
 	@Test
@@ -737,7 +737,7 @@ public class MessageManagerImplUnitTest {
 
 		verify(messageDAO).getMessage(MESSAGE_ID);
 		verifyNoMoreInteractions(messageDAO);
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 	}
 	
 	@Test
@@ -753,7 +753,7 @@ public class MessageManagerImplUnitTest {
 		verify(messageDAO).getMessageSent(MESSAGE_ID);
 		
 		verifyNoMoreInteractions(messageDAO);
-		verifyZeroInteractions(sesClient);
+		verifyNoMoreInteractions(sesClient);
 	}
 	
 	@Test

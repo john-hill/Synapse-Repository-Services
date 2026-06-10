@@ -15,7 +15,7 @@
 
 	<properties>
 		<jacoco.skip>true</jacoco.skip>
-		<tomcat-version>9.0.91</tomcat-version>
+		<tomcat-version>10.1.24</tomcat-version>
 		<!-- This is the context relative to localhost where the services-repository war will be deployed
 			Note that it is important that this matches the org.sagebionetworks.base.endpoint property configured in the lib-stackConfiguration
 			since the java client used by the integration tests will use that property to set the base endpoint where to send requests
@@ -86,7 +86,7 @@
 					<wait>${org.sagebionetworks.integration.debug}</wait>
 					<!-- Container configuration -->
 					<container>
-						<containerId>tomcat8x</containerId>
+						<containerId>tomcat10x</containerId>
 						<timeout>360000</timeout>
 						<!-- Download and install tomcat -->
 						<zipUrlInstaller>
@@ -133,6 +133,8 @@
 								<!-- -Xnoagent -->
 								-Xmx2048m
 								-Xms1024m
+								<!--This paramter is need to get XStream to work on Java 17+ and can be removed when we remove XStream -->
+								--add-opens java.base/java.util=ALL-UNNAMED
 							</cargo.jvmargs>
 						</properties>
 					</configuration>

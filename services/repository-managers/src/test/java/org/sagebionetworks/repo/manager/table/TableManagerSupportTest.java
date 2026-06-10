@@ -18,7 +18,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -1023,7 +1022,7 @@ public class TableManagerSupportTest {
 		// call under test
 		managerSpy.sendAsynchronousActivitySignal(idAndVersion);
 		verify(managerSpy).getTableObjectType(idAndVersion);
-		verifyZeroInteractions(mockTransactionalMessenger);
+		verifyNoMoreInteractions(mockTransactionalMessenger);
 	}
 	
 	@Test
@@ -1038,7 +1037,7 @@ public class TableManagerSupportTest {
 		assertEquals(expectedHash, result.getTableHash());
 		verify(mockNodeDao).getNodeTypeById(idAndVersion.getId().toString());
 		verify(managerSpy).getLastTableChangeNumber(idAndVersion);
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 	}
 	
 	@Test
@@ -1053,7 +1052,7 @@ public class TableManagerSupportTest {
 		assertEquals("3c718b5c2382c1203a9f1e1932a14029", result.getTableHash());
 		verify(managerSpy, never()).getLastTableChangeNumber(any());
 		verify(mockNodeDao).getNodeTypeById(idAndVersion.getId().toString());
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 	}
 	
 	@Test
@@ -1068,7 +1067,7 @@ public class TableManagerSupportTest {
 		assertEquals("3c718b5c2382c1203a9f1e1932a14029", result.getTableHash());
 		verify(managerSpy, never()).getLastTableChangeNumber(any());
 		verify(mockNodeDao).getNodeTypeById(idAndVersion.getId().toString());
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 	}
 	
 	@Test
@@ -1083,7 +1082,7 @@ public class TableManagerSupportTest {
 		assertEquals("3c718b5c2382c1203a9f1e1932a14029", result.getTableHash());
 		verify(managerSpy, never()).getLastTableChangeNumber(any());
 		verify(mockNodeDao).getNodeTypeById(idAndVersion.getId().toString());
-		verifyZeroInteractions(mockMaterializedViewDao);
+		verifyNoMoreInteractions(mockMaterializedViewDao);
 	}
 	
 	public void setupLookup(IndexDescription...all){
@@ -1320,8 +1319,8 @@ public class TableManagerSupportTest {
 		verify(mockFileProvider).createTempFile("TableSnapshotDownload", ".csv.gzip");
 		verifyNoMoreInteractions(mockFileProvider);
 		verifyNoMoreInteractions(mockFile);
-		verifyZeroInteractions(mockS3Client);
-		verifyZeroInteractions(mockTableIndexDAO);
+		verifyNoMoreInteractions(mockS3Client);
+		verifyNoMoreInteractions(mockTableIndexDAO);
 	}
 	
 	@Test
@@ -1355,7 +1354,7 @@ public class TableManagerSupportTest {
 		assertEquals(key, s3Request.getKey());
 		
 		verifyNoMoreInteractions(mockFileProvider);
-		verifyZeroInteractions(mockTableIndexDAO);
+		verifyNoMoreInteractions(mockTableIndexDAO);
 		verify(mockFile).delete();
 	}
 	
@@ -1390,7 +1389,7 @@ public class TableManagerSupportTest {
 		assertEquals(key, s3Request.getKey());
 		
 		verifyNoMoreInteractions(mockFileProvider);
-		verifyZeroInteractions(mockTableIndexDAO);
+		verifyNoMoreInteractions(mockTableIndexDAO);
 		verify(mockFile).delete();
 	}
 	
@@ -1494,7 +1493,7 @@ public class TableManagerSupportTest {
 	public void testTryRunWithTableNoExclusiveLockWithIdAndVersion() throws Exception {
 
 		doReturn("some result").when(managerSpy).tryRunWithTableNonExclusiveLock(any(), any(), any(),
-				any(String.class));
+				any(IdAndVersion[].class));
 		IdAndVersion one = IdAndVersionParser.parseIdAndVersion("syn123");
 		IdAndVersion two = IdAndVersionParser.parseIdAndVersion("syn456");
 
@@ -1503,8 +1502,7 @@ public class TableManagerSupportTest {
 				one, two);
 		assertEquals("some result", result);
 
-		verify(managerSpy).tryRunWithTableNonExclusiveLock(mockCallback, lockContext, mockCallable,
-				TableModelUtils.getTableSemaphoreKey(one), TableModelUtils.getTableSemaphoreKey(two));
+		verify(managerSpy).tryRunWithTableNonExclusiveLock(mockCallback, lockContext, mockCallable, one, two);
 	}
 	
 	@Test

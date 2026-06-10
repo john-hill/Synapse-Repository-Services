@@ -11,7 +11,7 @@ import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -556,7 +556,7 @@ public class AccessApprovalManagerImplUnitTest {
 		assertNotNull(response);
 		assertNotNull(response.getResults());
 		assertTrue(response.getResults().isEmpty());
-		verifyZeroInteractions(mockAccessApprovalDAO);
+		verifyNoMoreInteractions(mockAccessApprovalDAO);
 	}
 
 	@Test
@@ -721,7 +721,7 @@ public class AccessApprovalManagerImplUnitTest {
 		assertEquals(0, result);
 		verify(mockAccessApprovalDAO).listExpiredApprovals(expiredAfter, maxBatchSize);
 		verifyNoMoreInteractions(mockAccessApprovalDAO);
-		verifyZeroInteractions(mockTransactionMessenger);
+		verifyNoMoreInteractions(mockTransactionMessenger);
 		
 	}
 	
@@ -745,7 +745,7 @@ public class AccessApprovalManagerImplUnitTest {
 		verify(mockAccessApprovalDAO).listExpiredApprovals(expiredAfter, maxBatchSize);
 		verify(mockAccessApprovalDAO).revokeBatch(user.getId(), expiredApprovals);
 		verifyNoMoreInteractions(mockAccessApprovalDAO);
-		verifyZeroInteractions(mockTransactionMessenger);
+		verifyNoMoreInteractions(mockTransactionMessenger);
 		
 	}
 	
@@ -879,7 +879,7 @@ public class AccessApprovalManagerImplUnitTest {
 			// call under test
 			manager.validateHasAccessorRequirement(req, accessors);
 		});
-		verifyZeroInteractions(mockVerificationDao);
+		verifyNoMoreInteractions(mockVerificationDao);
 	}
 
 	@Test
@@ -892,7 +892,7 @@ public class AccessApprovalManagerImplUnitTest {
 			// call under test
 			manager.validateHasAccessorRequirement(req, accessors);
 		});
-		verifyZeroInteractions(mockCertifiedUsersDao);
+		verifyNoMoreInteractions(mockCertifiedUsersDao);
 	}
 
 	@Test
@@ -913,8 +913,8 @@ public class AccessApprovalManagerImplUnitTest {
 		req.setIsValidatedProfileRequired(false);
 		// call under test
 		manager.validateHasAccessorRequirement(req, accessors);
-		verifyZeroInteractions(mockCertifiedUsersDao);
-		verifyZeroInteractions(mockVerificationDao);
+		verifyNoMoreInteractions(mockCertifiedUsersDao);
+		verifyNoMoreInteractions(mockVerificationDao);
 	}
 	
 	@Test
@@ -1077,8 +1077,8 @@ public class AccessApprovalManagerImplUnitTest {
 		
 		assertEquals("userInfo is required.", message);
 		
-		verifyZeroInteractions(mockAccessApprovalDAO);
-		verifyZeroInteractions(mockAccessRequirementDAO);
+		verifyNoMoreInteractions(mockAccessApprovalDAO);
+		verifyNoMoreInteractions(mockAccessRequirementDAO);
 	}
 	
 	@Test
@@ -1092,8 +1092,8 @@ public class AccessApprovalManagerImplUnitTest {
 		
 		assertEquals("request is required.", message);
 		
-		verifyZeroInteractions(mockAccessApprovalDAO);
-		verifyZeroInteractions(mockAccessRequirementDAO);
+		verifyNoMoreInteractions(mockAccessApprovalDAO);
+		verifyNoMoreInteractions(mockAccessRequirementDAO);
 	}
 	
 	@Test
@@ -1108,7 +1108,7 @@ public class AccessApprovalManagerImplUnitTest {
 		
 		assertEquals("Only ACT member can perform this action.", message);
 		
-		verifyZeroInteractions(mockAccessApprovalDAO);
-		verifyZeroInteractions(mockAccessRequirementDAO);
+		verifyNoMoreInteractions(mockAccessApprovalDAO);
+		verifyNoMoreInteractions(mockAccessRequirementDAO);
 	}
 }

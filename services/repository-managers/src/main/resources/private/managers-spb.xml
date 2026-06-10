@@ -126,9 +126,7 @@
 		factory-method="createAmazonSecurityTokenServiceClient"/>
 
 	<bean id="messageManager" class="org.sagebionetworks.repo.manager.MessageManagerImpl" />
-	
-	<bean id="backupFileStream" class="org.sagebionetworks.repo.manager.migration.BackupFileStreamImpl" scope="singleton"/>
-	
+
 	<bean id="fileProvider" class="org.sagebionetworks.util.FileProviderImpl" scope="singleton"/>
 
 	<bean id="s3Utility" class="org.sagebionetworks.repo.manager.AmazonS3UtilityImpl"
@@ -162,11 +160,6 @@
  
 	<bean id="tableViewManager" class="org.sagebionetworks.repo.manager.table.TableViewManagerImpl" scope="singleton" />
 
-	<bean id="tableSupportExecutorService" class="java.util.concurrent.Executors"
-		scope="singleton" factory-method="newFixedThreadPool">
-		<constructor-arg value="100" />
-	</bean>
-    
     <bean id="asynchJobQueuePublisher" class="org.sagebionetworks.repo.manager.asynch.AsynchJobQueuePublisherImpl"
         init-method="initialize" scope="singleton" >
     </bean>

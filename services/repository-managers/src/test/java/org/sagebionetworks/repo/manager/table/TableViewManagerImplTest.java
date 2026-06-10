@@ -1283,7 +1283,7 @@ public class TableViewManagerImplTest {
 			ProgressingCallable<?> callable = (ProgressingCallable<?>) args[2];
 			return callable.call(mockProgressCallback);
 		}).when(mockTableManagerSupport).tryRunWithTableNonExclusiveLock(any(ProgressCallback.class), any(),
-				any(), any(String.class));
+				any(), any(String.class), any(String.class));
 	}
 	
 	@Test

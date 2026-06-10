@@ -3,7 +3,7 @@ package org.sagebionetworks.table.worker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -78,7 +78,7 @@ public class MaterializedViewSourceUpdateWorkerTest {
 		// Call under test
 		worker.run(mockCallBack, mockMessage, mockEvent);
 		
-		verifyZeroInteractions(mockManager);
+		verifyNoMoreInteractions(mockManager);
 		
 	}
 	
@@ -90,7 +90,7 @@ public class MaterializedViewSourceUpdateWorkerTest {
 		// Call under test
 		worker.run(mockCallBack, mockMessage, mockEvent);
 		
-		verifyZeroInteractions(mockManager);
+		verifyNoMoreInteractions(mockManager);
 		
 	}
 	
@@ -105,7 +105,7 @@ public class MaterializedViewSourceUpdateWorkerTest {
 		
 		assertEquals("Unsupported object type: expected TABLE_STATUS_EVENT, got ENTITY", message);
 
-		verifyZeroInteractions(mockManager);
+		verifyNoMoreInteractions(mockManager);
 		
 	}
 

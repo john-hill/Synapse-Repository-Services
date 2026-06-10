@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
 import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
 import org.sagebionetworks.repo.model.grid.query.Filter;
+import org.sagebionetworks.schema.adapter.JSONArrayAdapter;
 import org.sagebionetworks.util.ValidateArgument;
 
 public class CellValueFilterElement implements FilterElement {
@@ -27,7 +28,7 @@ public class CellValueFilterElement implements FilterElement {
 		ValidateArgument.required(filter.getOperator(), "filter.operator");
 		this.columnName = filter.getColumnName();
 		this.operator = CellValueOperatorElement.valueOf(filter.getOperator().name());
-		this.value = filter.getValue();
+		this.value = convertValue(filter.getValue());
 	}
 
 	public CellValueFilterElement() {
@@ -57,13 +58,34 @@ public class CellValueFilterElement implements FilterElement {
 	}
 
 	public CellValueFilterElement setValue(Object value) {
-		this.value = value;
+		this.value = convertValue(value);
 		return this;
 	}
 
 	public CellValueFilterElement setValue(List<Object> value) {
 		this.value = new JSONArray(value);
 		return this;
+	}
+
+	/**
+	 * Convert value to handle JSONArrayAdapter (from schema-to-pojo deserialization).
+	 * If the value is a JSONArrayAdapter, convert it to a plain JSONArray.
+	 * @param val the value to convert
+	 * @return the converted value
+	 */
+	private Object convertValue(Object val) {
+		if (val instanceof JSONArrayAdapter) {
+			// Handle JSONArrayAdapterImpl from schema-to-pojo deserialization
+			// Convert to plain JSONArray so it works with instanceof checks and SQL binding
+			try {
+				String jsonString = ((JSONArrayAdapter) val).toJSONString();
+				return new JSONArray(jsonString);
+			} catch (Exception e) {
+				// If conversion fails, return original value and let validation catch it
+				return val;
+			}
+		}
+		return val;
 	}
 
 	@Override
@@ -103,14 +125,9 @@ public class CellValueFilterElement implements FilterElement {
 		if (value == null) {
 			throw new IllegalArgumentException("Expected exactly one value for operation: " + operator);
 		}
+
 		sqlBuilder.append("(");
-		if (CellValueOperatorElement.NOT_EQUALS.equals(operator)) {
-			// If the check is "!=", then we want to include undefined/timestamp values, which will never equal the passed value
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1 OR");
-		} else {
-			// For all other operators, we want to exclude undefined/timestamp values, which cannot be compared to the passed value
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1 AND");
-		}
+		appendJsonLengthCheck(sqlBuilder, columnIndex);
 
 		String function = isString(value) ? "->>" : "->";
 		sqlBuilder.append(" VALS").append(function).append("'$[").append(columnIndex).append("].v[0]' ").append(operator.toSql());
@@ -131,22 +148,16 @@ public class CellValueFilterElement implements FilterElement {
 			throw new IllegalArgumentException("Expected at least one value for operation: " + operator);
 		}
 
+		JSONArray arrayValue = (JSONArray) value;
+
 		sqlBuilder.append("(");
-
-		if (CellValueOperatorElement.NOT_IN.equals(operator)) {
-			// If the check is "NOT IN", then we want to include undefined/timestamp values, which will never match the passed values
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1 OR");
-		} else {
-			// For all other operators ("IN"), we want to exclude undefined/timestamp values, which cannot be compared to the passed value
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1 AND");
-		}
-
+		appendJsonLengthCheck(sqlBuilder, columnIndex);
 
 		sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v[0]' ").append(operator.toSql());
 		sqlBuilder.append(" (:").append(bind).append(")");
 
 		List<Object> toBind = new ArrayList<>();
-		((JSONArray) value).forEach(o -> {
+		arrayValue.forEach(o -> {
 			if (isJsonType(o)) {
 				toBind.add(o.toString());
 			} else {
@@ -155,6 +166,20 @@ public class CellValueFilterElement implements FilterElement {
 		});
 		params.put(bind, toBind);
 		sqlBuilder.append(")");
+	}
+
+	/**
+	 * Append the JSON_LENGTH check to include or exclude undefined/timestamp values.
+	 * This logic is shared between single and multiple value handlers.
+	 */
+	private void appendJsonLengthCheck(StringBuilder sqlBuilder, Integer columnIndex) {
+		if (CellValueOperatorElement.NOT_EQUALS.equals(operator) || CellValueOperatorElement.NOT_IN.equals(operator)) {
+			// If the check is "!=" or "NOT IN", include undefined/timestamp values (they will never match)
+			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1 OR");
+		} else {
+			// For all other operators, exclude undefined/timestamp values (they cannot be compared)
+			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1 AND");
+		}
 	}
 
 	private void handleNoValue(StringBuilder sqlBuilder, Integer columnIndex) {

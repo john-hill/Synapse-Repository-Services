@@ -9,13 +9,13 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -144,7 +144,7 @@ public class EntityServiceImplUnitTest {
 		Exception ex = assertThrows(IllegalArgumentException.class, () -> entityService.updateEntity(userInfo.getId(), project,
 				false, null));
 		assertEquals("Updated Entity cannot have a null id", ex.getMessage());
-		verifyZeroInteractions(mockEntityManager);
+		verifyNoMoreInteractions(mockEntityManager);
 	}
 
 	@Test

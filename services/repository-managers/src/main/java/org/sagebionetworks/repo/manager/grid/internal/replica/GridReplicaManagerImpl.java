@@ -36,6 +36,7 @@ import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import software.amazon.awssdk.services.sns.SnsClient;
@@ -56,7 +57,7 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	public GridReplicaManagerImpl(GridIndexManager gridIndexManager,
 			GridReplicaSnapshotManager snapshotManager,
 			InternalReplicaToHubEventPublisher publisher,
-			SnsClient snsClient, String gridReplicaChangeTopicArn,
+			SnsClient snsClient, @Qualifier("gridReplicaChangeTopicArn") String gridReplicaChangeTopicArn,
 			HttpClient httpClient) {
 		this.gridIndexManager = gridIndexManager;
 		this.snapshotManager = snapshotManager;

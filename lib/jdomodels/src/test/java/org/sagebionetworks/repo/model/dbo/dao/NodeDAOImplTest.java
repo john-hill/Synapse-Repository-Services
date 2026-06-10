@@ -123,6 +123,7 @@ import org.sagebionetworks.repo.web.FileHandleLinkedException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.UncategorizedSQLException;
@@ -167,9 +168,11 @@ public class NodeDAOImplTest {
 	@Autowired
 	private TeamDAO teamDAO;
 	
+
 	@Autowired
 	private MigratableTableDAO migratableTableDao;
 		
+	@Qualifier("migrationJdbcTemplate")
 	@Autowired
 	private JdbcTemplate migrationJdbcTemplate;
 

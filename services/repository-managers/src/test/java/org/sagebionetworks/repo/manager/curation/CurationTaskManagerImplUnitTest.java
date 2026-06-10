@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.curation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -9,8 +10,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -28,6 +31,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
@@ -49,6 +53,7 @@ import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskPro
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dbo.curation.CurationTaskDao;
 import org.sagebionetworks.repo.model.dbo.curation.CurationTaskPropertiesType;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
@@ -71,6 +76,7 @@ public class CurationTaskManagerImplUnitTest {
     @Mock
     private AuthorizationStatus mockAuthorizationStatus;
 
+    @Spy
     @InjectMocks
     CurationTaskManagerImpl curationTaskManager;
 
@@ -174,6 +180,101 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
+    public void testHasAuthorizationModeChangedWithBothNull() {
+        // call under test
+        assertFalse(curationTaskManager.hasAuthorizationModeChanged(null, null));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithNullToPresent() {
+        // call under test
+        assertTrue(curationTaskManager.hasAuthorizationModeChanged(null, AuthorizationMode.SOURCE_BENEFACTOR));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithPresentToNull() {
+        // call under test
+        assertTrue(curationTaskManager.hasAuthorizationModeChanged(AuthorizationMode.SOURCE_BENEFACTOR, null));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithSameValue() {
+        // call under test
+        assertFalse(curationTaskManager.hasAuthorizationModeChanged(AuthorizationMode.SOURCE_BENEFACTOR, AuthorizationMode.SOURCE_BENEFACTOR));
+    }
+
+    @Test
+    public void testHasAuthorizationModeChangedWithNewValue() {
+        // call under test
+        assertTrue(curationTaskManager.hasAuthorizationModeChanged(AuthorizationMode.SOURCE_BENEFACTOR, AuthorizationMode.SESSION_OWNER));
+    }
+
+    @Test
+    public void testUpdateCurationTaskWithSuggestedAuthorizationModeChangeClearsActiveSession() {
+        // Existing task has no suggestedAuthorizationMode (null = legacy)
+        CurationTask existing = createCurationTask(CurationTaskPropertiesType.FILE_BASED).setTaskId(taskId);
+
+        // Updated task opts in with SOURCE_BENEFACTOR
+        FileBasedMetadataTaskProperties newProps = new FileBasedMetadataTaskProperties()
+                .setFileViewId(fileViewId)
+                .setUploadFolderId(uploadFolderId)
+                .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
+        CurationTask toUpdate = new CurationTask()
+                .setTaskId(taskId)
+                .setProjectId(projectId)
+                .setDataType("fastq")
+                .setTaskProperties(newProps);
+
+        CurationTask updated = new CurationTask().setTaskId(taskId);
+
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE))).thenReturn(mockAuthorizationStatus);
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(fileViewId))).thenReturn(EntityType.entityview);
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(existing));
+        when(mockCurationTaskDao.updateCurationTask(eq(userId), eq(toUpdate))).thenReturn(updated);
+        doReturn(true).when(curationTaskManager).hasAuthorizationModeChanged(any(), any());
+
+        // call under test
+        curationTaskManager.updateCurationTask(userInfo, toUpdate);
+
+        verify(curationTaskManager).hasAuthorizationModeChanged(any(), any());
+        verify(mockCurationTaskDao).clearActiveSessionId(taskId);
+    }
+
+    @Test
+    public void testUpdateCurationTaskWithSuggestedAuthorizationModeUnchangedDoesNotClearSession() {
+        // Both existing and updated have the same mode
+        FileBasedMetadataTaskProperties props = new FileBasedMetadataTaskProperties()
+                .setFileViewId(fileViewId)
+                .setUploadFolderId(uploadFolderId)
+                .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
+        CurationTask existing = new CurationTask().setTaskId(taskId).setProjectId(projectId).setDataType("fastq").setTaskProperties(props);
+
+        FileBasedMetadataTaskProperties sameProps = new FileBasedMetadataTaskProperties()
+                .setFileViewId(fileViewId)
+                .setUploadFolderId(uploadFolderId)
+                .setSuggestedAuthorizationMode(AuthorizationMode.SOURCE_BENEFACTOR);
+        CurationTask toUpdate = new CurationTask().setTaskId(taskId).setProjectId(projectId).setDataType("fastq").setTaskProperties(sameProps);
+
+        CurationTask updated = new CurationTask().setTaskId(taskId);
+
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE))).thenReturn(mockAuthorizationStatus);
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(fileViewId))).thenReturn(EntityType.entityview);
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(existing));
+        when(mockCurationTaskDao.updateCurationTask(eq(userId), eq(toUpdate))).thenReturn(updated);
+        doReturn(false).when(curationTaskManager).hasAuthorizationModeChanged(any(), any());
+
+        // call under test
+        curationTaskManager.updateCurationTask(userInfo, toUpdate);
+
+        verify(curationTaskManager).hasAuthorizationModeChanged(any(), any());
+        verify(mockCurationTaskDao, never()).clearActiveSessionId(any());
+    }
+
+    @Test
     public void testDeleteCurationTaskWithSuccess() {
         CurationTask toUpdate = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
 
@@ -248,7 +349,7 @@ public class CurationTaskManagerImplUnitTest {
 		}).getMessage();
 		assertEquals("For input string: \"not a number\"", message);
 		
-        verifyZeroInteractions(mockCurationTaskDao, mockAclManager);
+        verifyNoMoreInteractions(mockCurationTaskDao, mockAclManager);
 	}
 
     @Test
@@ -290,7 +391,7 @@ public class CurationTaskManagerImplUnitTest {
         }).getMessage();
         assertTrue(message.contains("Cannot specify both"));
 
-        verifyZeroInteractions(mockCurationTaskDao, mockAclManager);
+        verifyNoMoreInteractions(mockCurationTaskDao, mockAclManager);
     }
 
     @Test

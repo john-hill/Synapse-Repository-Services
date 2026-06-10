@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.util.Collections;
 import java.util.Map;
@@ -89,7 +89,7 @@ public class GridReplicaValidationWorkerTest {
 		message = new Message().withBody(changeSet.toJson());
 		// call under test
 		worker.run(mockCallback, message);
-		verifyZeroInteractions(mockValidationManager);
+		verifyNoMoreInteractions(mockValidationManager);
 	}
 
 	@Test
@@ -98,7 +98,7 @@ public class GridReplicaValidationWorkerTest {
 		message = new Message().withBody(changeSet.toJson());
 		// call under test
 		worker.run(mockCallback, message);
-		verifyZeroInteractions(mockValidationManager);
+		verifyNoMoreInteractions(mockValidationManager);
 	}
 
 	@Test
@@ -107,7 +107,7 @@ public class GridReplicaValidationWorkerTest {
 		message = new Message().withBody(changeSet.toJson());
 		// call under test
 		worker.run(mockCallback, message);
-		verifyZeroInteractions(mockValidationManager);
+		verifyNoMoreInteractions(mockValidationManager);
 	}
 
 	@Test

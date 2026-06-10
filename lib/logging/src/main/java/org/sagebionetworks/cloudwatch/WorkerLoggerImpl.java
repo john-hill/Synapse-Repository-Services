@@ -81,6 +81,16 @@ public class WorkerLoggerImpl implements WorkerLogger {
 	}
 
 	@Override
+	public void logWorkerGaugeMetric(Class<?> workerClass, String metricName, double value) {
+		ValidateArgument.required(workerClass, "The workerClass");
+		ValidateArgument.required(metricName, "The metricName");
+
+		Map<String, String> dimensions = Collections.singletonMap(DIMENSION_WORKER_CLASS, workerClass.getSimpleName());
+		ProfileData profileData = buildProfileData(new Date(), metricName, StandardUnit.Count, value, dimensions);
+		consumer.addProfileData(profileData);
+	}
+
+	@Override
 	public void logCustomMetric(ProfileData profileData) {
 		if (!shouldProfile) {
 			return;

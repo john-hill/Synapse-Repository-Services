@@ -5,7 +5,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyListOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -135,7 +134,7 @@ public class TableUploadManagerTest {
 				result.setEtag("etag"+count);
 				result.setRowsProcessed(new Long(count));
 				return result;
-			}}).when(rowProcessor).processRows(eq(user), eq(uploadRequest.getTableId()), anyListOf(ColumnModel.class), any(Iterator.class), anyString(), eq(mockProgressCallback));
+			}}).when(rowProcessor).processRows(eq(user), eq(uploadRequest.getTableId()), any(), any(Iterator.class), anyString(), eq(mockProgressCallback));
 	}
 	
 	@Test
@@ -169,7 +168,7 @@ public class TableUploadManagerTest {
 	public void testTempDeletedOnFailure() throws DatastoreException, NotFoundException, IOException {
 		// setup a failure
 		IllegalArgumentException wentWrong = new IllegalArgumentException("Something went wrong");
-		when(rowProcessor.processRows(eq(user), eq(uploadRequest.getTableId()), anyListOf(ColumnModel.class), any(Iterator.class), anyString(), eq(mockProgressCallback))).thenThrow(wentWrong);
+		when(rowProcessor.processRows(eq(user), eq(uploadRequest.getTableId()), any(), any(Iterator.class), anyString(), eq(mockProgressCallback))).thenThrow(wentWrong);
 		// call under test;
 		try {
 			manager.uploadCSV(mockProgressCallback, user, uploadRequest, rowProcessor);

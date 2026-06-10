@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -133,7 +133,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockGridReplicaViewManager, mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockGridReplicaViewManager, mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -142,7 +142,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -151,7 +151,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -160,7 +160,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -172,7 +172,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -185,7 +185,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -199,7 +199,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -209,7 +209,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -243,7 +243,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
-		verifyZeroInteractions(mockPatchBuilderPublisher, mockGridReplicaViewManager);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -253,7 +253,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
-		verifyZeroInteractions(mockPatchBuilderPublisher, mockGridReplicaViewManager);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher, mockGridReplicaViewManager);
 	}
 
 	@Test
@@ -264,7 +264,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
-		verifyZeroInteractions(mockGridReplicaViewManager, mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockGridReplicaViewManager, mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -276,7 +276,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -291,7 +291,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
-		verifyZeroInteractions(mockPatchBuilderPublisher);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher);
 	}
 
 	@Test
@@ -340,7 +340,7 @@ public class GridReplicaValidationManagerImplTest {
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
 
-		verifyZeroInteractions(mockPatchBuilderPublisher, mockJsonSchemaManager, mockJsonSchemaValidationManager);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher, mockJsonSchemaManager, mockJsonSchemaValidationManager);
 	}
 
 	@Test

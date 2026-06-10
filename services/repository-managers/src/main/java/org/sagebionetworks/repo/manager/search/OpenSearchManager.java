@@ -9,6 +9,7 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
@@ -117,33 +118,36 @@ public interface OpenSearchManager {
 	/**
 	 * Execute a search query against the OpenSearch index. The {@code options} set controls
 	 * which sections of the OpenSearch request are populated: omitting HITS switches the
-	 * request to {@code size=0}, omitting TOTAL_HITS disables total-hits tracking, and
-	 * omitting FACETS skips aggregation construction.
+	 * request to {@code size=0}, and omitting TOTAL_HITS disables total-hits tracking.
+	 * Aggregations are presence-driven by the request body
+	 * ({@code body.aggregations}) and are not gated by the options set.
 	 *
 	 * <p>Note: query-time analysis (default and per-column analyzers) is baked into the
 	 * AOSS index at build time, so this method does not take analyzer arguments — AOSS
 	 * routes each field through its own configured search analyzer automatically.</p>
 	 *
 	 * @param indexName  The OpenSearch index name.
-	 * @param query      The search query.
+	 * @param body       The typed {@link SearchQuery} envelope; each slot's contents are the
+	 *                   opaque OpenSearch DSL.
 	 * @param columns    The column models for field routing (user-facing names).
 	 * @param options    The response options requested; must be non-null and non-empty.
 	 * @return The search results — only fields corresponding to requested options are populated.
 	 */
-	SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
+	SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options);
 
 	/**
-	 * Execute an autocomplete query. Forces PREFIX query type and caps size at 8.
-	 * Autocomplete never produces facets regardless of the {@code options} set.
+	 * Execute an autocomplete query against the OpenSearch index. The body's allowlist is
+	 * narrowed to the autocomplete subset (prefix-flavored {@code query} plus optional
+	 * {@code _source}); page size is capped at the autocomplete server-side limit.
 	 *
 	 * @param indexName  The OpenSearch index name.
-	 * @param query      The search query (queryType is overridden to PREFIX).
+	 * @param body       The typed {@link SearchAutocompleteBody} envelope.
 	 * @param columns    The column models for field routing (user-facing names).
 	 * @param options    The response options requested; must be non-null and non-empty.
 	 * @return The autocomplete results.
 	 */
-	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
+	SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options);
 
 	/**

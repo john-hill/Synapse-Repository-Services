@@ -411,9 +411,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
 
 		if (overrides != null) {
-			for (ColumnAnalyzerOverride cao : overrides) {
-				if (cao.getOverrides() != null) {
-					for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+			for (ColumnAnalyzerOverride override : overrides) {
+				if (override.getOverrides() != null) {
+					for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
 						String qname = SearchOpaqueJsonUtil.readRef(entry.getAnalyzer());
 						if (qname != null) {
 							qualifiedNames.add(qname);
@@ -530,11 +530,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		}
 		int counter = 0;
 		if (overrides != null) {
-			for (ColumnAnalyzerOverride cao : overrides) {
-				if (cao.getOverrides() == null) {
+			for (ColumnAnalyzerOverride override : overrides) {
+				if (override.getOverrides() == null) {
 					continue;
 				}
-				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+				for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
 					Object analyzerSlot = entry.getAnalyzer();
 					if (analyzerSlot == null
 							|| SearchOpaqueJsonUtil.readRef(analyzerSlot) != null) {
@@ -656,13 +656,13 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 		// Override analyzers: must exist when set.
 		if (overrides != null) {
-			for (ColumnAnalyzerOverride cao : overrides) {
-				if (cao.getOverrides() == null) {
+			for (ColumnAnalyzerOverride override : overrides) {
+				if (override.getOverrides() == null) {
 					continue;
 				}
-				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+				for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
 					assertAnalyzerExists(SearchOpaqueJsonUtil.readRef(entry.getAnalyzer()), analyzers,
-							"override '" + cao.getName() + "' analyzer for column '" + entry.getColumnName() + "'");
+							"override '" + override.getName() + "' analyzer for column '" + entry.getColumnName() + "'");
 				}
 			}
 		}

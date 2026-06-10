@@ -12,7 +12,10 @@ import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 
 public class RequestUtils {
 	public static String REGEX = ",";
-	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypeHierarchy(RequestInterface.class).build();
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder()
+			.allowTypeHierarchy(RequestInterface.class)
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
+			.build();
 
 
 	public static void copyDtoToDbo(RequestInterface dto, DBORequest dbo) throws DatastoreException{

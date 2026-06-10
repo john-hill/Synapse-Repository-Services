@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
@@ -385,7 +385,7 @@ public class TermsOfServiceManagerTest {
 			managerSpy.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@ParameterizedTest
@@ -401,7 +401,7 @@ public class TermsOfServiceManagerTest {
 			manager.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@Test
@@ -418,7 +418,7 @@ public class TermsOfServiceManagerTest {
 			manager.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@Test
@@ -434,7 +434,7 @@ public class TermsOfServiceManagerTest {
 			manager.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@Test
@@ -447,7 +447,7 @@ public class TermsOfServiceManagerTest {
 			manager.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@Test
@@ -462,7 +462,7 @@ public class TermsOfServiceManagerTest {
 			manager.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@Test
@@ -477,7 +477,7 @@ public class TermsOfServiceManagerTest {
 			manager.updateTermsOfServiceRequirements(adminUser, requirements);
 		}).getMessage());
 
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 		
 	@Test
@@ -507,7 +507,7 @@ public class TermsOfServiceManagerTest {
 			manager.refreshLatestVersion();
 		}).getMessage());
 		
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	@Test
@@ -522,7 +522,7 @@ public class TermsOfServiceManagerTest {
 			manager.refreshLatestVersion();
 		}));
 		
-		verifyZeroInteractions(mockAuthDao);
+		verifyNoMoreInteractions(mockAuthDao);
 	}
 	
 	static Stream<Arguments> unsupportedSemanticVersions() {

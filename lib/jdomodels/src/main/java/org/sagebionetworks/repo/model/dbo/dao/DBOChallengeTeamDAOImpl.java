@@ -104,7 +104,7 @@ public class DBOChallengeTeamDAOImpl implements ChallengeTeamDAO {
 	private static TableMapping<DBOChallengeTeam> DBO_CHALLENGE_TEAM_TABLE_MAPPING =
 			(new DBOChallengeTeam()).getTableMapping();
 
-	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(ChallengeTeam.class).build();
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(ChallengeTeam.class).allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"}).build();
 
 
 	@WriteTransaction

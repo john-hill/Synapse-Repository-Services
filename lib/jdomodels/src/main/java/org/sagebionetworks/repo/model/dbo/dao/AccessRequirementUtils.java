@@ -14,7 +14,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessRequirement;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
@@ -30,7 +29,10 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.util.ValidateArgument;
 
 public class AccessRequirementUtils {
-	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(AccessRequirement.class).build();
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder()
+			.allowTypes(AccessRequirement.class)
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
+			.build();
 
 	// the convention is that the individual fields take precedence
 	// over the serialized objects.  When restoring the dto we first deserialize

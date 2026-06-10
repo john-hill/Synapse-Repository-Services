@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Date;
@@ -139,8 +139,8 @@ public class RepositoryMessagePublisherImplTest {
 
 		assertEquals("The message.objectType is required.", message);
 		
-		verifyZeroInteractions(mockConfig);
-		verifyZeroInteractions(mockAwsSNSClient);
+		verifyNoMoreInteractions(mockConfig);
+		verifyNoMoreInteractions(mockAwsSNSClient);
 		
 	}
 	
@@ -153,8 +153,8 @@ public class RepositoryMessagePublisherImplTest {
 
 		assertEquals("The message is required.", message);
 		
-		verifyZeroInteractions(mockConfig);
-		verifyZeroInteractions(mockAwsSNSClient);
+		verifyNoMoreInteractions(mockConfig);
+		verifyNoMoreInteractions(mockAwsSNSClient);
 		
 	}
 	

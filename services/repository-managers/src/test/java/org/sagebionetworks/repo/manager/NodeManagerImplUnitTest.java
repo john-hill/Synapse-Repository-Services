@@ -18,7 +18,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -2067,6 +2067,6 @@ public class NodeManagerImplUnitTest {
 		// Call under test
 		assertEquals(Collections.emptyList(), nodeManager.getEntityActualPathIds(entityId));
 		
-		verifyZeroInteractions(mockNodeDao, mockTrashcanDao);
+		verifyNoMoreInteractions(mockNodeDao, mockTrashcanDao);
 	}
 }

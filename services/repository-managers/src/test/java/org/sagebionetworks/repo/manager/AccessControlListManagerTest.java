@@ -9,7 +9,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -78,7 +78,7 @@ public class AccessControlListManagerTest {
 		Set<Long> benefactors = Sets.newHashSet(1L,2L);
 		// call under test
 		aclManager.getAccessibleBenefactors(userInfo, ObjectType.ENTITY, benefactors);
-		verify(aclDao, times(1)).getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE.class));
+		verify(aclDao, times(1)).getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE[].class));
 	}
 	
 	@Test
@@ -93,7 +93,7 @@ public class AccessControlListManagerTest {
 	@Test
 	public void testCanReadBenefactorsTrashNonAdmin(){
 		Set<Long> benefactors = Sets.newHashSet(AuthorizationManagerImpl.TRASH_FOLDER_ID);
-		when(aclDao.getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE.class))).thenReturn(benefactors);
+		when(aclDao.getAccessibleBenefactors(any(Set.class), any(Set.class), any(ObjectType.class), any(ACCESS_TYPE[].class))).thenReturn(benefactors);
 		// call under test
 		Set<Long> results = aclManager.getAccessibleBenefactors(userInfo, ObjectType.ENTITY, benefactors);
 		assertNotNull(results);
@@ -165,7 +165,7 @@ public class AccessControlListManagerTest {
 			aclManager.create(userInfo, acl, ObjectType.ENTITY , userInfo.getId());
 		}).getMessage();
 		assertEquals("All principals in the ACL must be from the same realm.", message);
-		verifyZeroInteractions(aclDao);
+		verifyNoMoreInteractions(aclDao);
 	}
 
 	@Test
@@ -179,7 +179,7 @@ public class AccessControlListManagerTest {
 		}).getMessage();
 
 		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", message);
-		verifyZeroInteractions(aclDao);
+		verifyNoMoreInteractions(aclDao);
 
 		//admin is also not allowed to change other realm acl
 		adminUser.setRealmId("1");

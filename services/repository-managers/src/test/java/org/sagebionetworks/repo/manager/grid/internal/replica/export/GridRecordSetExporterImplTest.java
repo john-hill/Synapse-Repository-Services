@@ -225,7 +225,7 @@ public class GridRecordSetExporterImplTest {
 			});
 		
 		// The first writeNext is for the header, throw on the next call
-		doNothing().doThrow(new IOException("nope")).when(mockCsvWriter).writeNext(any());
+		doNothing().doThrow(new IOException("nope")).when(mockCsvWriter).writeNext(any(String[].class));
 		
 		IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
 			// Call under test

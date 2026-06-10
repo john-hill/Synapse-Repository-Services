@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.sagebionetworks.repo.model.search.dsl.MatchAllQuery;
+import org.sagebionetworks.repo.model.search.dsl.Query;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -168,7 +170,9 @@ public class SearchIndexLifecycleWorkerAutowireTest {
 
         SearchIndexQuery query = new SearchIndexQuery();
         query.setSearchIndexId(searchIndex.getId());
-        query.setSearchQuery(new SearchQuery());
+        // match_all clause — required since body.query is required.
+        query.setSearchQuery(new SearchQuery()
+                .setQuery(new Query().setMatch_all(new MatchAllQuery())));
         query.setResponseParts(EnumSet.of(
                 SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 

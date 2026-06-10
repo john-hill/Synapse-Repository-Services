@@ -1,38 +1,30 @@
 package org.sagebionetworks.repo.manager.search;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.opensearch.client.opensearch.core.search.SourceConfig;
+import org.opensearch.client.opensearch.core.search.SourceFilter;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
-import org.sagebionetworks.repo.model.search.FacetRequest;
-import org.sagebionetworks.repo.model.search.KeyRange;
-import org.sagebionetworks.repo.model.search.KeyValues;
-import org.sagebionetworks.repo.model.search.SearchFieldValue;
-import org.sagebionetworks.repo.model.search.SearchHit;
-import org.sagebionetworks.repo.model.search.SortField;
-import org.sagebionetworks.repo.model.table.ColumnModel;
-import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.repo.model.table.SelectColumn;
-import org.sagebionetworks.repo.model.table.FacetColumnResult;
+import org.sagebionetworks.repo.model.search.SearchQuery;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
-import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
-import org.sagebionetworks.repo.model.search.SearchQuery;
-import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.QueryTranslator;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
@@ -63,28 +55,50 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
 	@Override
 	public SearchQueryResults search(UserInfo user, SearchIndexQuery request) {
-		return executeQuery(user, request, false);
-	}
-
-	@Override
-	public SearchQueryResults autocomplete(UserInfo user, SearchIndexQuery request) {
-		ValidateArgument.required(request, "request");
-		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
-		return executeQuery(user, request, true);
-	}
-
-	SearchQueryResults executeQuery(UserInfo user, SearchIndexQuery request, boolean isAutocomplete) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
 		ValidateArgument.required(request.getSearchIndexId(), "request.searchIndexId");
 		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
 
 		String searchIndexId = request.getSearchIndexId();
-		SearchQuery query = request.getSearchQuery();
+		SearchQuery body = request.getSearchQuery();
 		Set<SearchQueryPart> parts = resolveRequestedParts(request.getResponseParts());
 
-		SearchIndex searchIndex = entityManager.getEntity(user, searchIndexId, SearchIndex.class);
+		preflightAndCheckIndex(user, searchIndexId);
+		QueryMetadata metadata = buildQueryMetadata(IdAndVersion.parse(searchIndexId));
 
+		SourceFilter sourceFilter = parts.contains(SearchQueryPart.SELECT_COLUMNS)
+				? extractSourceFilter(body)
+				: null;
+
+		SearchQueryResults rawResults = openSearchManager.search(
+				getIndexName(searchIndexId), body, metadata.getColumns(), parts);
+
+		return shapeResults(rawResults, parts, metadata, sourceFilter);
+	}
+
+	@Override
+	public SearchQueryResults autocomplete(UserInfo user, SearchAutocompleteRequest request) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getSearchIndexId(), "request.searchIndexId");
+		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
+
+		String searchIndexId = request.getSearchIndexId();
+		preflightAndCheckIndex(user, searchIndexId);
+		QueryMetadata metadata = buildQueryMetadata(IdAndVersion.parse(searchIndexId));
+
+		Set<SearchQueryPart> parts = EnumSet.of(SearchQueryPart.HITS);
+		SearchQueryResults rawResults = openSearchManager.autocomplete(
+				getIndexName(searchIndexId), request.getSearchQuery(), metadata.getColumns(), parts);
+
+		return new SearchQueryResults()
+				.setOffset(rawResults.getOffset())
+				.setHits(rawResults.getHits());
+	}
+
+	private void preflightAndCheckIndex(UserInfo user, String searchIndexId) {
+		SearchIndex searchIndex = entityManager.getEntity(user, searchIndexId, SearchIndex.class);
 		String definingSQL = searchIndex.getDefiningSQL();
 		List<IdAndVersion> sourceTableIds = TableModelUtils.getSourceTableIds(definingSQL);
 		IdAndVersion sourceEntityId = sourceTableIds.get(0);
@@ -94,68 +108,25 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		// table-query and search-query paths.
 		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceEntityId);
 		tableManagerSupport.validateTableReadAccess(user, indexDescription);
-
 		checkIndexStatus(searchIndexId);
+	}
 
-		QueryMetadata metadata = buildQueryMetadata(IdAndVersion.parse(searchIndexId));
-		List<ColumnModel> columns = metadata.getColumns();
-
-		// Build name↔ID translation maps
-		Map<String, String> nameToId = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a, b) -> a));
-		Map<String, String> idToName = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a, b) -> a));
-
-		// Auto-populate queryFields for autocomplete with all text and link columns
-		if (isAutocomplete && (query.getQueryFields() == null || query.getQueryFields().isEmpty())) {
-			query.setQueryFields(getSearchableColumnNames(columns));
-		}
-
-		// When facets aren't in the response parts, skip building/translating them entirely.
-		if (!parts.contains(SearchQueryPart.FACETS)) {
-			query.setFacetRequests(null);
-		}
-
-		// Snapshot the user-facing returnFields BEFORE translateQueryNamesToIds rewrites them
-		// to column IDs in place. The response's selectColumns filter operates on user-facing
-		// names, so the snapshot is what we need below.
-		List<String> originalReturnFields = query.getReturnFields() == null
-				? null
-				: new ArrayList<>(query.getReturnFields());
-
-		// Translate user-facing column names to IDs before sending to OpenSearch
-		translateQueryNamesToIds(query, nameToId);
-
-		// Query-time analysis is baked into the AOSS index at build time, so the manager
-		// does not need TextAnalyzer or override metadata here — AOSS routes each field
-		// through its own configured search analyzer automatically.
-		SearchQueryResults rawResults;
-		if (isAutocomplete) {
-			rawResults = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns, parts);
-		} else {
-			rawResults = openSearchManager.search(getIndexName(searchIndexId), query, columns, parts);
-		}
-
-		// Translate column IDs back to names in the results before assembling the response.
-		translateResultIdsToNames(rawResults, idToName);
-
-		// Defense-in-depth: gate every opt-in field by the resolved parts even though
-		// OpenSearchManager already obeys them. Keeps the response contract crisp regardless
-		// of upstream behavior, and makes the per-part wiring obvious to readers.
+	private SearchQueryResults shapeResults(SearchQueryResults rawResults, Set<SearchQueryPart> parts,
+			QueryMetadata metadata, SourceFilter sourceFilter) {
 		SearchQueryResults results = new SearchQueryResults().setOffset(rawResults.getOffset());
 		if (parts.contains(SearchQueryPart.HITS)) {
 			results.setHits(rawResults.getHits());
+			results.setNextSearchAfter(rawResults.getNextSearchAfter());
 		}
 		if (parts.contains(SearchQueryPart.TOTAL_HITS)) {
 			results.setTotalHits(rawResults.getTotalHits());
 		}
-		if (parts.contains(SearchQueryPart.FACETS)) {
-			results.setFacets(rawResults.getFacets());
-		}
-		// SELECT_COLUMNS is a manager-layer addition (not produced by OpenSearch), so set it here.
+		// Aggregations are scoped by the caller supplying body.aggregations, not a
+		// SearchQueryPart bit. The raw field is null when not requested.
+		results.setAggregationResults(rawResults.getAggregationResults());
 		if (parts.contains(SearchQueryPart.SELECT_COLUMNS)) {
-			results.setSelectColumns(filterSelectColumnsForReturnFields(
-					metadata.getSelectColumns(), originalReturnFields));
+			results.setSelectColumns(filterSelectColumnsForSourceFilter(
+					metadata.getSelectColumns(), sourceFilter));
 		}
 		return results;
 	}
@@ -164,11 +135,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	 * Resolves the caller's requested response parts. A null or empty set means
 	 * "default minimal payload" (just {@link SearchQueryPart#HITS}); otherwise the
 	 * input is returned as an {@link EnumSet} for O(1) {@code contains} lookups.
-	 *
-	 * <p>The default-minimal behavior matches what most callers want — they ask
-	 * for hits, and only opt in to extras like total count or facets when needed.
-	 * It also keeps the OpenSearch request lean for the common case (no aggregations,
-	 * no total-hit tracking).
 	 */
 	static Set<SearchQueryPart> resolveRequestedParts(Set<SearchQueryPart> requested) {
 		if (requested == null || requested.isEmpty()) {
@@ -178,36 +144,50 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	}
 
 	/**
-	 * Filter a SELECT-clause {@link SelectColumn} list down to entries whose names
-	 * match {@code returnFields}. When {@code returnFields} is null or empty, the
-	 * original list is returned unchanged. Unknown names are silently dropped; the
-	 * SELECT-clause order is preserved.
+	 * Parse the caller-supplied {@code body._source} into the OpenSearch typed
+	 * {@link SourceFilter}. Returns null when no filter is supplied or the body itself is null.
+	 * The typed {@code {includes, excludes}} schema is the native {@code SourceFilter} shape, so
+	 * it deserializes straight through.
 	 */
-	List<SelectColumn> filterSelectColumnsForReturnFields(List<SelectColumn> selectColumns, List<String> returnFields) {
-		if (selectColumns == null) {
+	static SourceFilter extractSourceFilter(SearchQuery body) {
+		org.sagebionetworks.repo.model.search.dsl.SourceFilter source =
+				body == null ? null : body.get_source();
+		if (source == null) {
 			return null;
 		}
-		if (returnFields == null || returnFields.isEmpty()) {
-			return selectColumns;
-		}
-		Set<String> allowed = new HashSet<>(returnFields);
-		return selectColumns.stream()
-				.filter(sc -> allowed.contains(sc.getName()))
-				.collect(Collectors.toList());
+		SourceConfig sourceConfig = SearchOpaqueJsonUtil.fromJsonpTree(
+				SearchOpaqueJsonUtil.parse(source), SourceConfig._DESERIALIZER);
+		return sourceConfig.isFilter() ? sourceConfig.filter() : null;
 	}
 
 	/**
-	 * Returns the names of all text and link columns that are searchable for autocomplete.
+	 * Filter a SELECT-clause {@link SelectColumn} list to honor the caller's
+	 * {@code _source} filter. A column survives if it matches {@code includes} (or
+	 * {@code includes} is empty/absent) AND is not in {@code excludes}. When
+	 * {@code filter} is null or has neither includes nor excludes, the original list
+	 * is returned unchanged. Unknown names are silently dropped; the SELECT-clause
+	 * order is preserved.
 	 */
-	List<String> getSearchableColumnNames(List<ColumnModel> columns) {
-		List<String> names = new ArrayList<>();
-		for (ColumnModel column : columns) {
-			if (ColumnTypeToOpenSearchMapping.isTextType(column.getColumnType())
-					|| ColumnTypeToOpenSearchMapping.isLinkType(column.getColumnType())) {
-				names.add(column.getName());
-			}
+	List<SelectColumn> filterSelectColumnsForSourceFilter(List<SelectColumn> selectColumns, SourceFilter filter) {
+		if (selectColumns == null) {
+			return null;
 		}
-		return names;
+		if (filter == null) {
+			return selectColumns;
+		}
+		List<String> includes = filter.includes();
+		List<String> excludes = filter.excludes();
+		boolean hasIncludes = includes != null && !includes.isEmpty();
+		boolean hasExcludes = excludes != null && !excludes.isEmpty();
+		if (!hasIncludes && !hasExcludes) {
+			return selectColumns;
+		}
+		Set<String> includeSet = hasIncludes ? new HashSet<>(includes) : null;
+		Set<String> excludeSet = hasExcludes ? new HashSet<>(excludes) : Collections.emptySet();
+		return selectColumns.stream()
+				.filter(sc -> includeSet == null || includeSet.contains(sc.getName()))
+				.filter(sc -> !excludeSet.contains(sc.getName()))
+				.collect(Collectors.toList());
 	}
 
 	/**
@@ -242,98 +222,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
 	String getIndexName(String entityId) {
 		return INDEX_PREFIX + entityId;
-	}
-
-	/**
-	 * Translates all user-facing column name references in a SearchQuery to column IDs.
-	 * Handles boost syntax in queryFields (e.g., "name^3" becomes "id^3").
-	 */
-	void translateQueryNamesToIds(SearchQuery query, Map<String, String> nameToId) {
-		if (query.getQueryFields() != null) {
-			query.setQueryFields(query.getQueryFields().stream()
-					.map(field -> translateFieldWithBoost(field, nameToId))
-					.collect(Collectors.toList()));
-		}
-
-		translateKeyed(query.getTermsFilters(), KeyValues::getKey, KeyValues::setKey, nameToId);
-		translateKeyed(query.getRangeFilters(), KeyRange::getKey, KeyRange::setKey, nameToId);
-		translateKeyed(query.getFacetRequests(), FacetRequest::getColumnName, FacetRequest::setColumnName, nameToId);
-
-		query.setExistsFilters(translateNames(query.getExistsFilters(), nameToId));
-		query.setNotExistsFilters(translateNames(query.getNotExistsFilters(), nameToId));
-		query.setReturnFields(translateNames(query.getReturnFields(), nameToId));
-
-		if (query.getSort() != null) {
-			for (SortField sf : query.getSort()) {
-				if (!"_score".equals(sf.getColumnName())) {
-					String id = nameToId.get(sf.getColumnName());
-					if (id != null) {
-						sf.setColumnName(id);
-					}
-				}
-			}
-		}
-	}
-
-	String translateFieldWithBoost(String field, Map<String, String> nameToId) {
-		int boostIdx = field.indexOf('^');
-		if (boostIdx >= 0) {
-			String name = field.substring(0, boostIdx);
-			String boost = field.substring(boostIdx);
-			String id = nameToId.get(name);
-			return (id != null ? id : name) + boost;
-		}
-		String id = nameToId.get(field);
-		return id != null ? id : field;
-	}
-
-	private <T> void translateKeyed(List<T> items, Function<T, String> getKey,
-			BiConsumer<T, String> setKey, Map<String, String> nameToId) {
-		if (items == null) {
-			return;
-		}
-		for (T item : items) {
-			String id = nameToId.get(getKey.apply(item));
-			if (id != null) {
-				setKey.accept(item, id);
-			}
-		}
-	}
-
-	List<String> translateNames(List<String> names, Map<String, String> nameToId) {
-		if (names == null) {
-			return null;
-		}
-		return names.stream()
-				.map(name -> nameToId.getOrDefault(name, name))
-				.collect(Collectors.toList());
-	}
-
-	/**
-	 * Translates column IDs back to user-facing names in the search results.
-	 * Handles field keys, highlight keys (stripping .searchable suffix), and facet column names.
-	 */
-	void translateResultIdsToNames(SearchQueryResults results, Map<String, String> idToName) {
-		if (results.getHits() != null) {
-			for (SearchHit hit : results.getHits()) {
-				translateHitIdsToNames(hit, idToName);
-			}
-		}
-		translateKeyed(results.getFacets(), FacetColumnResult::getColumnName, FacetColumnResult::setColumnName, idToName);
-	}
-
-	void translateHitIdsToNames(SearchHit hit, Map<String, String> idToName) {
-		translateKeyed(hit.getFields(), SearchFieldValue::getName, SearchFieldValue::setName, idToName);
-		if (hit.getHighlights() != null) {
-			for (SearchFieldValue hv : hit.getHighlights()) {
-				String key = hv.getName();
-				if (key.endsWith(".searchable")) {
-					key = key.substring(0, key.length() - ".searchable".length());
-				}
-				String name = idToName.get(key);
-				hv.setName(name != null ? name : key);
-			}
-		}
 	}
 
 	/**

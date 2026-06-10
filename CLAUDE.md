@@ -4,11 +4,11 @@ Backend platform for Sage Bionetworks' Synapse — a collaborative research data
 
 ## Tech Stack
 
-- **Java 11** (do not use Java 17+ features)
-- **Spring 5.3.39** (Spring MVC, Spring JDBC, Spring AOP) — NOT Spring Boot, NOT Spring 6
-- **javax.servlet / javax.annotation** — NOT jakarta.* (Spring 6 migration pending)
-- **MySQL 8.0** via Spring JdbcTemplate (no ORM, no Spring Data)
-- **Tomcat 9** (WAR deployment)
+- **Java 21 LTS**
+- **Spring 6.x** (Spring MVC, Spring JDBC, Spring AOP) — NOT Spring Boot
+- **jakarta.servlet / jakarta.annotation** — migrated from javax.* for Spring 6 compatibility
+- **MySQL 8.x** via Spring JdbcTemplate (no ORM, no Spring Data)
+- **Tomcat 10x** (WAR deployment)
 - **Jackson 2.20.0**, Log4j 2, Guava 30.1.1
 - **AWS SDK v1** (1.12.x) + **AWS SDK v2** (2.29.x), Google Cloud Storage
 - **No Lombok**
@@ -82,7 +82,11 @@ platform (root)
 - Unit tests: `*Test.java` — JUnit 5 + Mockito 2.27
   - `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`
 - Integration tests: `IT*.java` (in integration-test module)
-- Mockito 2.27 — no `mockStatic` or Mockito 4/5 APIs
+- **Mockito 5.x** — strict stubbing is enabled by default
+  - **Functional/lambda parameters**: When mocking methods that accept functional interfaces (e.g., OpenSearch Java client's `search(Function<...>, Class)`), use `doAnswer()` to execute the lambda parameter. The lambda must be invoked to trigger validation logic inside it. See `OpenSearchManagerImplTest.stubSearchToExecuteLambda()` for the pattern.
+  - **Varargs parameters**: When a method has varargs and the implementation passes an array, match with the array type. Example: for `method(String... keys)` called with `String[]`, use `any(String[].class)` not `any(String.class)`. For `method(IdAndVersion... ids)` called with `IdAndVersion[]`, use `any(IdAndVersion[].class)`.
+  - **Overloaded methods**: When mocking overloaded methods, be explicit about which overload to match — using `any()` without type can cause ambiguous method reference errors.
+  - **No lenient stubbing**: Lenient stubbing (`@MockitoSettings(strictness = Strictness.LENIENT)`) is not allowed in this codebase — fix argument matchers instead.
 - **Test method naming**: `test<methodUnderTest>With<condition>` — e.g., `testCreateWithNonSageUser`, `testGetWithNonExistentId`, `testListWithMultipleOrganizations`. For IT CRUD lifecycle tests: `testCRUDWith<context>`.
 - **Test method structure**: Mark the primary method being tested with a `// call under test` comment directly above it — this makes each test's intent immediately clear during review
 - **Verify no downstream calls after exceptions**: After `assertThrows`, verify that mocked methods past the exception point were NOT called — use `verifyZeroInteractions(mock)` or `verify(mock, never()).method(...)`
@@ -179,9 +183,9 @@ See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for th
 
 ## Critical Constraints
 
-1. **Java 11 only** — no var in lambdas, no records, no text blocks, no sealed classes
-2. **javax namespace** — not jakarta.*
-3. **Spring 5.3** — no Spring 6+ or Spring Boot APIs
+1. **Java 21 LTS** — Java 21 language features are now available (records, text blocks, pattern matching, sealed classes, virtual threads)
+2. **jakarta namespace** — migrated from javax.* for Spring 6 compatibility
+3. **Spring 6.1** — no Spring Boot APIs
 4. **Mockito 2.27** — no mockStatic, no Mockito 4/5 features
 5. **No Lombok**
 6. **No Spring Data** — all DB via JdbcTemplate

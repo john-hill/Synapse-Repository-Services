@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,11 +24,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
-import org.sagebionetworks.repo.web.NotFoundException;
-import org.sagebionetworks.repo.web.ServiceUnavailableException;
 
 import com.docusign.esign.api.TemplatesApi;
 import com.docusign.esign.client.ApiException;
@@ -195,7 +191,7 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testListTemplatesPropagatesPersistent401AsUnauthorized() throws Exception {
+	public void testListTemplatesPropagatesPersistent401() throws Exception {
 		doReturn(oAuthToken("t1", 3600L), oAuthToken("t2", 3600L))
 				.when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
@@ -205,13 +201,13 @@ public class DocuSignClientTest {
 				.thenThrow(new ApiException(401, "Unauthorized"));
 
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> client.listTemplates(0, 51));
+		assertThrows(DocuSignUnauthorizedException.class, () -> client.listTemplates(0, 51));
 
 		verify(client, times(2)).requestJwtUserToken();
 	}
 
 	@Test
-	public void testListTemplatesMapsServiceUnavailableException() throws Exception {
+	public void testListTemplatesWithServerError() throws Exception {
 		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
@@ -220,34 +216,33 @@ public class DocuSignClientTest {
 				.thenThrow(new ApiException(500, "Server error"));
 
 		// call under test
-		ServiceUnavailableException ex = assertThrows(ServiceUnavailableException.class,
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> client.listTemplates(0, 51));
 		assertTrue(ex.getMessage().contains("500"));
 	}
 
 	@Test
-	public void testHandleApiExceptionMapping() throws Exception {
-		assertEquals(UnauthorizedException.class, 
+	public void testHandleApiExceptionMapping() {
+		assertEquals(DocuSignUnauthorizedException.class,
 				DocuSignClient.convertApiException(new ApiException(401, "x")).getClass());
-		assertEquals(UnauthorizedException.class,
+		assertEquals(IllegalStateException.class,
 				DocuSignClient.convertApiException(new ApiException(403, "x")).getClass());
-		assertEquals(NotFoundException.class,
+		assertEquals(IllegalStateException.class,
 				DocuSignClient.convertApiException(new ApiException(404, "x")).getClass());
-		assertEquals(ServiceUnavailableException.class,
+		assertEquals(IllegalStateException.class,
 				DocuSignClient.convertApiException(new ApiException(500, "x")).getClass());
-		assertEquals(ServiceUnavailableException.class,
+		assertEquals(IllegalStateException.class,
 				DocuSignClient.convertApiException(new ApiException(429, "x")).getClass());
 	}
 
 	@Test
 	public void testRequestJwtUserTokenTranslatesApiException() throws Exception {
-		// Use a non-spied client so we exercise the real requestJwtUserToken
 		DocuSignClient realClient = new DocuSignClient(mockConfig, mockTemplatesApiFactory) {
 			@Override
-			OAuth.OAuthToken requestJwtUserToken() throws ServiceUnavailableException {
-				throw new ServiceUnavailableException("boom");
+			OAuth.OAuthToken requestJwtUserToken() {
+				throw new IllegalStateException("boom");
 			}
 		};
-		assertThrows(ServiceUnavailableException.class, () -> realClient.listTemplates(0, 51));
+		assertThrows(IllegalStateException.class, () -> realClient.listTemplates(0, 51));
 	}
 }

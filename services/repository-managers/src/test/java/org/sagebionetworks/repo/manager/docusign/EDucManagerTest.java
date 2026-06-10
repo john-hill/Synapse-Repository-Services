@@ -26,7 +26,9 @@ import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 @ExtendWith(MockitoExtension.class)
 public class EDucManagerTest {
@@ -43,15 +45,12 @@ public class EDucManagerTest {
 
 	@BeforeEach
 	public void before() {
-		adminUser = new UserInfo(true);
-		adminUser.setId(1L);
+		adminUser = new UserInfo(true, 1L, DEFAULT_REALM_ID);
 
-		actUser = new UserInfo(false);
-		actUser.setId(2L);
+		actUser = new UserInfo(false, 2L, DEFAULT_REALM_ID);
 		actUser.setGroups(new HashSet<>(Collections.singleton(TeamConstants.ACT_TEAM_ID)));
 
-		regularUser = new UserInfo(false);
-		regularUser.setId(3L);
+		regularUser = new UserInfo(false, 3L, DEFAULT_REALM_ID);
 		regularUser.setGroups(new HashSet<>());
 	}
 
@@ -66,7 +65,15 @@ public class EDucManagerTest {
 	public void testListTemplatesWithNullUserInfo() {
 		// call under test
 		assertThrows(IllegalArgumentException.class,
-				() -> eDucManager.listTemplates(null, null));
+				() -> eDucManager.listTemplates(null, new EDucTemplateListRequest()));
+		verifyZeroInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testListTemplatesWithNullRequest() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.listTemplates(adminUser, null));
 		verifyZeroInteractions(mockDocuSignClient);
 	}
 
@@ -74,7 +81,7 @@ public class EDucManagerTest {
 	public void testListTemplatesWithUnauthorizedUser() {
 		// call under test
 		assertThrows(UnauthorizedException.class,
-				() -> eDucManager.listTemplates(regularUser, null));
+				() -> eDucManager.listTemplates(regularUser, new EDucTemplateListRequest()));
 		verifyZeroInteractions(mockDocuSignClient);
 	}
 
@@ -86,7 +93,7 @@ public class EDucManagerTest {
 		when(mockDocuSignClient.listTemplates(0, 51)).thenReturn(clientPage);
 
 		// call under test
-		EDucTemplatePage page = eDucManager.listTemplates(adminUser, null);
+		EDucTemplatePage page = eDucManager.listTemplates(adminUser, new EDucTemplateListRequest());
 
 		assertNotNull(page);
 		assertEquals(2, page.getResults().size());
@@ -106,7 +113,7 @@ public class EDucManagerTest {
 		when(mockDocuSignClient.listTemplates(0, 51)).thenReturn(clientPage);
 
 		// call under test
-		EDucTemplatePage page = eDucManager.listTemplates(actUser, null);
+		EDucTemplatePage page = eDucManager.listTemplates(actUser, new EDucTemplateListRequest());
 
 		assertNotNull(page);
 		assertEquals(50, page.getResults().size());
@@ -120,8 +127,11 @@ public class EDucManagerTest {
 		clientPage.setResults(new ArrayList<>(Arrays.asList(template("x"))));
 		when(mockDocuSignClient.listTemplates(50, 51)).thenReturn(clientPage);
 
+		EDucTemplateListRequest request = new EDucTemplateListRequest();
+		request.setNextPageToken("50a50");
+
 		// call under test
-		EDucTemplatePage page = eDucManager.listTemplates(adminUser, "50a50");
+		EDucTemplatePage page = eDucManager.listTemplates(adminUser, request);
 
 		assertEquals(1, page.getResults().size());
 		assertNull(page.getNextPageToken());
@@ -135,7 +145,7 @@ public class EDucManagerTest {
 		when(mockDocuSignClient.listTemplates(anyInt(), anyInt())).thenReturn(clientPage);
 
 		// call under test
-		EDucTemplatePage page = eDucManager.listTemplates(adminUser, null);
+		EDucTemplatePage page = eDucManager.listTemplates(adminUser, new EDucTemplateListRequest());
 
 		assertEquals(0, page.getResults().size());
 		assertNull(page.getNextPageToken());

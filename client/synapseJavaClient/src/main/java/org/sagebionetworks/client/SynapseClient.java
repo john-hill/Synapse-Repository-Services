@@ -132,6 +132,7 @@ import org.sagebionetworks.repo.model.dataaccess.AccessorGroupRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessorGroupResponse;
 import org.sagebionetworks.repo.model.dataaccess.CreateSubmissionRequest;
 import org.sagebionetworks.repo.model.dataaccess.OpenSubmissionPage;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.ResearchProject;
@@ -3557,11 +3558,11 @@ public interface SynapseClient extends BaseClient {
 	 * List a page of available eDUC (electronic Data Use Certificate) templates.
 	 * Only an ACT member can perform this action.
 	 *
-	 * @param nextPageToken opaque page token, or null for the first page
+	 * @param request the list request
 	 * @return a page of eDUC template metadata
 	 * @throws SynapseException
 	 */
-	EDucTemplatePage listEDucTemplates(String nextPageToken) throws SynapseException;
+	EDucTemplatePage listEDucTemplates(EDucTemplateListRequest request) throws SynapseException;
 
 	/**
 	 * Retrieve a page of AccessorGroup.

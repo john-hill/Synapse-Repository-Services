@@ -26,9 +26,9 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.service.ServiceProvider;
-import org.sagebionetworks.repo.web.ServiceUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
@@ -325,17 +325,17 @@ public class DataAccessController {
 	 * perform this action.
 	 *
 	 * @param userId
-	 * @param nextPageToken
+	 * @param request
 	 * @return a page of eDUC template metadata
 	 */
 	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.EDUC_TEMPLATE, method = RequestMethod.GET)
+	@RequestMapping(value = UrlHelpers.EDUC_TEMPLATE, method = RequestMethod.POST)
 	public @ResponseBody EDucTemplatePage listEDucTemplates(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestParam(value = UrlHelpers.NEXT_PAGE_TOKEN_PARAM, required = false) String nextPageToken)
+			@RequestBody EDucTemplateListRequest request)
 			throws Exception {
-		return serviceProvider.getEDucService().listTemplates(userId, nextPageToken);
+		return serviceProvider.getEDucService().listTemplates(userId, request);
 	}
 	
 	/**

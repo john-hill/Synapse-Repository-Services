@@ -31,28 +31,10 @@
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>lib-models</artifactId>
 		</dependency>
-		<!--
-		    Marked `optional` so the maven-shade-plugin still bundles the DocuSign
-		    classes into this module's output JAR (with org/json/** stripped — see
-		    the build section), but Maven does not propagate the original DocuSign
-		    artifact as a transitive dependency to downstream modules. Without this,
-		    multi-module reactor builds resolve lib-docusign via its original pom
-		    (not the dependency-reduced pom), which would put the un-stripped
-		    DocuSign shaded jar back on the downstream classpath and reintroduce
-		    the org.json conflict with Synapse's `org.json:JSON-Java`.
-		-->
 		<dependency>
 			<groupId>com.docusign</groupId>
 			<artifactId>docusign-esign-java</artifactId>
 			<version>6.2.0</version>
-			<!-- Use the artifact docusign-esign-java-6.2.0-shaded.jar instead of 
-			the plain docusign-esign-java-6.2.0.jar. DocuSign publishes this pre-shaded 
-			variant of their SDK (with a shaded classifier) that bundles its transitive 
-			dependencies (Jersey, Jackson, etc.) inside the JAR under relocated packages. 
-			This is their way of avoiding version conflicts with whatever Jackson/Jersey 
-			the consuming project already uses.-->
-			<classifier>shaded</classifier>
-			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -98,57 +80,4 @@
 		</dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<!--
-			    The DocuSign "shaded" artifact bundles its own copy of common libraries.
-			    We strip classes that conflict with Synapse's classpath:
-			    - org/json/** : bundled version rejects Boolean→String coercion that
-			      Synapse's OAuth2 parsing relies on.
-			    - Jackson core/databind/annotation/dataformat/datatype : bundled 2.14.2
-			      conflicts with Synapse's 2.20.0 (missing StreamReadConstraints
-			      constructor breaks OpenSearch).
-			    We keep jackson/jakarta/** and jackson/module/** because DocuSign's
-			    bundled Jersey (jakarta-based) needs them and Synapse doesn't provide
-			    jakarta xmlbind annotation support.
-			-->
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-shade-plugin</artifactId>
-				<version>3.5.0</version>
-				<executions>
-					<execution>
-						<phase>package</phase>
-						<goals>
-							<goal>shade</goal>
-						</goals>
-						<configuration>
-							<createDependencyReducedPom>true</createDependencyReducedPom>
-							<artifactSet>
-								<includes>
-									<include>com.docusign:docusign-esign-java</include>
-								</includes>
-							</artifactSet>
-							<filters>
-								<filter>
-									<artifact>com.docusign:docusign-esign-java</artifact>
-									<excludes>
-										<exclude>org/json/**</exclude>
-										<exclude>com/fasterxml/jackson/core/**</exclude>
-										<exclude>com/fasterxml/jackson/databind/**</exclude>
-										<exclude>com/fasterxml/jackson/annotation/**</exclude>
-										<exclude>com/fasterxml/jackson/dataformat/**</exclude>
-										<exclude>com/fasterxml/jackson/datatype/**</exclude>
-										<exclude>META-INF/versions/*/com/fasterxml/jackson/**</exclude>
-										<exclude>META-INF/services/com.fasterxml.jackson.core.*</exclude>
-										<exclude>META-INF/maven/com.fasterxml.jackson*/**</exclude>
-									</excludes>
-								</filter>
-							</filters>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
 </project>

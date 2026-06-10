@@ -933,7 +933,7 @@ public interface StackConfiguration {
 	/**
 	 * @return The ID of the key pair for the CloudFront distribution in front of the Synapse data S3 bucket
 	 */
-	String getCloudFrontKeyPairId();
+	String getCloudFrontKeyId();
 
 	/**
 	 * @return The domain name for the CloudFront distribution in front of the Synapse data S3 bucket

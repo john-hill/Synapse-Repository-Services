@@ -12,7 +12,7 @@ env:
   secrets-manager:
     rds_password: dev.org.sagebionetworks.repository.database.password
     # misnomer: "keypair" on the next line is actually just the key id. Also, it's not clear if it's used in production.
-    org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
+    org_sagebionetworks_cloudfront_private_key_id: dev.org.sagebionetworks.cloudfront.private.key.id
     org_sagebionetworks_cloudfront_private_key_secret: dev.org.sagebionetworks.cloudfront.private.key.secret
     org_sagebionetworks_google_cloud_key: dev.org.sagebionetworks.google.cloud.key
     org_sagebionetworks_datacite_username: dev.org.sagebionetworks.doi.datacite.username

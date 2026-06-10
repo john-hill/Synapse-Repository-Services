@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
 @ExtendWith(ITTestExtension.class)
@@ -26,7 +27,7 @@ public class ITEDucTemplates {
 				"DocuSign integration is disabled — skipping eDUC template IT test.");
 
 		// call under test
-		EDucTemplatePage page = adminSynapse.listEDucTemplates(null);
+		EDucTemplatePage page = adminSynapse.listEDucTemplates(new EDucTemplateListRequest());
 
 		assertNotNull(page);
 		assertNotNull(page.getResults());

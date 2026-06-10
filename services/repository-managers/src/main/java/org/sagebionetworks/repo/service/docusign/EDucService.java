@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.service.docusign;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.docusign.EDucManager;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.springframework.stereotype.Service;
 
@@ -17,8 +18,8 @@ public class EDucService {
 		this.eDucManager = eDucManager;
 	}
 
-	public EDucTemplatePage listTemplates(Long userId, String nextPageToken) throws Exception {
+	public EDucTemplatePage listTemplates(Long userId, EDucTemplateListRequest request) throws Exception {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		return eDucManager.listTemplates(userInfo, nextPageToken);
+		return eDucManager.listTemplates(userInfo, request);
 	}
 }

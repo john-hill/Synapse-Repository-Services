@@ -6,11 +6,8 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
-import org.sagebionetworks.repo.web.NotFoundException;
-import org.sagebionetworks.repo.web.ServiceUnavailableException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,11 +21,7 @@ import com.docusign.esign.model.EnvelopeTemplateResults;
 /**
  * Client for the DocuSign REST API. Authenticates headlessly via the JWT Bearer
  * Grant: a JWT assertion signed with the configured RSA private key is
- * exchanged for an access token, which is cached in memory until just before
- * its expiry.
- *
- * <p>This is a Spring singleton; concurrent callers share the cached access
- * token via volatile reads plus double-checked locking on refresh.
+ * exchanged for an access token, which is cached until just before its expiry.
  */
 @Service
 public class DocuSignClient {
@@ -39,10 +32,7 @@ public class DocuSignClient {
 
 	private final DocuSignClientConfig config;
 	private final TemplatesApiFactory templatesApiFactory;
-
-	private volatile String cachedAccessToken;
-	private volatile long cachedAccessTokenExpiryMillis;
-	private final Object tokenLock = new Object();
+	private final DocuSignAccessTokenProvider accessTokenProvider;
 
 	@Autowired
 	public DocuSignClient(DocuSignClientConfig config) {
@@ -52,6 +42,13 @@ public class DocuSignClient {
 	DocuSignClient(DocuSignClientConfig config, TemplatesApiFactory templatesApiFactory) {
 		this.config = config;
 		this.templatesApiFactory = templatesApiFactory;
+		this.accessTokenProvider = new DocuSignAccessTokenProvider(
+				() -> {
+					OAuth.OAuthToken token = requestJwtUserToken();
+					return new DocuSignAccessTokenProvider.TokenResult(token.getAccessToken(), token.getExpiresIn());
+				},
+				TOKEN_EXPIRY_BUFFER_MILLIS
+		);
 	}
 
 	/**
@@ -64,11 +61,11 @@ public class DocuSignClient {
 	 */
 	public EDucTemplatePage listTemplates(int startPosition, int count) throws Exception {
 		try {
-			return listTemplatesOnce(startPosition, count, getAccessToken());
-		} catch (UnauthorizedException e) {
+			return listTemplatesOnce(startPosition, count, accessTokenProvider.getAccessToken());
+		} catch (DocuSignUnauthorizedException e) {
 			// The cached token was rejected; force a refresh and retry once.
-			invalidateAccessToken();
-			return listTemplatesOnce(startPosition, count, getAccessToken());
+			accessTokenProvider.invalidateAccessToken();
+			return listTemplatesOnce(startPosition, count, accessTokenProvider.getAccessToken());
 		}
 	}
 
@@ -86,37 +83,11 @@ public class DocuSignClient {
 		}
 	}
 
-	private String getAccessToken() throws ServiceUnavailableException {
-		long now = System.currentTimeMillis();
-		String token = cachedAccessToken;
-		if (token != null && now + TOKEN_EXPIRY_BUFFER_MILLIS < cachedAccessTokenExpiryMillis) {
-			return token;
-		}
-		synchronized (tokenLock) {
-			token = cachedAccessToken;
-			now = System.currentTimeMillis();
-			if (token != null && now + TOKEN_EXPIRY_BUFFER_MILLIS < cachedAccessTokenExpiryMillis) {
-				return token;
-			}
-			OAuth.OAuthToken fresh = requestJwtUserToken();
-			cachedAccessToken = fresh.getAccessToken();
-			cachedAccessTokenExpiryMillis = System.currentTimeMillis() + (fresh.getExpiresIn() * 1000L);
-			return cachedAccessToken;
-		}
-	}
-
-	private void invalidateAccessToken() {
-		synchronized (tokenLock) {
-			cachedAccessToken = null;
-			cachedAccessTokenExpiryMillis = 0L;
-		}
-	}
-
 	/**
 	 * Exchanges a signed JWT assertion for an access token. Package-private so unit
 	 * tests can spy/override without driving real DocuSign HTTP traffic.
 	 */
-	OAuth.OAuthToken requestJwtUserToken() throws ServiceUnavailableException {
+	OAuth.OAuthToken requestJwtUserToken() {
 		ApiClient apiClient = new ApiClient(config.getBasePath());
 		apiClient.setOAuthBasePath(config.getOAuthBasePath());
 		try {
@@ -127,9 +98,9 @@ public class DocuSignClient {
 					config.getPrivateKeyBytes(),
 					JWT_EXPIRES_IN_SECONDS);
 		} catch (ApiException e) {
-			throw new ServiceUnavailableException("Failed to obtain DocuSign access token.", e);
+			throw new IllegalStateException("Failed to obtain DocuSign access token.", e);
 		} catch (IOException e) {
-			throw new ServiceUnavailableException("Failed to read DocuSign private key.", e);
+			throw new IllegalStateException("Failed to read DocuSign private key.", e);
 		}
 	}
 
@@ -165,19 +136,12 @@ public class DocuSignClient {
 		return Date.from(Instant.parse(iso8601));
 	}
 
-	static Exception convertApiException(ApiException e) throws ServiceUnavailableException {
+	static Exception convertApiException(ApiException e) {
 		int code = e.getCode();
-		switch (code) {
-			case 401:
-				return new UnauthorizedException("DocuSign rejected the access token.", e);
-			case 403:
-				return new UnauthorizedException("DocuSign denied access for the configured user.", e);
-			case 404:
-				return new NotFoundException("DocuSign resource not found.", e);
-			default:
-				return new ServiceUnavailableException(
-						"Error " + code + " communicating with DocuSign.", e);
+		if (code == 401) {
+			return new DocuSignUnauthorizedException("DocuSign rejected the access token.", e);
 		}
+		return new IllegalStateException("DocuSign API error " + code + ".", e);
 	}
 
 	private static final class DefaultTemplatesApiFactory implements TemplatesApiFactory {

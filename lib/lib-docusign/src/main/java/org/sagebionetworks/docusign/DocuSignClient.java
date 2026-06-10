@@ -40,9 +40,14 @@ public class DocuSignClient {
 	}
 
 	DocuSignClient(DocuSignClientConfig config, TemplatesApiFactory templatesApiFactory) {
+		this(config, templatesApiFactory, null);
+	}
+
+	DocuSignClient(DocuSignClientConfig config, TemplatesApiFactory templatesApiFactory,
+			DocuSignAccessTokenProvider accessTokenProvider) {
 		this.config = config;
 		this.templatesApiFactory = templatesApiFactory;
-		this.accessTokenProvider = new DocuSignAccessTokenProvider(
+		this.accessTokenProvider = accessTokenProvider != null ? accessTokenProvider : new DocuSignAccessTokenProvider(
 				() -> {
 					OAuth.OAuthToken token = requestJwtUserToken();
 					return new DocuSignAccessTokenProvider.TokenResult(token.getAccessToken(), token.getExpiresIn());

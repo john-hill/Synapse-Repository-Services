@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,7 +25,6 @@ import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
 import com.docusign.esign.client.ApiException;
-import com.docusign.esign.client.auth.OAuth;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
 
@@ -40,26 +37,33 @@ public class DocuSignClientTest {
 	private TemplatesApiFactory mockTemplatesApiFactory;
 
 	private DocuSignClient client;
+	private DocuSignAccessTokenProvider accessTokenProvider;
 
 	private static final String BASE_PATH = "https://demo.docusign.net/restapi";
 	private static final String ACCOUNT_ID = "account-guid";
 	private static final String ACCESS_TOKEN = "access-token";
 
+	private String[] tokenSequence;
+	private long[] expiresInSequence;
+	private int tokenIndex;
+
 	@BeforeEach
 	public void before() {
-		client = spy(new DocuSignClient(mockConfig, mockTemplatesApiFactory));
-	}
-
-	private OAuth.OAuthToken oAuthToken(String accessToken, long expiresIn) {
-		OAuth.OAuthToken token = new OAuth.OAuthToken();
-		token.setAccessToken(accessToken);
-		token.setExpiresIn(expiresIn);
-		return token;
+		tokenSequence = new String[]{ACCESS_TOKEN};
+		expiresInSequence = new long[]{3600L};
+		tokenIndex = 0;
+		accessTokenProvider = new DocuSignAccessTokenProvider(
+				() -> {
+					int i = tokenIndex++;
+					return new DocuSignAccessTokenProvider.TokenResult(tokenSequence[i], expiresInSequence[i]);
+				},
+				DocuSignClient.TOKEN_EXPIRY_BUFFER_MILLIS
+		);
+		client = new DocuSignClient(mockConfig, mockTemplatesApiFactory, accessTokenProvider);
 	}
 
 	@Test
 	public void testListTemplatesSuccess() throws Exception {
-		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 
@@ -106,7 +110,6 @@ public class DocuSignClientTest {
 
 	@Test
 	public void testListTemplatesWithEmptyResults() throws Exception {
-		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
@@ -123,7 +126,6 @@ public class DocuSignClientTest {
 
 	@Test
 	public void testListTemplatesCachesAccessToken() throws Exception {
-		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
@@ -134,15 +136,16 @@ public class DocuSignClientTest {
 		client.listTemplates(51, 51);
 		client.listTemplates(102, 51);
 
-		// JWT exchange should have occurred only once thanks to caching
-		verify(client, times(1)).requestJwtUserToken();
+		// Token supplier should have been called only once thanks to caching
+		assertEquals(1, tokenIndex);
 	}
 
 	@Test
 	public void testListTemplatesRefreshesExpiredToken() throws Exception {
-		// First token expires in 0s (treated as expired by the buffer); second is valid
-		doReturn(oAuthToken("old-token", 0L), oAuthToken("new-token", 3600L))
-				.when(client).requestJwtUserToken();
+		tokenSequence = new String[]{"old-token", "new-token"};
+		expiresInSequence = new long[]{0L, 3600L};
+		tokenIndex = 0;
+
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
@@ -152,15 +155,17 @@ public class DocuSignClientTest {
 		client.listTemplates(0, 51);
 		client.listTemplates(51, 51);
 
-		verify(client, times(2)).requestJwtUserToken();
+		assertEquals(2, tokenIndex);
 		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "old-token", ACCOUNT_ID, "0", "51");
 		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "new-token", ACCOUNT_ID, "51", "51");
 	}
 
 	@Test
 	public void testListTemplatesInvalidatesCacheOn401AndRetries() throws Exception {
-		doReturn(oAuthToken("first-token", 3600L), oAuthToken("retry-token", 3600L))
-				.when(client).requestJwtUserToken();
+		tokenSequence = new String[]{"first-token", "retry-token"};
+		expiresInSequence = new long[]{3600L, 3600L};
+		tokenIndex = 0;
+
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 
@@ -173,15 +178,17 @@ public class DocuSignClientTest {
 		EDucTemplatePage page = client.listTemplates(0, 51);
 
 		assertNotNull(page);
-		verify(client, times(2)).requestJwtUserToken();
+		assertEquals(2, tokenIndex);
 		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "first-token", ACCOUNT_ID, "0", "51");
 		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "retry-token", ACCOUNT_ID, "0", "51");
 	}
 
 	@Test
 	public void testListTemplatesPropagatesPersistent401() throws Exception {
-		doReturn(oAuthToken("t1", 3600L), oAuthToken("t2", 3600L))
-				.when(client).requestJwtUserToken();
+		tokenSequence = new String[]{"t1", "t2"};
+		expiresInSequence = new long[]{3600L, 3600L};
+		tokenIndex = 0;
+
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
@@ -190,12 +197,11 @@ public class DocuSignClientTest {
 		// call under test
 		assertThrows(DocuSignUnauthorizedException.class, () -> client.listTemplates(0, 51));
 
-		verify(client, times(2)).requestJwtUserToken();
+		assertEquals(2, tokenIndex);
 	}
 
 	@Test
 	public void testListTemplatesWithServerError() throws Exception {
-		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
@@ -222,13 +228,14 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testRequestJwtUserTokenTranslatesApiException() {
-		DocuSignClient realClient = new DocuSignClient(mockConfig, mockTemplatesApiFactory) {
-			@Override
-			OAuth.OAuthToken requestJwtUserToken() {
-				throw new IllegalStateException("boom");
-			}
-		};
-		assertThrows(IllegalStateException.class, () -> realClient.listTemplates(0, 51));
+	public void testRequestJwtUserTokenFailure() {
+		DocuSignAccessTokenProvider failingProvider = new DocuSignAccessTokenProvider(
+				() -> { throw new IllegalStateException("boom"); },
+				DocuSignClient.TOKEN_EXPIRY_BUFFER_MILLIS
+		);
+		DocuSignClient failingClient = new DocuSignClient(mockConfig, mockTemplatesApiFactory, failingProvider);
+
+		// call under test
+		assertThrows(IllegalStateException.class, () -> failingClient.listTemplates(0, 51));
 	}
 }

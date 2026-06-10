@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ public class EDucManagerTest {
 		// call under test
 		assertThrows(IllegalArgumentException.class,
 				() -> eDucManager.listTemplates(null, new EDucTemplateListRequest()));
-		verifyZeroInteractions(mockDocuSignClient);
+		verifyNoInteractions(mockDocuSignClient);
 	}
 
 	@Test
@@ -74,7 +74,7 @@ public class EDucManagerTest {
 		// call under test
 		assertThrows(IllegalArgumentException.class,
 				() -> eDucManager.listTemplates(adminUser, null));
-		verifyZeroInteractions(mockDocuSignClient);
+		verifyNoInteractions(mockDocuSignClient);
 	}
 
 	@Test
@@ -82,7 +82,7 @@ public class EDucManagerTest {
 		// call under test
 		assertThrows(UnauthorizedException.class,
 				() -> eDucManager.listTemplates(regularUser, new EDucTemplateListRequest()));
-		verifyZeroInteractions(mockDocuSignClient);
+		verifyNoInteractions(mockDocuSignClient);
 	}
 
 	@Test

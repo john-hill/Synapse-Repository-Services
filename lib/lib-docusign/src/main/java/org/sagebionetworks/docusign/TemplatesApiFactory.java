@@ -1,14 +1,14 @@
 package org.sagebionetworks.docusign;
 
-import com.docusign.esign.api.TemplatesApi;
-import com.docusign.esign.client.ApiClient;
+import com.docusign.esign.client.ApiException;
+import com.docusign.esign.model.EnvelopeTemplateResults;
 
 /**
- * Test seam: produces a configured {@link TemplatesApi} for a given access token.
- * Implementations are responsible for constructing the underlying {@link ApiClient}
- * with the right base path and Authorization header.
+ * Test seam: encapsulates the DocuSign Templates API call so that tests can
+ * substitute a mock without needing to mock the final SDK classes.
  */
 interface TemplatesApiFactory {
 
-	TemplatesApi create(String basePath, String accessToken);
+	EnvelopeTemplateResults listTemplates(String basePath, String accessToken, String accountId,
+			String startPosition, String count) throws ApiException;
 }

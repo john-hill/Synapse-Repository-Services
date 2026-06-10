@@ -59,7 +59,7 @@ public class DocuSignClient {
 	 * @return a page of templates; the {@code nextPageToken} field is left null
 	 *         (callers are responsible for assembling the Synapse-style token)
 	 */
-	public EDucTemplatePage listTemplates(int startPosition, int count) throws Exception {
+	public EDucTemplatePage listTemplates(int startPosition, int count) {
 		try {
 			return listTemplatesOnce(startPosition, count, accessTokenProvider.getAccessToken());
 		} catch (DocuSignUnauthorizedException e) {
@@ -69,14 +69,11 @@ public class DocuSignClient {
 		}
 	}
 
-	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken) throws Exception {
-		TemplatesApi templatesApi = templatesApiFactory.create(config.getBasePath(), accessToken);
-		TemplatesApi.ListTemplatesOptions options = templatesApi.new ListTemplatesOptions();
-		options.setStartPosition(String.valueOf(startPosition));
-		options.setCount(String.valueOf(count));
-
+	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken) {
 		try {
-			EnvelopeTemplateResults results = templatesApi.listTemplates(config.getAccountId(), options);
+			EnvelopeTemplateResults results = templatesApiFactory.listTemplates(
+					config.getBasePath(), accessToken, config.getAccountId(),
+					String.valueOf(startPosition), String.valueOf(count));
 			return toEDucTemplatePage(results);
 		} catch (ApiException e) {
 			throw convertApiException(e);
@@ -136,7 +133,7 @@ public class DocuSignClient {
 		return Date.from(Instant.parse(iso8601));
 	}
 
-	static Exception convertApiException(ApiException e) {
+	static RuntimeException convertApiException(ApiException e) {
 		int code = e.getCode();
 		if (code == 401) {
 			return new DocuSignUnauthorizedException("DocuSign rejected the access token.", e);
@@ -146,10 +143,15 @@ public class DocuSignClient {
 
 	private static final class DefaultTemplatesApiFactory implements TemplatesApiFactory {
 		@Override
-		public TemplatesApi create(String basePath, String accessToken) {
+		public EnvelopeTemplateResults listTemplates(String basePath, String accessToken,
+				String accountId, String startPosition, String count) throws ApiException {
 			ApiClient apiClient = new ApiClient(basePath);
 			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
-			return new TemplatesApi(apiClient);
+			TemplatesApi templatesApi = new TemplatesApi(apiClient);
+			TemplatesApi.ListTemplatesOptions options = templatesApi.new ListTemplatesOptions();
+			options.setStartPosition(startPosition);
+			options.setCount(count);
+			return templatesApi.listTemplates(accountId, options);
 		}
 	}
 }

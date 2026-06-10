@@ -21,13 +21,11 @@ import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
-import com.docusign.esign.api.TemplatesApi;
 import com.docusign.esign.client.ApiException;
 import com.docusign.esign.client.auth.OAuth;
 import com.docusign.esign.model.EnvelopeTemplate;
@@ -40,8 +38,6 @@ public class DocuSignClientTest {
 	private DocuSignClientConfig mockConfig;
 	@Mock
 	private TemplatesApiFactory mockTemplatesApiFactory;
-	@Mock
-	private TemplatesApi mockTemplatesApi;
 
 	private DocuSignClient client;
 
@@ -63,11 +59,9 @@ public class DocuSignClientTest {
 
 	@Test
 	public void testListTemplatesSuccess() throws Exception {
-		// call under test setup
 		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(BASE_PATH, ACCESS_TOKEN)).thenReturn(mockTemplatesApi);
 
 		String createdIso = "2024-01-15T10:00:00.0000000Z";
 		String modifiedIso = "2024-02-20T15:30:00.0000000Z";
@@ -83,7 +77,8 @@ public class DocuSignClientTest {
 		t2.setDescription("Data sharing agreement");
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
 		results.setEnvelopeTemplates(Arrays.asList(t1, t2));
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any())).thenReturn(results);
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
+				.thenReturn(results);
 
 		// call under test
 		EDucTemplatePage page = client.listTemplates(0, 51);
@@ -106,12 +101,7 @@ public class DocuSignClientTest {
 		mapped2.setDescription("Data sharing agreement");
 		assertEquals(mapped2, page.getResults().get(1));
 
-		// Verify the pagination params reach the SDK as strings
-		ArgumentCaptor<TemplatesApi.ListTemplatesOptions> optionsCaptor =
-				ArgumentCaptor.forClass(TemplatesApi.ListTemplatesOptions.class);
-		verify(mockTemplatesApi).listTemplates(eq(ACCOUNT_ID), optionsCaptor.capture());
-		assertEquals("0", optionsCaptor.getValue().getStartPosition());
-		assertEquals("51", optionsCaptor.getValue().getCount());
+		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "0", "51");
 	}
 
 	@Test
@@ -119,10 +109,10 @@ public class DocuSignClientTest {
 		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(BASE_PATH, ACCESS_TOKEN)).thenReturn(mockTemplatesApi);
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
 		results.setEnvelopeTemplates(null);
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any())).thenReturn(results);
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
+				.thenReturn(results);
 
 		// call under test
 		EDucTemplatePage page = client.listTemplates(0, 51);
@@ -136,8 +126,8 @@ public class DocuSignClientTest {
 		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(BASE_PATH, ACCESS_TOKEN)).thenReturn(mockTemplatesApi);
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any())).thenReturn(new EnvelopeTemplateResults());
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
+				.thenReturn(new EnvelopeTemplateResults());
 
 		// call under test
 		client.listTemplates(0, 51);
@@ -155,16 +145,16 @@ public class DocuSignClientTest {
 				.when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(eq(BASE_PATH), any())).thenReturn(mockTemplatesApi);
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any())).thenReturn(new EnvelopeTemplateResults());
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
+				.thenReturn(new EnvelopeTemplateResults());
 
 		// call under test
 		client.listTemplates(0, 51);
 		client.listTemplates(51, 51);
 
 		verify(client, times(2)).requestJwtUserToken();
-		verify(mockTemplatesApiFactory).create(BASE_PATH, "old-token");
-		verify(mockTemplatesApiFactory).create(BASE_PATH, "new-token");
+		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "old-token", ACCOUNT_ID, "0", "51");
+		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "new-token", ACCOUNT_ID, "51", "51");
 	}
 
 	@Test
@@ -173,12 +163,10 @@ public class DocuSignClientTest {
 				.when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(eq(BASE_PATH), any())).thenReturn(mockTemplatesApi);
 
-		ApiException unauth = new ApiException(401, "Unauthorized");
 		EnvelopeTemplateResults success = new EnvelopeTemplateResults();
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any()))
-				.thenThrow(unauth)
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
+				.thenThrow(new ApiException(401, "Unauthorized"))
 				.thenReturn(success);
 
 		// call under test
@@ -186,8 +174,8 @@ public class DocuSignClientTest {
 
 		assertNotNull(page);
 		verify(client, times(2)).requestJwtUserToken();
-		verify(mockTemplatesApiFactory).create(BASE_PATH, "first-token");
-		verify(mockTemplatesApiFactory).create(BASE_PATH, "retry-token");
+		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "first-token", ACCOUNT_ID, "0", "51");
+		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "retry-token", ACCOUNT_ID, "0", "51");
 	}
 
 	@Test
@@ -196,8 +184,7 @@ public class DocuSignClientTest {
 				.when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(eq(BASE_PATH), any())).thenReturn(mockTemplatesApi);
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any()))
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
 				.thenThrow(new ApiException(401, "Unauthorized"));
 
 		// call under test
@@ -211,8 +198,7 @@ public class DocuSignClientTest {
 		doReturn(oAuthToken(ACCESS_TOKEN, 3600L)).when(client).requestJwtUserToken();
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.create(BASE_PATH, ACCESS_TOKEN)).thenReturn(mockTemplatesApi);
-		when(mockTemplatesApi.listTemplates(eq(ACCOUNT_ID), any()))
+		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
 				.thenThrow(new ApiException(500, "Server error"));
 
 		// call under test
@@ -236,7 +222,7 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testRequestJwtUserTokenTranslatesApiException() throws Exception {
+	public void testRequestJwtUserTokenTranslatesApiException() {
 		DocuSignClient realClient = new DocuSignClient(mockConfig, mockTemplatesApiFactory) {
 			@Override
 			OAuth.OAuthToken requestJwtUserToken() {

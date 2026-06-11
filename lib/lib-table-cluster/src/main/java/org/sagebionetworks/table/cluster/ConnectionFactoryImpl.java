@@ -4,8 +4,8 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import javax.sql.DataSource;
 
 import org.apache.commons.dbcp2.BasicDataSource;
@@ -15,6 +15,7 @@ import org.sagebionetworks.lib.dbuserhelper.DBUserHelper;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -49,7 +50,7 @@ public class ConnectionFactoryImpl implements ConnectionFactory {
 	private SearchIndexStatusDao searchIndexStatusDao;
 
 	@Autowired
-	public ConnectionFactoryImpl(BasicDataSource tableDatabaseConnectionPool, TableIndexDAO tableIndexDao,
+	public ConnectionFactoryImpl(@Qualifier("tableDatabaseConnectionPool") BasicDataSource tableDatabaseConnectionPool, TableIndexDAO tableIndexDao,
 	                             SearchIndexStatusDao searchIndexStatusDao, DBUserHelper dbuh) {
 		this.singleConnectionPool = tableDatabaseConnectionPool;
 		this.tableIndexDao = tableIndexDao;

@@ -74,7 +74,10 @@ import jdk.javadoc.doclet.Reporter;
  */
 public class ControllerToControllerModelTranslator {
 	static final Set<String> PARAMETERS_NOT_REQUIRED_TO_BE_TRANSLATED = Set.of("javax.servlet.http.HttpServletResponse",
-			"org.springframework.web.util.UriComponentsBuilder", "javax.servlet.http.HttpServletRequest", "org.springframework.http.HttpHeaders");
+			"jakarta.servlet.http.HttpServletResponse",
+			"org.springframework.web.util.UriComponentsBuilder", "javax.servlet.http.HttpServletRequest",
+			"jakarta.servlet.http.HttpServletRequest",
+			"org.springframework.http.HttpHeaders");
 
 	static final Map<String, Type> CLASS_TO_TYPE = Map.ofEntries(
 			Map.entry("java.lang.String", Type.string),

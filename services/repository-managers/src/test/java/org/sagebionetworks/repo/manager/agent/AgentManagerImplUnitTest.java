@@ -11,7 +11,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -382,7 +382,7 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		AgentSession result = manager.createSession(admin, createRequest);
 		assertEquals(session, result);
-		verifyZeroInteractions(mockContextValidator);
+		verifyNoMoreInteractions(mockContextValidator);
 	}
 
 	@Test
@@ -392,8 +392,8 @@ public class AgentManagerImplUnitTest {
 			manager.createSession(anonymous, createRequest);
 		}).getMessage();
 		assertEquals("Must login to perform this action", message);
-		verifyZeroInteractions(mockAgentDao);
-		verifyZeroInteractions(mockContextValidator);
+		verifyNoMoreInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockContextValidator);
 	}
 
 	@Test
@@ -407,7 +407,7 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		AgentSession result = manager.createSession(nonSageNonAdmin, createRequest);
 		assertEquals(session, result);
-		verifyZeroInteractions(mockContextValidator);
+		verifyNoMoreInteractions(mockContextValidator);
 	}
 
 	@Test
@@ -421,7 +421,7 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		AgentSession result = manager.createSession(nonSageNonAdmin, createRequest);
 		assertEquals(session, result);
-		verifyZeroInteractions(mockContextValidator);
+		verifyNoMoreInteractions(mockContextValidator);
 	}
 
 	@Test
@@ -435,7 +435,7 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		AgentSession result = manager.createSession(nonSageNonAdmin, createRequest);
 		assertEquals(session, result);
-		verifyZeroInteractions(mockContextValidator);
+		verifyNoMoreInteractions(mockContextValidator);
 	}
 
 	@Test
@@ -477,7 +477,7 @@ public class AgentManagerImplUnitTest {
 			manager.createSession(null, createRequest);
 		}).getMessage();
 		assertEquals("userInfo is required.", message);
-		verifyZeroInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockAgentDao);
 	}
 
 	@Test
@@ -487,7 +487,7 @@ public class AgentManagerImplUnitTest {
 			manager.createSession(sageUser, null);
 		}).getMessage();
 		assertEquals("request is required.", message);
-		verifyZeroInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockAgentDao);
 	}
 
 	@Test
@@ -498,7 +498,7 @@ public class AgentManagerImplUnitTest {
 			manager.createSession(sageUser, createRequest);
 		}).getMessage();
 		assertEquals("request.agentAccessLevel is required.", message);
-		verifyZeroInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockAgentDao);
 	}
 
 	@Test
@@ -554,7 +554,7 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		AgentSession result = manager.updateSession(sageUser, updateRequest);
 		assertEquals(result, session);
-		verifyZeroInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockAgentDao);
 	}
 
 	@Test
@@ -1207,7 +1207,7 @@ public class AgentManagerImplUnitTest {
 		}).getMessage();
 		assertEquals("Only the user that started the job may access the job's trace", message);
 
-		verifyZeroInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockAgentDao);
 	}
 
 	@Test
@@ -1260,7 +1260,7 @@ public class AgentManagerImplUnitTest {
 	public void testOnTraceWithInput() {
 		// call under test
 		manager.onTrace(jobId, traceInput);
-		verifyZeroInteractions(mockAgentDao);
+		verifyNoMoreInteractions(mockAgentDao);
 	}
 
 	@Test

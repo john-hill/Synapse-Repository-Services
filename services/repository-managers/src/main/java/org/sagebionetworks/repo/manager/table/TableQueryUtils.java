@@ -26,6 +26,7 @@ public class TableQueryUtils {
 	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder()
 			.alias("Query", Query.class)
 			.allowTypes(Query.class)
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
 			.build();
 
 	/**

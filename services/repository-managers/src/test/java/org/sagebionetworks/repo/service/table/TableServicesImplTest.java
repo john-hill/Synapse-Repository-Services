@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyListOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -126,7 +125,7 @@ public class TableServicesImplTest {
 		RowSet rowSet = new RowSet();
 		Row row = new Row();
 		rowSet.setRows(Lists.newArrayList(row));
-		when(mockTableEntityManager.getCellValues(any(UserInfo.class), anyString(), anyListOf(RowReference.class), anyListOf(ColumnModel.class))).thenReturn(rowSet);
+		when(mockTableEntityManager.getCellValues(any(UserInfo.class), anyString(), any(), any())).thenReturn(rowSet);
 		// call under test
 		TableFileHandleResults results = tableService.getFileHandles(userId, fileHandlesToFind);
 		assertNotNull(results);

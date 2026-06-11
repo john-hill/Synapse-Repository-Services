@@ -7,7 +7,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -145,7 +145,7 @@ public class FileEntityMetadataProviderTest {
 		// Method under test - Does not throw.
 		provider.validateEntity(fileEntity, new EntityEvent(eventType, path, userInfo));
 
-		verifyZeroInteractions(mockStsManager, mockFileDao);
+		verifyNoMoreInteractions(mockStsManager, mockFileDao);
 	}
 
 	@Test
@@ -203,6 +203,6 @@ public class FileEntityMetadataProviderTest {
 	@Test
 	public void testEntityUpdatedWithoutNewVersion() {
 		provider.entityUpdated(userInfo, fileEntity, false);
-		verifyZeroInteractions(messenger);
+		verifyNoMoreInteractions(messenger);
 	}
 }

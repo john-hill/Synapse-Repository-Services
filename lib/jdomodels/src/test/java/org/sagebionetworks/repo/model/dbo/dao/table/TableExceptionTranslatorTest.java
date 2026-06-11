@@ -4,10 +4,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySetOf;
-import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
@@ -105,7 +104,7 @@ public class TableExceptionTranslatorTest {
 	
 	@Test
 	public void testReplaceColumnIdsAndTableNames() {
-		when(mockColumnNameProvider.getColumnNames(anySetOf(Long.class))).thenReturn(columnIdToNameMap);
+		when(mockColumnNameProvider.getColumnNames(anySet())).thenReturn(columnIdToNameMap);
 		String input = "The column '_C123_' does not exist in T888 but '_C456_' does";
 		String results = translator.replaceColumnIdsAndTableNames(input);
 		assertEquals("The column 'foo' does not exist in syn888 but 'bar' does", results);
@@ -123,7 +122,7 @@ public class TableExceptionTranslatorTest {
 	 */
 	@Test
 	public void testTranslateUncategorizedSQLException() {
-		when(mockColumnNameProvider.getColumnNames(anySetOf(Long.class))).thenReturn(columnIdToNameMap);
+		when(mockColumnNameProvider.getColumnNames(anySet())).thenReturn(columnIdToNameMap);
 		// call under test
 		Exception result = translator.translateException(uncategorizedSQLException);
 		assertNotNull(result);
@@ -138,7 +137,7 @@ public class TableExceptionTranslatorTest {
 	 */
 	@Test
 	public void testTranslateExceptionBadSqlGrammarException() {
-		when(mockColumnNameProvider.getColumnNames(anySetOf(Long.class))).thenReturn(columnIdToNameMap);
+		when(mockColumnNameProvider.getColumnNames(anySet())).thenReturn(columnIdToNameMap);
 		// call under test
 		Exception result = translator.translateException(badSqlException);
 		assertNotNull(result);
@@ -286,6 +285,6 @@ public class TableExceptionTranslatorTest {
 		Exception result = translator.translateException(translated);
 		assertEquals(reason, result.getMessage());
 
-		verifyZeroInteractions(mockConnectionFactory, mockTableIndexDao, mockColumnNameProvider);
+		verifyNoMoreInteractions(mockConnectionFactory, mockTableIndexDao, mockColumnNameProvider);
 	}
 }

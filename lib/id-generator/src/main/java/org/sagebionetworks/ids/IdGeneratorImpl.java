@@ -111,7 +111,7 @@ public class IdGeneratorImpl implements IdGenerator, InitializingBean{
 		try {
 			idGeneratorJdbcTemplate.execute(ddl);
 		} catch (DataAccessException e) {
-			if(!e.getMessage().contains("already exists")) {
+			if(!e.getCause().getMessage().contains("already exists")) {
 				throw e;
 			}
 		}

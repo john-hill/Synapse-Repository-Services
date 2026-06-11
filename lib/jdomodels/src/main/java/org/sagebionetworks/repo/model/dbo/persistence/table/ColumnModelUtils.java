@@ -45,6 +45,7 @@ public class ColumnModelUtils {
 			.alias("ColumnType", ColumnType.class)
 			.alias("ColumnChange", ColumnChange.class)
 			.allowTypes(ColumnModel.class, ColumnType.class, ColumnChange.class)
+			.allowTypesByWildcard(new String[] {"org.sagebionetworks.repo.model.**"})
 			.build();
 	/**
 	 * Translate from a DTO to DBO.

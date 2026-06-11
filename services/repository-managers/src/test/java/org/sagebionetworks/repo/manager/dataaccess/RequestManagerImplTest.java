@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -266,7 +266,7 @@ public class RequestManagerImplTest {
 	public void testGetForUpdateAlreadyHasRenewal() {
 		when(mockRequestDao.getUserOwnCurrentRequest(any(), any())).thenReturn(renewal);
 		assertEquals(renewal, manager.getRequestForUpdate(mockUser, accessRequirementId));
-		verifyZeroInteractions(mockAccessRequirement);
+		verifyNoMoreInteractions(mockAccessRequirement);
 	}
 
 	@Test

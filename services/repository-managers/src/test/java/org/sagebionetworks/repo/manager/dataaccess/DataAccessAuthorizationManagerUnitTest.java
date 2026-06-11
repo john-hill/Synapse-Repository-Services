@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -122,7 +122,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals("userInfo is required.", message);
 		
-		verifyZeroInteractions(mockRequestDao);
+		verifyNoMoreInteractions(mockRequestDao);
 
 	}
 	
@@ -138,7 +138,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals("requestId is required.", message);
 		
-		verifyZeroInteractions(mockRequestDao);
+		verifyNoMoreInteractions(mockRequestDao);
 
 	}
 
@@ -172,7 +172,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals("userInfo is required.", message);
 		
-		verifyZeroInteractions(mockRequestDao);
+		verifyNoMoreInteractions(mockRequestDao);
 
 	}
 	
@@ -188,7 +188,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals("submissionId is required.", message);
 		
-		verifyZeroInteractions(mockRequestDao);
+		verifyNoMoreInteractions(mockRequestDao);
 
 	}
 	
@@ -235,7 +235,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 			assertEquals(AuthorizationStatus.accessDenied("The user must be validated in order to review data access submissions."), result);
 			
 			verify(mockVerificationDao).getCurrentVerificationSubmissionForUser(user.getId());
-			verifyZeroInteractions(mockAclDao);
+			verifyNoMoreInteractions(mockAclDao);
 			
 		}
 	}
@@ -252,8 +252,8 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals(AuthorizationStatus.authorized(), result);
 		
-		verifyZeroInteractions(mockVerificationDao);
-		verifyZeroInteractions(mockAclDao);
+		verifyNoMoreInteractions(mockVerificationDao);
+		verifyNoMoreInteractions(mockAclDao);
 	}
 	
 	@Test
@@ -268,8 +268,8 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals(AuthorizationStatus.authorized(), result);
 		
-		verifyZeroInteractions(mockVerificationDao);
-		verifyZeroInteractions(mockAclDao);
+		verifyNoMoreInteractions(mockVerificationDao);
+		verifyNoMoreInteractions(mockAclDao);
 	}
 	
 	@Test
@@ -305,7 +305,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		assertEquals(AuthorizationStatus.accessDenied("The user must be validated in order to review data access submissions."), result);
 		
 		verify(mockVerificationDao).getCurrentVerificationSubmissionForUser(user.getId());
-		verifyZeroInteractions(mockAclDao);
+		verifyNoMoreInteractions(mockAclDao);
 	}
 
 	@Test
@@ -331,7 +331,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertTrue(result);
 		
-		verifyZeroInteractions(mockAclDao);
+		verifyNoMoreInteractions(mockAclDao);
 	}
 	
 	@Test
@@ -380,7 +380,7 @@ public class DataAccessAuthorizationManagerUnitTest {
 		
 		assertEquals("accessRequirementIds is required.", message);
 		
-		verifyZeroInteractions(mockAclDao);
+		verifyNoMoreInteractions(mockAclDao);
 	}
 	
 	private VerificationSubmission getVerfificationSubmission(VerificationStateEnum state) {

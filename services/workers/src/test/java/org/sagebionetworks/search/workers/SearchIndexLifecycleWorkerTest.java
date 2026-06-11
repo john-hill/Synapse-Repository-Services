@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -71,8 +71,8 @@ public class SearchIndexLifecycleWorkerTest {
 		// call under test
 		worker.run(progressCallback, msg);
 
-		verifyZeroInteractions(nodeDao);
-		verifyZeroInteractions(searchIndexLifecycleManager);
+		verifyNoMoreInteractions(nodeDao);
+		verifyNoMoreInteractions(searchIndexLifecycleManager);
 	}
 
 	@Test
@@ -82,7 +82,7 @@ public class SearchIndexLifecycleWorkerTest {
 		// call under test
 		worker.run(progressCallback, entityMessage(ENTITY_ID, ChangeType.CREATE));
 
-		verifyZeroInteractions(searchIndexLifecycleManager);
+		verifyNoMoreInteractions(searchIndexLifecycleManager);
 	}
 
 	@Test

@@ -2,8 +2,6 @@ package org.sagebionetworks.repo.web.controller;
 
 import java.io.EOFException;
 
-import org.sagebionetworks.repo.web.TwoFactorAuthRequiredException;
-
 
 /**
  * list of exception handlers to test. One on one relationship with BaseController, and BaseControllerTest makes sure
@@ -89,7 +87,7 @@ public class ExceptionHandlers {
 				new ExceptionType("org.sagebionetworks.repo.model.DatastoreException", true),
 				new ExceptionType(IllegalStateException.class.getName(), true),
 				new ExceptionType(NullPointerException.class.getName(), true),
-				new ExceptionType("javax.servlet.ServletException", false),
+				new ExceptionType("jakarta.servlet.ServletException", false),
 				new ExceptionType("org.springframework.web.util.NestedServletException", false),
 				new ExceptionType(Exception.class.getName(), false)),
 		new TestEntry(429,

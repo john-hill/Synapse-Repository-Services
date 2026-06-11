@@ -9,7 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -517,7 +517,7 @@ public class AthenaSupportImplTest {
 		assertEquals("executionQueryId is required.", message);
 
 		// Now the fetch is fired
-		verifyZeroInteractions(mockAthenaClient);
+		verifyNoMoreInteractions(mockAthenaClient);
 
 	}
 	
@@ -535,7 +535,7 @@ public class AthenaSupportImplTest {
 		assertEquals("rowMapper is required.", message);
 
 		// Now the fetch is fired
-		verifyZeroInteractions(mockAthenaClient);
+		verifyNoMoreInteractions(mockAthenaClient);
 
 	}
 	
@@ -553,7 +553,7 @@ public class AthenaSupportImplTest {
 		assertEquals("The limit must be greater than 0 and less or equal than 1000", message);
 
 		// Now the fetch is fired
-		verifyZeroInteractions(mockAthenaClient);
+		verifyNoMoreInteractions(mockAthenaClient);
 
 	}
 	
@@ -571,7 +571,7 @@ public class AthenaSupportImplTest {
 		assertEquals("The limit must be greater than 0 and less or equal than 1000", message);
 
 		// Now the fetch is fired
-		verifyZeroInteractions(mockAthenaClient);
+		verifyNoMoreInteractions(mockAthenaClient);
 
 	}
 

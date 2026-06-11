@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -50,7 +50,7 @@ public class SearchConfigurationResolverTest {
 
 		assertEquals(Optional.of(config), result);
 		verify(mockSearchConfigurationDao).get("config-1");
-		verifyZeroInteractions(mockNodeDAO);
+		verifyNoMoreInteractions(mockNodeDAO);
 	}
 
 	@Test
@@ -99,7 +99,7 @@ public class SearchConfigurationResolverTest {
 		Optional<SearchConfiguration> result = resolver.resolve(user, null, null);
 
 		assertTrue(result.isEmpty());
-		verifyZeroInteractions(mockNodeDAO);
+		verifyNoMoreInteractions(mockNodeDAO);
 	}
 
 	@Test
@@ -135,6 +135,6 @@ public class SearchConfigurationResolverTest {
 		Optional<SearchConfiguration> result = resolver.resolve(user, null, "");
 
 		assertTrue(result.isEmpty());
-		verifyZeroInteractions(mockNodeDAO);
+		verifyNoMoreInteractions(mockNodeDAO);
 	}
 }

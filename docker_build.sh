@@ -104,9 +104,9 @@ docker run ${DOCKER_USER_OPTION} -i --rm --name ${build_container_name} \
 -v ${m2_cache_parent_folder}/.m2:${HOME_DIR_WITHIN_CONTAINER}/.m2 \
 -v ${src_folder}:/repo \
 -v /etc/localtime:/etc/localtime:ro \
--e MAVEN_OPTS="-Xms256m -Xmx2048m -XX:MaxPermSize=512m" \
+-e MAVEN_OPTS="-Xms256m -Xmx2048m --add-opens java.base/java.util=ALL-UNNAMED" \
 -w /repo \
-maven:3-amazoncorretto-11 \
+maven:3-amazoncorretto-21 \
 bash -c "mvn clean ${MVN_GOAL} ${EXTRA_ARGS} -U \
 -Dorg.sagebionetworks.repository.database.connection.url=jdbc:mysql://${org_sagebionetworks_repository_database_connection_url_in_container}/${db_name} \
 -Dorg.sagebionetworks.id.generator.database.connection.url=jdbc:mysql://${org_sagebionetworks_repository_database_connection_url_in_container}/${db_name} \

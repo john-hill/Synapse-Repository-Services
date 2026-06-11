@@ -326,6 +326,7 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SearchAutocompleteRequest;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
@@ -4782,7 +4783,7 @@ public interface SynapseClient extends BaseClient {
 
 	void clearSearchConfigBindingForEntity(String entityId) throws SynapseException;
 
-	SearchQueryResults searchAutocomplete(SearchIndexQuery request) throws SynapseException;
+	SearchQueryResults searchAutocomplete(SearchAutocompleteRequest request) throws SynapseException;
 
 	String startSearchIndexQuery(SearchIndexQuery request) throws SynapseException;
 

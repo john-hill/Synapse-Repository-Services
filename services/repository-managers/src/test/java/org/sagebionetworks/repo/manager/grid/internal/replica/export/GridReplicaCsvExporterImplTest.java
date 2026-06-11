@@ -133,23 +133,19 @@ public class GridReplicaCsvExporterImplTest {
 
         // Call under test
         DownloadFromGridResult result = exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
-        
+
         assertEquals(request.getSessionId(), result.getSessionId());
         assertEquals(fileHandleId, result.getResultsFileHandleId());
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
         List<String[]> writtenRows = captor.getAllValues();
-        assertArrayEquals(
-                new String[]{
-                        "ROW_ID", "ROW_VERSION", "etag", "col1", "col2",
-                        "1", "2", "etag1", "a", "b",
-                        "3", "4", "etag2", "c", "d"
-                },
-                writtenRows.toArray()
-        );
+        assertEquals(3, writtenRows.size());
+        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "etag", "col1", "col2"}, writtenRows.get(0));
+        assertArrayEquals(new String[]{"1", "2", "etag1", "a", "b"}, writtenRows.get(1));
+        assertArrayEquals(new String[]{"3", "4", "etag2", "c", "d"}, writtenRows.get(2));
         verify(mockGridManager).getGridSession(userInfo, sessionId);
         rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
-        
+
         verifyFileUpload();
     }
     
@@ -169,25 +165,21 @@ public class GridReplicaCsvExporterImplTest {
         when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
 
         mockRowViewCallbackHandler = null;
-        
+
         // Call under test
         DownloadFromGridResult result = exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
-        
+
         assertEquals(request.getSessionId(), result.getSessionId());
         assertEquals(fileHandleId, result.getResultsFileHandleId());
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
         List<String[]> writtenRows = captor.getAllValues();
-        assertArrayEquals(
-                new String[]{
-                        "ROW_ID", "ROW_VERSION", "etag", "col1", "col2",
-                        "1", "2", "etag1", "a", "b",
-                        "3", "4", "etag2", "c", "d"
-                },
-                writtenRows.toArray()
-        );
+        assertEquals(3, writtenRows.size());
+        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "etag", "col1", "col2"}, writtenRows.get(0));
+        assertArrayEquals(new String[]{"1", "2", "etag1", "a", "b"}, writtenRows.get(1));
+        assertArrayEquals(new String[]{"3", "4", "etag2", "c", "d"}, writtenRows.get(2));
         verify(mockGridManager).getGridSession(userInfo, sessionId);
-        
+
         verifyFileUpload();
     }
 
@@ -210,16 +202,12 @@ public class GridReplicaCsvExporterImplTest {
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(2)).writeNext(captor.capture());
         List<String[]> writtenRows = captor.getAllValues();
-        assertArrayEquals(
-                new String[]{
-                        "1", "2", "etag1", "a", "b",
-                        "3", "4", "etag2", "c", "d"
-                },
-                writtenRows.toArray()
-        );
-        
+        assertEquals(2, writtenRows.size());
+        assertArrayEquals(new String[]{"1", "2", "etag1", "a", "b"}, writtenRows.get(0));
+        assertArrayEquals(new String[]{"3", "4", "etag2", "c", "d"}, writtenRows.get(1));
+
         rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
-        
+
         verifyFileUpload();
     }
 
@@ -246,16 +234,12 @@ public class GridReplicaCsvExporterImplTest {
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
         List<String[]> writtenRows = captor.getAllValues();
-        assertArrayEquals(
-                new String[]{
-                        "etag", "col1", "col2",
-                        "etag1", "a", "b",
-                        "etag2", "c", "d"
-                },
-                writtenRows.toArray()
-        );
+        assertEquals(3, writtenRows.size());
+        assertArrayEquals(new String[]{"etag", "col1", "col2"}, writtenRows.get(0));
+        assertArrayEquals(new String[]{"etag1", "a", "b"}, writtenRows.get(1));
+        assertArrayEquals(new String[]{"etag2", "c", "d"}, writtenRows.get(2));
         rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
-        
+
         verifyFileUpload();
     }
 
@@ -282,17 +266,13 @@ public class GridReplicaCsvExporterImplTest {
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
         List<String[]> writtenRows = captor.getAllValues();
-        assertArrayEquals(
-                new String[]{
-                        "ROW_ID", "ROW_VERSION", "col1", "col2",
-                        "1", "2", "a", "b",
-                        "3", "4", "c", "d"
-                },
-                writtenRows.toArray()
-        );
-        
+        assertEquals(3, writtenRows.size());
+        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "col1", "col2"}, writtenRows.get(0));
+        assertArrayEquals(new String[]{"1", "2", "a", "b"}, writtenRows.get(1));
+        assertArrayEquals(new String[]{"3", "4", "c", "d"}, writtenRows.get(2));
+
         rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
-        
+
         verifyFileUpload();
     }
 
@@ -323,17 +303,13 @@ public class GridReplicaCsvExporterImplTest {
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
         List<String[]> writtenRows = captor.getAllValues();
-        assertArrayEquals(
-                new String[]{
-                        "ROW_ID", "ROW_VERSION", "etag", "col1", "col2",
-                        null, null, null, "a", "",
-                        "3", "4", "etag2", "c", "d"
-                },
-                writtenRows.toArray()
-        );
-        
+        assertEquals(3, writtenRows.size());
+        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "etag", "col1", "col2"}, writtenRows.get(0));
+        assertArrayEquals(new String[]{null, null, null, "a", ""}, writtenRows.get(1));
+        assertArrayEquals(new String[]{"3", "4", "etag2", "c", "d"}, writtenRows.get(2));
+
         rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
-        
+
         verifyFileUpload();
     }
 

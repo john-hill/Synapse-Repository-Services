@@ -59,6 +59,7 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 
 	@Override
+	@WriteTransaction
 	public int disableInactiveUsers(int maxBatchSize) {
 		Date inactivityThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_DAYS, ChronoUnit.DAYS));
 		
@@ -94,6 +95,8 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 		Date warningThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
 		Date disableThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_DAYS, ChronoUnit.DAYS));
+		// This is the actual day of deactivation to put in the warning message
+		Date disableDateForWarned = Date.from(clock.now().toInstant().plus(WARNING_PERIOD_LENGTH, ChronoUnit.DAYS));
 
 		List<Long> usersToWarn = userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, maxBatchSize).stream()
 				.filter(Predicate.not(BOOTSTRAP_PRINCIPAL::isBootstrapPrincipalId))
@@ -107,7 +110,7 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 		for (Long userId : usersToWarn) {
 			try {
-				sendInactivityWarningEmail(sender, userId, disableThreshold);
+				sendInactivityWarningEmail(sender, userId, disableDateForWarned);
 			} catch (Exception e) {
 				log.error("Failed to send inactivity warning email to user {}, marking as warned anyway", userId, e);
 			}

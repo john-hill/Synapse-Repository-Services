@@ -92,6 +92,7 @@ public class UserStatusManagerImplUnitTest {
 		when(mockClock.now()).thenReturn(Date.from(now));
 		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
 		Date expectedDisableThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS));
+		Date expectedDisableDateForWarned = Date.from(now.plus(UserStatusManager.WARNING_PERIOD_LENGTH, ChronoUnit.DAYS));
 		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedWarningThreshold, expectedDisableThreshold, 500))
 				.thenReturn(List.of(userId1, userId2));
 
@@ -149,6 +150,7 @@ public class UserStatusManagerImplUnitTest {
 		when(mockClock.now()).thenReturn(Date.from(now));
 		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
 		Date expectedDisableThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS));
+		Date expectedDisableDateForWarned = Date.from(now.plus(UserStatusManager.WARNING_PERIOD_LENGTH, ChronoUnit.DAYS));
 		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedWarningThreshold, expectedDisableThreshold, 500))
 				.thenReturn(List.of(userId1, userId2));
 
@@ -157,7 +159,7 @@ public class UserStatusManagerImplUnitTest {
 		when(mockUserManager.getUserInfo(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId()))
 				.thenReturn(sender);
 
-		doThrow(new RuntimeException("email service unavailable")).when(manager).sendInactivityWarningEmail(sender, userId1, expectedDisableThreshold);
+		doThrow(new RuntimeException("email service unavailable")).when(manager).sendInactivityWarningEmail(sender, userId1, expectedDisableDateForWarned);
 		when(mockPrincipalNameProvider.getPrincipalName(userId2)).thenReturn("Bob");
 		when(mockTemplatedMessageSender.sendMessage(any())).thenReturn(new MessageToUser().setId("msg-1"));
 

@@ -17,6 +17,7 @@
     <module>authutil</module>
     <module>repository</module>
     <module>workers</module>
+    <module>agent-core</module>
   </modules>
 
 </project>

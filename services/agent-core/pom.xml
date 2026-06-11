@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.sagebionetworks</groupId>
+		<artifactId>services</artifactId>
+		<version>develop-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>agent-core</artifactId>
+	<name>Agent Core Service</name>
+	<description>Spring Boot application for Spring AI Agent Core integration
+		with AWS Bedrock</description>
+
+	<dependencyManagement>
+		<dependencies>
+			<!-- Import Spring AI Agent Core BOM -->
+			<dependency>
+				<groupId>org.springaicommunity</groupId>
+				<artifactId>spring-ai-agentcore-bom</artifactId>
+				<version>${spring.ai.agentcore.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-client-chat</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springaicommunity</groupId>
+			<artifactId>spring-ai-agentcore-runtime-starter</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springaicommunity</groupId>
+			<artifactId>spring-ai-agentcore-memory</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.sagebionetworks</groupId>
+			<artifactId>repository-managers</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.sagebionetworks</groupId>
+			<artifactId>lib-stackConfiguration</artifactId>
+		</dependency>
+
+		<!-- AWS SDK v2 -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>bedrockagentruntime</artifactId>
+		</dependency>
+
+		<!-- Logging -->
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+		</dependency>
+
+		<!-- Testing -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<version>${spring.boot.version}</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>repackage</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

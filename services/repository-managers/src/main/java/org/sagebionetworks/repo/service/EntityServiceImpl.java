@@ -67,7 +67,6 @@ import org.sagebionetworks.repo.service.metadata.MetadataProviderFactory;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificCreateProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificDefiningSqlProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificDeleteProvider;
-import org.sagebionetworks.repo.service.metadata.TypeSpecificEntitySanitizer;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificMetadataProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificUpdateProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificVersionDeleteProvider;
@@ -232,7 +231,6 @@ public class EntityServiceImpl implements EntityService {
 		EventType eventType = EventType.CREATE;
 		// Fire the event
 		fireValidateEvent(userInfo, eventType, newEntity, type);
-		fireSanitizeEvent(userInfo, eventType, newEntity, type);
 		String id = entityManager.createEntity(userInfo, newEntity, activityId);
 		newEntity.setId(id);
 		fireAfterCreateEntityEvent(userInfo, newEntity, type);
@@ -275,9 +273,10 @@ public class EntityServiceImpl implements EntityService {
 			}
 		});
 	}
-	
+
+
 	/**
-	 * Fire a validate event.  
+	 * Fire a validate event.
 	 * @param userInfo
 	 * @param eventType
 	 * @param entity
@@ -287,12 +286,27 @@ public class EntityServiceImpl implements EntityService {
 	 * @throws UnauthorizedException
 	 * @throws InvalidModelException
 	 */
-	private void fireValidateEvent(UserInfo userInfo, EventType eventType, Entity entity, EntityType type) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException{
+	private void fireValidateEvent(UserInfo userInfo, EventType eventType, Entity entity, EntityType type) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
+		this.fireValidateEvent(userInfo, eventType, entity, type, false);
+	}
+
+	/**
+	 * Fire a validate event.
+	 * @param userInfo
+	 * @param eventType
+	 * @param entity
+	 * @param type
+	 * @throws NotFoundException
+	 * @throws DatastoreException
+	 * @throws UnauthorizedException
+	 * @throws InvalidModelException
+	 */
+	private void fireValidateEvent(UserInfo userInfo, EventType eventType, Entity entity, EntityType type, boolean skipValidation) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException{
 		List<EntityHeader> newPath = null;
 		if (entity.getParentId() != null) {
 			newPath = entityManager.getEntityPathAsAdmin(entity.getParentId());
 		}
-		EntityEvent event = new EntityEvent(eventType, newPath, userInfo);
+		EntityEvent event = new EntityEvent(eventType, newPath, userInfo, skipValidation);
 		
 		// First apply validation that is common to all types.
 		allTypesValidator.validateEntity(entity, event);
@@ -301,20 +315,6 @@ public class EntityServiceImpl implements EntityService {
 		metadataProviderFactory.getMetadataProvider(type).ifPresent(provider -> {
 			if (provider instanceof EntityValidator) {
 				((EntityValidator) provider).validateEntity(entity, event);
-			}
-		});
-	}
-
-	/**
-	 * Fire a sanitize event. This allows the type-specific provider to strip or
-	 * normalize server-controlled fields the client must not set directly. It runs
-	 * after validation and before the entity is persisted.
-	 */
-	private void fireSanitizeEvent(UserInfo userInfo, EventType eventType, Entity entity, EntityType type) {
-		EntityEvent event = new EntityEvent(eventType, null, userInfo);
-		metadataProviderFactory.getMetadataProvider(type).ifPresent(provider -> {
-			if (provider instanceof TypeSpecificEntitySanitizer) {
-				((TypeSpecificEntitySanitizer) provider).sanitizeEntity(entity, event);
 			}
 		});
 	}
@@ -344,12 +344,7 @@ public class EntityServiceImpl implements EntityService {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		EventType eventType = EventType.UPDATE;
 		// Fire the event
-		fireValidateEvent(userInfo, eventType, updatedEntity, type);
-		// Sanitization strips server-controlled fields a client must not set. Trusted internal callers (e.g. the grid
-		// export job, which must persist the validation file handle) can skip it.
-		if (!skipSanitization) {
-			fireSanitizeEvent(userInfo, eventType, updatedEntity, type);
-		}
+		fireValidateEvent(userInfo, eventType, updatedEntity, type, skipSanitization);
 		// Keep the entity id
 		String entityId = updatedEntity.getId();
 		// Now do the update

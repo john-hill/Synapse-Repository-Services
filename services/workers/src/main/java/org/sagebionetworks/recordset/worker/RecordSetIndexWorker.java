@@ -46,11 +46,9 @@ public class RecordSetIndexWorker implements ChangeMessageDrivenRunner {
 				.setVersion(message.getObjectVersion())
 				.build();
 		try {
-			if (ChangeType.DELETE.equals(message.getChangeType())) {
-				recordSetIndexManager.deleteRecordSetIndex(idAndVersion);
-				return;
+			if (ChangeType.CREATE.equals(message.getChangeType()) || ChangeType.UPDATE.equals(message.getChangeType())) {
+				recordSetIndexManager.createOrUpdateRecordSetIndex(idAndVersion, progressCallback);
 			}
-			recordSetIndexManager.createOrUpdateRecordSetIndex(idAndVersion, progressCallback);
 		} catch (RecoverableMessageException | TableIndexConnectionUnavailableException | TableUnavailableException | LockUnavilableException e) {
 			log.error("Will retry.  Message: {}", e.getMessage());
 			if (e instanceof RecoverableMessageException) {

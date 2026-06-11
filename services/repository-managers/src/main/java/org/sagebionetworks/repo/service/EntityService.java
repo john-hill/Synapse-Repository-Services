@@ -214,10 +214,10 @@ public interface EntityService {
 
 	/**
 	 * Update an existing entity, optionally skipping the type-specific sanitize
-	 * step. Sanitization strips server-controlled fields that a client must not set
-	 * directly; trusted internal callers that legitimately need to persist such a
-	 * field (e.g. the grid export job persisting the validation file handle) may
-	 * skip it. Validation is always performed.
+	 * sub-step within the validation step. Sanitization strips server-controlled
+	 * fields that a client must not set directly; trusted internal callers that
+	 * legitimately need to persist such a field (e.g. the grid export job persisting
+	 * the validation file handle) may skip it. Validation is always performed.
 	 *
 	 * @param skipSanitization when true, the type-specific sanitize step is not fired
 	 */

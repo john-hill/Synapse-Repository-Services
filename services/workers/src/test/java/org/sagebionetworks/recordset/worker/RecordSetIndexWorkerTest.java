@@ -1,13 +1,13 @@
 package org.sagebionetworks.recordset.worker;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import org.apache.logging.log4j.Logger;
@@ -83,12 +83,10 @@ public class RecordSetIndexWorkerTest {
 	@Test
 	public void testRunWithDelete() throws RecoverableMessageException, Exception {
 		change.setChangeType(ChangeType.DELETE);
-		change.setObjectVersion(null);
-		IdAndVersion versionless = IdAndVersion.newBuilder().setId(123L).build();
 		// call under test
 		worker.run(mockProgressCallback, change);
-		verify(mockManager).deleteRecordSetIndex(versionless);
-		verify(mockManager, never()).createOrUpdateRecordSetIndex(any(), any());
+
+		verifyNoInteractions(mockManager);
 	}
 
 	@Test
@@ -96,7 +94,7 @@ public class RecordSetIndexWorkerTest {
 		change.setObjectType(ObjectType.ENTITY);
 		// call under test
 		worker.run(mockProgressCallback, change);
-		verifyZeroInteractions(mockManager);
+		verifyNoMoreInteractions(mockManager);
 	}
 
 	@Test

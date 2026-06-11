@@ -31,7 +31,7 @@ import org.sagebionetworks.repo.model.table.Row;
 @ExtendWith(ITTestExtension.class)
 public class ITRecordSetTest {
 
-	private static final long INDEX_TIMEOUT_MS = 1000L * 60 * 5;
+	private static final long INDEX_TIMEOUT_MS = 1000L * 60 * 2;
 
 	private SynapseAdminClient adminSynapse;
 	private SynapseClient synapse;

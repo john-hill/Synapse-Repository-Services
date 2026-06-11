@@ -7,7 +7,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -198,7 +198,7 @@ public class RecordSetIndexManagerImplTest {
 		verify(mockTableManagerSupport, never()).startTableProcessing(any());
 		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToAvailable(any(), any(), any());
 		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToFailed(any(), any());
-		verifyZeroInteractions(mockConnectionFactory, mockEntityManager, mockFileHandleManager, mockColumnModelManager);
+		verifyNoMoreInteractions(mockConnectionFactory, mockEntityManager, mockFileHandleManager, mockColumnModelManager);
 	}
 
 	@Test

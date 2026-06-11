@@ -127,39 +127,22 @@ public class UserStatusDaoImplTest {
 
 	@Test
 	public void testGetInactiveUsersBatch() {
-		Date lastSeenOnThreshold = Date.from(Instant.now().minus(30, ChronoUnit.DAYS));
+		Long userId2 = createUser();
+		Long userId3 = createUser();
+		Long userId4 = createUser();
+		Date threshold = Date.from(Instant.now().minus(30, ChronoUnit.DAYS));
 
-		int batchSize = 10;
+		// userId: no LAST_SEEN_ON — excluded
+		// userId2: recently active — excluded
+		userStatusDao.setLastSeenOn(List.of(userId2), Date.from(Instant.now().minus(30, ChronoUnit.DAYS)));
+		// userId3: inactive but disabled — excluded
+		userStatusDao.setLastSeenOn(List.of(userId3), Date.from(Instant.now().minus(31, ChronoUnit.DAYS)));
+		userStatusDao.setDisabled(userId3, true);
+		// userId4: inactive and enabled — included
+		userStatusDao.setLastSeenOn(List.of(userId4), Date.from(Instant.now().minus(31, ChronoUnit.DAYS)));
 
-		// Call under test: users that have no last seen date should not be considered inactive
-		assertTrue(userStatusDao.getInactiveUsersBatch(lastSeenOnThreshold, batchSize).isEmpty());
-
-		// Set the user as active by setting last seen within the threshold
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(30, ChronoUnit.DAYS)));
-
-		// Call under test
-		assertTrue(userStatusDao.getInactiveUsersBatch(lastSeenOnThreshold, batchSize).isEmpty());
-
-		// Set the user as inactive
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(31, ChronoUnit.DAYS)));
-
-		// Now we should find the user in the inactive list
-		assertEquals(List.of(userId), userStatusDao.getInactiveUsersBatch(lastSeenOnThreshold, batchSize));
-	}
-
-	@Test
-	public void testGetInactiveUsersBatchExcludesDisabledUsers() {
-		Date lastSeenOnThreshold = Date.from(Instant.now().minus(30, ChronoUnit.DAYS));
-
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(31, ChronoUnit.DAYS)));
-
-		// user is inactive and enabled — should appear
-		assertEquals(List.of(userId), userStatusDao.getInactiveUsersBatch(lastSeenOnThreshold, 10));
-
-		userStatusDao.setDisabled(userId, true);
-
-		// call under test: disabled user must not appear in the inactive batch
-		assertTrue(userStatusDao.getInactiveUsersBatch(lastSeenOnThreshold, 10).isEmpty());
+		// call under test
+		assertEquals(List.of(userId4), userStatusDao.getInactiveUsersBatch(threshold, 10));
 	}
 
 	@Test
@@ -180,83 +163,41 @@ public class UserStatusDaoImplTest {
 	}
 
 	@Test
-	public void testGetInactiveUsersToWarnBatchWithNoLastSeenOn() {
+	public void testGetInactiveUsersToWarnBatch() {
+		Long userId2 = createUser();
+		Long userId3 = createUser();
+		Long userId4 = createUser();
+		Long userId5 = createUser();
+		Long userId6 = createUser();
 		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
 		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
 
-		// Call under test: users with no last seen date should not appear in the warn batch
-		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
-	}
+		// userId: no LAST_SEEN_ON — excluded
+		// userId2: recently active — excluded
+		userStatusDao.setLastSeenOn(List.of(userId2), Date.from(Instant.now().minus(10, ChronoUnit.DAYS)));
+		// userId3: past the disable threshold — excluded
+		userStatusDao.setLastSeenOn(List.of(userId3), Date.from(Instant.now().minus(371, ChronoUnit.DAYS)));
+		// userId4: in warn window but disabled — excluded
+		userStatusDao.setLastSeenOn(List.of(userId4), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
+		userStatusDao.setDisabled(userId4, true);
+		// userId5: in warn window but already warned — excluded
+		userStatusDao.setLastSeenOn(List.of(userId5), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
+		userStatusDao.setDisableWarningSentOn(List.of(userId5));
+		// userId6: in warn window, enabled, not warned — included
+		userStatusDao.setLastSeenOn(List.of(userId6), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
 
-	@Test
-	public void testGetInactiveUsersToWarnBatchWithRecentActivity() {
-		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
-		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(10, ChronoUnit.DAYS)));
+		// call under test
+		assertEquals(List.of(userId6), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10));
 
-		// Call under test: recently active user should not appear in the warn batch
-		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
-	}
-
-	@Test
-	public void testGetInactiveUsersToWarnBatchWithInactiveUser() {
-		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
-		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
-
-		// Call under test: user inactive longer than the threshold should be in the warn batch
-		assertEquals(List.of(userId), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10));
-
-		// Call under test: after setting warned, the user should no longer appear
-		userStatusDao.setDisableWarningSentOn(List.of(userId));
-		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
-	}
-
-	@Test
-	public void testGetInactiveUsersToWarnBatchExcludesUsersPastDisableThreshold() {
-		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
-		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(371, ChronoUnit.DAYS)));
-
-		// Call under test: users older than the disable threshold should not be in the warn batch
-		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
-	}
-
-	@Test
-	public void testGetInactiveUsersToWarnBatchExcludesDisabledUsers() {
-		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
-		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
-
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
-
-		// user is in warn range and enabled — should appear
-		assertEquals(List.of(userId), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10));
-
-		userStatusDao.setDisabled(userId, true);
-
-		// call under test: disabled user must not appear in the warn batch
-		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
-	}
-
-	@Test
-	public void testSetLastSeenOnClearsWarnedOn() {
-		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
-		Date disableThreshold = Date.from(Instant.now().minus(370, ChronoUnit.DAYS));
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
-		userStatusDao.setDisableWarningSentOn(List.of(userId));
-
-		// User has been warned — no longer in the warn batch
+		// after marking userId6 as warned, it should no longer appear
+		userStatusDao.setDisableWarningSentOn(List.of(userId6));
 		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
 
-		// Call under test: setLastSeenOn resets DISABLE_WARNING_SENT_ON to null
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(10, ChronoUnit.DAYS)));
-
-		// User is now recently active — still not in the warn batch (LAST_SEEN_ON is recent)
-		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10).isEmpty());
-
-		// Backdate LAST_SEEN_ON again — DISABLE_WARNING_SENT_ON was cleared, so user reappears in warn batch
-		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
-		assertEquals(List.of(userId), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10));
+		// setLastSeenOn clears DISABLE_WARNING_SENT_ON on userId5: give them recent activity then backdate
+		userStatusDao.setLastSeenOn(List.of(userId5), Date.from(Instant.now().minus(10, ChronoUnit.DAYS)));
+		userStatusDao.setLastSeenOn(List.of(userId5), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
+		// userId5 reappears because the warning flag was cleared
+		assertEquals(List.of(userId5), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, 10));
 	}
 
 	@Test

@@ -609,7 +609,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		@Override
 		public void close() throws IOException {
 			flush();
-			client.waitForDocumentCount(indexName, totalRows);
 		}
 	}
 

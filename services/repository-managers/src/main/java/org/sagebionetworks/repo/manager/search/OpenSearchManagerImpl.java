@@ -30,8 +30,6 @@ import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
-import org.opensearch.client.opensearch.core.CountRequest;
-import org.opensearch.client.opensearch.core.CountResponse;
 import org.opensearch.client.opensearch.core.DeleteRequest;
 import org.opensearch.client.opensearch.core.IndexRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
@@ -104,13 +102,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	// 400s on legitimate analyzers.
 	static int VALIDATE_MAX_RETRIES = 10;
 	static long VALIDATE_INITIAL_BACKOFF_MS = 1000L;
-
-	// Convergence probe for a freshly-finished bulk index. AOSS acknowledges bulk writes
-	// before the documents are visible to _search or _count, so we poll _count until the
-	// index reports the expected number of documents. Same budget as the writability probe
-	// for consistency. Non-final so unit tests can lower the values and avoid real sleeps.
-	static int COUNT_PROBE_MAX_RETRIES = 10;
-	static long COUNT_PROBE_INITIAL_BACKOFF_MS = 10000L;
 
 	// Cleanup retry for the readiness-probe sentinel. AOSS doesn't honor refresh=wait_for,
 	// so a single delete that fails on a transient network blip would orphan the sentinel
@@ -540,52 +531,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (Exception e) {
 			LOG.warn("Failed to delete readiness probe document from index {} after {} attempts: {}",
 					indexName, SENTINEL_CLEANUP_MAX_RETRIES, e.getMessage());
-		}
-	}
-
-	@Override
-	public void waitForDocumentCount(String indexName, long expectedCount) {
-		// Empty indexes report zero immediately; skip the round-trip.
-		if (expectedCount <= 0L) {
-			return;
-		}
-		final int[] attempt = {0};
-		final long[] lastObserved = {-1L};
-		try {
-			TimeUtils.waitForExponentialMaxRetry(COUNT_PROBE_MAX_RETRIES, COUNT_PROBE_INITIAL_BACKOFF_MS,
-					() -> {
-						attempt[0]++;
-						try {
-							CountResponse response = openSearchClient.count(CountRequest.of(r -> r
-									.index(indexName)));
-							long actual = response.count();
-							lastObserved[0] = actual;
-							// >= rather than == so a leftover readiness-probe sentinel cannot
-							// permanently strand convergence one short.
-							if (actual >= expectedCount) {
-								return Boolean.TRUE;
-							}
-							LOG.warn("Index {} not yet converged (attempt {}/{}): {} of {} documents visible",
-									indexName, attempt[0], COUNT_PROBE_MAX_RETRIES, actual, expectedCount);
-							throw new RetryException("count " + actual + " of " + expectedCount);
-						} catch (OpenSearchException e) {
-							LOG.warn("Index {} count probe failed (attempt {}/{}): {}",
-									indexName, attempt[0], COUNT_PROBE_MAX_RETRIES, describeError(e.error()));
-							throw new RetryException(e);
-						} catch (IOException e) {
-							LOG.warn("Index {} count probe failed (attempt {}/{}): {}",
-									indexName, attempt[0], COUNT_PROBE_MAX_RETRIES, e.getMessage());
-							throw new RetryException(e);
-						}
-					});
-		} catch (RetryException e) {
-			LOG.warn("Index {} did not converge to expected count after {} attempts ({} of {}); "
-					+ "flipping to ACTIVE — AOSS will self-correct as writes propagate",
-					indexName, COUNT_PROBE_MAX_RETRIES, lastObserved[0], expectedCount);
-		} catch (RuntimeException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new RuntimeException("Failed convergence probe for search index: " + indexName, e);
 		}
 	}
 

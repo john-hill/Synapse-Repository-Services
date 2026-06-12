@@ -136,7 +136,6 @@ public class OpenSearchManagerImplTest {
 
 	private long originalBulkInitialBackoffMs;
 	private long originalProbeInitialBackoffMs;
-	private long originalCountProbeInitialBackoffMs;
 	private long originalSentinelCleanupInitialBackoffMs;
 
 	@BeforeEach
@@ -147,8 +146,6 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = 1L;
 		originalProbeInitialBackoffMs = OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = 1L;
-		originalCountProbeInitialBackoffMs = OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS;
-		OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS = 1L;
 		originalSentinelCleanupInitialBackoffMs = OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = 1L;
 	}
@@ -157,7 +154,6 @@ public class OpenSearchManagerImplTest {
 	public void tearDown() {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = originalBulkInitialBackoffMs;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = originalProbeInitialBackoffMs;
-		OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS = originalCountProbeInitialBackoffMs;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
 	}
 
@@ -1716,112 +1712,6 @@ public class OpenSearchManagerImplTest {
 
 		verify(openSearchClient, times(1)).index(argThat((IndexRequest<?> req) -> req != null));
 		verify(openSearchClient, times(2)).delete(argThat((DeleteRequest req) -> req != null));
-	}
-
-	// --- waitForDocumentCount ---
-
-	@Test
-	public void testWaitForDocumentCountWithImmediateMatchReturns() throws Exception {
-		// Happy path: AOSS reports the expected count on the first attempt; no retry, no log noise.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(org.opensearch.client.opensearch.core.CountResponse.of(b -> b
-						.count(5L)
-						.shards(s -> s.total(1).successful(1).failed(0))));
-
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(1))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountConvergesAfterUnderCount() throws Exception {
-		// AOSS is eventually consistent: the first probe sees fewer documents than were
-		// bulk-indexed; the second sees the full count and returns.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(countResponse(2L))
-				.thenReturn(countResponse(5L));
-
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(2))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountTreatsExcessAsConverged() throws Exception {
-		// >= rather than == so a leftover readiness-probe sentinel cannot strand convergence
-		// one short. An excess count is therefore a successful return, not a retry.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(countResponse(6L));
-
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(1))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountExhaustsRetriesAndLogsWarning() throws Exception {
-		// Persistent under-count: every attempt sees fewer documents than expected. The probe
-		// exhausts its retry budget, logs a warning, and returns normally — the index is
-		// flipped to ACTIVE so AOSS can self-correct as writes propagate.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(countResponse(2L));
-
-		// call under test — must not throw
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountWithIOExceptionExhaustsRetries() throws Exception {
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenThrow(new IOException("connection reset"));
-
-		// call under test — must not throw; probe errors are treated as transient under-counts
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountWithOpenSearchExceptionExhaustsRetries() throws Exception {
-		// AOSS may briefly return index_not_found_exception (or any other transient error) from
-		// _count while shards are still propagating the freshly-written documents.
-		ErrorResponse notFound = ErrorResponse.of(er -> er
-				.error(ErrorCause.of(e -> e.type("index_not_found_exception").reason("no such index")))
-				.status(404));
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenThrow(new OpenSearchException(notFound));
-
-		// call under test — must not throw; probe errors are treated as transient under-counts
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountWithZeroExpectedShortCircuits() throws Exception {
-		// An empty SearchIndex needs no probe — _count would just return 0 and we'd skip the
-		// retry path anyway. Avoid the round-trip entirely.
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 0L);
-
-		verifyZeroInteractions(openSearchClient);
-	}
-
-	private static org.opensearch.client.opensearch.core.CountResponse countResponse(long count) {
-		return org.opensearch.client.opensearch.core.CountResponse.of(b -> b
-				.count(count)
-				.shards(s -> s.total(1).successful(1).failed(0)));
 	}
 
 	// --- per-document fallback on partial batch failure ---

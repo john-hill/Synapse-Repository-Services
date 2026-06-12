@@ -7,10 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -590,37 +588,6 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
 	}
 
-	@Test
-	public void testHandleCreateWithConvergenceProbeTimeoutFlipsToActive() throws Exception {
-		// waitForDocumentCount now returns normally on timeout (logs warn, flips to ACTIVE).
-		// The build path should complete successfully — no exception, no FAILED state.
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-
-		// call under test
-		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
-
-		// Index is flipped to ACTIVE despite the probe timeout.
-		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
-		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
-		assertTrue(captor.getAllValues().stream().anyMatch(s -> s.getState() == SearchIndexState.ACTIVE),
-				"index must be flipped to ACTIVE when convergence probe times out");
-	}
-
 	// -------- SearchIndexRowHandler tests --------
 
 	@Test
@@ -709,62 +676,6 @@ public class SearchIndexLifecycleManagerImplTest {
 		handler.close();
 
 		verify(openSearchManager, never()).bulkIndex(any(), any());
-		// The convergence probe is still called (with 0L); the short-circuit lives inside
-		// OpenSearchManagerImpl.waitForDocumentCount so it can no-op without a round-trip,
-		// but the row handler doesn't try to second-guess that decision.
-		verify(openSearchManager).waitForDocumentCount("test-index", 0L);
-	}
-
-	@Test
-	public void testRowHandlerCloseProbesDocumentCountWithStreamedRows() throws IOException {
-		// AOSS bulk writes acknowledge before documents are visible. After the final flush,
-		// close() must wait for _count to converge to the streamed row total before returning,
-		// otherwise the lifecycle manager would flip the SearchIndex to ACTIVE while a query
-		// would still under-return.
-		SelectColumn col = new SelectColumn();
-		col.setId("100");
-		col.setColumnType(ColumnType.STRING);
-		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", Collections.singletonList(col), openSearchManager);
-
-		for (long i = 1; i <= 3; i++) {
-			Row row = new Row();
-			row.setRowId(i);
-			row.setVersionNumber(1L);
-			row.setValues(Collections.singletonList("v" + i));
-			handler.nextRow(row);
-		}
-
-		// call under test
-		handler.close();
-
-		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager);
-		order.verify(openSearchManager).bulkIndex(eq("test-index"), any());
-		order.verify(openSearchManager).waitForDocumentCount("test-index", 3L);
-	}
-
-	@Test
-	public void testRowHandlerCloseCompletesNormallyWhenProbeTimesOut() throws Exception {
-		// waitForDocumentCount returns normally on timeout (logs warn, no throw). close()
-		// must also complete normally — the index will be flipped to ACTIVE by the caller.
-		SelectColumn col = new SelectColumn();
-		col.setId("100");
-		col.setColumnType(ColumnType.STRING);
-		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", Collections.singletonList(col), openSearchManager);
-
-		Row row = new Row();
-		row.setRowId(1L);
-		row.setVersionNumber(1L);
-		row.setValues(Collections.singletonList("v"));
-		handler.nextRow(row);
-
-		doNothing().when(openSearchManager).waitForDocumentCount("test-index", 1L);
-
-		// call under test — must not throw
-		handler.close();
-
-		verify(openSearchManager).waitForDocumentCount("test-index", 1L);
 	}
 
 	// Locks in the row handler's behavior when a SelectColumn has a null id: the

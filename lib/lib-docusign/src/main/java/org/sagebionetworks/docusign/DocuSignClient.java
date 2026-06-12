@@ -1,20 +1,14 @@
 package org.sagebionetworks.docusign;
 
-import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.docusign.esign.api.TemplatesApi;
-import com.docusign.esign.client.ApiClient;
 import com.docusign.esign.client.ApiException;
-import com.docusign.esign.client.auth.OAuth;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
 
@@ -26,34 +20,15 @@ import com.docusign.esign.model.EnvelopeTemplateResults;
 @Service
 public class DocuSignClient {
 
-	static final long JWT_EXPIRES_IN_SECONDS = 3600L;
-	static final long TOKEN_EXPIRY_BUFFER_MILLIS = 60_000L;
-	static final List<String> SCOPES = Arrays.asList("signature", "impersonation");
-
 	private final DocuSignClientConfig config;
 	private final TemplatesApiFactory templatesApiFactory;
 	private final DocuSignAccessTokenProvider accessTokenProvider;
-
-	@Autowired
-	public DocuSignClient(DocuSignClientConfig config) {
-		this(config, new DefaultTemplatesApiFactory());
-	}
-
-	DocuSignClient(DocuSignClientConfig config, TemplatesApiFactory templatesApiFactory) {
-		this(config, templatesApiFactory, null);
-	}
 
 	DocuSignClient(DocuSignClientConfig config, TemplatesApiFactory templatesApiFactory,
 			DocuSignAccessTokenProvider accessTokenProvider) {
 		this.config = config;
 		this.templatesApiFactory = templatesApiFactory;
-		this.accessTokenProvider = accessTokenProvider != null ? accessTokenProvider : new DocuSignAccessTokenProvider(
-				() -> {
-					OAuth.OAuthToken token = requestJwtUserToken();
-					return new DocuSignAccessTokenProvider.TokenResult(token.getAccessToken(), token.getExpiresIn());
-				},
-				TOKEN_EXPIRY_BUFFER_MILLIS
-		);
+		this.accessTokenProvider = accessTokenProvider;
 	}
 
 	/**
@@ -82,27 +57,6 @@ public class DocuSignClient {
 			return toEDucTemplatePage(results);
 		} catch (ApiException e) {
 			throw convertApiException(e);
-		}
-	}
-
-	/**
-	 * Exchanges a signed JWT assertion for an access token. Package-private so unit
-	 * tests can spy/override without driving real DocuSign HTTP traffic.
-	 */
-	OAuth.OAuthToken requestJwtUserToken() {
-		ApiClient apiClient = new ApiClient(config.getBasePath());
-		apiClient.setOAuthBasePath(config.getOAuthBasePath());
-		try {
-			return apiClient.requestJWTUserToken(
-					config.getIntegrationKey(),
-					config.getUserId(),
-					SCOPES,
-					config.getPrivateKeyBytes(),
-					JWT_EXPIRES_IN_SECONDS);
-		} catch (ApiException e) {
-			throw new IllegalStateException("Failed to obtain DocuSign access token.", e);
-		} catch (IOException e) {
-			throw new IllegalStateException("Failed to read DocuSign private key.", e);
 		}
 	}
 
@@ -144,19 +98,5 @@ public class DocuSignClient {
 			return new DocuSignUnauthorizedException("DocuSign rejected the access token.", e);
 		}
 		return new IllegalStateException("DocuSign API error " + code + ".", e);
-	}
-
-	private static final class DefaultTemplatesApiFactory implements TemplatesApiFactory {
-		@Override
-		public EnvelopeTemplateResults listTemplates(String basePath, String accessToken,
-				String accountId, String startPosition, String count) throws ApiException {
-			ApiClient apiClient = new ApiClient(basePath);
-			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
-			TemplatesApi templatesApi = new TemplatesApi(apiClient);
-			TemplatesApi.ListTemplatesOptions options = templatesApi.new ListTemplatesOptions();
-			options.setStartPosition(startPosition);
-			options.setCount(count);
-			return templatesApi.listTemplates(accountId, options);
-		}
 	}
 }

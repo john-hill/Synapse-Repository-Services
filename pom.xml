@@ -236,6 +236,48 @@
 				<version>${jackson.version}</version>
 			</dependency>
 
+			<dependency>
+				<groupId>com.fasterxml.jackson.dataformat</groupId>
+				<artifactId>jackson-dataformat-csv</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.fasterxml.jackson.jakarta.rs</groupId>
+				<artifactId>jackson-jakarta-rs-json-provider</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.core</groupId>
+				<artifactId>jersey-client</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.inject</groupId>
+				<artifactId>jersey-hk2</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.media</groupId>
+				<artifactId>jersey-media-multipart</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.media</groupId>
+				<artifactId>jersey-media-json-jackson</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.auth0</groupId>
+				<artifactId>java-jwt</artifactId>
+				<version>${auth0.java-jwt.version}</version>
+			</dependency>
+
 			<!-- Used for timer triggers (cron-like) Note: spring-context-support
 				also depends on this libary as an optional dependancy. Since spring-context-support 
 				version 5.1.5.RELEASE uses quartz version 2.3.0 that is the version of quartz 
@@ -1124,6 +1166,8 @@
 		<jsoup.version>1.14.2</jsoup.version>
 		<bouncycastle.version>1.82</bouncycastle.version>
 		<jjwt.version>0.11.2</jjwt.version>
+		<jersey.version>3.1.6</jersey.version>
+		<auth0.java-jwt.version>3.4.1</auth0.java-jwt.version>
 	</properties>
 
 	<distributionManagement>

@@ -35,8 +35,38 @@
 			<groupId>com.docusign</groupId>
 			<artifactId>docusign-esign-java</artifactId>
 			<version>6.2.0</version>
-			<classifier>shaded</classifier>
-			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.core</groupId>
+			<artifactId>jersey-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.inject</groupId>
+			<artifactId>jersey-hk2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.media</groupId>
+			<artifactId>jersey-media-multipart</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.media</groupId>
+			<artifactId>jersey-media-json-jackson</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.auth0</groupId>
+			<artifactId>java-jwt</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcpkix-jdk18on</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.dataformat</groupId>
+			<artifactId>jackson-dataformat-csv</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -82,45 +112,4 @@
 		</dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-shade-plugin</artifactId>
-				<version>3.5.0</version>
-				<executions>
-					<execution>
-						<phase>package</phase>
-						<goals>
-							<goal>shade</goal>
-						</goals>
-						<configuration>
-							<createDependencyReducedPom>true</createDependencyReducedPom>
-							<artifactSet>
-								<includes>
-									<include>com.docusign:docusign-esign-java</include>
-								</includes>
-							</artifactSet>
-							<filters>
-								<filter>
-									<artifact>com.docusign:docusign-esign-java</artifact>
-									<excludes>
-										<exclude>org/json/**</exclude>
-										<exclude>com/fasterxml/jackson/core/**</exclude>
-										<exclude>com/fasterxml/jackson/databind/**</exclude>
-										<exclude>com/fasterxml/jackson/annotation/**</exclude>
-										<exclude>com/fasterxml/jackson/dataformat/**</exclude>
-										<exclude>com/fasterxml/jackson/datatype/**</exclude>
-										<exclude>META-INF/versions/*/com/fasterxml/jackson/**</exclude>
-										<exclude>META-INF/services/com.fasterxml.jackson.core.*</exclude>
-										<exclude>META-INF/maven/com.fasterxml.jackson*/**</exclude>
-									</excludes>
-								</filter>
-							</filters>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
 </project>

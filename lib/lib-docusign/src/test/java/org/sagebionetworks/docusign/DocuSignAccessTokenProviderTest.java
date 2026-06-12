@@ -28,7 +28,7 @@ public class DocuSignAccessTokenProviderTest {
 		provider = spy(new DocuSignAccessTokenProvider(mockConfig));
 	}
 
-	private OAuth.OAuthToken oAuthToken(String accessToken, long expiresIn) {
+	private static OAuth.OAuthToken oAuthToken(String accessToken, long expiresIn) {
 		OAuth.OAuthToken token = new OAuth.OAuthToken();
 		token.setAccessToken(accessToken);
 		token.setExpiresIn(expiresIn);

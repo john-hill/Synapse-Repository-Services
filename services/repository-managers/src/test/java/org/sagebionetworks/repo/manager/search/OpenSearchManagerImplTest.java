@@ -1765,19 +1765,16 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
-	public void testWaitForDocumentCountExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
+	public void testWaitForDocumentCountExhaustsRetriesAndLogsWarning() throws Exception {
 		// Persistent under-count: every attempt sees fewer documents than expected. The probe
-		// must throw RecoverableMessageException so the lifecycle worker re-queues the message
-		// without writing FAILED — convergence is transient by definition.
+		// exhausts its retry budget, logs a warning, and returns normally — the index is
+		// flipped to ACTIVE so AOSS can self-correct as writes propagate.
 		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
 				.thenReturn(countResponse(2L));
 
-		// call under test
-		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
-				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
+		// call under test — must not throw
+		manager.waitForDocumentCount("search-index-syn1", 5L);
 
-		assertTrue(ex.getMessage().contains("did not converge"), ex.getMessage());
-		assertTrue(ex.getMessage().contains("2 of 5"), ex.getMessage());
 		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
 				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
 	}
@@ -1787,9 +1784,8 @@ public class OpenSearchManagerImplTest {
 		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
 				.thenThrow(new IOException("connection reset"));
 
-		// call under test
-		assertThrows(RecoverableMessageException.class,
-				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
+		// call under test — must not throw; probe errors are treated as transient under-counts
+		manager.waitForDocumentCount("search-index-syn1", 5L);
 
 		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
 				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
@@ -1805,9 +1801,8 @@ public class OpenSearchManagerImplTest {
 		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
 				.thenThrow(new OpenSearchException(notFound));
 
-		// call under test
-		assertThrows(RecoverableMessageException.class,
-				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
+		// call under test — must not throw; probe errors are treated as transient under-counts
+		manager.waitForDocumentCount("search-index-syn1", 5L);
 
 		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
 				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));

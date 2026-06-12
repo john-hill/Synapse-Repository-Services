@@ -313,13 +313,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// failure is not in the search index's configuration.
 			throw e;
 		} catch (Throwable e) {
-			// SearchIndexRowHandler.close() tunnels RecoverableMessageException through
-			// IOException because RowHandler.close() can't declare anything else. Unwrap
-			// here so a convergence-probe timeout reaches the do-not-mark-FAILED branch
-			// above on retry instead of permanently failing the index.
-			if (e instanceof IOException && e.getCause() instanceof RecoverableMessageException) {
-				throw (RecoverableMessageException) e.getCause();
-			}
 			// Another worker is currently deleting this same AOSS index. Translate
 			// to a recoverable SQS retry: by the time the retry runs, the winning
 			// delete has finished and our deleteIndex on retry no-ops via
@@ -616,17 +609,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		@Override
 		public void close() throws IOException {
 			flush();
-			// AOSS bulk writes acknowledge before the documents are visible to _search or
-			// _count. Block until the index reports the row count we streamed, so the
-			// SearchIndex isn't flipped to ACTIVE while a query would still under-return.
-			try {
-				client.waitForDocumentCount(indexName, totalRows);
-			} catch (RecoverableMessageException e) {
-				// RowHandler.close() can only declare IOException; tunnel the recoverable
-				// signal through it. The lifecycle build path unwraps before its FAILED
-				// branch so the message goes back on SQS instead of marking the index FAILED.
-				throw new IOException(e);
-			}
+			client.waitForDocumentCount(indexName, totalRows);
 		}
 	}
 

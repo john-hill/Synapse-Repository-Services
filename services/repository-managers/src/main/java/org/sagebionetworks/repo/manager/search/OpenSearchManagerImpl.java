@@ -544,7 +544,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public void waitForDocumentCount(String indexName, long expectedCount) throws RecoverableMessageException {
+	public void waitForDocumentCount(String indexName, long expectedCount) {
 		// Empty indexes report zero immediately; skip the round-trip.
 		if (expectedCount <= 0L) {
 			return;
@@ -579,12 +579,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						}
 					});
 		} catch (RetryException e) {
-			LOG.error("Index {} did not converge to expected count after {} attempts ({} of {})",
+			LOG.warn("Index {} did not converge to expected count after {} attempts ({} of {}); "
+					+ "flipping to ACTIVE — AOSS will self-correct as writes propagate",
 					indexName, COUNT_PROBE_MAX_RETRIES, lastObserved[0], expectedCount);
-			throw new RecoverableMessageException(
-					"AOSS index " + indexName + " did not converge to expected count ("
-							+ lastObserved[0] + " of " + expectedCount + ") within the retry budget",
-					e.getCause());
 		} catch (RuntimeException e) {
 			throw e;
 		} catch (Exception e) {

@@ -107,13 +107,16 @@ public interface OpenSearchManager {
 	 * <p>No-op when {@code expectedCount == 0} — an empty index reports zero immediately
 	 * and skipping the call avoids an unnecessary round-trip.</p>
 	 *
+	 * <p>If the index does not converge within the retry budget, a warning is logged and
+	 * the method returns normally — the index is flipped to ACTIVE and AOSS will
+	 * self-correct as writes propagate. This avoids re-running the full bulk-index
+	 * operation on SQS retry for large indexes whose propagation lag exceeds the probe
+	 * budget.</p>
+	 *
 	 * @param indexName     the OpenSearch index name
 	 * @param expectedCount the document count the index must reach before returning
-	 * @throws RecoverableMessageException when the index does not converge within the
-	 *         retry budget, so the SearchIndex lifecycle message goes back on SQS for a
-	 *         later attempt instead of being marked permanently FAILED
 	 */
-	void waitForDocumentCount(String indexName, long expectedCount) throws RecoverableMessageException;
+	void waitForDocumentCount(String indexName, long expectedCount);
 
 	/**
 	 * Execute a search query against the OpenSearch index. The {@code options} set controls

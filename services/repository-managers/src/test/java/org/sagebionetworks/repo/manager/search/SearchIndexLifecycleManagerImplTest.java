@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -590,11 +591,9 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testHandleCreateUnwrapsConvergenceProbeRecoverableFromIOException() throws Exception {
-		// SearchIndexRowHandler.close() tunnels RecoverableMessageException through IOException
-		// because RowHandler.close() can't declare anything else. The build path must unwrap
-		// before the FAILED branch — convergence-timeout is transient and re-running the
-		// SQS message will rebuild from scratch.
+	public void testHandleCreateWithConvergenceProbeTimeoutFlipsToActive() throws Exception {
+		// waitForDocumentCount now returns normally on timeout (logs warn, flips to ACTIVE).
+		// The build path should complete successfully — no exception, no FAILED state.
 		UserInfo triggering = triggeringUser();
 		SearchIndex searchIndex = new SearchIndex();
 		searchIndex.setDefiningSQL(DEFINING_SQL);
@@ -611,20 +610,15 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-		RecoverableMessageException convergenceFailed = new RecoverableMessageException(
-				"AOSS index search-index-" + ENTITY_ID + " did not converge to expected count (3 of 5) within the retry budget");
-		doThrow(new IOException(convergenceFailed))
-				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
 
 		// call under test
-		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
-				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
-		assertSame(convergenceFailed, thrown);
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		// Only CREATING was recorded; the index is not flipped to FAILED.
+		// Index is flipped to ACTIVE despite the probe timeout.
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
-		verify(statusDao).createOrUpdate(captor.capture());
-		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		assertTrue(captor.getAllValues().stream().anyMatch(s -> s.getState() == SearchIndexState.ACTIVE),
+				"index must be flipped to ACTIVE when convergence probe times out");
 	}
 
 	// -------- SearchIndexRowHandler tests --------
@@ -750,10 +744,9 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testRowHandlerCloseTunnelsRecoverableThroughIOException() throws Exception {
-		// A convergence-probe timeout returns a RecoverableMessageException. RowHandler.close()
-		// can only declare IOException, so the recoverable signal is wrapped — the lifecycle
-		// build path unwraps before its FAILED branch.
+	public void testRowHandlerCloseCompletesNormallyWhenProbeTimesOut() throws Exception {
+		// waitForDocumentCount returns normally on timeout (logs warn, no throw). close()
+		// must also complete normally — the index will be flipped to ACTIVE by the caller.
 		SelectColumn col = new SelectColumn();
 		col.setId("100");
 		col.setColumnType(ColumnType.STRING);
@@ -766,13 +759,12 @@ public class SearchIndexLifecycleManagerImplTest {
 		row.setValues(Collections.singletonList("v"));
 		handler.nextRow(row);
 
-		RecoverableMessageException probeFailed = new RecoverableMessageException(
-				"AOSS index test-index did not converge to expected count (0 of 1) within the retry budget");
-		doThrow(probeFailed).when(openSearchManager).waitForDocumentCount("test-index", 1L);
+		doNothing().when(openSearchManager).waitForDocumentCount("test-index", 1L);
 
-		// call under test
-		IOException thrown = assertThrows(IOException.class, handler::close);
-		assertSame(probeFailed, thrown.getCause());
+		// call under test — must not throw
+		handler.close();
+
+		verify(openSearchManager).waitForDocumentCount("test-index", 1L);
 	}
 
 	// Locks in the row handler's behavior when a SelectColumn has a null id: the
@@ -1145,8 +1137,8 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateWithIOExceptionWithoutRecoverableCauseMarksFailed() throws Exception {
-		// L311: instanceof IOException but cause is NOT RecoverableMessageException — falls
-		// through to the FAILED-marking path. The IOException itself is swallowed.
+		// An IOException from the stream is a genuine build failure — falls through to
+		// the FAILED-marking path. The IOException itself is swallowed.
 		stubHappyPathThroughCreateIndex();
 		doThrow(new IOException("disk full"))
 				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
@@ -1538,42 +1530,6 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	// -------- buildIndex error-unwrap branches --------
 
-	@Test
-	public void testHandleCreateUnwrapsIOExceptionWrappingRecoverableMessageException() throws Exception {
-		// SearchIndexRowHandler tunnels RecoverableMessageException through IOException because
-		// RowHandler.close() can't declare anything else. handleCreate must unwrap to keep the
-		// retry instead of permanently FAILING the index.
-		stubBuildLock();
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
-
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-		// Stream throws IOException wrapping a RecoverableMessageException — handleCreate
-		// must rethrow the inner cause.
-		IOException tunnelled = new IOException("io",
-				new RecoverableMessageException("convergence probe timed out"));
-		doThrow(tunnelled).when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
-
-		assertThrows(RecoverableMessageException.class,
-				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
-
-		// Status must NOT be marked FAILED — this is transient. Only the initial CREATING
-		// status was written (no second createOrUpdate for FAILED).
-		ArgumentCaptor<SearchIndexStatus> statusCaptor = ArgumentCaptor.forClass(SearchIndexStatus.class);
-		verify(statusDao, atLeastOnce()).createOrUpdate(statusCaptor.capture());
-		assertTrue(statusCaptor.getAllValues().stream()
-				.noneMatch(s -> s.getState() == SearchIndexState.FAILED),
-				"transient errors must not mark the index FAILED");
-	}
 
 	@Test
 	public void testHandleCreateUnwrapsLockUnavailableNestedInsideAnotherException() throws Exception {

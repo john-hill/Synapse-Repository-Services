@@ -1236,9 +1236,10 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setSize(10L)
 				.setFrom(0L);
 
-		// call under test — post_filter narrows hits; aggregations stay at full population
-		SearchQueryResults results = openSearchManager.search(indexName, body, columns,
-				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+		// call under test — post_filter narrows hits; aggregations stay at full population.
+		// Poll until post_filter returns the expected 2 ACTIVE hits.
+		SearchQueryResults results = waitForSearchHits(body, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 2);
 
 		assertEquals(2L, results.getTotalHits(),
 				"totalHits must reflect post_filter narrowing — only ACTIVE rows");
@@ -1285,9 +1286,10 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setSize(10L)
 				.setFrom(0L);
 
-		// call under test — highlight payload round-trips and SearchHit.highlights is populated
-		SearchQueryResults results = openSearchManager.search(indexName, body, columns,
-				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+		// call under test — highlight payload round-trips and SearchHit.highlights is populated.
+		// Poll until the match query returns all 3 hits.
+		SearchQueryResults results = waitForSearchHits(body, columns,
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 3);
 
 		assertEquals(3L, results.getTotalHits());
 		assertNotNull(results.getHits());

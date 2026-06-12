@@ -94,28 +94,6 @@ public interface OpenSearchManager {
 	void waitForIndexWritable(String indexName) throws RecoverableMessageException;
 
 	/**
-	 * Block until {@code indexName} reports a document count of at least
-	 * {@code expectedCount}. AOSS is eventually consistent: a {@code bulkIndex} call can
-	 * return success while the documents are not yet visible to {@code _search} or
-	 * {@code _count}. Polling {@code _count} (allowed on AOSS under
-	 * {@code aoss:ReadDocument}) is the only convergence signal available.
-	 *
-	 * <p>The comparison is {@code actual >= expectedCount} rather than strict equality so
-	 * a leftover readiness-probe sentinel (whose cleanup is best-effort, see
-	 * {@link #waitForIndexWritable}) does not strand convergence one short.</p>
-	 *
-	 * <p>No-op when {@code expectedCount == 0} — an empty index reports zero immediately
-	 * and skipping the call avoids an unnecessary round-trip.</p>
-	 *
-	 * @param indexName     the OpenSearch index name
-	 * @param expectedCount the document count the index must reach before returning
-	 * @throws RecoverableMessageException when the index does not converge within the
-	 *         retry budget, so the SearchIndex lifecycle message goes back on SQS for a
-	 *         later attempt instead of being marked permanently FAILED
-	 */
-	void waitForDocumentCount(String indexName, long expectedCount) throws RecoverableMessageException;
-
-	/**
 	 * Execute a search query against the OpenSearch index. The {@code options} set controls
 	 * which sections of the OpenSearch request are populated: omitting HITS switches the
 	 * request to {@code size=0}, and omitting TOTAL_HITS disables total-hits tracking.

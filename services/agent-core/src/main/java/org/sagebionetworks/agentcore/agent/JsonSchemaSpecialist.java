@@ -1,6 +1,5 @@
 package org.sagebionetworks.agentcore.agent;
 
-import org.sagebionetworks.agentcore.tool.GetJsonSchemaById;
 import org.springaicommunity.agentcore.annotation.AgentCoreInvocation;
 import org.springaicommunity.agentcore.context.AgentCoreContext;
 import org.springaicommunity.agentcore.context.AgentCoreHeaders;
@@ -72,10 +71,12 @@ public class JsonSchemaSpecialist {
 			""";
 
 	private final ChatClient chatClient;
-
-	public JsonSchemaSpecialist(ChatClient.Builder builder, GetJsonSchemaById getJsonSchemaById) {
-		this.chatClient = builder.defaultSystem(SYSTEM_INSTRUCTIONS).defaultToolCallbacks(getJsonSchemaById).build();
+	
+	
+	public JsonSchemaSpecialist(ChatClient client) {
+		this.chatClient = client;
 	}
+
 
 	@AgentCoreInvocation
 	public String chat(PromptRequest request, AgentCoreContext context) {

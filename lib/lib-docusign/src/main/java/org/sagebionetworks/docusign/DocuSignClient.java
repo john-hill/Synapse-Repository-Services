@@ -21,13 +21,13 @@ import com.docusign.esign.model.EnvelopeTemplateResults;
 public class DocuSignClient {
 
 	private final DocuSignClientConfig config;
-	private final TemplatesApiFactory templatesApiFactory;
+	private final DocuSignTemplatesApi templatesApi;
 	private final DocuSignAccessTokenProvider accessTokenProvider;
 
-	DocuSignClient(DocuSignClientConfig config, TemplatesApiFactory templatesApiFactory,
+	DocuSignClient(DocuSignClientConfig config, DocuSignTemplatesApi templatesApi,
 			DocuSignAccessTokenProvider accessTokenProvider) {
 		this.config = config;
-		this.templatesApiFactory = templatesApiFactory;
+		this.templatesApi = templatesApi;
 		this.accessTokenProvider = accessTokenProvider;
 	}
 
@@ -51,7 +51,7 @@ public class DocuSignClient {
 
 	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken) {
 		try {
-			EnvelopeTemplateResults results = templatesApiFactory.listTemplates(
+			EnvelopeTemplateResults results = templatesApi.listTemplates(
 					config.getBasePath(), accessToken, config.getAccountId(),
 					String.valueOf(startPosition), String.valueOf(count));
 			return toEDucTemplatePage(results);

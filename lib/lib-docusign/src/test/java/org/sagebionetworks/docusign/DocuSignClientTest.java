@@ -34,7 +34,7 @@ public class DocuSignClientTest {
 	@Mock
 	private DocuSignClientConfig mockConfig;
 	@Mock
-	private TemplatesApiFactory mockTemplatesApiFactory;
+	private DocuSignTemplatesApi mockDocuSignTemplatesApi;
 	@Mock
 	private DocuSignAccessTokenProvider mockAccessTokenProvider;
 
@@ -65,7 +65,7 @@ public class DocuSignClientTest {
 		t2.setDescription("Data sharing agreement");
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
 		results.setEnvelopeTemplates(Arrays.asList(t1, t2));
-		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
+		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
 				.thenReturn(results);
 
 		// call under test
@@ -89,7 +89,7 @@ public class DocuSignClientTest {
 		mapped2.setDescription("Data sharing agreement");
 		assertEquals(mapped2, page.getResults().get(1));
 
-		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "0", "51");
+		verify(mockDocuSignTemplatesApi).listTemplates(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "0", "51");
 	}
 
 	@Test
@@ -99,7 +99,7 @@ public class DocuSignClientTest {
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
 		results.setEnvelopeTemplates(null);
-		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
+		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
 				.thenReturn(results);
 
 		// call under test
@@ -118,7 +118,7 @@ public class DocuSignClientTest {
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
 
 		EnvelopeTemplateResults success = new EnvelopeTemplateResults();
-		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
+		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
 				.thenThrow(new ApiException(401, "Unauthorized"))
 				.thenReturn(success);
 
@@ -128,8 +128,8 @@ public class DocuSignClientTest {
 		assertNotNull(page);
 		verify(mockAccessTokenProvider).invalidateAccessToken();
 		verify(mockAccessTokenProvider, times(2)).getAccessToken();
-		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "first-token", ACCOUNT_ID, "0", "51");
-		verify(mockTemplatesApiFactory).listTemplates(BASE_PATH, "retry-token", ACCOUNT_ID, "0", "51");
+		verify(mockDocuSignTemplatesApi).listTemplates(BASE_PATH, "first-token", ACCOUNT_ID, "0", "51");
+		verify(mockDocuSignTemplatesApi).listTemplates(BASE_PATH, "retry-token", ACCOUNT_ID, "0", "51");
 	}
 
 	@Test
@@ -139,7 +139,7 @@ public class DocuSignClientTest {
 				.thenReturn("t2");
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
+		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
 				.thenThrow(new ApiException(401, "Unauthorized"));
 
 		// call under test
@@ -154,7 +154,7 @@ public class DocuSignClientTest {
 		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
 		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
 		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockTemplatesApiFactory.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
+		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
 				.thenThrow(new ApiException(500, "Server error"));
 
 		// call under test

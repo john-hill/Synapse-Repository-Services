@@ -47,6 +47,7 @@ import org.sagebionetworks.repo.model.search.dsl.ConstantScoreQuery;
 import org.sagebionetworks.repo.model.search.dsl.DisMaxQuery;
 import org.sagebionetworks.repo.model.search.dsl.ExistsQuery;
 import org.sagebionetworks.repo.model.search.dsl.FieldCollapse;
+import org.sagebionetworks.repo.model.search.dsl.FiltersAggregation;
 import org.sagebionetworks.repo.model.search.dsl.FuzzyFieldOptions;
 import org.sagebionetworks.repo.model.search.dsl.Highlight;
 import org.sagebionetworks.repo.model.search.dsl.HighlightField;
@@ -214,6 +215,90 @@ public class OpenSearchManagerImplAutoWiredTest {
 			assertTrue(titleValue.contains("mitochondria"),
 					"Title field should contain 'mitochondria', got: " + titleValue);
 		});
+	}
+
+	@Test
+	public void testFilterAggregationRespectsTopLevelQueryScope() {
+		// ACL-scope invariant: a `filter` (and `filters`) aggregation runs *inside* the search
+		// context, so it must only ever count documents the top-level query already admits. When
+		// row-level ACL filtering lands it will be injected into the top-level bool.must; this test
+		// simulates that restricting clause with a top-level `term category=public` and proves the
+		// filter aggregation's buckets never count the excluded `private` rows — even though the
+		// filter body would match them on their own. This is the guardrail that keeps the feature
+		// from surfacing rows the caller is not authorized to see.
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("category").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("tag").setColumnType(ColumnType.STRING)
+		);
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), defaultAnalyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		// Tag "shared" appears on BOTH a public and a private row. The public row alone is in scope.
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "public", "2", "shared")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "public", "2", "alpha")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "private", "2", "shared")),
+				buildBulkOp(indexName, "4", Map.of("_row_id", 4L, "_row_version", 1L, "1", "private", "2", "beta"))
+		);
+		assertEquals(4L, openSearchManager.bulkIndex(indexName, operations));
+
+		// Top-level query restricts to category=public (the future ACL clause). Two aggregations:
+		//  - "tag_shared_filter": filter tag=shared, child terms on category
+		//  - "by_category_filters": named filters, one bucket per category value
+		// term/terms/range clauses auto-route text columns to .keyword, so reference tag/category by
+		// name and let the field rewriter resolve the keyword sub-field.
+		Aggregation filterAgg = new Aggregation()
+				.setFilter(new Query().setTerm(Map.of("tag", new TermFieldOptions().setValue("shared"))))
+				.setAggregations(Map.of("by_category",
+						new Aggregation().setTerms(new TermsAggregation().setField("category"))));
+		Aggregation filtersAgg = new Aggregation().setFilters(new FiltersAggregation().setFilters(Map.of(
+				"public_bucket", new Query().setTerm(Map.of("category", new TermFieldOptions().setValue("public"))),
+				"private_bucket", new Query().setTerm(Map.of("category", new TermFieldOptions().setValue("private"))))));
+
+		Map<String, Aggregation> aggregations = new LinkedHashMap<>();
+		aggregations.put("tag_shared_filter", filterAgg);
+		aggregations.put("by_category_filters", filtersAgg);
+
+		SearchQuery body = new SearchQuery()
+				.setQuery(new Query().setTerm(Map.of("category", new TermFieldOptions().setValue("public"))))
+				.setSize(10L)
+				.setFrom(0L)
+				.setAggregations(aggregations);
+
+		// Only the two public rows are in scope.
+		SearchQueryResults results = waitForSearch(body, columns, 2L);
+		assertEquals(2L, results.getTotalHits());
+
+		assertNotNull(results.getAggregationResults(), "aggregations were requested");
+		JsonNode aggResults = SearchOpaqueJsonUtil.parse(results.getAggregationResults());
+
+		// The filter agg matched tag=shared. There are two shared rows globally, but only the public
+		// one is in the top-level query scope — so doc_count MUST be 1, never 2.
+		JsonNode filterNode = aggResults.path("tag_shared_filter");
+		assertEquals(1, filterNode.path("doc_count").asInt(),
+				"filter agg must count only the in-scope (public) shared row, not the excluded private one: "
+						+ results.getAggregationResults());
+		// Its child terms-on-category bucket must contain only `public`. OpenSearch returns nested
+		// named sub-aggregations with a typed-key prefix (e.g. "sterms#by_category"), so locate the
+		// child by its caller-chosen suffix rather than an exact key.
+		JsonNode categoryBuckets = childAggBuckets(filterNode, "by_category");
+		assertTrue(categoryBuckets.isArray());
+		Set<String> categoriesSeen = new java.util.HashSet<>();
+		for (JsonNode bucket : categoryBuckets) {
+			categoriesSeen.add(bucket.path("key").asText());
+		}
+		assertEquals(Set.of("public"), categoriesSeen,
+				"filter agg sub-bucket must never surface the excluded `private` category");
+
+		// The filters agg: the public_bucket sees the 2 public rows; the private_bucket — whose query
+		// matches category=private — must be EMPTY, because those rows are outside the top-level scope.
+		JsonNode filtersBuckets = aggResults.path("by_category_filters").path("buckets");
+		assertEquals(2, filtersBuckets.path("public_bucket").path("doc_count").asInt(),
+				"filters public_bucket must count both in-scope public rows");
+		assertEquals(0, filtersBuckets.path("private_bucket").path("doc_count").asInt(),
+				"filters private_bucket must be empty — its rows are excluded by the top-level query: "
+						+ results.getAggregationResults());
 	}
 
 	@Test
@@ -614,6 +699,23 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"hit value must preserve original casing of indexed text — lowercase filter applies to the inverted index only");
 		assertEquals("EHR data extraction", descriptionOf(ehrSimple),
 				"hit value must preserve original casing of indexed text — lowercase filter applies to the inverted index only");
+	}
+
+	/**
+	 * Find the {@code buckets} node of a named child sub-aggregation under {@code parent}. OpenSearch
+	 * prefixes nested named aggregations with a typed key (e.g. {@code "sterms#by_category"}), so
+	 * match either the exact name or any {@code <type>#<name>} variant.
+	 */
+	private static JsonNode childAggBuckets(JsonNode parent, String name) {
+		java.util.Iterator<Map.Entry<String, JsonNode>> fields = parent.fields();
+		while (fields.hasNext()) {
+			Map.Entry<String, JsonNode> entry = fields.next();
+			String key = entry.getKey();
+			if (key.equals(name) || key.endsWith("#" + name)) {
+				return entry.getValue().path("buckets");
+			}
+		}
+		return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
 	}
 
 	private static String descriptionOf(SearchQueryResults results) {

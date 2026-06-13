@@ -9,8 +9,10 @@ import org.sagebionetworks.StackConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportResource;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,6 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * for both the main repository database and the migration database.
  */
 @Configuration
+@EnableTransactionManagement
+@ImportResource("stack-configuration.spb.xml")
 public class DatabaseInfrastructureConfiguration {
 
 	private static <T extends BasicDataSource> T configureRepoDataSource(T dataSource, StackConfiguration stackConfiguration) {
@@ -70,7 +74,7 @@ public class DatabaseInfrastructureConfiguration {
 	// This is the primary transaction manager used by the application, it is also used by the semaphore
 	// but under a different name for clarity
 	@Primary
-	@Bean(name = {"txManager", "semaphoreTransactionManager"})
+	@Bean(name = {"txManager"})
 	public PlatformTransactionManager txManager(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
 		return new DataSourceTransactionManager(dataSourcePool);
 	}

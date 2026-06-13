@@ -13,9 +13,6 @@
 
 	<bean id="clock" class="org.sagebionetworks.util.DefaultClock" />
 
-	<bean id="nodeDao" class="org.sagebionetworks.repo.model.dbo.dao.NodeDAOImpl"
-		depends-on="idGenerator" />
-		
 	<bean id="dockerNodeDao" class="org.sagebionetworks.repo.model.dbo.dao.DockerNodeDaoImpl"
 		depends-on="idGenerator" />
 		

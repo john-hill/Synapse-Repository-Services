@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.database.StreamingJdbcTemplate;
+import org.sagebionetworks.repo.model.StreamingJdbcTemplate;
 import org.sagebionetworks.repo.model.dbo.AutoIncrementDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.DMLUtils;
 import org.sagebionetworks.repo.model.dbo.DatabaseObject;

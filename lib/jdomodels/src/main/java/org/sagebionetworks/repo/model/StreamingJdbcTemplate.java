@@ -1,4 +1,4 @@
-package org.sagebionetworks.database;
+package org.sagebionetworks.repo.model;
 
 import java.sql.SQLException;
 import java.sql.Statement;

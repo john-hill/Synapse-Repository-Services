@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @Configuration
 @EnableTransactionManagement
 @Import(DatabaseInfrastructureConfiguration.class)
-public class TransactionConfig {
+public class SemaphoreConfig {
 
 	/**
 	 * Creates the CountingSemaphore bean using the primary DataSource.

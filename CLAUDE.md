@@ -22,6 +22,13 @@ mvn test -pl <module-path>                               # Unit tests for module
 mvn test -pl <module-path> -Dtest=<TestClassName>        # Single test class
 ```
 
+## Maven Dependency Management
+
+- **Dependency versions**: ALL dependency versions (including internal lib modules) MUST be defined in the root `pom.xml` `<dependencyManagement>` section
+- **Sub-module poms**: Sub-module `pom.xml` files declare dependencies WITHOUT `<version>` tags — versions are inherited from the root
+- **Why**: This ensures consistent versions across all modules and prevents version conflicts in the reactor build
+- **Example**: When adding a new lib module (e.g., `lib-database-configuration`), add it to the root pom's `<dependencyManagement>` with `<version>${project.version}</version>`, then sub-modules can reference it with just `<groupId>` and `<artifactId>`
+
 ## Module Structure
 
 ```

@@ -45,6 +45,7 @@
 			<url>https://sagebionetworks.jfrog.io/sagebionetworks/ext-releases-local
 			</url>
 		</repository>
+		<!-- 
 		<repository>
 			<id>maven-central-rep-1</id>
 			<url>https://repo1.maven.org/maven2/</url>
@@ -62,10 +63,12 @@
 			<id>spring-plugins</id>
 			<url>https://repo.spring.io/plugins-release/</url>
 		</repository>
+		-->
 		<repository>
 			<id>jitpack.io</id>
 			<url>https://jitpack.io</url>
 		</repository>
+		
 	</repositories>
 
 	<pluginRepositories>
@@ -663,12 +666,17 @@
 			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
+				<artifactId>csv-utilities</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
 				<artifactId>database-semaphore</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
-				<artifactId>csv-utilities</artifactId>
+				<artifactId>lib-database-configuration</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

@@ -1338,7 +1338,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setSize(10L)
 				.setFrom(0L);
 
-		// call under test — post_filter narrows hits; aggregations stay at full population
+		// call under test — post_filter narrows hits; aggregations stay at full population.
+		// Poll until post_filter returns the expected 2 ACTIVE hits.
 		SearchQueryResults results = waitForSearchHits(body, columns,
 				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 2);
 
@@ -1387,7 +1388,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				.setSize(10L)
 				.setFrom(0L);
 
-		// call under test — highlight payload round-trips and SearchHit.highlights is populated
+		// call under test — highlight payload round-trips and SearchHit.highlights is populated.
+		// Poll until the match query returns all 3 hits.
 		SearchQueryResults results = waitForSearchHits(body, columns,
 				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), 3);
 

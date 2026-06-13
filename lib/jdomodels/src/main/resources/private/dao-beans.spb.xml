@@ -13,16 +13,6 @@
 
 	<bean id="clock" class="org.sagebionetworks.util.DefaultClock" />
 
-	<bean id="dockerNodeDao" class="org.sagebionetworks.repo.model.dbo.dao.DockerNodeDaoImpl"
-		depends-on="idGenerator" />
-		
-	<bean id="dockerCommitDao" class="org.sagebionetworks.repo.model.dbo.dao.DockerCommitDaoImpl"
-		depends-on="idGenerator" />
-
-	<bean id="activityDao"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOActivityDAOImpl"
-		depends-on="idGenerator" />
-		
 	<!--  DAO for managing OAuthClients -->
 	<bean id="oauthClientDao"
 		class="org.sagebionetworks.repo.model.dbo.auth.OAuthClientDaoImpl" 

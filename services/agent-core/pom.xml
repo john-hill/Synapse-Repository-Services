@@ -15,19 +15,6 @@
 	<description>Spring Boot application for Spring AI Agent Core integration
 		with AWS Bedrock</description>
 
-	<dependencyManagement>
-		<dependencies>
-			<!-- Import Spring AI Agent Core BOM -->
-			<dependency>
-				<groupId>org.springaicommunity</groupId>
-				<artifactId>spring-ai-agentcore-bom</artifactId>
-				<version>${spring.ai.agentcore.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
-
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -48,6 +35,10 @@
 		<dependency>
 			<groupId>org.springaicommunity</groupId>
 			<artifactId>spring-ai-agentcore-memory</artifactId>
+		</dependency>
+		<dependency>
+			<artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
+			<groupId>org.springframework.ai</groupId>
 		</dependency>
 
 		<dependency>

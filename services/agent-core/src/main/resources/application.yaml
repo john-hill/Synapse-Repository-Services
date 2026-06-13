@@ -1,0 +1,13 @@
+spring:
+   ai:
+      model:
+         chat:
+            enabled: bedrock-converse
+      bedrock:
+         aws:
+            region: us-east-1
+         converse:
+            chat:
+               options:
+                  model: us.anthropic.claude-sonnet-4-5-20250929-v1:0 # Default fallback
+                  temperature: 0.5

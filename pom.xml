@@ -324,49 +324,14 @@
 				<type>jar</type>
 				<scope>compile</scope>
 			</dependency>
-			<!--interface between junit5 and programmatic clients, such as IDEs and 
-				build tools, for running tests -->
-			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-launcher</artifactId>
-				<version>${junit.platform.version}</version>
-				<scope>test</scope>
-			</dependency>
-			<!--adds a subset of junit5 functionality to tests currently running under 
-				junit4. should be REMOVED once fully converted to junit5 -->
-			<dependency>
-				<groupId>org.junit.platform</groupId>
-				<artifactId>junit-platform-runner</artifactId>
-				<version>${junit.platform.version}</version>
-				<scope>test</scope>
-			</dependency>
-			<!--junit5 engine -->
-			<dependency>
-				<groupId>org.junit.jupiter</groupId>
-				<artifactId>junit-jupiter-engine</artifactId>
-				<version>${junit.jupiter.version}</version>
-				<scope>test</scope>
-			</dependency>
-			<dependency>
-				<groupId>org.junit.jupiter</groupId>
-				<artifactId>junit-jupiter-api</artifactId>
-				<version>${junit.jupiter.version}</version>
-				<scope>test</scope>
-			</dependency>
-			<dependency>
-			    <groupId>org.junit.jupiter</groupId>
-			    <artifactId>junit-jupiter-params</artifactId>
-			    <version>${junit.jupiter.version}</version>
-			    <scope>test</scope>
-			</dependency>
-			<!--junit4 engine for backwards compatibility -->
-			<dependency>
-				<groupId>org.junit.vintage</groupId>
-				<artifactId>junit-vintage-engine</artifactId>
-				<version>${junit.vintage.version}</version>
-				<scope>test</scope>
-			</dependency>
 
+			<dependency>
+				<groupId>org.junit</groupId>
+				<artifactId>junit-bom</artifactId>
+				<version>${junit.jupiter.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
 			<dependency>
 				<groupId>org.mockito</groupId>
 				<artifactId>mockito-core</artifactId>
@@ -753,7 +718,7 @@
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
-			
+
 			<!-- Import the BOM for AWS sdk dependencies v2 -->
 			<dependency>
 				<groupId>software.amazon.awssdk</groupId>
@@ -762,7 +727,7 @@
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
-			
+
 			<!-- Spring Boot BOM -->
 			<dependency>
 				<groupId>org.springframework.boot</groupId>
@@ -978,7 +943,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>3.0.0-M3</version>
+					<version>3.2.5</version>
 					<configuration>
 						<runOrder>alphabetical</runOrder>
 						<argLine>--add-opens java.base/java.util=ALL-UNNAMED -Xshare:off -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar @{argLine}</argLine>
@@ -1138,9 +1103,7 @@
 		<log4j.version>2.23.1</log4j.version>
 		<commonslogging.version>1.2</commonslogging.version>
 		<commonscollections4.version>4.1</commonscollections4.version>
-		<junit.jupiter.version>5.10.2</junit.jupiter.version>
-		<junit.vintage.version>5.10.2</junit.vintage.version>
-		<junit.platform.version>1.10.2</junit.platform.version>
+		<junit.jupiter.version>5.12.2</junit.jupiter.version>
 		<mockito.version>5.23.0</mockito.version>
 		<com.google.cloud.version>1.77.0</com.google.cloud.version>
 		<jsoup.version>1.14.2</jsoup.version>

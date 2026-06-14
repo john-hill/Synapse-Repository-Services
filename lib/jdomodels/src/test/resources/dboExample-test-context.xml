@@ -15,8 +15,6 @@
 	<context:component-scan base-package="org.sagebionetworks.lib.dbuserhelper" annotation-config="false"/>
 	
 	<import resource="classpath:stack-configuration.spb.xml" />
-	<import resource="classpath:private/transaction-spb.xml" />
-	<import resource="classpath:private/dbo-beans.spb.xml" />
 
 	<bean id="dboBasicDao" class="org.sagebionetworks.repo.model.dbo.DBOBasicDaoImpl">
 		<property name="databaseObjectRegister">

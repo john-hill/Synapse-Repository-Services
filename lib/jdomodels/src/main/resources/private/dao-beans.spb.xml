@@ -11,24 +11,6 @@
 	<!-- Turn on Spring's autoproxy using AspectJ's @Aspect annotations. -->
 	<aop:aspectj-autoproxy />
 
-	<bean id="clock" class="org.sagebionetworks.util.DefaultClock" />
-
-	<!--  DAO for managing OAuthClients -->
-	<bean id="oauthClientDao"
-		class="org.sagebionetworks.repo.model.dbo.auth.OAuthClientDaoImpl" 
-		depends-on="idGenerator" />
-
-	<bean id="oauthRefreshTokenDao"
-		  class="org.sagebionetworks.repo.model.dbo.auth.OAuthRefreshTokenDaoImpl"
-		  depends-on="idGenerator" />
-
-	<bean id="personalAccessTokenDao"
-		  class="org.sagebionetworks.repo.model.dbo.auth.PersonalAccessTokenDaoImpl"
-		  depends-on="idGenerator" />
-
-	<bean id="fileHandleDao"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOFileHandleDaoImpl" />
-		
 	<!-- DO NOT CHANGE ANY OF THESE NAMES OR IDS as they represent real objects in production -->
 	<util:list id="bootstrapPrincipals">
 		<bean class="org.sagebionetworks.repo.model.principal.BootstrapUser">
@@ -171,55 +153,26 @@
 		</property>
 	</bean>
 
-	<bean id="principalPrefixDao"
-		class="org.sagebionetworks.repo.model.dbo.principal.PrincipalPrefixDAOImpl" />
-
-
 	<bean id="userProfileDAO"
 		class="org.sagebionetworks.repo.model.dbo.dao.DBOUserProfileDAOImpl"
-		depends-on="userGroupDAO" 
+		depends-on="userGroupDAO"
 		init-method="bootstrapProfiles" >
 	</bean>
-	
-	<bean id="projectSettingsDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOProjectSettingsDAOImpl"/>
-	
-	<bean id="storageLocationDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl"/>
-	
-	<bean id="projectStatsDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOProjectStatsDAOImpl"/>
-	
+
 	<bean id="groupMembersDAO"
 		class="org.sagebionetworks.repo.model.dbo.dao.DBOGroupMembersDAOImpl"
-		depends-on="userGroupDAO" 
+		depends-on="userGroupDAO"
 		init-method="bootstrapGroups" />
 
-	<bean id="challengeTeamDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOChallengeTeamDAOImpl"/>
-	
-	<bean id="challengeDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOChallengeDAOImpl"/>
-	
-		<bean id="principalAliasDao"
+	<bean id="principalAliasDao"
 		class="org.sagebionetworks.repo.model.dbo.principal.PrincipalAliasDaoImpl"
-		depends-on="userGroupDAO" 
+		depends-on="userGroupDAO"
 		init-method="bootstrap" />
-
-	<bean id="notificationEmailDao"
-		class="org.sagebionetworks.repo.model.dbo.principal.NotificationEmailDaoImpl"/>
 
 	<bean id="authDAO"
 		class="org.sagebionetworks.repo.model.dbo.auth.DBOAuthenticationDAOImpl"
 		depends-on="userGroupDAO"
 		init-method="bootstrap" />
-
-	<bean id="aclDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOAccessControlListDaoImpl"
-		scope="singleton" />
-
-	<bean id="favoriteDao"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOFavoriteDAOImpl" />
 
 	<bean id="amazonS3Client" class="org.sagebionetworks.aws.AwsClientFactory"
 		factory-method="createAmazonS3Client" scope="singleton" />

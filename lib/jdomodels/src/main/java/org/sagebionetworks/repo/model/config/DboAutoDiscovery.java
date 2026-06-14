@@ -57,7 +57,10 @@ public class DboAutoDiscovery {
 
 	/**
 	 * Discovers all DatabaseObject implementations via classpath scanning. Returns
-	 * instantiated DBOs in no particular order.
+	 * instantiated DBOs sorted by foreign key dependency order using topological sort
+	 * on the actual DDL FOREIGN KEY constraints.
+	 *
+	 * This ensures tables are created in the correct order for foreign key dependencies.
 	 */
 	@SuppressWarnings("rawtypes")
 	public static List<DatabaseObject> discoverAllDatabaseObjects() {
@@ -79,7 +82,9 @@ public class DboAutoDiscovery {
 				}
 			}
 		}
-		return dbos;
+
+		// Sort by foreign key dependency order using topological sort on DDL
+		return DboDependencyAnalyzer.sortByForeignKeyDependencies(dbos);
 	}
 
 	/**

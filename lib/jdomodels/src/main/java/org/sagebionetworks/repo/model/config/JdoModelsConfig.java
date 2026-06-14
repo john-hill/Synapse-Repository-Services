@@ -29,8 +29,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * JDO Models configuration for DBO infrastructure beans. Replaces
- * dbo-beans.spb.xml with Java configuration.
+ * JDO Models configuration for DBO infrastructure beans. 
  */
 @Configuration
 @Import({ DatabaseInfrastructureConfiguration.class, SemaphoreConfig.class })

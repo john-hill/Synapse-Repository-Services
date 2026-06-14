@@ -33,11 +33,6 @@
 			<artifactId>lib-grid</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>org.sagebionetworks</groupId>
-			<artifactId>lib-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 		<!-- MySQL dependencies -->
 		<dependency>
 			<groupId>com.mysql</groupId>

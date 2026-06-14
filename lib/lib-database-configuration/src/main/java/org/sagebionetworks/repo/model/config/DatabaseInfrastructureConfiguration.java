@@ -27,7 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Configuration
 @EnableTransactionManagement
-@ImportResource("stack-configuration.spb.xml")
+@ImportResource("classpath:stack-configuration.spb.xml")
 public class DatabaseInfrastructureConfiguration {
 
 	private static <T extends BasicDataSource> T configureRepoDataSource(T dataSource, StackConfiguration stackConfiguration) {

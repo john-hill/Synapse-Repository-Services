@@ -198,12 +198,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.sagebionetworks</groupId>
-			<artifactId>lib-dbuserhelper</artifactId>
-			<version>develop-SNAPSHOT</version>
-		</dependency>
-		
-		<dependency>
 			<groupId>jakarta.annotation</groupId>
 			<artifactId>jakarta.annotation-api</artifactId>
 		</dependency>

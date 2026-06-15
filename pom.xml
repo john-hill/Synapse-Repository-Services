@@ -612,6 +612,12 @@
 
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
+				<artifactId>lib-dbuserhelper</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
 				<artifactId>sample-code</artifactId>
 				<version>${project.version}</version>
 			</dependency>

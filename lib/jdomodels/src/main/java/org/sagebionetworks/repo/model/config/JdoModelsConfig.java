@@ -6,15 +6,24 @@ import java.util.Map;
 
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.database.semaphore.SemaphoreConfig;
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.ids.IdGeneratorConfig;
+import org.sagebionetworks.repo.model.GroupMembersDAO;
+import org.sagebionetworks.repo.model.RealmDao;
+import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDaoImpl;
 import org.sagebionetworks.repo.model.dbo.DDLUtils;
 import org.sagebionetworks.repo.model.dbo.DDLUtilsImpl;
 import org.sagebionetworks.repo.model.dbo.DatabaseObject;
+import org.sagebionetworks.repo.model.dbo.auth.RealmDaoImpl;
+import org.sagebionetworks.repo.model.dbo.dao.DBOGroupMembersDAOImpl;
+import org.sagebionetworks.repo.model.dbo.dao.DBOUserGroupDAOImpl;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAO;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAOImpl;
 import org.sagebionetworks.repo.model.dbo.migration.MigrationTypeProvider;
 import org.sagebionetworks.repo.model.dbo.migration.MigrationTypeProviderImpl;
+import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.principal.BootstrapAlias;
 import org.sagebionetworks.repo.model.principal.BootstrapGroup;
 import org.sagebionetworks.repo.model.principal.BootstrapPrincipal;
@@ -27,17 +36,32 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 /**
- * JDO Models configuration for DBO infrastructure beans. 
+ * JDO Models configuration for DBO infrastructure beans.
+ *
+ * This config provides core DBO infrastructure (DBOBasicDao, DDLUtils, TransactionalMessenger)
+ * and bootstrap data. It includes component scanning for @Repository DAOs that have been
+ * converted from XML.
+ *
+ * For tests that need additional beans from dao-beans.spb.xml, use:
+ * @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
  */
 @Configuration
-@Import({ DatabaseInfrastructureConfiguration.class, SemaphoreConfig.class })
+@Import({ DatabaseInfrastructureConfiguration.class, SemaphoreConfig.class, IdGeneratorConfig.class })
+@org.springframework.context.annotation.ComponentScan(basePackages = {
+	"org.sagebionetworks.repo.model.dbo.auth",
+	"org.sagebionetworks.repo.model.dbo.dao",
+	"org.sagebionetworks.repo.model.dbo.principal",
+	"org.sagebionetworks.repo.model.dbo.wikiV2",
+	"org.sagebionetworks.repo.model.message"
+})
 public class JdoModelsConfig {
 
 	@Bean
-	public DDLUtils ddlUtils() {
-		return new DDLUtilsImpl();
+	public DDLUtils ddlUtils(JdbcTemplate jdbcTemplate, StackConfiguration stackConfiguration) {
+		return new DDLUtilsImpl(jdbcTemplate, stackConfiguration);
 	}
 
 	@Bean
@@ -46,11 +70,9 @@ public class JdoModelsConfig {
 	}
 
 	@Bean
-	public DBOBasicDao dboBasicDao(List<DatabaseObject> alldbos) {
-		DBOBasicDaoImpl dao = new DBOBasicDaoImpl();
-		dao.setDatabaseObjectRegister(alldbos);
-		dao.setFunctionMap(createFunctionMap());
-		return dao;
+	public DBOBasicDao dboBasicDao(DDLUtils ddlUtils, JdbcTemplate jdbcTemplate,
+			NamedParameterJdbcTemplate namedJdbcTemplate, List<DatabaseObject> alldbos) {
+		return new DBOBasicDaoImpl(ddlUtils, jdbcTemplate, namedJdbcTemplate, alldbos, createFunctionMap());
 	}
 
 	/**
@@ -163,4 +185,54 @@ public class JdoModelsConfig {
 	public MigrationTypeProvider createMigrationTypeProvider(MigratableTableDAO migratableTableDao) {
 		return new MigrationTypeProviderImpl(migratableTableDao.getAllMigratableTypes());
 	}
+	
+	@Bean
+	public RealmDao getRealmDao(DBOBasicDao basicDao, IdGenerator idGenerator,
+			NamedParameterJdbcTemplate namedJdbcTemplate, JdbcTemplate jdbcTemplate) {
+		RealmDaoImpl dao =  new RealmDaoImpl(basicDao, idGenerator, namedJdbcTemplate, jdbcTemplate);
+		dao.bootstrapDefaultRealm();
+		return dao;
+	}
+	
+	@Bean(name = "userGroupDAO")
+	public UserGroupDAO getUserGroupDAO(RealmDao realmDao, DBOBasicDao basicDao, IdGenerator idGenerator,
+			TransactionalMessenger transactionalMessenger, NamedParameterJdbcTemplate namedJdbcTemplate,
+			JdbcTemplate jdbcTemplate, List<BootstrapPrincipal> bootstrapPrincipals) {
+		DBOUserGroupDAOImpl dao = new DBOUserGroupDAOImpl(basicDao, idGenerator, transactionalMessenger,
+				namedJdbcTemplate, jdbcTemplate, bootstrapPrincipals);
+		try {
+			dao.bootstrapUsers();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		// Map of principal ID to realm principal type ID
+		// This maps bootstrap principal IDs to their realm principal DBO IDs
+		java.util.Map<String, Long> principalIdToRealmPrincipalDboId = new java.util.HashMap<>();
+		principalIdToRealmPrincipalDboId.put("273950", 1L); // Anonymous user
+		principalIdToRealmPrincipalDboId.put("273948", 2L); // Authenticated users
+		principalIdToRealmPrincipalDboId.put("273949", 3L); // Public group
+		principalIdToRealmPrincipalDboId.put("2", 4L); // Administrators group
+
+		realmDao.addPrincipalsToDefaultRealm(principalIdToRealmPrincipalDboId);
+		return dao;
+	}
+
+	/**
+	 * Creates GroupMembersDAO with dependency on UserGroupDAO to ensure proper initialization order.
+	 * Note: The bootstrapGroups() method is currently a no-op - actual group bootstrap happens
+	 * in TeamManagerImpl.bootstrapTeams().
+	 */
+	@Bean
+	public GroupMembersDAO groupMembersDAO(NamedParameterJdbcTemplate namedJdbcTemplate, JdbcTemplate jdbcTemplate,
+			UserGroupDAO userGroupDAO, TransactionalMessenger transactionalMessenger) {
+		DBOGroupMembersDAOImpl dao = new DBOGroupMembersDAOImpl(namedJdbcTemplate, jdbcTemplate, userGroupDAO,
+				transactionalMessenger);
+		try {
+			dao.bootstrapGroups();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		return dao;
+	}
+
 }

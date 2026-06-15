@@ -6,6 +6,7 @@ import javax.sql.DataSource;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.lib.dbuserhelper.DBUserHelper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -86,8 +87,12 @@ public class DatabaseInfrastructureConfiguration {
 
 	@Primary
 	@Bean
-	public JdbcTemplate jdbcTemplate(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
-		return new JdbcTemplate(dataSourcePool);
+	public JdbcTemplate jdbcTemplate(@Qualifier("dataSourcePool") DataSource dataSourcePool,
+			org.sagebionetworks.StackConfiguration stackConfiguration) {
+		JdbcTemplate template = new JdbcTemplate(dataSourcePool);
+		// Create the read-only user in the main database
+		DBUserHelper.createDbReadOnlyUser(template, stackConfiguration);
+		return template;
 	}
 
 	@Bean

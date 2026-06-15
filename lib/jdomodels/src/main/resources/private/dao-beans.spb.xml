@@ -3,6 +3,7 @@
 	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	   xmlns:aop="http://www.springframework.org/schema/aop"
 	   xmlns:util="http://www.springframework.org/schema/util"
+	   xmlns:context="http://www.springframework.org/schema/context"
 	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd
@@ -10,169 +11,6 @@
 
 	<!-- Turn on Spring's autoproxy using AspectJ's @Aspect annotations. -->
 	<aop:aspectj-autoproxy />
-
-	<!-- DO NOT CHANGE ANY OF THESE NAMES OR IDS as they represent real objects in production -->
-	<util:list id="bootstrapPrincipals">
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapUser">
-			<property name="id" value="1" />
-			<property name="email">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="migrationAdmin@sagebase.org" />
-			   		<property name="aliasId" value="1" />
-			   	</bean>
-			</property>
-			<property name="userName">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="migrationAdmin" />
-			   		<property name="aliasId" value="11866" />
-			   	</bean>
-			</property>
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
-			<property name="id" value="2" />
-			<property name="groupAlias">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="Administrators" />
-			   		<property name="aliasId" value="2" />
-			   	</bean>
-			</property>
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
-			<property name="id" value="273948" />
-			<property name="groupAlias">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="AUTHENTICATED_USERS" />
-			   		<property name="aliasId" value="3" />
-			   	</bean>
-			</property>			
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
-			<property name="id" value="273949" />
-			<property name="groupAlias">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="PUBLIC" />
-			   		<property name="aliasId" value="4" />
-			   	</bean>
-			</property>				
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapUser">
-			<property name="id" value="273950" />
-			<property name="email">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="anonymous@sagebase.org" />
-			   		<property name="aliasId" value="5" />
-			   	</bean>
-			</property>
-			<property name="userName">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="anonymous" />
-			   		<property name="aliasId" value="11867" />
-			   	</bean>
-			</property>			
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
-			<property name="id" value="3" />
-			<property name="groupAlias">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="CERTIFIED_USERS" />
-			   		<property name="aliasId" value="6" />
-			   	</bean>
-			</property>
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
-			<property name="id" value="6" />
-			<property name="groupAlias">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="TESTING_USERS" />
-			   		<property name="aliasId" value="7" />
-			   	</bean>
-			</property>			
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapUser">
-			<property name="id" value="3412389" />
-			<property name="email">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="act@sagebase.org" />
-			   		<property name="aliasId" value="172631" />
-			   	</bean>
-			</property>
-			<property name="userName">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="ACTAccessManagement" />
-			   		<property name="aliasId" value="172630" />
-			   	</bean>
-			</property>
-		</bean>
-		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
-			<property name="id" value="273957" />
-			<property name="groupAlias">
-			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
-			   		<property name="aliasName" value="Sage Bionetworks" />
-			   		<property name="aliasId" value="11577" />
-			   	</bean>
-			</property>			
-		</bean>
-	</util:list>
-
-	<bean id="realmDAO"
-		class="org.sagebionetworks.repo.model.dbo.auth.RealmDaoImpl" init-method="bootstrapDefaultRealm">
-	</bean>
-
-	<bean id="userGroupDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOUserGroupDAOImpl" init-method="bootstrapUsers" depends-on="realmDAO" >
-		<property name="bootstrapPrincipals" ref="bootstrapPrincipals"/>
-	</bean>
-	
-
-	<bean id="updateDefaultRealm" class="org.springframework.beans.factory.config.MethodInvokingBean" depends-on="userGroupDAO" >
-		<property name="targetObject" ref="realmDAO"/>
-		<property name="targetMethod" value="addPrincipalsToDefaultRealm"/>
-		<property name="arguments">
-			<util:map>
-				<entry key="273950">
-					<bean class="java.lang.Long">
-						<constructor-arg value="1"/>
-					</bean>
-				</entry>
-				<entry key="273948">
-					<bean class="java.lang.Long">
-						<constructor-arg value="2"/>
-					</bean>
-				</entry>
-				<entry key="273949">
-					<bean class="java.lang.Long">
-						<constructor-arg value="3"/>
-					</bean>
-				</entry>
-				<entry key="2">
-					<bean class="java.lang.Long">
-						<constructor-arg value="4"/>
-					</bean>
-				</entry>
-			</util:map>
-		</property>
-	</bean>
-
-	<bean id="userProfileDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOUserProfileDAOImpl"
-		depends-on="userGroupDAO"
-		init-method="bootstrapProfiles" >
-	</bean>
-
-	<bean id="groupMembersDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOGroupMembersDAOImpl"
-		depends-on="userGroupDAO"
-		init-method="bootstrapGroups" />
-
-	<bean id="principalAliasDao"
-		class="org.sagebionetworks.repo.model.dbo.principal.PrincipalAliasDaoImpl"
-		depends-on="userGroupDAO"
-		init-method="bootstrap" />
-
-	<bean id="authDAO"
-		class="org.sagebionetworks.repo.model.dbo.auth.DBOAuthenticationDAOImpl"
-		depends-on="userGroupDAO"
-		init-method="bootstrap" />
 
 	<bean id="amazonS3Client" class="org.sagebionetworks.aws.AwsClientFactory"
 		factory-method="createAmazonS3Client" scope="singleton" />
@@ -185,31 +23,7 @@
 
 	<bean id="transferManager" class="org.sagebionetworks.aws.AwsClientFactory"
 		factory-method="createTransferManager" scope="singleton" />
-	
-	<bean id="messageDAO" class="org.sagebionetworks.repo.model.dbo.dao.DBOMessageDAOImpl"
-		scope="singleton" />
-    
-    <bean id="commentDAO" class="org.sagebionetworks.repo.model.dbo.dao.DBOCommentDAOImpl"
-        scope="singleton" />
 
-	<bean id="changeDAO" class="org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAOImpl"
-		scope="singleton">
-	</bean>
-	
-	<bean id="v2wikiPageDAO"
-		class="org.sagebionetworks.repo.model.dbo.wikiV2.V2DBOWikiPageDaoImpl"
-		scope="singleton">
-	</bean>
-
-	<bean id="doiAssociationDao" class="org.sagebionetworks.repo.model.dbo.dao.DBODoiAssociationDaoImpl"
-		  scope="singleton">
-	</bean>
-
-	<bean id="doiAdminDao"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBODoiAdminDaoImpl"
-		scope="singleton">
-	</bean>
-	
 	<bean id="columnModelDao"
 		class="org.sagebionetworks.repo.model.dbo.dao.table.DBOColumnModelDAOImpl"
 		scope="singleton">

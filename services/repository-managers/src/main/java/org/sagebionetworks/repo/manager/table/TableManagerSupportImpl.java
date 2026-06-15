@@ -58,6 +58,7 @@ import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
+import org.sagebionetworks.table.cluster.description.RecordSetIndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.cluster.description.VirtualTableIndexDescription;
@@ -417,6 +418,15 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 				 * this call will not trigger a view to be rebuilt.
 				 */
 				return this.tableConnectionFactory.getConnection(idAndVersion).getMaxCurrentCompleteVersionForTable(idAndVersion);
+			case RECORDSET:
+				// Each RecordSet version is built once from an immutable CSV; the
+				// entity's revision number is a stable, monotonic change ticker for
+				// MaterializedView cache invalidation. For an unversioned reference
+				// we resolve to the current revision.
+				if (idAndVersion.getVersion().isPresent()) {
+					return idAndVersion.getVersion().get();
+				}
+				return nodeDao.getCurrentRevisionNumber(idAndVersion.getId().toString());
 			default:
 				throw new IllegalArgumentException("unknown table type: " + type);
 		}
@@ -523,9 +533,11 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		// They must have read permission to access table content.
 		authorizationManager.canAccess(userInfo, indexDescription.getIdAndVersion().getId().toString(),
 				ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
-		// User must have the download permission to read from a TableEntity.
-		if (TableType.table.equals(indexDescription.getTableType())) {
-			// And they must have download permission to access table content.
+		// User must have the download permission to read from a TableEntity or RecordSet.
+		// RecordSet rows are the indexed contents of an underlying CSV file, so they
+		// follow the same DOWNLOAD requirement as direct file content access.
+		if (TableType.table.equals(indexDescription.getTableType())
+				|| TableType.recordset.equals(indexDescription.getTableType())) {
 			authorizationManager.canAccess(userInfo, indexDescription.getIdAndVersion().getId().toString(),
 					ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD).checkAuthorizationOrElseThrow();
 		}
@@ -665,6 +677,13 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 				return new MaterializedViewIndexDescription(idAndVersion, nodeDao.getDefiningSql(idAndVersion).get(), this);
 			case virtualtable:
 				return new VirtualTableIndexDescription(idAndVersion, nodeDao.getDefiningSql(idAndVersion).get(), this);
+			case recordset:
+				// Both keys are real, populated indexes: T{id} carries the current
+				// version's data (the "syn123" alias) and T{id}_{v} carries the immutable
+				// per-version snapshot (queried as "syn123.{v}"). The IndexDescription
+				// reflects the caller's reference verbatim; the worker writes the same
+				// rows to both tables on each rebuild.
+				return new RecordSetIndexDescription(idAndVersion, getTableVersion(type.getObjectType(), idAndVersion));
 			default:
 				throw new IllegalArgumentException("Unexpected type for entity with id " + idAndVersion.toString() + ": "
 						+ type + " (expected a table or view type)");

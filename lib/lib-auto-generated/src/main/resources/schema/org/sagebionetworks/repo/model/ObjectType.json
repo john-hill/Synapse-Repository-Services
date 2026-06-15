@@ -197,6 +197,10 @@
         {
             "name": "GRID_SESSION",
             "description": "A grid session change that triggers index rebuilding."
+        },
+        {
+            "name": "RECORDSET",
+            "description": "A RecordSet entity whose CSV-backed data is indexed and queryable like a table."
         }
     ]
 }

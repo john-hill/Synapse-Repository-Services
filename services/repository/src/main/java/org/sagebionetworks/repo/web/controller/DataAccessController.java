@@ -26,6 +26,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
+import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -77,7 +79,7 @@ public class DataAccessController {
 
 	/**
 	 * Retrieve an existing ResearchProject that the user owns.
-	 * If none exists, a ResearchProject with some re-filled information is returned to the user.
+	 * If none exists, a ResearchProject with some pre-filled information is returned to the user.
 	 * Only the owner of the researchProject can perform this action.
 	 * 
 	 * @param userId - The ID of the user who is making the request.
@@ -133,7 +135,7 @@ public class DataAccessController {
 	}
 
 	/**
-	 * Submit a Submission using information from a Request.
+	 * Submit an Access Request using information from a Request.
 	 * 
 	 * @param userId - The ID of the user who is making the request.
 	 * @param request - The object that contains information to create a submission.
@@ -315,6 +317,25 @@ public class DataAccessController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestParam(value = UrlHelpers.NEXT_PAGE_TOKEN_PARAM, required = false) String nextPageToken) {
 		return serviceProvider.getDataAccessService().getOpenSubmissions(userId, nextPageToken);
+	}
+
+	/**
+	 * List available eDUC (electronic Data Use Certificate) templates that the
+	 * ACT may use when issuing access certificates. Only an ACT member can
+	 * perform this action.
+	 *
+	 * @param userId
+	 * @param request
+	 * @return a page of eDUC template metadata
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.EDUC_TEMPLATE, method = RequestMethod.POST)
+	public @ResponseBody EDucTemplatePage listEDucTemplates(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody EDucTemplateListRequest request)
+			throws Exception {
+		return serviceProvider.getEDucService().listTemplates(userId, request);
 	}
 	
 	/**

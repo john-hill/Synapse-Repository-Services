@@ -26,6 +26,7 @@
 		<module>lib-utils</module>
 		<module>lib-worker</module>
 		<module>lib-doi</module>
+		<module>lib-docusign</module>
 		<module>lib-googlecloud</module>
 		<module>lib-javadoc</module>
 		<module>lib-openapi</module>

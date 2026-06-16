@@ -9,4 +9,8 @@ target/
 *.iml
 *.pyc
 .claude/
+<<<<<<< HEAD
+dependency-reduced-pom.xml
+=======
 .factorypath
+>>>>>>> 0147608e52aaac28d9d548515e618330d4278144

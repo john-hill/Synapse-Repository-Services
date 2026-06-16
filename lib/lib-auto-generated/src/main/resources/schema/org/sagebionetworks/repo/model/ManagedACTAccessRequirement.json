@@ -44,7 +44,7 @@
 		},
 		"eDucTemplateId": {
 			"type": "string",
-			"description": "The ID of the DocuSign electronic Data Use Certificate (eDUC) template to use for this access requirement."
+			"description": "The ID of the electronic Data Use Certificate (eDUC) template to fill out for data access requests."
 		}
 	}
 }

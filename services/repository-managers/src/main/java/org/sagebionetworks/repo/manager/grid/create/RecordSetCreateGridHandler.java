@@ -89,7 +89,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 
 		GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
-				.setSourceId(recordSet.getId()).setSchemaId(validationSchemaId.orElse(null))
+				.setSourceId(recordSet.getId()).setSourceVersion(recordSet.getVersionNumber())
+				.setSchemaId(validationSchemaId.orElse(null))
 				.setOwner(request.getOwnerPrincipalId()).setAuthorizationMode(request.getAuthorizationMode()));
 
 		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);

@@ -105,7 +105,10 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		
 		// Creates a new version of the record set that points to the new file and persist the validation summary
 		recordSet = createNewVersion(user, recordSet, exportedFileId, validationSummary, validationFileId);
-		
+
+		// Update the GridSession to denote that it is in sync with the record set
+		gridManager.updateSourceEntityVersion(request.getSessionId(), recordSet.getVersionNumber());
+
 		return new GridRecordSetExportResponse()
 			.setSessionId(request.getSessionId())
 			.setRecordSetId(recordSet.getId())

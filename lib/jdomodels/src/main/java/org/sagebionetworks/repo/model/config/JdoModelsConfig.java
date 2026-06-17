@@ -5,13 +5,22 @@ import java.util.List;
 import java.util.Map;
 
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.aws.AwsClientFactory;
+import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.database.semaphore.SemaphoreConfig;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdGeneratorConfig;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AuthorizationConstants.ACL_SCHEME;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.bootstrap.AccessBootstrapData;
+import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapData;
+import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
+import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapperImpl;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDaoImpl;
 import org.sagebionetworks.repo.model.dbo.DDLUtils;
@@ -31,30 +40,39 @@ import org.sagebionetworks.repo.model.principal.BootstrapPrincipal;
 import org.sagebionetworks.repo.model.principal.BootstrapUser;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.DefaultClock;
+import org.sagebionetworks.util.FileProvider;
+import org.sagebionetworks.util.FileProviderImpl;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
-/**
- * JDO Models configuration for DBO infrastructure beans.
- *
- * This config provides core DBO infrastructure (DBOBasicDao, DDLUtils,
- * TransactionalMessenger) and bootstrap data. It includes component scanning
- * for @Repository DAOs that have been converted from XML.
- *
- * For tests that need additional beans from dao-beans.spb.xml, use:
- * 
- * @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
- */
+import com.amazonaws.services.athena.AmazonAthena;
+import com.amazonaws.services.glue.AWSGlue;
+import com.amazonaws.services.s3.transfer.TransferManager;
+
 @Configuration
+@EnableAspectJAutoProxy
 @Import({ DatabaseInfrastructureConfiguration.class, SemaphoreConfig.class, IdGeneratorConfig.class })
-@org.springframework.context.annotation.ComponentScan(basePackages = { "org.sagebionetworks.repo.model.dbo.auth",
-		"org.sagebionetworks.repo.model.dbo.dao", "org.sagebionetworks.repo.model.dbo.principal",
-		"org.sagebionetworks.repo.model.dbo.wikiV2", "org.sagebionetworks.repo.model.message" })
+@ComponentScan(basePackages = {
+	"org.sagebionetworks.repo.model.dbo.auth",
+	"org.sagebionetworks.repo.model.dbo.dao",
+	"org.sagebionetworks.repo.model.dbo.principal",
+	"org.sagebionetworks.repo.model.dbo.wikiV2",
+	"org.sagebionetworks.repo.model.dbo.asynch",
+	"org.sagebionetworks.repo.model.dbo.file",
+	"org.sagebionetworks.repo.model.message",
+	"org.sagebionetworks.repo.model.query",
+	"org.sagebionetworks.repo.model.jdo",
+	"org.sagebionetworks.repo.model.bootstrap",
+	"org.sagebionetworks.evaluation.dao",
+	"org.sagebionetworks.repo.throttle"
+})
 public class JdoModelsConfig {
 
 	@Bean
@@ -97,12 +115,6 @@ public class JdoModelsConfig {
 		dao.setDatabaseObjectRegister(DboAutoDiscovery.discoverPrimaryMigratableDatabaseObjects(allDbos));
 		return dao;
 	}
-
-	/**
-	 * Creates the list of primary migration objects. Order matters - this list
-	 * determines the migration order. migratableTableDAO property.
-	 */
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 
 	@Bean
 	public Clock clock() {
@@ -215,6 +227,68 @@ public class JdoModelsConfig {
 			throw new RuntimeException(e);
 		}
 		return dao;
+	}
+
+	@Bean
+	public SynapseS3Client amazonS3Client() {
+		return AwsClientFactory.createAmazonS3Client();
+	}
+
+	@Bean
+	public AmazonAthena amazonAthenaClient() {
+		return AwsClientFactory.createAmazonAthenaClient();
+	}
+
+	@Bean
+	public AWSGlue amazonGlueClient() {
+		return AwsClientFactory.createAmazonGlueClient();
+	}
+
+	@Bean
+	public TransferManager transferManager() {
+		return AwsClientFactory.createTransferManager();
+	}
+
+	@Bean
+	public FileProvider fileProvider() {
+		return new FileProviderImpl();
+	}
+
+	@Bean
+	public EntityBootstrapData rootFolderBootstrapData(StackConfiguration stackConfiguration) {
+		EntityBootstrapData data = new EntityBootstrapData();
+		data.setEntityPath(stackConfiguration.getRootFolderEntityPath());
+		data.setEntityId(Long.valueOf(stackConfiguration.getRootFolderEntityId()));
+		data.setEntityDescription("The root Synapse folder containing all other entities.");
+		data.setEntityType(EntityType.folder);
+		data.setDefaultChildAclScheme(ACL_SCHEME.GRANT_CREATOR_ALL);
+		AccessBootstrapData access = new AccessBootstrapData();
+		access.setGroup(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP);
+		access.setAccessTypeList(List.of(ACCESS_TYPE.CREATE));
+		data.setAccessList(List.of(access));
+		return data;
+	}
+
+	@Bean
+	public EntityBootstrapData trashFolderBootstrapData(StackConfiguration stackConfiguration) {
+		EntityBootstrapData data = new EntityBootstrapData();
+		data.setEntityPath(stackConfiguration.getTrashFolderEntityPath());
+		data.setEntityId(Long.valueOf(stackConfiguration.getTrashFolderEntityId()));
+		data.setEntityDescription("The trash can folder.");
+		data.setEntityType(EntityType.folder);
+		data.setDefaultChildAclScheme(ACL_SCHEME.INHERIT_FROM_PARENT);
+		AccessBootstrapData access = new AccessBootstrapData();
+		access.setGroup(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP);
+		access.setAccessTypeList(List.of(ACCESS_TYPE.CREATE));
+		data.setAccessList(List.of(access));
+		return data;
+	}
+
+	@Bean(initMethod = "bootstrapAll")
+	public EntityBootstrapper entityBootstrapper(List<EntityBootstrapData> bootstrapEntities) {
+		EntityBootstrapperImpl bootstrapper = new EntityBootstrapperImpl();
+		bootstrapper.setBootstrapEntities(bootstrapEntities);
+		return bootstrapper;
 	}
 
 }

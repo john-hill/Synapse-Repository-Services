@@ -1331,6 +1331,44 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testBulkIndexWithEnvelopeIndexNotFoundExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
+		// AOSS returns index_not_found_exception (404) during the eventual-consistency window
+		// after createIndex — the alias is acknowledged before its shards resolve on every node.
+		// This is transient, so the bulk path must retry rather than fail the index permanently.
+		ErrorResponse notFound = ErrorResponse.of(e -> e
+				.error(err -> err.type("index_not_found_exception").reason("no such index"))
+				.status(404));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(notFound));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
+	public void testBulkIndexWithEnvelopeIndexNotFoundThenSuccessRecovers() throws Exception {
+		// Transient index_not_found on the first two attempts, then success — proves the 404 is
+		// retried within the existing budget instead of escaping as a terminal RuntimeException.
+		ErrorResponse notFound = ErrorResponse.of(e -> e
+				.error(err -> err.type("index_not_found_exception").reason("no such index"))
+				.status(404));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(notFound))
+				.thenThrow(new OpenSearchException(notFound))
+				.thenReturn(bulkResponseOf(okItem("1")));
+
+		// call under test
+		long indexed = manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1")));
+
+		assertEquals(1L, indexed);
+		verify(openSearchClient, times(3))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
 	public void testBulkIndexWithEnvelope400ThrowsPermanentRuntimeException() throws Exception {
 		ErrorResponse badRequest = ErrorResponse.of(e -> e
 				.error(err -> err.type("illegal_argument_exception").reason("bad request"))

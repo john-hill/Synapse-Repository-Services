@@ -679,11 +679,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (OpenSearchException e) {
 			String detail = "Failed to bulk index to search index: " + indexName
 					+ " (" + describeError(e.error()) + ")";
+			String type = e.error() == null ? null : e.error().type();
 			// status() == 0 indicates the transport never produced an HTTP response (e.g.
 			// the AWS SDK 2 transport surfaced a connection-level failure as
 			// OpenSearchException rather than IOException). Treat the same as a 5xx —
-			// transient, retryable.
-			if (e.status() == 0 || isRetryableItemStatus(e.status())) {
+			// transient, retryable. index_not_found_exception is AOSS's eventual-consistency
+			// window: createIndex is acknowledged and the alias is queryable before its
+			// backing shards resolve on every node, so a bulk write immediately after can
+			// see a 404. Treat it as transient and retryable, consistent with
+			// waitForIndexWritable.
+			if (e.status() == 0 || isRetryableItemStatus(e.status())
+					|| INDEX_NOT_FOUND_EXCEPTION.equals(type)) {
 				throw new RetryException(detail, e);
 			}
 			throw new RuntimeException(detail, e);

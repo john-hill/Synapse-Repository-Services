@@ -8,6 +8,7 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.database.semaphore.SemaphoreConfig;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdGeneratorConfig;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UserGroupDAO;
@@ -41,22 +42,19 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 /**
  * JDO Models configuration for DBO infrastructure beans.
  *
- * This config provides core DBO infrastructure (DBOBasicDao, DDLUtils, TransactionalMessenger)
- * and bootstrap data. It includes component scanning for @Repository DAOs that have been
- * converted from XML.
+ * This config provides core DBO infrastructure (DBOBasicDao, DDLUtils,
+ * TransactionalMessenger) and bootstrap data. It includes component scanning
+ * for @Repository DAOs that have been converted from XML.
  *
  * For tests that need additional beans from dao-beans.spb.xml, use:
+ * 
  * @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
  */
 @Configuration
 @Import({ DatabaseInfrastructureConfiguration.class, SemaphoreConfig.class, IdGeneratorConfig.class })
-@org.springframework.context.annotation.ComponentScan(basePackages = {
-	"org.sagebionetworks.repo.model.dbo.auth",
-	"org.sagebionetworks.repo.model.dbo.dao",
-	"org.sagebionetworks.repo.model.dbo.principal",
-	"org.sagebionetworks.repo.model.dbo.wikiV2",
-	"org.sagebionetworks.repo.model.message"
-})
+@org.springframework.context.annotation.ComponentScan(basePackages = { "org.sagebionetworks.repo.model.dbo.auth",
+		"org.sagebionetworks.repo.model.dbo.dao", "org.sagebionetworks.repo.model.dbo.principal",
+		"org.sagebionetworks.repo.model.dbo.wikiV2", "org.sagebionetworks.repo.model.message" })
 public class JdoModelsConfig {
 
 	@Bean
@@ -114,64 +112,49 @@ public class JdoModelsConfig {
 	/**
 	 * Bootstrap principals that are created on system initialization. DO NOT CHANGE
 	 * ANY OF THESE IDS as they represent real objects in production.
-	 *
-	 * Using fluent setters (Java 8 compatible) for clean initialization.
 	 */
 	@Bean
 	public List<BootstrapPrincipal> bootstrapPrincipals() {
 		// @formatter:off
 		return List.of(
-			// Migration Admin User (ID: 1)
 			new BootstrapUser()
-				.setId(1L)
+				.setId(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId())
 				.setEmail(new BootstrapAlias().setAliasName("migrationAdmin@sagebase.org").setAliasId(1L))
 				.setUserName(new BootstrapAlias().setAliasName("migrationAdmin").setAliasId(11866L)),
 
-			// Administrators Group (ID: 2)
 			new BootstrapGroup()
-				.setId(2L)
+				.setId(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId())
 				.setGroupAlias(new BootstrapAlias().setAliasName("Administrators").setAliasId(2L)),
 
-			// AUTHENTICATED_USERS Group (ID: 273948)
 			new BootstrapGroup()
-				.setId(273948L)
+				.setId(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId())
 				.setGroupAlias(new BootstrapAlias().setAliasName("AUTHENTICATED_USERS").setAliasId(3L)),
 
-			// PUBLIC Group (ID: 273949)
 			new BootstrapGroup()
-				.setId(273949L)
+				.setId(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId())
 				.setGroupAlias(new BootstrapAlias().setAliasName("PUBLIC").setAliasId(4L)),
 
-			// Anonymous User (ID: 273950)
 			new BootstrapUser()
-				.setId(273950L)
+				.setId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId())
 				.setEmail(new BootstrapAlias().setAliasName("anonymous@sagebase.org").setAliasId(5L))
 				.setUserName(new BootstrapAlias().setAliasName("anonymous").setAliasId(11867L)),
 
-			// Certified Users Group (ID: 464532)
 			new BootstrapGroup()
-				.setId(464532L)
-				.setGroupAlias(new BootstrapAlias().setAliasName("Certified Users").setAliasId(12L)),
+				.setId(BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId())
+				.setGroupAlias(new BootstrapAlias().setAliasName("CERTIFIED_USERS").setAliasId(6L)),
 
-			// Synapse Report Team (ID: 4689)
 			new BootstrapGroup()
-				.setId(4689L)
-				.setGroupAlias(new BootstrapAlias().setAliasName("Synapse Report Team").setAliasId(13L)),
+				.setId(BOOTSTRAP_PRINCIPAL.SYNAPSE_TESTING_GROUP.getPrincipalId())
+				.setGroupAlias(new BootstrapAlias().setAliasName("TESTING_USERS").setAliasId(7L)),
 
-			// Trusted Message Senders (ID: 3392315)
-			new BootstrapGroup()
-				.setId(3392315L)
-				.setGroupAlias(new BootstrapAlias().setAliasName("Trusted Message Senders").setAliasId(14L)),
+			new BootstrapUser()
+				.setId(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId())
+				.setEmail(new BootstrapAlias().setAliasName("act@sagebase.org").setAliasId(172631L))
+				.setUserName(new BootstrapAlias().setAliasName("ACTAccessManagement").setAliasId(172630L)),
 
-			// Synapse Access and Compliance Team (ID: 3320424)
 			new BootstrapGroup()
-				.setId(3320424L)
-				.setGroupAlias(new BootstrapAlias().setAliasName("Synapse Access and Compliance Team").setAliasId(15L)),
-
-			// ACT Reviewer Group (ID: 5)
-			new BootstrapGroup()
-				.setId(5L)
-				.setGroupAlias(new BootstrapAlias().setAliasName("ACT Reviewer").setAliasId(17L))
+				.setId(BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId())
+				.setGroupAlias(new BootstrapAlias().setAliasName("Sage Bionetworks").setAliasId(11577L))
 		);
 		// @formatter:on
 	}
@@ -185,15 +168,15 @@ public class JdoModelsConfig {
 	public MigrationTypeProvider createMigrationTypeProvider(MigratableTableDAO migratableTableDao) {
 		return new MigrationTypeProviderImpl(migratableTableDao.getAllMigratableTypes());
 	}
-	
-	@Bean
+
+	@Bean(name = "realmDao")
 	public RealmDao getRealmDao(DBOBasicDao basicDao, IdGenerator idGenerator,
 			NamedParameterJdbcTemplate namedJdbcTemplate, JdbcTemplate jdbcTemplate) {
-		RealmDaoImpl dao =  new RealmDaoImpl(basicDao, idGenerator, namedJdbcTemplate, jdbcTemplate);
+		RealmDaoImpl dao = new RealmDaoImpl(basicDao, idGenerator, namedJdbcTemplate, jdbcTemplate);
 		dao.bootstrapDefaultRealm();
 		return dao;
 	}
-	
+
 	@Bean(name = "userGroupDAO")
 	public UserGroupDAO getUserGroupDAO(RealmDao realmDao, DBOBasicDao basicDao, IdGenerator idGenerator,
 			TransactionalMessenger transactionalMessenger, NamedParameterJdbcTemplate namedJdbcTemplate,
@@ -205,22 +188,21 @@ public class JdoModelsConfig {
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
-		// Map of principal ID to realm principal type ID
-		// This maps bootstrap principal IDs to their realm principal DBO IDs
 		java.util.Map<String, Long> principalIdToRealmPrincipalDboId = new java.util.HashMap<>();
-		principalIdToRealmPrincipalDboId.put("273950", 1L); // Anonymous user
-		principalIdToRealmPrincipalDboId.put("273948", 2L); // Authenticated users
-		principalIdToRealmPrincipalDboId.put("273949", 3L); // Public group
-		principalIdToRealmPrincipalDboId.put("2", 4L); // Administrators group
+		principalIdToRealmPrincipalDboId.put(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString(), 1L);
+		principalIdToRealmPrincipalDboId.put(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString(),
+				2L);
+		principalIdToRealmPrincipalDboId.put(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString(), 3L);
+		principalIdToRealmPrincipalDboId.put(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString(), 4L);
 
 		realmDao.addPrincipalsToDefaultRealm(principalIdToRealmPrincipalDboId);
 		return dao;
 	}
 
 	/**
-	 * Creates GroupMembersDAO with dependency on UserGroupDAO to ensure proper initialization order.
-	 * Note: The bootstrapGroups() method is currently a no-op - actual group bootstrap happens
-	 * in TeamManagerImpl.bootstrapTeams().
+	 * Creates GroupMembersDAO with dependency on UserGroupDAO to ensure proper
+	 * initialization order. Note: The bootstrapGroups() method is currently a no-op
+	 * - actual group bootstrap happens in TeamManagerImpl.bootstrapTeams().
 	 */
 	@Bean
 	public GroupMembersDAO groupMembersDAO(NamedParameterJdbcTemplate namedJdbcTemplate, JdbcTemplate jdbcTemplate,

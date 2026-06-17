@@ -182,12 +182,14 @@ public class GridRecordSetExporterImplTest {
 			KeyFactory.stringToKey(recordSetId), 2L, expectedResponse.getValidationSummaryStatistics()
 		);
 		
+		verify(mockGridManager).updateSourceEntityVersion(sessionId, 2L);
+		
 		verify(mockCsvWriter).writeNext(new String[] {"row_index", "is_valid", "validation_error_message", "all_validation_messages"});
 		verify(mockCsvWriter).writeNext(new String[] {"0", "true", null, null});
 		verify(mockCsvWriter).writeNext(new String[] {"1", "false", "error", "[\"err1\",\"err2\"]"});
 		verify(mockCsvWriter).writeNext(new String[] {"2", null, null, null});
 		verify(mockCsvWriter).close();
-		verifyNoMoreInteractions(mockCsvWriter);
+		verifyNoMoreInteractions(mockCsvWriter, mockGridManager);
 	}
 
 	@Test
@@ -204,6 +206,7 @@ public class GridRecordSetExporterImplTest {
 		});
 		
 		assertEquals("Could not export the grid to a CSV file.", ex.getMessage());
+		verifyNoMoreInteractions(mockGridManager);
 	}
 	
 	@Test
@@ -232,6 +235,7 @@ public class GridRecordSetExporterImplTest {
 		});
 		
 		assertEquals("Could not write validation details to CSV file.", ex.getMessage());
+		verifyNoMoreInteractions(mockGridManager);
 	}
 
 	@Test

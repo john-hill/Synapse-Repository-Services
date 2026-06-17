@@ -137,6 +137,8 @@ public class RecordSetCreateGridHandlerTest {
 	@Mock
 	private SnapshotRowHandler mockRowHandler;
 
+	private Long versionNumber = 7L;
+
 	@BeforeEach
 	public void before() {
 		userId = 123L;
@@ -158,7 +160,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true).setQuoteCharacter("'");
 
-		recordSet = new RecordSet().setId("syn456").setDataFileHandleId(csvFile.getId())
+		recordSet = new RecordSet().setId("syn456").setVersionNumber(versionNumber).setDataFileHandleId(csvFile.getId())
 				.setCsvDescriptor(csvDescriptor);
 
 		clockTable = new ClockTable(List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L)));
@@ -184,7 +186,7 @@ public class RecordSetCreateGridHandlerTest {
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
 		when(mockGridDao.createGridSession(
-				new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId()).setSchemaId(schema$id)))
+				new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId()).setSourceVersion(versionNumber).setSchemaId(schema$id)))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
@@ -225,7 +227,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId())))
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId()).setSourceVersion(versionNumber)))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
@@ -271,7 +273,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSchemaId(schema$id).setSourceId(recordSet.getId())))
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSchemaId(schema$id).setSourceId(recordSet.getId()).setSourceVersion(versionNumber)))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
@@ -316,7 +318,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSchemaId(schema$id).setSourceId(recordSet.getId())))
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSchemaId(schema$id).setSourceId(recordSet.getId()).setSourceVersion(versionNumber)))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
@@ -356,7 +358,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId())))
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId()).setSourceVersion(versionNumber)))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);

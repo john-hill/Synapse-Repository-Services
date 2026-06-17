@@ -64,7 +64,6 @@ public class DBOProjectSettingsDAOImplChangeMessageTest {
 		dbo.setType(ProjectSettingsType.upload.name());
 		dbo.setEtag("etag");
 
-		// Note: mockIdGenerator stub removed - it was never called in these tests
 		Mockito.when(mockBasicDao.createNew(dbo)).thenReturn(dbo);
 
 		Mockito.when(mockBasicDao.getObjectByPrimaryKey(

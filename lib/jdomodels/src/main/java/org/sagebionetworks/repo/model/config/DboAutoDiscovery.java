@@ -82,7 +82,6 @@ public class DboAutoDiscovery {
 				}
 			}
 		}
-
 		// Sort by foreign key dependency order using topological sort on DDL
 		return DboDependencyAnalyzer.sortByForeignKeyDependencies(dbos);
 	}

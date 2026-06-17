@@ -328,7 +328,7 @@ public class RealmDaoImpl implements RealmDao {
 		jdbcTemplate.update(DELETE_REALM_SQL, id);
 	}
 
-//	@WriteTransaction
+	@WriteTransaction
 	@Override
 	public void bootstrapDefaultRealm() {
 		SqlParameterSource param = new SinglePrimaryKeySqlParameterSource(AuthorizationConstants.DEFAULT_REALM_ID);

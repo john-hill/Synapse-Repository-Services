@@ -79,7 +79,7 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 				dbo.setRepIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_CLIENT));
 				dbo.setRepIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE));
 				dbo.setSourceId(rs.getLong(COL_GRID_SESSION_SOURCE_ID));
-				dbo.setSourceVersion(rs.getObject(COL_GRID_SESSION_SOURCE_VERSION, Long.class));
+				dbo.setSourceVersion(rs.getLong(COL_GRID_SESSION_SOURCE_VERSION));
 				dbo.setSchemaId(rs.getString(COL_GRID_SESSION_SCHEMA_ID));
 				dbo.setOwner(rs.getLong(COL_GRID_SESSION_OWNER));
 				dbo.setAuthorizationMode(rs.getString(COL_GRID_SESSION_AUTH_MODE));

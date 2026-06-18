@@ -66,6 +66,7 @@
 			<id>jitpack.io</id>
 			<url>https://jitpack.io</url>
 		</repository>
+		
 	</repositories>
 
 	<pluginRepositories>
@@ -663,6 +664,12 @@
 
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
+				<artifactId>lib-dbuserhelper</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
 				<artifactId>sample-code</artifactId>
 				<version>${project.version}</version>
 			</dependency>
@@ -717,12 +724,17 @@
 			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
+				<artifactId>csv-utilities</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
 				<artifactId>database-semaphore</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
-				<artifactId>csv-utilities</artifactId>
+				<artifactId>lib-database-configuration</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

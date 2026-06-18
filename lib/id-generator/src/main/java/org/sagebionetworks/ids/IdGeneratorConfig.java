@@ -43,7 +43,7 @@ public class IdGeneratorConfig {
 	/**
 	 * JdbcTemplate for the ID generator database.
 	 */
-	@Bean
+	@Bean(name = "idGeneratorJdbcTemplate")
 	public JdbcTemplate idGeneratorJdbcTemplate(@Qualifier("idGeneratorDataSourcePool") DataSource idGeneratorDataSourcePool) {
 		return new JdbcTemplate(idGeneratorDataSourcePool);
 	}
@@ -52,7 +52,7 @@ public class IdGeneratorConfig {
 	 * IdGenerator bean that uses the ID generator database.
 	 */
 	@Bean
-	public IdGenerator idGenerator() {
-		return new IdGeneratorImpl();
+	public IdGenerator idGenerator(@Qualifier("idGeneratorJdbcTemplate") JdbcTemplate idGeneratorJdbcTemplate) {
+		return new IdGeneratorImpl(idGeneratorJdbcTemplate);
 	}
 }

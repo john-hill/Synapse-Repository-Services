@@ -1317,7 +1317,7 @@ public class StackConfigurationImpl implements StackConfiguration {
 
 	@Override
 	public String getCloudFrontKeyPairId() {
-		return configuration.getProperty("org.sagebionetworks.cloudfront.keypair");
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.cloudfront.private.key.id");
 	}
 
 	@Override

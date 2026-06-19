@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
-import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -26,6 +25,7 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
+import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.csv.CSVWriterProvider;
@@ -42,16 +42,16 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 
 	private final GridManager gridManager;
 	private final GridReplicaSupport gridReplicaSupport;
-	private final EntityManager entityManager;
+	private final EntityService entityService;
 	private final GridReplicaCsvExporter csvExporter;
 	private final EntitySchemaValidationResultDao validationResultDao;
 	private final CSVWriterProvider csvWriterProvider;
     private final FileHandleManager fileHandleManager;
-	
-	public GridRecordSetExporterImpl(GridManager gridManager, GridReplicaSupport gridReplicaSupport, EntityManager entityManager, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao, CSVWriterProvider csvWriterProvider, FileHandleManager fileHandleManager) {
+
+	public GridRecordSetExporterImpl(GridManager gridManager, GridReplicaSupport gridReplicaSupport, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao, CSVWriterProvider csvWriterProvider, FileHandleManager fileHandleManager) {
 		this.gridManager = gridManager;
 		this.gridReplicaSupport = gridReplicaSupport;
-		this.entityManager = entityManager;
+		this.entityService = entityService;
 		this.csvExporter = csvExporter;
 		this.validationResultDao = validationResultDao;
 		this.csvWriterProvider = csvWriterProvider;
@@ -105,7 +105,10 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		
 		// Creates a new version of the record set that points to the new file and persist the validation summary
 		recordSet = createNewVersion(user, recordSet, exportedFileId, validationSummary, validationFileId);
-		
+
+		// Update the GridSession to denote that it is in sync with the record set
+		gridManager.updateSourceEntityVersion(request.getSessionId(), recordSet.getVersionNumber());
+
 		return new GridRecordSetExportResponse()
 			.setSessionId(request.getSessionId())
 			.setRecordSetId(recordSet.getId())
@@ -140,11 +143,14 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		recordSet.setValidationFileHandleId(validationFileHandleId);
 		recordSet.setVersionLabel(null);
 		
-		// Updates the entity (note that the manager skips service level validation and allows updating the validation file handle)
-		entityManager.updateEntity(user, recordSet, true, null);
-		
-		RecordSet updated = entityManager.getEntity(user, recordSet.getId(), RecordSet.class);
-		
+		// Update through the EntityService so the RecordSetMetadataProvider is invoked
+		// (entityUpdated → rebinds the column schema and triggers the index rebuild).
+		// We skip sanitization because the sanitize step is intended to strip the validation file handle,
+		// when a user directly updates the RecordSet; updating the record set via the grid should persist the
+		// validation data.
+		boolean skipSanitization = true;
+		RecordSet updated = entityService.updateEntity(user.getId(), recordSet, true, null, skipSanitization);
+
 		Long recordSetId = KeyFactory.stringToKey(recordSet.getId());
 		Long recordSetVersion = updated.getVersionNumber();
 		

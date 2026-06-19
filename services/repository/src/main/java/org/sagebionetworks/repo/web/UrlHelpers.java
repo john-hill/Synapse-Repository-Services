@@ -1196,6 +1196,9 @@ public class UrlHelpers {
 	public static final String ACCESS_APPROVAL_BATCH = ACCESS_APPROVAL+"/batch";
 	public static final String DATA_ACCESS_SUBMISSION_SEARCH = DATA_ACCESS_SUBMISSION + "/search";
 	public static final String DATA_ACCESS_SUBMISSION_THREAD = DATA_ACCESS_SUBMISSION + THREAD + THREAD_ID;
+
+	// Electronic Data Use Certificate (eDUC) services
+	public static final String EDUC_TEMPLATE = "/eDuc/template";
 	
 	// Statistics Services
 	public static final String STATISTICS = "/statistics";

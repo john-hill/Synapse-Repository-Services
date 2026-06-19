@@ -185,7 +185,7 @@ public class StackConfigurationImplUnitTest {
 	public void testGetCloudFrontKeyPairId() {
 
 		// Call under test
-		config.getCloudFrontKeyPairId();
+		config.getCloudFrontKeyId();
 
 		verify(stackEncrypter).getDecryptedProperty("org.sagebionetworks.cloudfront.private.key.id");
 

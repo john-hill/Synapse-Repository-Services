@@ -20,7 +20,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -41,6 +40,7 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
+import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.util.csv.CSVWriterProvider;
 
 import au.com.bytecode.opencsv.CSVWriter;
@@ -55,7 +55,7 @@ public class GridRecordSetExporterImplTest {
 	@Mock
 	private GridReplicaCsvExporter mockCsvExporter;
 	@Mock
-	private EntityManager mockEntityManager;
+	private EntityService mockEntityService;
 	@Mock
 	private EntitySchemaValidationResultDao mockValidationResultDao;
 	@Mock
@@ -139,14 +139,13 @@ public class GridRecordSetExporterImplTest {
 		
 		when(mockFileHandleManager.uploadLocalFile(uploadRequestCaptor.capture())).thenReturn(new S3FileHandle().setId(validationFileHandleId));
 		
-		when(mockEntityManager.updateEntity(user, recordSet, true, null))
+		when(mockEntityService.updateEntity(userId, recordSet, true, null, true))
 			.then(invocation -> {
-				// Simulate version increment performed by the service
+				// Simulate version increment performed by the service; the service
+				// returns the re-fetched entity.
 				recordSet.setVersionNumber(2L);
-				return true;
+				return recordSet;
 			});
-		
-		when(mockEntityManager.getEntity(user, recordSetId, RecordSet.class)).thenReturn(recordSet);
 
 		GridRecordSetExportResponse expectedResponse = new GridRecordSetExportResponse()
 			.setSessionId(sessionId)
@@ -183,12 +182,14 @@ public class GridRecordSetExporterImplTest {
 			KeyFactory.stringToKey(recordSetId), 2L, expectedResponse.getValidationSummaryStatistics()
 		);
 		
+		verify(mockGridManager).updateSourceEntityVersion(sessionId, 2L);
+		
 		verify(mockCsvWriter).writeNext(new String[] {"row_index", "is_valid", "validation_error_message", "all_validation_messages"});
 		verify(mockCsvWriter).writeNext(new String[] {"0", "true", null, null});
 		verify(mockCsvWriter).writeNext(new String[] {"1", "false", "error", "[\"err1\",\"err2\"]"});
 		verify(mockCsvWriter).writeNext(new String[] {"2", null, null, null});
 		verify(mockCsvWriter).close();
-		verifyNoMoreInteractions(mockCsvWriter);
+		verifyNoMoreInteractions(mockCsvWriter, mockGridManager);
 	}
 
 	@Test
@@ -205,6 +206,7 @@ public class GridRecordSetExporterImplTest {
 		});
 		
 		assertEquals("Could not export the grid to a CSV file.", ex.getMessage());
+		verifyNoMoreInteractions(mockGridManager);
 	}
 	
 	@Test
@@ -233,6 +235,7 @@ public class GridRecordSetExporterImplTest {
 		});
 		
 		assertEquals("Could not write validation details to CSV file.", ex.getMessage());
+		verifyNoMoreInteractions(mockGridManager);
 	}
 
 	@Test

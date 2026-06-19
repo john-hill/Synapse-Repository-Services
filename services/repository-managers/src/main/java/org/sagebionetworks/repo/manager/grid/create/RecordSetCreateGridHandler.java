@@ -1,28 +1,21 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
-import org.sagebionetworks.repo.manager.grid.CsvSchemaReconciler;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
-import org.sagebionetworks.repo.manager.table.UploadPreviewBuilder;
+import org.sagebionetworks.repo.manager.table.RecordSetSchemaResolver;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -38,7 +31,6 @@ import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.Row;
-import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
 import org.sagebionetworks.util.FileProvider;
 import org.springframework.stereotype.Service;
 
@@ -56,11 +48,15 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final JsonSchemaValidationManager jsonSchemaValidationManager;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
+	private final RecordSetSchemaResolver schemaResolver;
+
+	public static final CsvTableDescriptor DEFAULT_RECORD_SET_CSV_DESCRIPTOR = new CsvTableDescriptor().setIsFirstLineHeader(true);
 
 	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager,
 									  EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider,
 									  JsonSchemaManager jsonSchemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
-									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider) {
+									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider,
+									  RecordSetSchemaResolver schemaResolver) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -71,6 +67,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
+		this.schemaResolver = schemaResolver;
 	}
 
 	@Override
@@ -92,7 +89,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 
 		GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
-				.setSourceId(recordSet.getId()).setSchemaId(validationSchemaId.orElse(null))
+				.setSourceId(recordSet.getId()).setSourceVersion(recordSet.getVersionNumber())
+				.setSchemaId(validationSchemaId.orElse(null))
 				.setOwner(request.getOwnerPrincipalId()).setAuthorizationMode(request.getAuthorizationMode()));
 
 		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
@@ -103,43 +101,28 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		CsvTableDescriptor csvDescriptor = recordSet.getCsvDescriptor();
 
 		if (csvDescriptor == null) {
-			csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+			csvDescriptor = DEFAULT_RECORD_SET_CSV_DESCRIPTOR;
 		}
 
 		// In order to emit patches using the PatchRowHandler we need a starting schema,
-		// this is needed so that
-		// the values in a row are emitted with some sensible data types. Additionally,
-		// we split into multiple
-		// patches according to the max size of each row.
+		// this is needed so that the values in a row are emitted with some sensible data
+		// types. Additionally, we split into multiple patches according to the max size
+		// of each row.
 		//
-		// In order to determine the correct schema and size we first scan the CSV file
-		// reusing the UploadPreviewBuilder
-		// that allows to compute a suggested schema from a CSV file.
-		List<ColumnModel> schema = getSchemaFromCsv(fileHandle, csvDescriptor);
-
-		final Optional<JsonSchema> validationSchema = validationSchemaId.map(jsonSchemaManager::getValidationSchema);
-
-		// See: PLFM-9558
-		validationSchema.ifPresent(vs -> CsvSchemaReconciler.reconcile(schema, vs));
-
-		final List<String> columnsRequiredByJsonSchema = validationSchema
-				.map(JsonSchema::getRequired)
-				.orElse(new ArrayList<>());
-
-		final Map<String, Integer> columnNameToIndex = new HashMap<>();
-		for (int i = 0; i < schema.size(); i++) {
-			columnNameToIndex.put(schema.get(i).getName(), i);
-		}
-		final List<Integer> columnsRequiredByJsonSchemaIndices = columnsRequiredByJsonSchema.stream()
-				.map(columnNameToIndex::get)
-				.filter(Objects::nonNull)
-				.collect(Collectors.toList());
-
-
+		// The schema is inferred from the CSV file (full scan so the row size is
+		// accurate) and reconciled with the bound JSON Schema (PLFM-9558); we also
+		// compute the indices of the columns the JSON Schema marks as required. This is
+		// the same inference the RecordSetMetadataProvider binds at create/update time.
+		RecordSetSchemaResolver.ReconciledSchema reconciled = schemaResolver
+				.getReconciledSchema(recordSet.getId(), fileHandle, csvDescriptor, true);
+		final List<ColumnModel> schema = reconciled.getSchema();
+		final List<Integer> columnsRequiredByJsonSchemaIndices = reconciled.getRequiredColumnIndices();
 
 		if (schema == null || schema.isEmpty()) {
 			throw new IllegalArgumentException("Cannot determine the schema from the CSV file, at least one column header must be present.");
 		}
+
+		final Optional<JsonSchema> validationSchema = validationSchemaId.map(jsonSchemaManager::getValidationSchema);
 
 		// We can now read the CSV file again and reuse the PatchRowHandler.
 		CSVReader csvReader = csvProvider.getCsvReader(fileHandle, csvDescriptor);
@@ -165,21 +148,6 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		// on the source entity (and its benefactor), so no explicit benefactor IDs are needed.
 		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica)
 				.setBenefactorIds(Collections.emptySet());
-	}
-
-	List<ColumnModel> getSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {
-		try (CSVReader csvReader = csvProvider.getCsvReader(fileHandle, csvDescriptor)) {
-
-			// Reuse the CSV preview builder to extract the schema
-			UploadToTablePreviewRequest request = new UploadToTablePreviewRequest().setCsvTableDescriptor(csvDescriptor)
-					// We do a full scan so that the row size is accurate
-					.setDoFullFileScan(true);
-
-			return new UploadPreviewBuilder(csvReader, request).buildResult().getSuggestedColumns();
-
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
 	}
 
 	SnapshotRowHandler getSnapshotRowHandler(SnapshotStore snapshotStore, GridSession session, GridReplica replica,

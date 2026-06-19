@@ -370,6 +370,21 @@ public class GridManagerImpl implements GridManager {
 		evictUnauthorizedConnections(sessionId);
 	}
 
+	@WriteTransaction
+	@Override
+	public void updateSourceEntityVersion(String sessionId, Long sourceVersion) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(sourceVersion, "sourceVersion");
+		gridDao.updateSourceEntityVersion(sessionId, sourceVersion);
+	}
+
+	@WriteTransaction
+	@Override
+	public void updateSessionSchemaId(String sessionId, String schemaId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		gridDao.updateSessionSchemaId(sessionId, schemaId);
+	}
+
 	@Override
 	public void evictUnauthorizedConnections(String sessionId) {
 		ValidateArgument.required(sessionId, "sessionId");

@@ -1405,6 +1405,7 @@ public class SqlConstants {
 	public static final String COL_GRID_SESSION_REP_ID_CLIENT =		"REP_ID_CLIENT";
 	public static final String COL_GRID_SESSION_REP_ID_SERVICE =	"REP_ID_SERVICE";
 	public static final String COL_GRID_SESSION_SOURCE_ID =			"SOURCE_ID";
+	public static final String COL_GRID_SESSION_SOURCE_VERSION =	"SOURCE_VERSION";
 	public static final String COL_GRID_SESSION_SCHEMA_ID =			"SCHEMA_ID";
 	public static final String COL_GRID_SESSION_OWNER =			"OWNER_ID";
 	public static final String COL_GRID_SESSION_AUTH_MODE =		"AUTHORIZATION_MODE";

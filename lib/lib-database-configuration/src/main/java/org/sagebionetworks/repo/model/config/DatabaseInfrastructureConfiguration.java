@@ -86,7 +86,7 @@ public class DatabaseInfrastructureConfiguration {
 	}
 
 	@Primary
-	@Bean
+	@Bean (name="jdbcTemplate")
 	public JdbcTemplate jdbcTemplate(@Qualifier("dataSourcePool") DataSource dataSourcePool,
 			org.sagebionetworks.StackConfiguration stackConfiguration) {
 		JdbcTemplate template = new JdbcTemplate(dataSourcePool);

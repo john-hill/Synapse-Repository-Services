@@ -187,7 +187,7 @@ public class StackConfigurationImplUnitTest {
 		// Call under test
 		config.getCloudFrontKeyPairId();
 
-		verify(mockProperties).getProperty("org.sagebionetworks.cloudfront.keypair");
+		verify(stackEncrypter).getDecryptedProperty("org.sagebionetworks.cloudfront.private.key.id");
 
 	}
 

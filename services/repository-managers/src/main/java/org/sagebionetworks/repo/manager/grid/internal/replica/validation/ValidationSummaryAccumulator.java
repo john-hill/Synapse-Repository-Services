@@ -13,15 +13,6 @@ import au.com.bytecode.opencsv.CSVWriter;
  * Accumulates the per-row validation outcome of a grid export/push into both the
  * user-visible validation-details CSV and the aggregate
  * {@link ValidationSummaryStatistics}.
- *
- * <p>
- * This is the single source of truth for the validation-summary accounting shared
- * by the two grid→RecordSet write paths: the asynchronous export
- * ({@code GridRecordSetExporterImpl.ValidationSummaryBuilder}) and the synchronous
- * push ({@code PushRowSink}). Both feed each surviving row's
- * {@link ValidationResults} (or {@code null} when there is no bound schema) to
- * {@link #record(ValidationResults)} so the details CSV layout and the summary
- * counters cannot drift between the two paths.
  */
 public class ValidationSummaryAccumulator {
 

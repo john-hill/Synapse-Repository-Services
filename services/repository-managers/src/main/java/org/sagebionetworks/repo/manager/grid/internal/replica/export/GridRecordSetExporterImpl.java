@@ -37,8 +37,6 @@ import au.com.bytecode.opencsv.CSVWriter;
 @Service
 public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 
-	private static final int VALIDATION_BATCH_SIZE = 1000;
-
 	private final GridManager gridManager;
 	private final GridReplicaSupport gridReplicaSupport;
 	private final EntityService entityService;

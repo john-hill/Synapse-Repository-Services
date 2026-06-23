@@ -10,12 +10,8 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.springframework.stereotype.Service;
 
 /**
- * Shared, schema-driven row validator used by both the asynchronous grid
- * validation worker ({@link GridReplicaValidationManagerImpl}) and the
- * synchronous RecordSet push build (the push CSV/validation sink). Centralizing
- * the {@code resolve schema -> validateBatch -> cleanup} pipeline guarantees the
- * pushed RecordSet version's validation summary is computed with exactly the
- * same logic the worker uses to write the live grid's validation state.
+ * Shared, schema-driven row validator used in all places a JSON Schema is used to validate
+ * one or more grid rows.
  */
 @Service
 public class GridRowValidator {

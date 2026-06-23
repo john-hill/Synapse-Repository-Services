@@ -58,6 +58,9 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
+import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.description.BenefactorDescription;
+import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 
@@ -228,7 +231,8 @@ public class SearchIndexQueryManagerImplTest {
 				eq("search-index-1"),
 				bodyCaptor.capture(),
 				columnsCaptor.capture(),
-				eq(expectedParts));
+				eq(expectedParts),
+				eq(Collections.emptyList()));
 		assertEquals(expectedColumnNames, columnsCaptor.getValue().stream()
 				.map(ColumnModel::getName).collect(Collectors.toList()));
 		return bodyCaptor.getValue();
@@ -246,7 +250,8 @@ public class SearchIndexQueryManagerImplTest {
 				eq("search-index-1"),
 				bodyCaptor.capture(),
 				columnsCaptor.capture(),
-				eq(expectedParts));
+				eq(expectedParts),
+				eq(Collections.emptyList()));
 		assertEquals(expectedColumnNames, columnsCaptor.getValue().stream()
 				.map(ColumnModel::getName).collect(Collectors.toList()));
 		return bodyCaptor.getValue();
@@ -266,7 +271,8 @@ public class SearchIndexQueryManagerImplTest {
 				argThat(b -> b != null && b.getQuery() != null),
 				argThat(cols -> cols != null && expectedColumnNames.equals(
 						cols.stream().map(ColumnModel::getName).collect(Collectors.toList()))),
-				eq(expectedOptions)
+				eq(expectedOptions),
+				eq(Collections.emptyList())
 		)).thenReturn(returnValue);
 	}
 
@@ -278,7 +284,8 @@ public class SearchIndexQueryManagerImplTest {
 				argThat(b -> b != null && b.getQuery() != null),
 				argThat(cols -> cols != null && expectedColumnNames.equals(
 						cols.stream().map(ColumnModel::getName).collect(Collectors.toList()))),
-				eq(expectedOptions)
+				eq(expectedOptions),
+				eq(Collections.emptyList())
 		)).thenReturn(returnValue);
 	}
 
@@ -1008,7 +1015,7 @@ public class SearchIndexQueryManagerImplTest {
 		ArgumentCaptor<List<ColumnModel>> columnsCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
 		when(openSearchManager.search(eq("search-index-1"),
 				argThat(b -> b != null && b.getQuery() != null), columnsCaptor.capture(),
-				eq(EnumSet.of(SearchQueryPart.HITS))))
+				eq(EnumSet.of(SearchQueryPart.HITS)), eq(Collections.emptyList())))
 				.thenReturn(new SearchQueryResults().setHits(Collections.emptyList()));
 
 		// call under test
@@ -1145,5 +1152,62 @@ public class SearchIndexQueryManagerImplTest {
 		}
 		assertEquals(EnumSet.allOf(SearchQueryPart.class), guard,
 				"every SearchQueryPart must be exercised across the powerset");
+	}
+
+	// ===================== buildBenefactorAccessFilters =====================
+
+	@Test
+	public void testBuildBenefactorAccessFiltersWithNoBenefactors() {
+		// A table source has no benefactors → no filter → reproduces public-data behavior.
+		IndexDescription source = new TableIndexDescription(SOURCE_ID);
+
+		// call under test
+		List<org.opensearch.client.opensearch._types.query_dsl.Query> filters =
+				manager.buildBenefactorAccessFilters(user, source);
+
+		assertEquals(Collections.emptyList(), filters);
+		verifyNoMoreInteractions(connectionFactory);
+	}
+
+	@Test
+	public void testBuildBenefactorAccessFiltersWithMultipleDependencies() {
+		// A materialized view with two benefactor-bearing dependencies produces one terms
+		// filter per dependency, in getBenefactors() order, each on field _benefactor_i and
+		// always including the -1 sentinel.
+		IndexDescription source = org.mockito.Mockito.mock(IndexDescription.class);
+		when(source.getBenefactors()).thenReturn(Arrays.asList(
+				new BenefactorDescription("ROW_BENEFACTOR_A0", org.sagebionetworks.repo.model.ObjectType.ENTITY),
+				new BenefactorDescription("ROW_BENEFACTOR_A1", org.sagebionetworks.repo.model.ObjectType.ENTITY)));
+		when(source.getIdAndVersion()).thenReturn(SOURCE_ID);
+
+		TableIndexDAO indexDao = org.mockito.Mockito.mock(TableIndexDAO.class);
+		when(connectionFactory.getConnection(SOURCE_ID)).thenReturn(indexDao);
+		when(indexDao.getDistinctLongValues(SOURCE_ID, "ROW_BENEFACTOR_A0"))
+				.thenReturn(new java.util.HashSet<>(Arrays.asList(10L, 11L)));
+		when(indexDao.getDistinctLongValues(SOURCE_ID, "ROW_BENEFACTOR_A1"))
+				.thenReturn(new java.util.HashSet<>(Arrays.asList(20L)));
+		// User can read benefactor 10 (dep 0) and 20 (dep 1) but not 11.
+		when(tableManagerSupport.getAccessibleBenefactors(user, org.sagebionetworks.repo.model.ObjectType.ENTITY,
+				new java.util.HashSet<>(Arrays.asList(10L, 11L)), org.sagebionetworks.repo.model.ACCESS_TYPE.READ))
+				.thenReturn(new java.util.HashSet<>(Arrays.asList(10L)));
+		when(tableManagerSupport.getAccessibleBenefactors(user, org.sagebionetworks.repo.model.ObjectType.ENTITY,
+				new java.util.HashSet<>(Arrays.asList(20L)), org.sagebionetworks.repo.model.ACCESS_TYPE.READ))
+				.thenReturn(new java.util.HashSet<>(Arrays.asList(20L)));
+
+		// call under test
+		List<org.opensearch.client.opensearch._types.query_dsl.Query> filters =
+				manager.buildBenefactorAccessFilters(user, source);
+
+		assertEquals(2, filters.size());
+		// Dependency 0 → _benefactor_0 terms {10, -1}
+		assertEquals("_benefactor_0", filters.get(0).terms().field());
+		assertEquals(new java.util.HashSet<>(Arrays.asList(10L, -1L)),
+				filters.get(0).terms().terms().value().stream()
+						.map(v -> v.longValue()).collect(Collectors.toSet()));
+		// Dependency 1 → _benefactor_1 terms {20, -1}
+		assertEquals("_benefactor_1", filters.get(1).terms().field());
+		assertEquals(new java.util.HashSet<>(Arrays.asList(20L, -1L)),
+				filters.get(1).terms().terms().value().stream()
+						.map(v -> v.longValue()).collect(Collectors.toSet()));
 	}
 }

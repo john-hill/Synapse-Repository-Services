@@ -2712,4 +2712,43 @@ public class QueryTranslatorTest {
 		assertEquals(expectedParams.toString(), query.getParameters().toString());
 	}
 
+	@Test
+	public void testQueryWithoutIncludeRowBenefactorsDefaultsOff() throws ParseException {
+		when(mockSchemaProvider.getTableSchema(any())).thenReturn(tableSchema);
+		setupGetColumns(columnNameToModelMap.get("foo"));
+
+		QueryTranslator translator = QueryTranslator.builder("select foo from syn123", mockSchemaProvider, userId)
+				.indexDescription(new TableIndexDescription(idAndVersion)).build();
+		// Off by default: no benefactor columns appended, output unchanged.
+		assertEquals(0, translator.getRowBenefactorColumnCount());
+		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION FROM T123", translator.getOutputSQL());
+	}
+
+	@Test
+	public void testQueryWithIncludeRowBenefactorsForMaterializedView() throws ParseException {
+		when(mockSchemaProvider.getTableSchema(any())).thenReturn(tableSchema);
+		setupGetColumns(columnNameToModelMap.get("foo"));
+
+		// The materialized view syn123 joins two views, so it exposes two benefactor
+		// columns on its index table.
+		setupLookup(new ViewIndexDescription(IdAndVersion.parse("syn999"),
+				org.sagebionetworks.repo.model.dao.table.TableType.entityview, 0L),
+				new ViewIndexDescription(IdAndVersion.parse("syn888"),
+						org.sagebionetworks.repo.model.dao.table.TableType.entityview, 0L));
+		MaterializedViewIndexDescription mvDescription = new MaterializedViewIndexDescription(idAndVersion,
+				"select * from syn999 a join syn888 b on (a.id=b.id)", mockIndexDescriptionLookup);
+
+		QueryTranslator translator = QueryTranslator.builder("select foo from syn123", mockSchemaProvider, userId)
+				.indexDescription(mvDescription).includeRowBenefactors(true).build();
+
+		// Two benefactor columns are appended positionally.
+		assertEquals(2, translator.getRowBenefactorColumnCount());
+		// getSelectColumns mirrors the benefactor columns so the positional read is sized.
+		assertEquals(1 + 2, translator.getSelectColumns().size());
+		// The benefactor columns appear in the output SQL ahead of ROW_ID/ROW_VERSION.
+		assertEquals(
+				"SELECT _C111_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T123",
+				translator.getOutputSQL());
+	}
+
 }

@@ -55,6 +55,23 @@ public interface IndexDescription extends Comparable<IndexDescription> {
 	List<ColumnToAdd> getColumnNamesToAddToSelect(SqlContext context, boolean includeEtag, boolean isAggregate);
 
 	/**
+	 * The additional select columns the search index build must read by position so
+	 * each document can carry its per-dependency benefactor values. Unlike
+	 * {@link #getColumnNamesToAddToSelect}, whose columns are read by name into
+	 * dedicated {@code Row} fields, these are appended after the defining-SQL columns
+	 * and read positionally from {@code Row.getValues()}.
+	 *
+	 * <p>The returned order is load-bearing: one column per {@link #getBenefactors()}
+	 * (same order). Default is empty (tables and views need nothing here; a view's
+	 * single benefactor is already read by name into {@code Row.benefactorId}).
+	 *
+	 * @return
+	 */
+	default List<ColumnToAdd> getRowBenefactorColumnsToAddToSelect() {
+		return java.util.Collections.emptyList();
+	}
+
+	/**
 	 * Get the dependencies of this Index.
 	 * 
 	 * @return

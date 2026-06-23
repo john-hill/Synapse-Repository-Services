@@ -31,11 +31,12 @@ public class QueryContext {
 	private final Long offset;
 	private final Long limit;
 	private final List<SortItem> sort;
+	private final Boolean includeRowBenefactors;
 
 	public QueryContext(String startingSql, SchemaProvider schemaProvider, IndexDescription indexDescription,
 			Long userId, Long maxBytesPerPage, Long maxRowsPerCall, List<QueryFilter> additionalFilters,
 			List<FacetColumnRequest> selectedFacets, Long selectFileColumn, Boolean includeEntityEtag, Long offset,
-			Long limit, List<SortItem> sort) {
+			Long limit, List<SortItem> sort, Boolean includeRowBenefactors) {
 
 		ValidateArgument.required(startingSql, "startingSql");
 		ValidateArgument.required(schemaProvider, "schemaProvider");
@@ -54,6 +55,7 @@ public class QueryContext {
 		this.offset = offset;
 		this.limit = limit;
 		this.sort = sort;
+		this.includeRowBenefactors = includeRowBenefactors;
 	}
 
 	/**
@@ -144,6 +146,14 @@ public class QueryContext {
 		return sort;
 	}
 
+	/**
+	 * @return When true, the search index build appends the index's per-dependency
+	 *         benefactor columns (and MV row hash code) to the select. Off by default.
+	 */
+	public Boolean getIncludeRowBenefactors() {
+		return includeRowBenefactors;
+	}
+
 	public static Builder builder() {
 		return new Builder();
 	}
@@ -163,6 +173,7 @@ public class QueryContext {
 		private Long offset;
 		private Long limit;
 		private List<SortItem> sort;
+		private Boolean includeRowBenefactors;
 
 		/**
 		 * @param startingSql the startingSql to set
@@ -269,10 +280,20 @@ public class QueryContext {
 			return this;
 		}
 
+		/**
+		 * @param includeRowBenefactors When true, the search index build appends the
+		 *                              index's per-dependency benefactor columns (and MV
+		 *                              row hash code) to the select. Off by default.
+		 */
+		public Builder setIncludeRowBenefactors(Boolean includeRowBenefactors) {
+			this.includeRowBenefactors = includeRowBenefactors;
+			return this;
+		}
+
 		public QueryContext build() {
 			return new QueryContext(startingSql, schemaProvider, indexDescription, userId, maxBytesPerPage,
 					maxRowsPerCall, additionalFilters, selectedFacets, selectFileColumn, includeEntityEtag, offset,
-					limit, sort);
+					limit, sort, includeRowBenefactors);
 		}
 
 	}

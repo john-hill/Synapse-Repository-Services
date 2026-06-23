@@ -26,7 +26,6 @@ import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
-import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.search.FieldCollapse;
@@ -245,7 +244,14 @@ public final class SearchOpaqueJsonUtil {
 	static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
 			SearchRequest.Builder req, Set<SearchQueryPart> options,
 			int defaultSize, int maxSize) {
-		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, maxSize, false);
+		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, maxSize, false,
+				Collections.emptyList());
+	}
+
+	static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
+			SearchRequest.Builder req, Set<SearchQueryPart> options,
+			int defaultSize, int maxSize, List<Query> accessFilters) {
+		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, maxSize, false, accessFilters);
 	}
 
 	/**
@@ -256,21 +262,35 @@ public final class SearchOpaqueJsonUtil {
 	static int applyAutocompleteBodyToRequest(Object opaque,
 			SearchFieldRewriter.RoutingContext ctx, SearchRequest.Builder req,
 			Set<SearchQueryPart> options, int defaultSize) {
-		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, defaultSize, true);
+		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, defaultSize, true,
+				Collections.emptyList());
+	}
+
+	static int applyAutocompleteBodyToRequest(Object opaque,
+			SearchFieldRewriter.RoutingContext ctx, SearchRequest.Builder req,
+			Set<SearchQueryPart> options, int defaultSize, List<Query> accessFilters) {
+		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, defaultSize, true, accessFilters);
 	}
 
 	private static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
 			SearchRequest.Builder req, Set<SearchQueryPart> options,
-			int defaultSize, int maxSize, boolean autocomplete) {
+			int defaultSize, int maxSize, boolean autocomplete, List<Query> accessFilters) {
 		// The body is the generated SearchQuery / SearchAutocompleteBody POJO, so any key outside the
 		// schema was already rejected with HTTP 400 at the request boundary, and each surface with an
 		// opaque slot is forbidden-key scanned individually as it is parsed below.
 		JsonNode body = parse(opaque);
 
 		Query query = parseRequiredQuery(body, ctx, autocomplete);
-		// Wrap the caller's allowlist-validated query in a server-controlled bool.must so
-		// future server-side filter clauses can layer on without re-architecting.
-		req.query(q -> q.bool(new BoolQuery.Builder().must(query).build()));
+		// Wrap the caller's allowlist-validated query in a server-controlled bool: the caller's
+		// query goes in must, and every server-side access-control filter goes in filter (AND
+		// semantics) so a document must satisfy the query and every benefactor filter.
+		req.query(q -> q.bool(b -> {
+			b.must(query);
+			if (accessFilters != null && !accessFilters.isEmpty()) {
+				b.filter(accessFilters);
+			}
+			return b;
+		}));
 
 		if (!autocomplete) {
 			JsonNode postFilter = body.get("post_filter");

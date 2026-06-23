@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.BooleanUtils;
@@ -34,6 +35,13 @@ import org.sagebionetworks.util.ValidateArgument;
  * will be executed against the actual index.
  */
 public class QueryTranslator implements TranslatedQuery {
+
+	/**
+	 * Name prefix for the synthetic select-column headers that mirror the appended
+	 * row-benefactor (and MV row-hash) columns. These columns are read positionally
+	 * from the trailing values of each Row by the search index build.
+	 */
+	static final String ROW_BENEFACTOR_SELECT_PREFIX = "_ROW_BENEFACTOR_SELECT_";
 
 	/**
 	 * The input SQL is parsed into this object model.
@@ -81,6 +89,13 @@ public class QueryTranslator implements TranslatedQuery {
 	private final boolean includeBenefactorId;
 
 	/**
+	 * Should the query append the index's per-dependency benefactor columns (and, for
+	 * a materialized view, the row hash code) to the select so the search index build
+	 * can read them positionally? Off by default; only the SearchIndex build sets it.
+	 */
+	private final boolean includeRowBenefactors;
+
+	/**
 	 * Aggregated results are queries that included one or more aggregation
 	 * functions in the select clause. These query results will not match columns in
 	 * the table. In addition rowIDs and rowVersionNumbers will be null when
@@ -116,7 +131,8 @@ public class QueryTranslator implements TranslatedQuery {
 	 * @throws ParseException
 	 */
 	QueryTranslator(String startingSql, SchemaProvider schemaProvider, Long maxBytesPerPage,
-			Boolean includeEntityEtag, Long userId, IndexDescription indexDescription, SqlContext sqlContextIn, Long changeNumber) {
+			Boolean includeEntityEtag, Long userId, IndexDescription indexDescription, SqlContext sqlContextIn, Long changeNumber,
+			Boolean includeRowBenefactors) {
 		ValidateArgument.required(schemaProvider, "schemaProvider");
 		ValidateArgument.required(indexDescription, "indexDescription");
 		this.tableHash = indexDescription.getTableHash();
@@ -185,10 +201,25 @@ public class QueryTranslator implements TranslatedQuery {
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
 			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
+			// The search index build appends the index's benefactor columns (and the MV row
+			// hash code) to the select so they can be read positionally. Never for aggregates.
+			this.includeRowBenefactors = BooleanUtils.isTrue(includeRowBenefactors) && !this.isAggregatedResult;
 			// Build headers that describe how the client should read the results of this
 			// query.
 			this.selectColumns = SQLTranslatorUtils.getSelectColumns(firstPart.getQuerySpecification().getSelectList(), firstPart.getMapper(),
 					this.isAggregatedResult);
+			// The search index build appends the index's benefactor columns (and the MV row
+			// hash code) to the select. Unlike ROW_ID/ROW_VERSION (read by name), these are
+			// read positionally from the trailing values of each Row, so they are mirrored
+			// into selectColumns — which sizes the positional read — and added to the select
+			// list ahead of the by-name metadata columns below.
+			List<ColumnToAdd> rowBenefactorColumns = this.includeRowBenefactors
+					? indexDescription.getRowBenefactorColumnsToAddToSelect()
+					: java.util.Collections.emptyList();
+			for (int i = 0; i < rowBenefactorColumns.size(); i++) {
+				this.selectColumns.add(new SelectColumn().setName(ROW_BENEFACTOR_SELECT_PREFIX + i)
+						.setColumnType(org.sagebionetworks.repo.model.table.ColumnType.INTEGER));
+			}
 			// Maximum row size is a function of both the select clause and schema.
 			this.maxRowSizeBytes = TableModelUtils.calculateMaxRowSize(selectColumns, TableModelUtils.createColumnNameToModelMap(unionOfSchemas));
 
@@ -203,11 +234,15 @@ public class QueryTranslator implements TranslatedQuery {
 
 			List<ColumnToAdd> columnsToAddToSelect = indexDescription
 					.getColumnNamesToAddToSelect(sqlContext, this.includeEntityEtag, this.isAggregatedResult);
-			
-			
+
 			parts.forEach(p -> {
+				Set<IdAndVersion> partTableIds = new HashSet<>(p.getMapper().getTableIds());
+				// Positional benefactor columns first (read into Row.values), then the
+				// by-name ROW_ID/ROW_VERSION/etc. metadata columns.
 				SQLTranslatorUtils.addMetadataColumnsToSelect(p.getQuerySpecification().getSelectList(),
-						new HashSet<>(p.getMapper().getTableIds()), columnsToAddToSelect);
+						partTableIds, rowBenefactorColumns);
+				SQLTranslatorUtils.addMetadataColumnsToSelect(p.getQuerySpecification().getSelectList(),
+						partTableIds, columnsToAddToSelect);
 
 				// translate each part
 				SQLTranslatorUtils.translateModel(p.getQuerySpecification(), parameters, userId, p.getMapper());
@@ -271,6 +306,17 @@ public class QueryTranslator implements TranslatedQuery {
 	@Override
 	public boolean getIncludeBenefactorId() {
 		return this.includeBenefactorId;
+	}
+
+	/**
+	 * The number of trailing positional values in each Row that are appended
+	 * row-benefactor / MV-row-hash columns (i.e. not part of the defining-SQL
+	 * select). Zero unless this query was built with {@code includeRowBenefactors}.
+	 *
+	 * @return
+	 */
+	public int getRowBenefactorColumnCount() {
+		return this.includeRowBenefactors ? indexDescription.getRowBenefactorColumnsToAddToSelect().size() : 0;
 	}
 
 	/**
@@ -455,8 +501,9 @@ public class QueryTranslator implements TranslatedQuery {
 		private IndexDescription indexDescription;
 		private SqlContext sqlContext;
 		private Long changeNumber;
-		
-		
+		private Boolean includeRowBenefactors;
+
+
 		public Builder sql(String sql) {
 			this.sql = sql;
 			return this;
@@ -495,9 +542,19 @@ public class QueryTranslator implements TranslatedQuery {
 			return this;
 		}
 
+		/**
+		 * When true, append the index's per-dependency benefactor columns (and, for a
+		 * materialized view, the row hash code) to the select so the search index build
+		 * can read them positionally. Off by default.
+		 */
+		public Builder includeRowBenefactors(Boolean includeRowBenefactors) {
+			this.includeRowBenefactors = includeRowBenefactors;
+			return this;
+		}
+
 		public QueryTranslator build() {
 			return new QueryTranslator(sql, schemaProvider, maxBytesPerPage, includeEntityEtag, userId, indexDescription,
-					sqlContext, changeNumber);
+					sqlContext, changeNumber, includeRowBenefactors);
 		}
 
 	}

@@ -285,13 +285,17 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// IllegalArgumentException via SearchOpaqueJsonUtil.
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
+			IndexDescription sourceIndexDescription = tableManagerSupport.getIndexDescription(
+					TableModelUtils.getSourceTableIds(definingSQL).get(0));
+			int benefactorCount = sourceIndexDescription.getBenefactors().size();
+
 			String indexName = getIndexName(entityId);
 			if (deleteExistingFirst) {
 				openSearchManager.deleteIndex(indexName);
 			}
 			openSearchManager.createIndex(indexName, selectedColumns,
 					defaultAnalyzer,
-					overrides, resolvedAnalyzers);
+					overrides, resolvedAnalyzers, benefactorCount);
 
 			// AOSS acknowledges createIndex and returns an already-queryable index before its
 			// shards are actually ready to accept writes. Block until a real sentinel write
@@ -300,7 +304,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
 					(QueryTranslations translations) -> new SearchIndexRowHandler(
-							indexName, selectColumns, openSearchManager),
+							indexName, selectColumns, openSearchManager, sourceIndexDescription),
+					true,
 					ACCESS_TYPE.READ);
 
 			statusDao.createOrUpdate(new SearchIndexStatus()
@@ -561,13 +566,22 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		private final String indexName;
 		private final List<SelectColumn> columns;
 		private final OpenSearchManager client;
+		private final int benefactorCount;
+		private final int positionalBenefactorCount;
 		private final List<BulkOperation> batch = new ArrayList<>();
 		private long totalRows = 0;
 
-		SearchIndexRowHandler(String indexName, List<SelectColumn> columns, OpenSearchManager client) {
+		SearchIndexRowHandler(String indexName, List<SelectColumn> columns, OpenSearchManager client,
+				IndexDescription indexDescription) {
 			this.indexName = indexName;
 			this.columns = columns;
 			this.client = client;
+			this.benefactorCount = indexDescription.getBenefactors().size();
+			// The benefactor columns QueryTranslator appended to the build select (after the
+			// defining-SQL columns) and that this handler must read positionally from
+			// Row.getValues(). A materialized view returns one per dependency; a view/table
+			// returns none (a view's single benefactor is read by name from Row.benefactorId).
+			this.positionalBenefactorCount = indexDescription.getRowBenefactorColumnsToAddToSelect().size();
 		}
 
 		@Override
@@ -580,12 +594,29 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			doc.put("_row_id", row.getRowId());
 			doc.put("_row_version", row.getVersionNumber());
 			List<String> values = row.getValues();
-			for (int i = 0; i < columns.size() && i < values.size(); i++) {
+			// The trailing positional benefactor values are not document columns, so the
+			// document columns are only the leading values.
+			int documentColumnCount = values.size() - positionalBenefactorCount;
+			for (int i = 0; i < columns.size() && i < documentColumnCount; i++) {
 				String value = values.get(i);
 				if (value != null) {
 					SelectColumn column = columns.get(i);
 					doc.put(column.getId(), convertForDocument(value, column.getColumnType()));
 				}
+			}
+			// Write one _benefactor_N field per source dependency, in getBenefactors() order
+			// (== the order produced by getRowBenefactorColumnsToAddToSelect and the order the
+			// query-time ACL filter expects).
+			if (positionalBenefactorCount > 0) {
+				for (int i = 0; i < positionalBenefactorCount; i++) {
+					String value = values.get(documentColumnCount + i);
+					if (value != null) {
+						doc.put("_benefactor_" + i, Long.valueOf(value));
+					}
+				}
+			} else if (benefactorCount > 0 && row.getBenefactorId() != null) {
+				// A view exposes its single benefactor through Row.benefactorId.
+				doc.put("_benefactor_0", row.getBenefactorId());
 			}
 			String docId = String.valueOf(row.getRowId());
 			batch.add(BulkOperation.of(op -> op

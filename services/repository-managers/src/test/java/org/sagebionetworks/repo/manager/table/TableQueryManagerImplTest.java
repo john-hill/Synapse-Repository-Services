@@ -2680,7 +2680,7 @@ public class TableQueryManagerImplTest {
 		queryOptions = new QueryOptions().withRunQuery(true).withReturnSelectColumns(true).withRunCount(false)
 				.withReturnFacets(false);
 		Query request = new Query().setSql("select * from " + idAndVersion.toString());
-		doReturn(mockQueryTranslations).when(manager).queryPreflight(user, request, null, queryOptions);
+		doReturn(mockQueryTranslations).when(manager).queryPreflight(user, request, null, queryOptions, false);
 
 		when(mockRowHandlerProvider.getHandler(mockQueryTranslations)).thenReturn(mockRowHandler);
 		StreamingQueryExecutor executor = new StreamingQueryExecutor(mockRowHandler);
@@ -2703,7 +2703,7 @@ public class TableQueryManagerImplTest {
 				.withReturnFacets(false);
 		Query request = new Query().setSql("select * from " + idAndVersion.toString());
 		doThrow(new EmptyResultException("message", "syn123")).when(manager).queryPreflight(user, request, null,
-				queryOptions);
+				queryOptions, false);
 
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test

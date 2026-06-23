@@ -178,27 +178,20 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers) {
-		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
+		return createIndex(indexName, columns, defaultAnalyzer, columnAnalyzerOverrides, resolvedAnalyzers, 0);
+	}
 
-		Map<String, String> nameToId = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
+	@Override
+	public Optional<String> createIndex(String indexName, List<ColumnModel> columns,
+			String defaultAnalyzer,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int benefactorCount) {
+		CreateIndexRequest request = buildCreateIndexRequest(indexName, columns, defaultAnalyzer,
+				columnAnalyzerOverrides, resolvedAnalyzers, benefactorCount);
 
+		String appliedConfigJson = request.toJsonString();
 		try {
-			CreateIndexRequest request = CreateIndexRequest.of(req -> req
-					.index(indexName)
-					.settings(s -> s.analysis(a -> {
-						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-						return a;
-					}))
-					.mappings(m -> {
-						buildMappings(m, columns, defaultAnalyzer,
-								overrideMap, resolvedAnalyzers);
-						return m;
-					})
-			);
-
-			String appliedConfigJson = request.toJsonString();
 			CreateIndexResponse response = openSearchClient.indices().create(request);
 
 			if (!response.acknowledged()) {
@@ -215,6 +208,35 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to create search index: " + indexName, e);
 		}
+	}
+
+	/**
+	 * Assemble the {@link CreateIndexRequest} that {@link #createIndex} applies to OpenSearch. Pure:
+	 * no network call; {@link #createIndex} sends the returned request.
+	 */
+	private CreateIndexRequest buildCreateIndexRequest(String indexName, List<ColumnModel> columns,
+			String defaultAnalyzer,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int benefactorCount) {
+		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
+
+		Map<String, String> nameToId = columns.stream()
+				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
+		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
+
+		return CreateIndexRequest.of(req -> req
+				.index(indexName)
+				.settings(s -> s.analysis(a -> {
+					buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+					return a;
+				}))
+				.mappings(m -> {
+					buildMappings(m, columns, defaultAnalyzer,
+							overrideMap, resolvedAnalyzers, benefactorCount);
+					return m;
+				})
+		);
 	}
 
 	/**
@@ -399,10 +421,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private void buildMappings(org.opensearch.client.opensearch._types.mapping.TypeMapping.Builder m,
 			List<ColumnModel> columns, String defaultAnalyzerQname,
 			Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers) {
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int benefactorCount) {
 		Set<String> registeredAnalyzerQnames = resolvedAnalyzers.keySet();
 		m.properties(SYSTEM_FIELD_ROW_ID, p -> p.long_(l -> l));
 		m.properties(SYSTEM_FIELD_ROW_VERSION, p -> p.long_(l -> l));
+
+		// Row-level access-control fields: one per source dependency, non-analyzed long
+		// so the query-time benefactor terms filter can match them exactly.
+		for (int i = 0; i < benefactorCount; i++) {
+			m.properties("_benefactor_" + i, p -> p.long_(l -> l));
+		}
 
 		for (ColumnModel column : columns) {
 			String columnId = column.getId();
@@ -929,16 +958,30 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
-		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false);
+		return search(indexName, body, columns, options, Collections.emptyList());
+	}
+
+	@Override
+	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options,
+			List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters) {
+		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false, accessFilters);
 	}
 
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options) {
+		return autocomplete(indexName, body, columns, options, Collections.emptyList());
+	}
+
+	@Override
+	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options,
+			List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters) {
 		// Autocomplete does not accept a caller-supplied size; force the server cap as both
 		// default and ceiling.
 		return executeSearch(indexName, body, columns, options,
-				AUTOCOMPLETE_MAX_LIMIT, AUTOCOMPLETE_MAX_LIMIT, true);
+				AUTOCOMPLETE_MAX_LIMIT, AUTOCOMPLETE_MAX_LIMIT, true, accessFilters);
 	}
 
 	// ---- Private helpers ----
@@ -970,6 +1013,14 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@SuppressWarnings("rawtypes")
 	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete) {
+		return executeSearch(indexName, body, columns, options, defaultSize, maxSize, autocomplete,
+				Collections.emptyList());
+	}
+
+	@SuppressWarnings("rawtypes")
+	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete,
+			List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters) {
 		Map<String, String> idToName = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 		SearchFieldRewriter.RoutingContext ctx = routingContextFor(columns);
@@ -985,9 +1036,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				req.cancelAfterTimeInterval(t -> t.time("60s"));
 				effectiveFrom[0] = autocomplete
 						? SearchOpaqueJsonUtil.applyAutocompleteBodyToRequest(
-								body, ctx, req, options, defaultSize)
+								body, ctx, req, options, defaultSize, accessFilters)
 						: SearchOpaqueJsonUtil.applyBodyToRequest(
-								body, ctx, req, options, defaultSize, maxSize);
+								body, ctx, req, options, defaultSize, maxSize, accessFilters);
 				return req;
 			}, Map.class);
 			return convertResponse(response, indexName, effectiveFrom[0], idToName, options);

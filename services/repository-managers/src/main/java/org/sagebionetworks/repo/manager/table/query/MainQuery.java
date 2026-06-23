@@ -20,6 +20,7 @@ public class MainQuery {
 		sqlQuery = QueryTranslator.builder(combined.getCombinedSql(), expansion.getUserId())
 				.schemaProvider(expansion.getSchemaProvider()).indexDescription(expansion.getIndexDescription())
 				.maxBytesPerPage(expansion.getMaxBytesPerPage()).includeEntityEtag(expansion.getIncludeEntityEtag())
+				.includeRowBenefactors(expansion.getIncludeRowBenefactors())
 				.build();
 	}
 

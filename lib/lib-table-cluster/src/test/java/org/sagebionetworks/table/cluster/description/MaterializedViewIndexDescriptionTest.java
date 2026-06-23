@@ -103,7 +103,22 @@ public class MaterializedViewIndexDescriptionTest {
 		
 		verifyLookup(viewIndexDescription, viewIndexDescription2);
 	}
-	
+
+	@Test
+	public void testGetRowBenefactorColumnsToAddToSelectWithMultipleViews() {
+		setupLookup(viewIndexDescription, viewIndexDescription2);
+
+		definingSql = "select * from syn999 union select * from syn888";
+		IdAndVersion materializedViewId = IdAndVersion.parse("syn123");
+		MaterializedViewIndexDescription mid = new MaterializedViewIndexDescription(materializedViewId, definingSql, mockLookup);
+		// call under test
+		List<ColumnToAdd> columns = mid.getRowBenefactorColumnsToAddToSelect();
+		// One column per benefactor, in getBenefactors() order — no row hash code appended.
+		assertEquals(2, columns.size());
+		assertEquals("ROW_BENEFACTOR__A0", columns.get(0).getSql());
+		assertEquals("ROW_BENEFACTOR__A1", columns.get(1).getSql());
+	}
+
 	@Test
 	public void testGetCreateOrUpdateIndexSqlWithMultipleOfSameView() {
 		setupLookup(viewIndexDescription);

@@ -52,6 +52,20 @@ public interface OpenSearchManager {
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers);
 
 	/**
+	 * Variant of {@link #createIndex} that also maps {@code benefactorCount}
+	 * row-level access-control fields ({@code _benefactor_0 .. _benefactor_(N-1)}) as
+	 * non-analyzed {@code long} fields, used by the row-level search ACL filter.
+	 *
+	 * @param benefactorCount The number of per-dependency benefactor fields to map.
+	 *                        Zero reproduces {@link #createIndex} behavior exactly.
+	 */
+	Optional<String> createIndex(String indexName, List<ColumnModel> columns,
+			String defaultAnalyzer,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int benefactorCount);
+
+	/**
 	 * Delete an OpenSearch index. No-op if the index does not exist.
 	 * If AOSS rejects the delete because another delete is already in progress
 	 * for the same index, the underlying {@link org.opensearch.client.opensearch._types.OpenSearchException}
@@ -115,6 +129,18 @@ public interface OpenSearchManager {
 			Set<SearchQueryPart> options);
 
 	/**
+	 * Variant of {@link #search} that injects server-side access-control filters. Each
+	 * filter is AND-ed (as a {@code bool.filter} clause) with the caller's query, so a
+	 * document is returned only if it satisfies every filter. Used to enforce row-level
+	 * benefactor access control. An empty list reproduces {@link #search} behavior.
+	 *
+	 * @param accessFilters Pre-built OpenSearch filter queries (e.g. one benefactor
+	 *                      {@code terms} clause per source dependency). Must not be null.
+	 */
+	SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options, List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters);
+
+	/**
 	 * Execute an autocomplete query against the OpenSearch index. The body's allowlist is
 	 * narrowed to the autocomplete subset (prefix-flavored {@code query} plus optional
 	 * {@code _source}); page size is capped at the autocomplete server-side limit.
@@ -127,6 +153,14 @@ public interface OpenSearchManager {
 	 */
 	SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options);
+
+	/**
+	 * Variant of {@link #autocomplete} that injects server-side access-control filters
+	 * (AND-ed with the caller's query). An empty list reproduces {@link #autocomplete}
+	 * behavior. See {@link #search(String, SearchQuery, List, Set, List)}.
+	 */
+	SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
+			Set<SearchQueryPart> options, List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters);
 
 	/**
 	 * Validate a TextAnalyzer's settings by sending each declared analyzer entry's chain

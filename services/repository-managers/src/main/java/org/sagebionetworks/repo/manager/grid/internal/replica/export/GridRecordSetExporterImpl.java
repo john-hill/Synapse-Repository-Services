@@ -139,8 +139,20 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 	}
 
 
-	@Override
-	public RecordSet createRecordSetVersionFromArtifacts(UserInfo user, RecordSet recordSet, String newFileHandleId, ValidationSummaryStatistics validationSummary, String validationFileHandleId) {
+	/**
+	 * Create a new RecordSet version pointing at the provided data file handle and
+	 * validation-details file handle, and persist the validation summary. This is
+	 * the shared "create version" tail used by both {@link #exportGrid} and
+	 * {@link #pushFromArtifactBuilder}.
+	 *
+	 * @param user                       the calling user
+	 * @param recordSet                  the source RecordSet
+	 * @param newFileHandleId            the new data CSV file handle id
+	 * @param validationSummary          the validation summary to persist
+	 * @param validationFileHandleId	 the validation-details file handle id
+	 * @return the updated RecordSet
+	 */
+	RecordSet createRecordSetVersionFromArtifacts(UserInfo user, RecordSet recordSet, String newFileHandleId, ValidationSummaryStatistics validationSummary, String validationFileHandleId) {
 		recordSet.setDataFileHandleId(newFileHandleId);
 		// The file handle with the validation details is stored in the revision table
 		recordSet.setValidationFileHandleId(validationFileHandleId);

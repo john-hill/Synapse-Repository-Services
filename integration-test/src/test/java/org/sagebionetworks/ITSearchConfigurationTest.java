@@ -238,7 +238,7 @@ public class ITSearchConfigurationTest {
 
 	@Test
 	public void testBindAndUnbindWithBenefactorInheritedAcl() throws Exception {
-		// Reproduces PLFM: a non-admin Sage employee who has UPDATE on a project via that
+		// Reproduces PLFM-9754: a non-admin Sage employee who has UPDATE on a project via that
 		// project's local ACL must be able to bind/unbind a config on a child folder that has
 		// NO local ACL (it inherits the project's ACL). The authorization check must resolve the
 		// benefactor, not read only the folder's own (absent) ACL.

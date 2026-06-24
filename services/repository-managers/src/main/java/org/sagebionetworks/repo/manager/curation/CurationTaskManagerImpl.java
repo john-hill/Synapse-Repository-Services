@@ -127,6 +127,12 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
             authorizationManager.canAccess(userInfo, request.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ)
                     .checkAuthorizationOrElseThrow();
             accessibleProjectIds = List.of(KeyFactory.stringToKey(request.getProjectId()));
+        } else if (request.getTaskId() != null) {
+            CurationTask task = curationTaskDao.getCurationTask(request.getTaskId())
+                    .orElseThrow(() -> new NotFoundException("Task not found: " + request.getTaskId()));
+            authorizationManager.canAccess(userInfo, task.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ)
+                    .checkAuthorizationOrElseThrow();
+            accessibleProjectIds = List.of(KeyFactory.stringToKey(task.getProjectId()));
         } else {
             Set<Long> allTaskProjectIds = curationTaskDao.getDistinctProjectIds();
             if (allTaskProjectIds.isEmpty()) {
@@ -141,7 +147,7 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
 
         List<TaskBundle> bundles = curationTaskDao.getCurationTaskBundles(
                 accessibleProjectIds, assigneeIds, request.getStateFilter(),
-                token.getLimitForQuery(), token.getOffset());
+                request.getTaskId(), token.getLimitForQuery(), token.getOffset());
 
         List<CurationTask> tasks = bundles.stream().map(TaskBundle::getTask).collect(Collectors.toList());
 

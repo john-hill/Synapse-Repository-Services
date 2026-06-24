@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.model.dbo.dao.NodeUtils;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
@@ -144,7 +145,7 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		// A search configuration can only be bound to a Project or Folder so that entities within
 		// that container inherit the binding.
 		EntityType entityType = nodeDAO.getNodeTypeById(request.getEntityId());
-		if (!EntityType.project.equals(entityType) && !EntityType.folder.equals(entityType)) {
+		if (!NodeUtils.isProjectOrFolder(entityType)) {
 			throw new IllegalArgumentException("A search configuration can only be bound to a Project or Folder.");
 		}
 

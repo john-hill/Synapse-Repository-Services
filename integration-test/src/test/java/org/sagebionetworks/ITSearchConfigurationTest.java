@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,17 +16,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
-import org.sagebionetworks.client.SynapseClient;
-import org.sagebionetworks.client.SynapseClientImpl;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.client.exceptions.SynapseNotFoundException;
-import org.sagebionetworks.repo.model.ACCESS_TYPE;
-import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.Entity;
-import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.Project;
-import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
@@ -233,73 +225,6 @@ public class ITSearchConfigurationTest {
 				adminSynapse.getSearchConfigBindingForEntity(createdProject.getId()));
 		} finally {
 			adminSynapse.deleteEntity(createdProject);
-		}
-	}
-
-	@Test
-	public void testBindAndUnbindWithBenefactorInheritedAcl() throws Exception {
-		// Reproduces PLFM-9754: a non-admin Sage employee who has UPDATE on a project via that
-		// project's local ACL must be able to bind/unbind a config on a child folder that has
-		// NO local ACL (it inherits the project's ACL). The authorization check must resolve the
-		// benefactor, not read only the folder's own (absent) ACL.
-		SynapseClient userClient = new SynapseClientImpl();
-		Long userId = null;
-		Entity createdProject = null;
-		try {
-			userId = SynapseClientHelper.createUser(adminSynapse, userClient);
-			// The binding endpoint is gated to Sage Bionetworks employees.
-			adminSynapse.addTeamMember(TeamConstants.SAGE_BIONETWORKS_TEAM_ID.toString(), userId.toString(),
-					null, null);
-
-			// Project P with a local ACL granting the user UPDATE (and READ).
-			Project project = new Project();
-			project.setName("IT_BENEFACTOR_BIND_PROJECT_" + UUID.randomUUID().toString().replace("-", ""));
-			createdProject = adminSynapse.createEntity(project);
-
-			AccessControlList acl = adminSynapse.getACL(createdProject.getId());
-			ResourceAccess userAccess = new ResourceAccess();
-			userAccess.setPrincipalId(userId);
-			userAccess.setAccessType(EnumSet.of(ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE));
-			acl.getResourceAccess().add(userAccess);
-			adminSynapse.updateACL(acl);
-
-			// Child Folder E under P with NO local ACL — it inherits P's ACL.
-			Folder folder = new Folder();
-			folder.setParentId(createdProject.getId());
-			Entity createdFolder = adminSynapse.createEntity(folder);
-
-			// Confirm the folder inherits (has no local ACL of its own).
-			assertThrows(SynapseNotFoundException.class, () -> adminSynapse.getACL(createdFolder.getId()));
-
-			ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
-			TextAnalyzer bootstrappedAnalyzer = analyzers.getResults().get(0);
-			String orgName = bootstrappedAnalyzer.getOrganizationName();
-			String defaultAnalyzerName = orgName + "-" + bootstrappedAnalyzer.getName();
-			SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(new SearchConfiguration()
-					.setName("IT_BENEFACTOR_BIND_CONFIG_" + UUID.randomUUID().toString().replace("-", ""))
-					.setOrganizationName(orgName)
-					.setDefaultAnalyzer(ref(defaultAnalyzerName)));
-
-			// call under test — as the non-admin user, BIND to the inheriting folder.
-			SearchConfigBinding binding = userClient.bindSearchConfigToEntity(new BindSearchConfigToEntityRequest()
-					.setEntityId(createdFolder.getId())
-					.setSearchConfigurationId(createdConfig.getId()));
-
-			assertNotNull(binding.getBindId());
-			assertEquals(createdConfig.getId(), binding.getSearchConfigurationId());
-			assertEquals(createdFolder.getId(), "syn" + binding.getObjectId());
-
-			// call under test — as the non-admin user, UNBIND.
-			userClient.clearSearchConfigBindingForEntity(createdFolder.getId());
-			assertThrows(SynapseNotFoundException.class, () ->
-				adminSynapse.getSearchConfigBindingForEntity(createdFolder.getId()));
-		} finally {
-			if (createdProject != null) {
-				adminSynapse.deleteEntity(createdProject);
-			}
-			if (userId != null) {
-				adminSynapse.deleteUser(userId);
-			}
 		}
 	}
 }

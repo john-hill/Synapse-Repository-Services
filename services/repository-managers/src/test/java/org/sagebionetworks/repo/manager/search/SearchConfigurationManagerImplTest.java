@@ -707,6 +707,31 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
+	public void testBindSearchConfigToEntityWithBenefactorInheritedAccess() {
+		// PLFM-9754: a caller authorized only via the benefactor (no local ACL on the entity) must be able
+		// to bind. The UPDATE check must go through EntityAuthorizationManager (which resolves the benefactor)
+		// and never read the entity's own ACL via aclDao.
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
+		BindSearchConfigToEntityRequest req = new BindSearchConfigToEntityRequest()
+				.setEntityId("syn123").setSearchConfigurationId("42");
+		when(entityAuthorizationManager.hasAccess(user, "syn123", ACCESS_TYPE.UPDATE))
+				.thenReturn(AuthorizationStatus.authorized());
+		when(nodeDAO.getNodeTypeById("syn123")).thenReturn(EntityType.folder);
+		when(searchConfigurationDao.get("42")).thenReturn(Optional.of(new SearchConfiguration().setId("42")));
+		when(searchConfigurationDao.getSearchConfigBindingForObject(123L, "entity"))
+				.thenReturn(Optional.of(new SearchConfigBinding()));
+
+		// call under test
+		manager.bindSearchConfigToEntity(user, req);
+
+		verify(searchConfigurationDao).bindSearchConfigToObject(42L, 123L, "entity", 1L);
+		// The entity's own ACL must not be consulted directly.
+		verify(aclDao, never()).canAccess(any(UserInfo.class), anyString(), eq(ObjectType.ENTITY), any(ACCESS_TYPE.class));
+	}
+
+	@Test
 	public void testBindSearchConfigToEntityWithUnauthorized() {
 		// Sage employee but lacks UPDATE on the entity (or its benefactor) → denied, no write.
 		UserInfo user = new UserInfo(false);

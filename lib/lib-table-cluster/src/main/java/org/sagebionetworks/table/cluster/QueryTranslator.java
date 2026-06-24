@@ -38,8 +38,8 @@ public class QueryTranslator implements TranslatedQuery {
 
 	/**
 	 * Name prefix for the synthetic select-column headers that mirror the appended
-	 * row-benefactor (and MV row-hash) columns. These columns are read positionally
-	 * from the trailing values of each Row by the search index build.
+	 * row-benefactor columns. These columns are read positionally from the trailing
+	 * values of each Row by the search index build.
 	 */
 	static final String ROW_BENEFACTOR_SELECT_PREFIX = "_ROW_BENEFACTOR_SELECT_";
 
@@ -89,9 +89,9 @@ public class QueryTranslator implements TranslatedQuery {
 	private final boolean includeBenefactorId;
 
 	/**
-	 * Should the query append the index's per-dependency benefactor columns (and, for
-	 * a materialized view, the row hash code) to the select so the search index build
-	 * can read them positionally? Off by default; only the SearchIndex build sets it.
+	 * Should the query append the index's per-dependency benefactor columns to the
+	 * select so the search index build can read them positionally? Off by default;
+	 * only the SearchIndex build sets it.
 	 */
 	private final boolean includeRowBenefactors;
 
@@ -201,18 +201,18 @@ public class QueryTranslator implements TranslatedQuery {
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
 			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
-			// The search index build appends the index's benefactor columns (and the MV row
-			// hash code) to the select so they can be read positionally. Never for aggregates.
+			// The search index build appends the index's benefactor columns to the select so
+			// they can be read positionally. Never for aggregates.
 			this.includeRowBenefactors = BooleanUtils.isTrue(includeRowBenefactors) && !this.isAggregatedResult;
 			// Build headers that describe how the client should read the results of this
 			// query.
 			this.selectColumns = SQLTranslatorUtils.getSelectColumns(firstPart.getQuerySpecification().getSelectList(), firstPart.getMapper(),
 					this.isAggregatedResult);
-			// The search index build appends the index's benefactor columns (and the MV row
-			// hash code) to the select. Unlike ROW_ID/ROW_VERSION (read by name), these are
-			// read positionally from the trailing values of each Row, so they are mirrored
-			// into selectColumns — which sizes the positional read — and added to the select
-			// list ahead of the by-name metadata columns below.
+			// The search index build appends the index's benefactor columns to the select.
+			// Unlike ROW_ID/ROW_VERSION (read by name), these are read positionally from the
+			// trailing values of each Row, so they are mirrored into selectColumns — which
+			// sizes the positional read — and added to the select list ahead of the by-name
+			// metadata columns below.
 			List<ColumnToAdd> rowBenefactorColumns = this.includeRowBenefactors
 					? indexDescription.getRowBenefactorColumnsToAddToSelect()
 					: java.util.Collections.emptyList();
@@ -310,8 +310,8 @@ public class QueryTranslator implements TranslatedQuery {
 
 	/**
 	 * The number of trailing positional values in each Row that are appended
-	 * row-benefactor / MV-row-hash columns (i.e. not part of the defining-SQL
-	 * select). Zero unless this query was built with {@code includeRowBenefactors}.
+	 * row-benefactor columns (i.e. not part of the defining-SQL select). Zero
+	 * unless this query was built with {@code includeRowBenefactors}.
 	 *
 	 * @return
 	 */
@@ -543,9 +543,8 @@ public class QueryTranslator implements TranslatedQuery {
 		}
 
 		/**
-		 * When true, append the index's per-dependency benefactor columns (and, for a
-		 * materialized view, the row hash code) to the select so the search index build
-		 * can read them positionally. Off by default.
+		 * When true, append the index's per-dependency benefactor columns to the select
+		 * so the search index build can read them positionally. Off by default.
 		 */
 		public Builder includeRowBenefactors(Boolean includeRowBenefactors) {
 			this.includeRowBenefactors = includeRowBenefactors;

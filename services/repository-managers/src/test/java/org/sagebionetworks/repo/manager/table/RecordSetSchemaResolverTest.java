@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -126,7 +127,7 @@ public class RecordSetSchemaResolverTest {
 				csvDescriptor, false);
 
 		assertEquals(List.of("a", "b", "c"),
-				result.getSchema().stream().map(ColumnModel::getName).collect(java.util.stream.Collectors.toList()));
+				result.getSchema().stream().map(ColumnModel::getName).collect(Collectors.toList()));
 		// "a" is index 0, "c" is index 2 in the inferred schema.
 		assertEquals(List.of(0, 2), result.getRequiredColumnIndices());
 	}
@@ -166,5 +167,32 @@ public class RecordSetSchemaResolverTest {
 		resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, true);
 
 		verify(resolver).inferSchemaFromCsv(fileHandle, csvDescriptor, true);
+	}
+
+	@Test
+	public void testGetReconciledSchemaAddsSchemaOnlyColumn() {
+		// The CSV has only "a"; the bound schema declares an additional property "c"
+		// that is not in the CSV. "c" must be appended as a new column.
+		stubInferSchema(List.of(new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER)));
+		JsonSchema validationSchema = new JsonSchema()
+				.setProperties(Map.of("c", new JsonSchema().setType(Type.integer)));
+		stubBoundSchema(validationSchema);
+
+		// call under test
+		List<ColumnModel> schema = resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, false).getSchema();
+
+		assertEquals(List.of("a", "c"),
+				schema.stream().map(ColumnModel::getName).collect(Collectors.toList()));
+		assertEquals(ColumnType.INTEGER, schema.get(1).getColumnType());
+	}
+
+	@Test
+	public void testToColumnModel() {
+		assertEquals(ColumnType.INTEGER, RecordSetSchemaResolver.toColumnModel("i", new JsonSchema().setType(Type.integer)).getColumnType());
+		assertEquals(ColumnType.DOUBLE, RecordSetSchemaResolver.toColumnModel("n", new JsonSchema().setType(Type.number)).getColumnType());
+		assertEquals(ColumnType.BOOLEAN, RecordSetSchemaResolver.toColumnModel("b", new JsonSchema().setType(Type._boolean)).getColumnType());
+		assertEquals(ColumnType.STRING, RecordSetSchemaResolver.toColumnModel("s", new JsonSchema().setType(Type.string)).getColumnType());
+		assertEquals(ColumnType.STRING_LIST, RecordSetSchemaResolver.toColumnModel("arr", new JsonSchema().setType(Type.array)).getColumnType());
+		assertEquals(ColumnType.STRING, RecordSetSchemaResolver.toColumnModel("untyped", new JsonSchema()).getColumnType());
 	}
 }

@@ -23,6 +23,10 @@
       },
       "description": "Optional. Filter tasks by their current state."
     },
+    "taskId": {
+      "type": "integer",
+      "description": "Optional. Filter by a specific task ID."
+    },
     "nextPageToken": {
       "type": "string",
       "description": "Forward the returned 'nextPageToken' to get the next page of results."

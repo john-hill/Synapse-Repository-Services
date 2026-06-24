@@ -232,22 +232,20 @@ public final class SearchOpaqueJsonUtil {
 	 * source / search_after are skipped. {@link SearchQueryPart#TOTAL_HITS} drives the
 	 * {@code track_total_hits} count variant.</p>
 	 *
+	 * <p>Each query in {@code accessFilters} is AND-ed (as a {@code bool.filter} clause) with
+	 * the caller's query, so a document must satisfy both the query and every filter. A
+	 * benefactor-less source passes an empty list, applying no access filter.</p>
+	 *
 	 * @param opaque       the caller's body, in any of the shapes {@link #parse(Object)} accepts
 	 * @param ctx          the column-name &rarr; column-id routing context for the target index
 	 * @param req          the target {@link SearchRequest.Builder} (mutated in place)
 	 * @param options      the response-parts the caller asked for
 	 * @param defaultSize  default {@code size} when the body omits it
 	 * @param maxSize      upper bound on {@code size}; larger values clamp
+	 * @param accessFilters server-side access-control filters to AND with the query; must not be null
 	 * @return             the effective {@code from} written to {@code req} (echoed back to
 	 *                     the caller as {@code SearchQueryResults.offset})
 	 */
-	static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
-			SearchRequest.Builder req, Set<SearchQueryPart> options,
-			int defaultSize, int maxSize) {
-		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, maxSize, false,
-				Collections.emptyList());
-	}
-
 	static int applyBodyToRequest(Object opaque, SearchFieldRewriter.RoutingContext ctx,
 			SearchRequest.Builder req, Set<SearchQueryPart> options,
 			int defaultSize, int maxSize, List<Query> accessFilters) {
@@ -259,13 +257,6 @@ public final class SearchOpaqueJsonUtil {
 	 * to {@code query} and {@code _source}, and enforces the autocomplete top-level query
 	 * allowlist on the inner clause.
 	 */
-	static int applyAutocompleteBodyToRequest(Object opaque,
-			SearchFieldRewriter.RoutingContext ctx, SearchRequest.Builder req,
-			Set<SearchQueryPart> options, int defaultSize) {
-		return applyBodyToRequest(opaque, ctx, req, options, defaultSize, defaultSize, true,
-				Collections.emptyList());
-	}
-
 	static int applyAutocompleteBodyToRequest(Object opaque,
 			SearchFieldRewriter.RoutingContext ctx, SearchRequest.Builder req,
 			Set<SearchQueryPart> options, int defaultSize, List<Query> accessFilters) {

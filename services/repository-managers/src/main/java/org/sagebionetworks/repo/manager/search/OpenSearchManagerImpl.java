@@ -28,6 +28,7 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.DeleteRequest;
@@ -171,14 +172,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
 		this.openSearchClient = openSearchClient;
-	}
-
-	@Override
-	public Optional<String> createIndex(String indexName, List<ColumnModel> columns,
-			String defaultAnalyzer,
-			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers) {
-		return createIndex(indexName, columns, defaultAnalyzer, columnAnalyzerOverrides, resolvedAnalyzers, 0);
 	}
 
 	@Override
@@ -957,27 +950,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options) {
-		return search(indexName, body, columns, options, Collections.emptyList());
-	}
-
-	@Override
-	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options,
-			List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters) {
+			List<Query> accessFilters) {
 		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false, accessFilters);
 	}
 
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options) {
-		return autocomplete(indexName, body, columns, options, Collections.emptyList());
-	}
-
-	@Override
-	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options,
-			List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters) {
+			List<Query> accessFilters) {
 		// Autocomplete does not accept a caller-supplied size; force the server cap as both
 		// default and ceiling.
 		return executeSearch(indexName, body, columns, options,
@@ -1012,15 +993,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@SuppressWarnings("rawtypes")
 	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete) {
-		return executeSearch(indexName, body, columns, options, defaultSize, maxSize, autocomplete,
-				Collections.emptyList());
-	}
-
-	@SuppressWarnings("rawtypes")
-	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
 			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete,
-			List<org.opensearch.client.opensearch._types.query_dsl.Query> accessFilters) {
+			List<Query> accessFilters) {
 		Map<String, String> idToName = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 		SearchFieldRewriter.RoutingContext ctx = routingContextFor(columns);

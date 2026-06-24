@@ -616,7 +616,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		col2.setColumnType(ColumnType.STRING);
 		List<SelectColumn> columns = Arrays.asList(col1, col2);
 		SearchIndexRowHandler handler =
-				new SearchIndexRowHandler("test-index", columns, openSearchManager, TABLE_INDEX_DESCRIPTION);
+				new SearchIndexRowHandler("test-index", columns, openSearchManager, TABLE_INDEX_DESCRIPTION, 0);
 
 		Row row = new Row();
 		row.setRowId(42L);
@@ -640,7 +640,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		col2.setColumnType(ColumnType.STRING);
 		List<SelectColumn> columns = Arrays.asList(col1, col2);
 		SearchIndexRowHandler handler =
-				new SearchIndexRowHandler("test-index", columns, openSearchManager, TABLE_INDEX_DESCRIPTION);
+				new SearchIndexRowHandler("test-index", columns, openSearchManager, TABLE_INDEX_DESCRIPTION, 0);
 
 		Row row = new Row();
 		row.setRowId(42L);
@@ -664,7 +664,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		col.setId("100");
 		col.setColumnType(ColumnType.STRING);
 		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", Collections.singletonList(col), openSearchManager, TABLE_INDEX_DESCRIPTION);
+				"test-index", Collections.singletonList(col), openSearchManager, TABLE_INDEX_DESCRIPTION, 0);
 
 		// 3 rows — well under the 1000 batch size
 		for (long i = 1; i <= 3; i++) {
@@ -686,7 +686,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		SelectColumn col = new SelectColumn();
 		col.setId("100");
 		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", Collections.singletonList(col), openSearchManager, TABLE_INDEX_DESCRIPTION);
+				"test-index", Collections.singletonList(col), openSearchManager, TABLE_INDEX_DESCRIPTION, 0);
 
 		// call under test
 		handler.close();
@@ -710,7 +710,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		realIdCol.setColumnType(ColumnType.STRING);
 		List<SelectColumn> columns = Arrays.asList(nullIdCol, realIdCol);
 		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", columns, openSearchManager, TABLE_INDEX_DESCRIPTION);
+				"test-index", columns, openSearchManager, TABLE_INDEX_DESCRIPTION, 0);
 
 		Row row = new Row();
 		row.setRowId(42L);
@@ -738,7 +738,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// 1500 rows → BATCH_SIZE is 1000 → first flush happens at row 1000, second on close().
 		SelectColumn col = new SelectColumn().setId("col-1").setName("title").setColumnType(ColumnType.STRING);
 		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"search-index-syn1", Collections.singletonList(col), openSearchManager, TABLE_INDEX_DESCRIPTION);
+				"search-index-syn1", Collections.singletonList(col), openSearchManager, TABLE_INDEX_DESCRIPTION, 0);
 
 		for (int i = 0; i < 1500; i++) {
 			Row row = new Row().setRowId((long) i).setVersionNumber(1L)
@@ -760,7 +760,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		IndexDescription viewDescription = new ViewIndexDescription(IdAndVersion.parse("syn789"),
 				org.sagebionetworks.repo.model.dao.table.TableType.entityview, 0L);
 		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", Collections.singletonList(col), openSearchManager, viewDescription);
+				"test-index", Collections.singletonList(col), openSearchManager, viewDescription, 0);
 
 		Row row = new Row().setRowId(42L).setVersionNumber(1L).setBenefactorId(99L)
 				.setValues(Collections.singletonList("hello"));
@@ -783,21 +783,16 @@ public class SearchIndexLifecycleManagerImplTest {
 	public void testRowHandlerNextRowWithMaterializedViewSourceReadsTrailingBenefactors() throws IOException {
 		SelectColumn col = new SelectColumn().setId("100").setName("title").setColumnType(ColumnType.STRING);
 		// A materialized view with two dependencies appends two benefactor columns to the
-		// trailing positional values; QueryTranslator emits one column per
-		// getRowBenefactorColumnsToAddToSelect entry. The document is keyed by ROW_ID.
+		// trailing positional values; the handler is told how many via its positional count
+		// (the value QueryTranslator reports). The document is keyed by ROW_ID.
 		IndexDescription mvDescription = mock(IndexDescription.class);
 		when(mvDescription.getBenefactors()).thenReturn(Arrays.asList(
 				new org.sagebionetworks.table.cluster.description.BenefactorDescription("ROW_BENEFACTOR_A0",
 						org.sagebionetworks.repo.model.ObjectType.ENTITY),
 				new org.sagebionetworks.table.cluster.description.BenefactorDescription("ROW_BENEFACTOR_A1",
 						org.sagebionetworks.repo.model.ObjectType.ENTITY)));
-		when(mvDescription.getRowBenefactorColumnsToAddToSelect()).thenReturn(Arrays.asList(
-				new org.sagebionetworks.table.cluster.description.ColumnToAdd(IdAndVersion.parse("syn1"),
-						"ROW_BENEFACTOR_A0"),
-				new org.sagebionetworks.table.cluster.description.ColumnToAdd(IdAndVersion.parse("syn1"),
-						"ROW_BENEFACTOR_A1")));
 		SearchIndexRowHandler handler = new SearchIndexRowHandler(
-				"test-index", Collections.singletonList(col), openSearchManager, mvDescription);
+				"test-index", Collections.singletonList(col), openSearchManager, mvDescription, 2);
 
 		// values = [ title, benefactor_0, benefactor_1 ]
 		Row row = new Row().setRowId(7L).setVersionNumber(1L)

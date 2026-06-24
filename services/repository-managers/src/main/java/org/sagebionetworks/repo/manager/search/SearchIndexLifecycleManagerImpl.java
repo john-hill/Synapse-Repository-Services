@@ -304,7 +304,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
 					(QueryTranslations translations) -> new SearchIndexRowHandler(
-							indexName, selectColumns, openSearchManager, sourceIndexDescription),
+							indexName, selectColumns, openSearchManager, sourceIndexDescription,
+							translations.getMainQuery().getTranslator().getRowBenefactorColumnCount()),
 					true,
 					ACCESS_TYPE.READ);
 
@@ -572,16 +573,18 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		private long totalRows = 0;
 
 		SearchIndexRowHandler(String indexName, List<SelectColumn> columns, OpenSearchManager client,
-				IndexDescription indexDescription) {
+				IndexDescription indexDescription, int positionalBenefactorCount) {
 			this.indexName = indexName;
 			this.columns = columns;
 			this.client = client;
 			this.benefactorCount = indexDescription.getBenefactors().size();
-			// The benefactor columns QueryTranslator appended to the build select (after the
-			// defining-SQL columns) and that this handler must read positionally from
-			// Row.getValues(). A materialized view returns one per dependency; a view/table
-			// returns none (a view's single benefactor is read by name from Row.benefactorId).
-			this.positionalBenefactorCount = indexDescription.getRowBenefactorColumnsToAddToSelect().size();
+			// The number of benefactor columns the QueryTranslator appended to the build select
+			// (after the defining-SQL columns), which this handler reads positionally from
+			// Row.getValues(). Sourced from the translator that built the query so the read
+			// offset matches what was actually selected. A materialized view appends one per
+			// dependency; a view/table appends none (a view's single benefactor is read by name
+			// from Row.benefactorId).
+			this.positionalBenefactorCount = positionalBenefactorCount;
 		}
 
 		@Override

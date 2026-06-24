@@ -131,8 +131,9 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	 * {@code -1} sentinel (the default for rows with no benefactor), and produce a
 	 * {@code terms} filter on field {@code _benefactor_i}. The filters are AND-ed at query
 	 * time, so a document is returned only if the user can read every source dependency's
-	 * benefactor. Returns an empty list for a benefactor-less source (e.g. a table), which
-	 * reproduces the pre-row-level public-data behavior.
+	 * benefactor. Returns an empty list for a benefactor-less source (e.g. a table), applying
+	 * no row filter; access to such a source is enforced at the entity level by
+	 * {@link #preflightAndCheckIndex}.
 	 */
 	List<Query> buildBenefactorAccessFilters(UserInfo user, IndexDescription sourceIndexDescription) {
 		List<BenefactorDescription> benefactors = sourceIndexDescription.getBenefactors();

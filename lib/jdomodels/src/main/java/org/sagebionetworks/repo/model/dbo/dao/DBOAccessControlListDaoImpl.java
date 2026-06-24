@@ -509,6 +509,10 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 	public boolean canAccess(Set<Long> groups, String resourceId,
 			ObjectType resourceType, ACCESS_TYPE accessType)
 			throws DatastoreException {
+		if (ObjectType.ENTITY.equals(resourceType)) {
+			throw new IllegalArgumentException(
+					"This method cannot be used for entities; entity access checks must resolve the benefactor via EntityAuthorizationManager.");
+		}
 		Long idLong = KeyFactory.stringToKey(resourceId);
 		HashSet<Long> benefactors = Sets.newHashSet(idLong);
 		Set<Long> results = getAccessibleBenefactors(groups, benefactors,

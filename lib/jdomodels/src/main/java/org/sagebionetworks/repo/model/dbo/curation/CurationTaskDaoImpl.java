@@ -249,7 +249,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
 
     @Override
     public List<TaskBundle> getCurationTaskBundles(List<Long> projectIds, List<Long> assigneeIds,
-            List<TaskState> stateFilter, long limit, long offset) {
+            List<TaskState> stateFilter, Long taskId, long limit, long offset) {
         ValidateArgument.requiredNotEmpty(projectIds, "projectIds");
 
         StringBuilder sql = new StringBuilder("SELECT * FROM CURATION_TASK WHERE PROJECT_ID IN (:projectIds)");
@@ -265,6 +265,11 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
             List<String> stateNames = stateFilter.stream().map(TaskState::name).collect(Collectors.toList());
             sql.append(" AND STATE IN (:stateFilter)");
             params.addValue("stateFilter", stateNames);
+        }
+
+        if (taskId != null) {
+            sql.append(" AND " + COL_CURATION_TASK_ID + " = :taskId");
+            params.addValue("taskId", taskId);
         }
 
         sql.append(" ORDER BY ID LIMIT :limit OFFSET :offset");

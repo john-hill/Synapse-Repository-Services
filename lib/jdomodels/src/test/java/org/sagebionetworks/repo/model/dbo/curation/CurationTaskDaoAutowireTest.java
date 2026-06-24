@@ -530,7 +530,7 @@ class CurationTaskDaoAutowireTest {
         // call under test
         List<TaskBundle> bundles = dao.getCurationTaskBundles(
                 List.of(KeyFactory.stringToKey(project1.getId())),
-                null, null, 10, 0);
+                null, null, null, 10, 0);
 
         assertEquals(2, bundles.size());
         assertEquals(created1.getTaskId(), bundles.get(0).getTask().getTaskId());
@@ -559,7 +559,7 @@ class CurationTaskDaoAutowireTest {
         // call under test - filter by userId
         List<TaskBundle> bundles = dao.getCurationTaskBundles(
                 List.of(KeyFactory.stringToKey(project1.getId())),
-                List.of(userId), null, 10, 0);
+                List.of(userId), null, null, 10, 0);
 
         assertEquals(1, bundles.size());
         assertEquals(created1.getTaskId(), bundles.get(0).getTask().getTaskId());
@@ -588,11 +588,35 @@ class CurationTaskDaoAutowireTest {
         // call under test - filter by IN_PROGRESS
         List<TaskBundle> bundles = dao.getCurationTaskBundles(
                 List.of(KeyFactory.stringToKey(project1.getId())),
-                null, List.of(TaskState.IN_PROGRESS), 10, 0);
+                null, List.of(TaskState.IN_PROGRESS), null, 10, 0);
 
         assertEquals(1, bundles.size());
         assertEquals(created1.getTaskId(), bundles.get(0).getTask().getTaskId());
         assertEquals(TaskState.IN_PROGRESS, bundles.get(0).getStatus().getState());
+
+        dao.deleteCurationTask(created1.getTaskId());
+        dao.deleteCurationTask(created2.getTaskId());
+    }
+
+    @Test
+    public void testGetCurationTaskBundlesWithTaskIdFilter() {
+        CurationTask created1 = dao.createCurationTask(userId, new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("fastq")
+                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
+
+        CurationTask created2 = dao.createCurationTask(userId, new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("rnaseq")
+                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.RECORD_BASED)));
+
+        // call under test - filter by taskId of created1; created2 is the decoy in the same project
+        List<TaskBundle> bundles = dao.getCurationTaskBundles(
+                List.of(KeyFactory.stringToKey(project1.getId())),
+                null, null, created1.getTaskId(), 10, 0);
+
+        assertEquals(1, bundles.size());
+        assertEquals(created1.getTaskId(), bundles.get(0).getTask().getTaskId());
 
         dao.deleteCurationTask(created1.getTaskId());
         dao.deleteCurationTask(created2.getTaskId());

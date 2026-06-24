@@ -307,7 +307,7 @@ public class CurationTaskManagerImplUnitTest {
 
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
-                eq(null), eq(null), anyLong(), anyLong())).thenReturn(bundles);
+                eq(null), eq(null), eq((Long) null), anyLong(), anyLong())).thenReturn(bundles);
 
         // Call under test
         ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -315,7 +315,63 @@ public class CurationTaskManagerImplUnitTest {
         assertEquals(Arrays.asList(task1, task2), response.getPage());
         assertEquals(bundles, response.getBundlePage());
     }
-    
+
+    @Test
+    public void testGetCurationTasksWithTaskIdFilter() {
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setTaskId(taskId);
+        CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
+        TaskBundle bundle1 = new TaskBundle().setTask(task1);
+        List<TaskBundle> bundles = List.of(bundle1);
+
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
+                .thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
+                eq(null), eq(null), eq(taskId), anyLong(), anyLong())).thenReturn(bundles);
+
+        // call under test
+        ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
+
+        assertEquals(List.of(task1), response.getPage());
+        assertEquals(bundles, response.getBundlePage());
+    }
+
+    @Test
+    public void testGetCurationTasksWithTaskIdButNoProjectId() {
+        ListCurationTaskRequest request = new ListCurationTaskRequest().setTaskId(taskId);
+        CurationTask task = createCurationTask(CurationTaskPropertiesType.FILE_BASED).setTaskId(taskId).setProjectId(projectId);
+        TaskBundle bundle = new TaskBundle().setTask(task);
+        List<TaskBundle> bundles = List.of(bundle);
+
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(task));
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
+                .thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
+                eq(null), eq(null), eq(taskId), anyLong(), anyLong())).thenReturn(bundles);
+
+        // call under test
+        ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
+
+        assertEquals(List.of(task), response.getPage());
+        assertEquals(bundles, response.getBundlePage());
+        verify(mockCurationTaskDao, never()).getDistinctProjectIds();
+        verifyNoMoreInteractions(mockAclManager);
+    }
+
+    @Test
+    public void testGetCurationTasksWithTaskIdButNoProjectIdNotFound() {
+        ListCurationTaskRequest request = new ListCurationTaskRequest().setTaskId(taskId);
+
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.empty());
+
+        // call under test
+        assertThrows(NotFoundException.class, () -> curationTaskManager.getCurationTasks(userInfo, request));
+
+        verify(mockCurationTaskDao, never()).getDistinctProjectIds();
+        verifyNoMoreInteractions(mockAclManager, mockAuthorizationManager);
+    }
+
 	@Test
 	public void testGetCurationTasksWithAssigneeIds() {
 		ListCurationTaskRequest request = new ListCurationTaskRequest().setProjectId(projectId)
@@ -329,7 +385,7 @@ public class CurationTaskManagerImplUnitTest {
 		when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY),
 				eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
 		when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))), eq(List.of(111L,222L)),
-				eq(null), anyLong(), anyLong())).thenReturn(bundles);
+				eq(null), eq((Long) null), anyLong(), anyLong())).thenReturn(bundles);
 
 		// Call under test
 		ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -369,7 +425,7 @@ public class CurationTaskManagerImplUnitTest {
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
                 .thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
-                eq(new ArrayList<>(groups)), eq(null), anyLong(), anyLong())).thenReturn(bundles);
+                eq(new ArrayList<>(groups)), eq(null), eq((Long) null), anyLong(), anyLong())).thenReturn(bundles);
 
         // Call under test
         ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -409,7 +465,7 @@ public class CurationTaskManagerImplUnitTest {
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = Arrays.asList(bundle1);
 
-        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), anyLong(), anyLong()))
+        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq((Long) null), anyLong(), anyLong()))
                 .thenReturn(bundles);
 
         // Call under test

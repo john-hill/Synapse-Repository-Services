@@ -180,8 +180,24 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
 			int benefactorCount) {
-		CreateIndexRequest request = buildCreateIndexRequest(indexName, columns, defaultAnalyzer,
-				columnAnalyzerOverrides, resolvedAnalyzers, benefactorCount);
+		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
+
+		Map<String, String> nameToId = columns.stream()
+				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
+		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
+
+		CreateIndexRequest request = CreateIndexRequest.of(req -> req
+				.index(indexName)
+				.settings(s -> s.analysis(a -> {
+					buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+					return a;
+				}))
+				.mappings(m -> {
+					buildMappings(m, columns, defaultAnalyzer,
+							overrideMap, resolvedAnalyzers, benefactorCount);
+					return m;
+				})
+		);
 
 		String appliedConfigJson = request.toJsonString();
 		try {
@@ -201,35 +217,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to create search index: " + indexName, e);
 		}
-	}
-
-	/**
-	 * Assemble the {@link CreateIndexRequest} that {@link #createIndex} applies to OpenSearch. Pure:
-	 * no network call; {@link #createIndex} sends the returned request.
-	 */
-	private CreateIndexRequest buildCreateIndexRequest(String indexName, List<ColumnModel> columns,
-			String defaultAnalyzer,
-			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
-			int benefactorCount) {
-		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
-
-		Map<String, String> nameToId = columns.stream()
-				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
-
-		return CreateIndexRequest.of(req -> req
-				.index(indexName)
-				.settings(s -> s.analysis(a -> {
-					buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-					return a;
-				}))
-				.mappings(m -> {
-					buildMappings(m, columns, defaultAnalyzer,
-							overrideMap, resolvedAnalyzers, benefactorCount);
-					return m;
-				})
-		);
 	}
 
 	/**

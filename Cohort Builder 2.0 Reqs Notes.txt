@@ -1,0 +1,81 @@
+﻿Jun 22, 2026
+Cohort Builder 2.0 Reqs touchpoint
+Invited Milan Vu Ann Campton Ann Novakowski Samia Ahmed Solly Sieberts Bruce Hoff Jay Hodgson John Hill
+Attachments Cohort Builder 2.0 Reqs touchpoint Cohort Builder v2 cohort_builder_brief Notes - Cohort Builder 2.0 Reqs touchpoint
+
+
+
+
+Summary
+Architecture design for the Cohort Builder progressed with refined data mapping strategies and enhanced security protocols.
+
+Data Mapping Strategies
+Mapping individuals to dataset collections resolves connectivity complexities by decoupling file-specific dependencies. This strategy supports diverse data types within the builder feature.
+
+Privacy and Security
+Privacy protocols prioritize data anonymization by masking all results with counts below 20. This governance decision prevents exposure of individual-level information during queries.
+
+Query Logic Enhancement
+Enhanced query flexibility now includes support for OR and NOT logic to broaden filtering capabilities. Backend architecture updates ensure alignment between query logic and system performance.
+
+
+
+
+Decisions
+Aligned
+* Mapping individuals to data sets The team resolved the scalability issue by deciding to map individuals to data sets rather than individual files for studies that exhibit one-to-many data distributions.
+* Privacy-focused result filtering The cohort builder will not display raw individual data and will enforce a privacy rule that filters or masks any query results with counts between 1 and 19.
+* Project delivery timeline The development timeline is set to target implementation of Cohort Builder 2.0 in Q3 and Cohort Builder 3.0 in Q4.
+* User activity monitoring requirements The team decided to implement mandatory logging and monitoring of user queries and activity as a necessary security baseline to detect and track potential misuse.
+* Open-ended architecture for governance requirements The cohort builder system architecture will be designed as open-ended to accommodate potential future security and governance constraints.
+* Backend architecture designated for query parsing The backend system is designated as the responsible layer for parsing SQL and managing logical query operators, removing this requirement from the frontend.
+
+
+We've updated the Decisions section using your feedback.
+Let us know what you think: Helpful or Not Helpful
+
+
+
+
+Next steps
+* [Data management team] Map Data to Datasets: Re-map specific study cases that involve thousands of files and individuals to data sets. This ensures the many to many mapping does not break the cohort builder functionality.
+* [The backend team] Update Download Cart: Extend the system services to support adding a hybrid list of files and data sets to the download cart. This provides a unified experience across different connectivity types.
+* [The backend team] Implement Post-processing Filter: Create a backend post-processing step that removes rows where aggregate counts are less than 20. Ensure this step applies to queries against private metadata tables to maintain privacy.
+* [The group] Finalize Design: Complete the architecture and feature design for the next version. Submit the finalized plan no later than the end of July.
+* [The group] Implement Complex Filters: Incorporate logic to support OR and NOT operators during the cohort filtering process. This expands the current capabilities beyond simple AND filters.
+* [John Hill] Document Backend Architecture: Draft a Confluence document outlining the backend architecture for cohort builder 2.0 covering aggregation rules and attribute whitelisting.
+* [Samia Ahmed] Reassign Ticket: Reassign the existing backend architecture platform ticket from Bruce to John.
+* [Jay Hodgson] Support Query Operators: Write a ticket to support explicit AND/OR operators in the query API.
+* [John Hill] Review Design Context: Review Sushil video to finalize backend design requirements.
+
+
+
+
+Details
+* Project Scope and Architecture Deadline: Samia Ahmed initiated the discussion regarding the upcoming architecture design deadline for the Cohort Builder. They updated the epic and added a tab to the requirements document, which includes cleaned-up technical requirements and notes on open questions, aiming to provide clarity on the build requirements.
+* Cohort Builder Data Distribution Challenges: John Hill highlighted concerns regarding data distribution, noting that Cohort Builder 1.0 failed because it was designed for a one-to-many relationship (approximately 100 files per individual) but encountered a one-to-all relationship (every individual in every file), creating a "many-to-many" mapping issue. Solly Sieberts confirmed this distribution problem broke the original builder.
+* Metadata Scalability and Performance: Bruce Hoff and John Hill discussed potential scalability risks associated with increasing metadata attributes on both files and individuals. They noted that joining mapping tables with high numbers of attributes significantly increases table size, which could impact performance, though they acknowledged this is a relevant factor for future architecture.
+* Cohort Builder Scope and Connectivity: The team clarified that the Cohort Builder must support the exploration of multiple studies simultaneously, incorporating both sparse (one-to-many) and dense (one-to-all) data connectivity scenarios.
+* Mapping Individuals to Data Sets: Jay Hodgson proposed mapping individuals to data sets or data set collections rather than directly to files to resolve the "many-to-many" connectivity complexity. John Hill and Solly Sieberts agreed this approach would allow different data types to coexist within the feature. Milan Vu confirmed that this is a viable solution for both "Elite" and the AD Knowledge Portal (ADKP) and is not expected to be a significant burden on the curation team.
+* Download Cart Functionality: Bruce Hoff, John Hill, and Jay Hodgson discussed the technical requirement to allow users to add a hybrid mix of files and data sets to their download carts. While Jay Hodgson noted that current services might require an extension to handle this mixed query result, John Hill confirmed that this functionality is technically achievable.
+* Privacy and Aggregate Data Display: Milan Vu, Bruce Hoff, and Samia Ahmed confirmed that the Cohort Builder will utilize private tables to present only aggregate counts. The team agreed that in the "Elite" system, users will not be exposed to the underlying individual metadata table due to complex governance and study-specific access restrictions; instead, they will query and view aggregate data.
+* Handling Access Permissions in Queries: John Hill noted that a technical solution exists to exclude tables from queries if a user lacks access to that data, allowing the user to still view the remaining accessible results. The group decided to defer this complex feature to version 3.0, focusing the current version on aggregate counts.
+* Cohort Definition Saving Requirement: Bruce Hoff introduced the requirement to enable users to save and share cohort definitions. Ann Campton clarified that this feature is targeted for delivery in version 3.0, with a goal of Q4 (December) to align with end-of-year grant milestones.
+* Development and Delivery Timeline: The group established that implementation for Cohort Builder 2.0 is targeted for the end of Q3 (September), while Cohort Builder 3.0 is planned for Q4. The design phase for 2.0 is aimed for completion by the end of July.
+* Complex Filtering Logic: Milan Vu identified a requirement to enhance the filtering capabilities of the Cohort Builder to include "OR" and "NOT" logic, expanding beyond the current "AND" filter limitations.
+* Privacy Mitigation via Pre and Post-Filtering: Bruce Hoff and John Hill described a mechanism where queries run against private tables, followed by a post-filtering step to mask any row with a count less than 20. Solly Sieberts confirmed that while queries may return zero, any count between 1 and 19 must be filtered out to protect privacy, and this post-processing approach is intended to be parameterized for future flexibility.
+* Security Monitoring and Usage Auditing: The team agreed that logging and monitoring are minimum requirements to prevent misuse of the Cohort Builder. John Hill and Solly Sieberts emphasized that the system will capture query details and user frequency, with users receiving a warning that their activity is monitored and subject to review, which could result in account lockout.
+* Post-Approval Data Access Workflow: Jay Hodgson and Bruce Hoff addressed how users locate files after receiving approval. The group concluded that after a cohort exploration, users will identify the relevant studies, undergo necessary governance procedures, and subsequently use individual file views to access the data within those specific studies.
+* Cohort Builder 2.0 and Download List Workflow: John Hill explained that the existing user interface design for Cohort Builder 2.0 relies on a download list to manage data access. Users first add files to their download list, and the system then categorizes these files to indicate which can be downloaded immediately and which require specific Access Requirements (AR). Bruce Hoff questioned if this could be linked directly to the Cohort Builder, but John Hill clarified that the current infrastructure is specifically built to handle permission checks and categorization within the download list flow.
+* Navigating Cohort Builder and Study Pages: Bruce Hoff suggested allowing users to hyperlink from the Cohort Builder results directly to study-specific pages to manage access. John Hill expressed concern that this approach would force users to navigate away from their cohort search, requiring them to manually search for the specific files again upon landing on the study page. Jay Hodgson and Solly Sieberts confirmed that metadata is tied to the study data, but they acknowledged that this navigation path could be perceived as clunky.
+* Security Controls for "Group By" Clauses: John Hill identified that allowing unrestricted "Group By" clauses in queries could enable users to reverse-engineer individual patient data, effectively bypassing security filters. They argued that governance officials must control which columns are permissible in a "Group By" clause to prevent the aggregation query from being converted into a regular query that exposes sensitive information. Solly Sieberts and Samia Ahmed discussed using categorical bins, such as age ranges, to ensure that displayed results remain aggregated and do not reveal individual-level data.
+* Aggregation and Data Anonymization Rules: Bruce Hoff and Solly Sieberts discussed the importance of anonymization, noting that rows with counts less than 20 should be blanked out to protect privacy. John Hill explained that aggregation must rely on functions like sum, count, or concatenation for enumerations, rather than allowing individual-level data to surface. The team agreed that governance would need to establish rules, such as whitelisting specific attributes for grouping, to ensure that all queries coming into the system adhere to established security standards.
+* Backend Architecture Documentation: Samia Ahmed initiated a plan to document the backend architecture for the Cohort Builder to address the governance and security requirements discussed. John Hill committed to writing this documentation in a Confluence document for the team to review. It was decided that the platform ticket currently assigned to Bruce Hoff regarding this backend architecture would be reassigned to John Hill, with a deadline set for the end of the week.
+* Enhancing Query Flexibility with Logic Operators: Jay Hodgson requested backend support to enable structured query logic including "OR" and "NOT" operators, as the current implementation only supports an implicit "AND." Bruce Hoff and Milan Vu provided examples of required use cases, such as filtering for patients with "Alzheimer's OR dementia," which are currently difficult to execute across different attributes. John Hill agreed that the object model must be updated to include these operators to provide the necessary flexibility.
+* Integration of Frontend and Backend Development: Jay Hodgson noted that the frontend architecture for the query builder is dependent on the backend design, particularly if a new API is required. John Hill committed to completing the backend design by Friday, which will provide the necessary clarity for Jay Hodgson to proceed with the frontend implementation. The team concluded that this alignment on backend requirements is critical for successfully building the query builder prototype.
+
+
+
+
+You should review Gemini's notes to make sure they're accurate. Get tips and learn how Gemini takes notes
+How is the quality of these specific notes? Take a short survey to let us know your feedback, including how helpful the notes were for your needs.

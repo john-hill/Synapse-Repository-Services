@@ -1,20 +1,34 @@
 package org.sagebionetworks.markdown;
 
 import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.http.client.ClientProtocolException;
+import org.sagebionetworks.aws.v2.AwsCredentialsProviderV2;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClientImpl;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpRequest;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpResponse;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.ContentStreamProvider;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpRequest;
+import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
+import software.amazon.awssdk.http.auth.spi.signer.SignRequest;
+import software.amazon.awssdk.http.auth.spi.signer.SignedRequest;
+import software.amazon.awssdk.regions.Region;
+
 public class MarkdownClient {
 
 	private SimpleHttpClient simpleHttpClient;
 	private String markdownServiceEndpoint;
+	private AwsCredentialsProvider awsCredentialsProvider;
+	private AwsV4HttpSigner signer;
 	private static final Map<String, String> DEFAULT_REQUEST_HEADERS;
 
 	static {
@@ -27,27 +41,52 @@ public class MarkdownClient {
 		if (simpleHttpClient == null) {
 			simpleHttpClient = new SimpleHttpClientImpl();
 		}
+		if (awsCredentialsProvider == null) {
+			awsCredentialsProvider = AwsCredentialsProviderV2.PROVIDER_CHAIN;
+		}
+		if (signer == null) {
+			signer = AwsV4HttpSigner.create();
+		}
 	}
 
 	/**
 	 * Takes a json string requestContent (ex. {"markdown":"## a heading"})
 	 * Makes a call to the markdown server to convert the raw markdown to html
 	 * Return the json string representation of the response (ex. {"result":"<h2 toc=\"true\">a heading</h2>\n"})
-	 * 
+	 *
 	 * @param requestContent
 	 * @return
-	 * @throws ClientProtocolException 
+	 * @throws ClientProtocolException
 	 * @throws IOException
-	 * @throws MarkdownClientException 
+	 * @throws MarkdownClientException
 	 */
 	public String requestMarkdownConversion(String requestContent) throws MarkdownClientException {
-		String uri = markdownServiceEndpoint;
 		SimpleHttpRequest request = new SimpleHttpRequest();
-		request.setUri(uri);
-		Map<String, String> headers = new HashMap<String, String>(DEFAULT_REQUEST_HEADERS);
+		request.setUri(markdownServiceEndpoint);
+
+		SdkHttpRequest httpRequest = SdkHttpRequest.builder()
+				.uri(URI.create(markdownServiceEndpoint))
+				.method(SdkHttpMethod.POST)
+				.build();
+
+		SignedRequest signedRequest = signer.sign(SignRequest.builder(awsCredentialsProvider.resolveCredentials())
+				.request(httpRequest)
+				.payload(ContentStreamProvider.fromByteArray(requestContent.getBytes(StandardCharsets.UTF_8)))
+				.putProperty(AwsV4HttpSigner.SERVICE_SIGNING_NAME, "execute-api")
+				.putProperty(AwsV4HttpSigner.REGION_NAME, Region.US_EAST_1.toString())
+				.build());
+
+		Map<String, String> headers = new HashMap<>(DEFAULT_REQUEST_HEADERS);
+		signedRequest.request().forEachHeader((name, values) -> {
+			// Skip Host — Apache HttpClient regenerates it from the URI; a duplicate would break signature verification
+			if (!"Host".equalsIgnoreCase(name)) {
+				headers.put(name, String.join(",", values));
+			}
+		});
 		request.setHeaders(headers);
+
 		try {
-			SimpleHttpResponse response = simpleHttpClient.post(request , requestContent);
+			SimpleHttpResponse response = simpleHttpClient.post(request, requestContent);
 			if (response.getStatusCode() == 200) {
 				return response.getContent();
 			} else {
@@ -65,5 +104,13 @@ public class MarkdownClient {
 
 	public void setMarkdownServiceEndpoint(String markdownServiceEndpoint) {
 		this.markdownServiceEndpoint = markdownServiceEndpoint;
+	}
+
+	public void setAwsCredentialsProvider(AwsCredentialsProvider awsCredentialsProvider) {
+		this.awsCredentialsProvider = awsCredentialsProvider;
+	}
+
+	public void setSigner(AwsV4HttpSigner signer) {
+		this.signer = signer;
 	}
 }

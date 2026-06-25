@@ -55,8 +55,8 @@ public interface IndexDescription extends Comparable<IndexDescription> {
 	List<ColumnToAdd> getColumnNamesToAddToSelect(SqlContext context, boolean includeEtag, boolean isAggregate);
 
 	/**
-	 * The additional select columns the search index build must read by position so
-	 * each document can carry its per-dependency benefactor values. Unlike
+	 * The additional select columns appended so each row can carry its per-dependency
+	 * benefactor values, read by position. Unlike
 	 * {@link #getColumnNamesToAddToSelect}, whose columns are read by name into
 	 * dedicated {@code Row} fields, these are appended after the defining-SQL columns
 	 * and read positionally from {@code Row.getValues()}.

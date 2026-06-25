@@ -110,9 +110,8 @@ public class MaterializedViewIndexDescription implements IndexDescription {
 
 	@Override
 	public List<ColumnToAdd> getRowBenefactorColumnsToAddToSelect() {
-		// When this materialized view is the source of a search index build, its
-		// benefactor columns are physical columns of the MV index table. They are
-		// appended to the select (after the defining-SQL columns) and read
+		// A materialized view's benefactor columns are physical columns of the MV index
+		// table. They are appended to the select (after the defining-SQL columns) and read
 		// positionally. Order is load-bearing: one column per getBenefactors() entry,
 		// in the same order.
 		List<ColumnToAdd> columns = new ArrayList<>(benefactorDescriptions.size());

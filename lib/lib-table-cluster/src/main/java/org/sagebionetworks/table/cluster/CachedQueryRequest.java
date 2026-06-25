@@ -14,6 +14,7 @@ public class CachedQueryRequest implements TranslatedQuery {
 	private boolean includesRowIdAndVersion = false;
 	private boolean includeEntityEtag = false;
 	private boolean includeBenefactorId = false;
+	private int rowBenefactorColumnCount = 0;
 	private String singleTableId;
 	private int expiresInSec = 60;
 	private String tableHash;
@@ -24,6 +25,7 @@ public class CachedQueryRequest implements TranslatedQuery {
 				.setIncludesRowIdAndVersion(toClone.getIncludesRowIdAndVersion())
 				.setIncludeEntityEtag(toClone.getIncludeEntityEtag())
 				.setIncludeBenefactorId(toClone.getIncludeBenefactorId())
+				.setRowBenefactorColumnCount(toClone.getRowBenefactorColumnCount())
 				.setSingleTableId(toClone.getSingleTableId())
 				.setTableHash(toClone.getTableHash());
 	}
@@ -59,6 +61,11 @@ public class CachedQueryRequest implements TranslatedQuery {
 	}
 
 	@Override
+	public int getRowBenefactorColumnCount() {
+		return rowBenefactorColumnCount;
+	}
+
+	@Override
 	public String getSingleTableId() {
 		return singleTableId;
 	}
@@ -75,6 +82,11 @@ public class CachedQueryRequest implements TranslatedQuery {
 
 	public CachedQueryRequest setIncludeBenefactorId(boolean includeBenefactorId) {
 		this.includeBenefactorId = includeBenefactorId;
+		return this;
+	}
+
+	public CachedQueryRequest setRowBenefactorColumnCount(int rowBenefactorColumnCount) {
+		this.rowBenefactorColumnCount = rowBenefactorColumnCount;
 		return this;
 	}
 
@@ -118,8 +130,8 @@ public class CachedQueryRequest implements TranslatedQuery {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(expiresInSec, includeEntityEtag, includeBenefactorId, includesRowIdAndVersion, outputSQL,
-				parameters, selectColumns, singleTableId, tableHash);
+		return Objects.hash(expiresInSec, includeEntityEtag, includeBenefactorId, rowBenefactorColumnCount,
+				includesRowIdAndVersion, outputSQL, parameters, selectColumns, singleTableId, tableHash);
 	}
 
 	@Override
@@ -133,6 +145,7 @@ public class CachedQueryRequest implements TranslatedQuery {
 		CachedQueryRequest other = (CachedQueryRequest) obj;
 		return expiresInSec == other.expiresInSec && includeEntityEtag == other.includeEntityEtag
 				&& includeBenefactorId == other.includeBenefactorId
+				&& rowBenefactorColumnCount == other.rowBenefactorColumnCount
 				&& includesRowIdAndVersion == other.includesRowIdAndVersion
 				&& Objects.equals(outputSQL, other.outputSQL) && Objects.equals(parameters, other.parameters)
 				&& Objects.equals(selectColumns, other.selectColumns)
@@ -143,7 +156,8 @@ public class CachedQueryRequest implements TranslatedQuery {
 	public String toString() {
 		return "CachedQueryRequest [selectColumns=" + selectColumns + ", parameters=" + parameters + ", outputSQL="
 				+ outputSQL + ", includesRowIdAndVersion=" + includesRowIdAndVersion + ", includeEntityEtag="
-				+ includeEntityEtag + ", includeBenefactorId=" + includeBenefactorId + ", singleTableId=" + singleTableId
+				+ includeEntityEtag + ", includeBenefactorId=" + includeBenefactorId + ", rowBenefactorColumnCount="
+				+ rowBenefactorColumnCount + ", singleTableId=" + singleTableId
 				+ ", expiresInSec=" + expiresInSec + ", tableHash=" + tableHash + "]";
 	}
 	

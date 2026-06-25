@@ -147,10 +147,10 @@ public interface TableQueryManager {
 	/**
 	 * Run a query and stream the results to the provided {@link RowHandler}, optionally
 	 * appending the index's per-dependency benefactor columns to the select so the
-	 * search index build can read them.
+	 * row handler can read them positionally.
 	 *
-	 * @param includeRowBenefactors When true, append the row-benefactor columns. Only
-	 *                              the SearchIndex build sets this.
+	 * @param includeRowBenefactors When true, append the row-benefactor columns to the
+	 *                              select. Off by default.
 	 */
 	QueryResultBundle runQueryAsStream(ProgressCallback progressCallback, UserInfo user, Query request,
 			RowHandlerProvider provider, boolean includeRowBenefactors, ACCESS_TYPE...types)

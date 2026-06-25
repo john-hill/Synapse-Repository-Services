@@ -158,6 +158,15 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				.sqlContext(SqlContext.query)
 				.indexDescription(indexDescription)
 				.build();
+		// An aggregating defining SQL collapses source rows that may span different
+		// benefactors into a single output row, for which there is no correct per-row
+		// benefactor. When the source has benefactors, reject it up front (mirrors the
+		// materialized-view guard) rather than building an index whose row-level access
+		// filter would silently exclude every aggregated document.
+		if (sqlQuery.isAggregatedResult() && !indexDescription.getBenefactors().isEmpty()) {
+			throw new IllegalArgumentException(
+					"The defining SQL of a search index over an access-controlled source cannot include a group by clause.");
+		}
 		List<String> schemaIds = sqlQuery.getSchemaOfSelect().stream()
 				.map(c -> columnModelManager.createColumnModel(c).getId())
 				.collect(Collectors.toList());

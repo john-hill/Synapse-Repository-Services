@@ -186,21 +186,21 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
 		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
 
-		CreateIndexRequest request = CreateIndexRequest.of(req -> req
-				.index(indexName)
-				.settings(s -> s.analysis(a -> {
-					buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-					return a;
-				}))
-				.mappings(m -> {
-					buildMappings(m, columns, defaultAnalyzer,
-							overrideMap, resolvedAnalyzers, benefactorCount);
-					return m;
-				})
-		);
-
-		String appliedConfigJson = request.toJsonString();
 		try {
+			CreateIndexRequest request = CreateIndexRequest.of(req -> req
+					.index(indexName)
+					.settings(s -> s.analysis(a -> {
+						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+						return a;
+					}))
+					.mappings(m -> {
+						buildMappings(m, columns, defaultAnalyzer,
+								overrideMap, resolvedAnalyzers, benefactorCount);
+						return m;
+					})
+			);
+
+			String appliedConfigJson = request.toJsonString();
 			CreateIndexResponse response = openSearchClient.indices().create(request);
 
 			if (!response.acknowledged()) {

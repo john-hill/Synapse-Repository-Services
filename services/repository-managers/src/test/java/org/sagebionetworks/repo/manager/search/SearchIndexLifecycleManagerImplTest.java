@@ -49,6 +49,9 @@ import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.dao.table.TableType;
+import org.sagebionetworks.table.cluster.description.BenefactorDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
@@ -69,6 +72,7 @@ import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
+import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
@@ -1575,6 +1579,57 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertTrue(nestedLockCaptor.getAllValues().stream()
 				.noneMatch(s -> s.getState() == SearchIndexState.FAILED),
 				"nested lock-unavailable must not mark the index FAILED");
+	}
+
+	// --- registerSchema: aggregation-over-benefactor-source guard ---
+
+	@Test
+	public void testRegisterSchemaWithAggregateOverBenefactorSourceThrows() {
+		IdAndVersion searchIndexId = IdAndVersion.parse("syn456");
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		// A materialized-view source with a benefactor-bearing dependency. An aggregating
+		// defining SQL would collapse rows spanning different benefactors into one output
+		// row, for which there is no correct per-row benefactor — so it must be rejected.
+		IndexDescription mvSource = mock(IndexDescription.class);
+		when(mvSource.getTableHash()).thenReturn("hash");
+		when(mvSource.getTableType()).thenReturn(TableType.materializedview);
+		when(mvSource.getColumnNamesToAddToSelect(any(SqlContext.class), anyBoolean(), anyBoolean()))
+				.thenReturn(Collections.emptyList());
+		when(mvSource.getBenefactors()).thenReturn(Collections.singletonList(
+				new BenefactorDescription("ROW_BENEFACTOR_A0", ObjectType.ENTITY)));
+		ColumnModel fooColumn = new ColumnModel().setId("100").setName("foo")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(tableManagerSupport.getIndexDescription(sourceId)).thenReturn(mvSource);
+		when(tableManagerSupport.getTableSchema(sourceId)).thenReturn(Collections.singletonList(fooColumn));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(fooColumn);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.registerSchema(searchIndexId, "SELECT foo, COUNT(*) FROM syn789 GROUP BY foo"));
+		assertTrue(ex.getMessage().contains("cannot include a group by clause"),
+				"expected the aggregation guard message, got: " + ex.getMessage());
+		// Guard fires before any schema is bound.
+		verify(columnModelManager, never()).bindColumnsToVersionOfObject(any(), any());
+	}
+
+	@Test
+	public void testRegisterSchemaWithAggregateOverBenefactorlessSourceSucceeds() {
+		IdAndVersion searchIndexId = IdAndVersion.parse("syn456");
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		// A plain table source has no benefactors, so an aggregating defining SQL is allowed —
+		// row-level ACL is moot and the guard must not fire.
+		ColumnModel fooColumn = new ColumnModel().setId("100").setName("foo")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(tableManagerSupport.getIndexDescription(sourceId)).thenReturn(new TableIndexDescription(sourceId));
+		when(tableManagerSupport.getTableSchema(sourceId)).thenReturn(Collections.singletonList(fooColumn));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(fooColumn);
+		when(columnModelManager.createColumnModel(any()))
+				.thenReturn(new ColumnModel().setId("200").setName("foo").setColumnType(ColumnType.STRING).setMaximumSize(50L));
+
+		// call under test — must not throw.
+		manager.registerSchema(searchIndexId, "SELECT foo, COUNT(*) FROM syn789 GROUP BY foo");
+
+		verify(columnModelManager).bindColumnsToVersionOfObject(any(), eq(searchIndexId));
 	}
 
 }

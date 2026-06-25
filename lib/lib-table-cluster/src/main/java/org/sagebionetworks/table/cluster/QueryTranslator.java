@@ -37,13 +37,6 @@ import org.sagebionetworks.util.ValidateArgument;
 public class QueryTranslator implements TranslatedQuery {
 
 	/**
-	 * Name prefix for the synthetic select-column headers that mirror the appended
-	 * row-benefactor columns. These columns are read positionally from the trailing
-	 * values of each Row by the search index build.
-	 */
-	static final String ROW_BENEFACTOR_SELECT_PREFIX = "_ROW_BENEFACTOR_SELECT_";
-
-	/**
 	 * The input SQL is parsed into this object model.
 	 *
 	 */
@@ -90,8 +83,7 @@ public class QueryTranslator implements TranslatedQuery {
 
 	/**
 	 * Should the query append the index's per-dependency benefactor columns to the
-	 * select so the search index build can read them positionally? Off by default;
-	 * only the SearchIndex build sets it.
+	 * select so they can be read positionally from each Row? Off by default.
 	 */
 	private final boolean includeRowBenefactors;
 
@@ -201,25 +193,20 @@ public class QueryTranslator implements TranslatedQuery {
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
 			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
-			// The search index build appends the index's benefactor columns to the select so
+			// When requested, append the index's benefactor columns to the select so
 			// they can be read positionally. Never for aggregates.
 			this.includeRowBenefactors = BooleanUtils.isTrue(includeRowBenefactors) && !this.isAggregatedResult;
 			// Build headers that describe how the client should read the results of this
 			// query.
 			this.selectColumns = SQLTranslatorUtils.getSelectColumns(firstPart.getQuerySpecification().getSelectList(), firstPart.getMapper(),
 					this.isAggregatedResult);
-			// The search index build appends the index's benefactor columns to the select.
-			// Unlike ROW_ID/ROW_VERSION (read by name), these are read positionally from the
-			// trailing values of each Row, so they are mirrored into selectColumns — which
-			// sizes the positional read — and added to the select list ahead of the by-name
-			// metadata columns below.
+			// The benefactor columns are appended to the select list ahead of the by-name
+			// metadata columns below. They are not document columns, so they are NOT mirrored
+			// into selectColumns; the reader is told how many trailing benefactor columns to
+			// read past the select columns via getRowBenefactorColumnCount().
 			List<ColumnToAdd> rowBenefactorColumns = this.includeRowBenefactors
 					? indexDescription.getRowBenefactorColumnsToAddToSelect()
 					: java.util.Collections.emptyList();
-			for (int i = 0; i < rowBenefactorColumns.size(); i++) {
-				this.selectColumns.add(new SelectColumn().setName(ROW_BENEFACTOR_SELECT_PREFIX + i)
-						.setColumnType(org.sagebionetworks.repo.model.table.ColumnType.INTEGER));
-			}
 			// Maximum row size is a function of both the select clause and schema.
 			this.maxRowSizeBytes = TableModelUtils.calculateMaxRowSize(selectColumns, TableModelUtils.createColumnNameToModelMap(unionOfSchemas));
 
@@ -354,7 +341,7 @@ public class QueryTranslator implements TranslatedQuery {
 	 * 
 	 * @return
 	 */
-	boolean isAggregatedResult() {
+	public boolean isAggregatedResult() {
 		return isAggregatedResult;
 	}
 
@@ -544,7 +531,7 @@ public class QueryTranslator implements TranslatedQuery {
 
 		/**
 		 * When true, append the index's per-dependency benefactor columns to the select
-		 * so the search index build can read them positionally. Off by default.
+		 * so they can be read positionally from each Row. Off by default.
 		 */
 		public Builder includeRowBenefactors(Boolean includeRowBenefactors) {
 			this.includeRowBenefactors = includeRowBenefactors;

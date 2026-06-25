@@ -2743,8 +2743,9 @@ public class QueryTranslatorTest {
 
 		// Two benefactor columns are appended positionally.
 		assertEquals(2, translator.getRowBenefactorColumnCount());
-		// getSelectColumns mirrors the benefactor columns so the positional read is sized.
-		assertEquals(1 + 2, translator.getSelectColumns().size());
+		// The benefactor columns are NOT mirrored into selectColumns — they are read by count
+		// past the select columns, so selectColumns holds only the defining-SQL column.
+		assertEquals(1, translator.getSelectColumns().size());
 		// The benefactor columns appear in the output SQL ahead of ROW_ID/ROW_VERSION.
 		assertEquals(
 				"SELECT _C111_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T123",

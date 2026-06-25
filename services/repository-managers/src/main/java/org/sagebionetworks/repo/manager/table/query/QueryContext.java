@@ -147,8 +147,8 @@ public class QueryContext {
 	}
 
 	/**
-	 * @return When true, the search index build appends the index's per-dependency
-	 *         benefactor columns to the select. Off by default.
+	 * @return When true, the index's per-dependency benefactor columns are appended
+	 *         to the select. Off by default.
 	 */
 	public Boolean getIncludeRowBenefactors() {
 		return includeRowBenefactors;
@@ -281,9 +281,8 @@ public class QueryContext {
 		}
 
 		/**
-		 * @param includeRowBenefactors When true, the search index build appends the
-		 *                              index's per-dependency benefactor columns to the
-		 *                              select. Off by default.
+		 * @param includeRowBenefactors When true, the index's per-dependency benefactor
+		 *                              columns are appended to the select. Off by default.
 		 */
 		public Builder setIncludeRowBenefactors(Boolean includeRowBenefactors) {
 			this.includeRowBenefactors = includeRowBenefactors;

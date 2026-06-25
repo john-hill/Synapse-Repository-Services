@@ -63,6 +63,7 @@ import org.sagebionetworks.table.cluster.description.BenefactorDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
+import org.springframework.jdbc.BadSqlGrammarException;
 
 /**
  * Mockito unit tests for {@link SearchIndexQueryManagerImpl}. Covers the translation
@@ -1208,6 +1209,41 @@ public class SearchIndexQueryManagerImplTest {
 		assertEquals("_benefactor_1", filters.get(1).terms().field());
 		assertEquals(new java.util.HashSet<>(Arrays.asList(20L, -1L)),
 				filters.get(1).terms().terms().value().stream()
+						.map(v -> v.longValue()).collect(Collectors.toSet()));
+	}
+
+	@Test
+	public void testBuildBenefactorAccessFiltersWhenSourceTableNotBuilt() {
+		// When the source index table does not exist yet, getDistinctLongValues throws
+		// BadSqlGrammarException. The candidate set falls back to empty, so no benefactor
+		// resolves as accessible — but the -1 sentinel is always added. The resulting filter
+		// matches ONLY _benefactor_0 == -1, which is fail-closed: it never widens to all rows,
+		// so benefactor-protected data is never exposed while the table is still building.
+		IndexDescription source = org.mockito.Mockito.mock(IndexDescription.class);
+		when(source.getBenefactors()).thenReturn(Arrays.asList(
+				new BenefactorDescription("ROW_BENEFACTOR_A0", org.sagebionetworks.repo.model.ObjectType.ENTITY)));
+		when(source.getIdAndVersion()).thenReturn(SOURCE_ID);
+
+		TableIndexDAO indexDao = org.mockito.Mockito.mock(TableIndexDAO.class);
+		when(connectionFactory.getConnection(SOURCE_ID)).thenReturn(indexDao);
+		when(indexDao.getDistinctLongValues(SOURCE_ID, "ROW_BENEFACTOR_A0"))
+				.thenThrow(new BadSqlGrammarException("getDistinctLongValues", "SELECT ...",
+						new java.sql.SQLException("table does not exist")));
+		// Empty candidate set in → empty accessible set out, mirroring the real ACL DAO's
+		// short-circuit for empty input.
+		when(tableManagerSupport.getAccessibleBenefactors(user, org.sagebionetworks.repo.model.ObjectType.ENTITY,
+				Collections.emptySet(), org.sagebionetworks.repo.model.ACCESS_TYPE.READ))
+				.thenReturn(new java.util.HashSet<>());
+
+		// call under test
+		List<org.opensearch.client.opensearch._types.query_dsl.Query> filters =
+				manager.buildBenefactorAccessFilters(user, source);
+
+		assertEquals(1, filters.size());
+		// Fail-closed: the only term is the -1 sentinel, never an empty/match-all filter.
+		assertEquals("_benefactor_0", filters.get(0).terms().field());
+		assertEquals(new java.util.HashSet<>(Arrays.asList(-1L)),
+				filters.get(0).terms().terms().value().stream()
 						.map(v -> v.longValue()).collect(Collectors.toSet()));
 	}
 }

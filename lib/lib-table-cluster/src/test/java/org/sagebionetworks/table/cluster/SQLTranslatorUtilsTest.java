@@ -852,7 +852,7 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = true;
 		boolean withEtag = true;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, 0, infoArray);
 		verify(mockResultSet).getLong(ROW_ID);
 		verify(mockResultSet).getLong(ROW_VERSION);
 		verify(mockResultSet).getString(ROW_ETAG);
@@ -873,7 +873,7 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = false;
 		boolean withEtag = true;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, 0, infoArray);
 		verify(mockResultSet, never()).getLong(ROW_ID);
 		verify(mockResultSet, never()).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
@@ -894,7 +894,7 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = false;
 		boolean withEtag = false;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, 0, infoArray);
 		verify(mockResultSet, never()).getLong(ROW_ID);
 		verify(mockResultSet, never()).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
@@ -917,7 +917,7 @@ public class SQLTranslatorUtilsTest {
 		boolean withHeaders = true;
 		boolean withEtag = false;
 		// call under test.
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, withHeaders, withEtag, false, 0, infoArray);
 		verify(mockResultSet).getLong(ROW_ID);
 		verify(mockResultSet).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
@@ -940,7 +940,7 @@ public class SQLTranslatorUtilsTest {
 		when(mockResultSet.getString(1)).thenReturn("aString");
 		when(mockResultSet.getString(2)).thenReturn("true");
 		// call under test
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, true, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, true, 0, infoArray);
 		verify(mockResultSet).getLong(ROW_ID);
 		verify(mockResultSet).getLong(ROW_VERSION);
 		verify(mockResultSet, never()).getString(ROW_ETAG);
@@ -958,10 +958,25 @@ public class SQLTranslatorUtilsTest {
 		when(mockResultSet.getString(1)).thenReturn("aString");
 		when(mockResultSet.getString(2)).thenReturn("true");
 		// call under test
-		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, false, infoArray);
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, false, 0, infoArray);
 		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
 		assertNull(result.getBenefactorId());
 	}	
+
+	@Test
+	public void testReadRowWithRowBenefactorColumns() throws SQLException {
+		when(mockResultSet.getLong(ROW_ID)).thenReturn(rowId);
+		when(mockResultSet.getLong(ROW_VERSION)).thenReturn(rowVersion);
+		when(mockResultSet.getString(1)).thenReturn("aString");
+		when(mockResultSet.getString(2)).thenReturn("true");
+		// The two benefactor columns are appended after the two select columns (positions 3 and 4).
+		when(mockResultSet.getString(3)).thenReturn("10");
+		when(mockResultSet.getString(4)).thenReturn("20");
+		// call under test - read two trailing benefactor columns past the select columns.
+		Row result = SQLTranslatorUtils.readRow(mockResultSet, true, false, false, 2, infoArray);
+		// The benefactor values are appended to the row values after the select columns.
+		assertEquals(Arrays.asList("aString", "true", "10", "20"), result.getValues());
+	}
 	
 	@Test
 	public void testTranslateTableName() throws ParseException{

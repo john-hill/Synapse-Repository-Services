@@ -15,7 +15,8 @@ public class CachedQueryRequestTest {
 	@Test
 	public void testClone() {
 		CachedQueryRequest request = new CachedQueryRequest().setExpiresInSec(60).setIncludeEntityEtag(true)
-				.setIncludeBenefactorId(true).setIncludesRowIdAndVersion(false).setOutputSQL("select * from syn123")
+				.setIncludeBenefactorId(true).setRowBenefactorColumnCount(2).setIncludesRowIdAndVersion(false)
+				.setOutputSQL("select * from syn123")
 				.setParameters(Map.of("key", "value")).setSingleTableId("syn123")
 				.setSelectColumns(List.of(new SelectColumn().setName("foo"))).setTableHash("hash");
 
@@ -54,6 +55,21 @@ public class CachedQueryRequestTest {
 		// call under test
 		CachedQueryRequest clone = CachedQueryRequest.clone(request);
 		assertTrue(clone.getIncludeBenefactorId());
+	}
+
+	@Test
+	public void testRowBenefactorColumnCountDefaultsZero() {
+		// call under test
+		assertEquals(0, new CachedQueryRequest().getRowBenefactorColumnCount());
+	}
+
+	@Test
+	public void testClonePreservesRowBenefactorColumnCount() {
+		CachedQueryRequest request = new CachedQueryRequest().setRowBenefactorColumnCount(2);
+
+		// call under test
+		CachedQueryRequest clone = CachedQueryRequest.clone(request);
+		assertEquals(2, clone.getRowBenefactorColumnCount());
 	}
 
 }

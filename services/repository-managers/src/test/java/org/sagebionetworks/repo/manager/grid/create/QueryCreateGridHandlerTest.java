@@ -36,7 +36,7 @@ import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRowValidator;
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.manager.table.query.MainQuery;
@@ -104,7 +104,7 @@ public class QueryCreateGridHandlerTest {
 	@Mock
 	private EntityManager mockEntityManager;
 	@Mock
-	private JsonSchemaManager mockSchemaManager;
+	private GridRowValidator mockGridRowValidator;
 	@Mock
 	private GridAuthorizationManager mockGridAuthorizationManager;
 	
@@ -191,7 +191,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query),
 				rowHandlerProviderCaptor.capture(), eq(ACCESS_TYPE.READ), eq(ACCESS_TYPE.UPDATE))).thenReturn(new QueryResultBundle());
 		doReturn(Optional.of(schema$id)).when(handler).getSchemaId(mockUser, tableId, rows);
-		when(mockSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
+		when(mockGridRowValidator.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.entityview);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
@@ -470,7 +470,7 @@ public class QueryCreateGridHandlerTest {
 		GridReplica handlerReplica = new GridReplica().setReplicaId(replicaId);
 		List<ColumnModel> schema = List.of(new ColumnModel().setColumnType(ColumnType.INTEGER).setName("foo"));
 		Set<Long> collectedIds = new HashSet<>();
-		Optional<JsonSchema> validationSchema = Optional.empty();
+		Optional<String> schemaId = Optional.empty();
 		Long benefactorId = 555L;
 
 		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(mockFile);
@@ -479,7 +479,7 @@ public class QueryCreateGridHandlerTest {
 
 		// call under test
 		BenefactorCollectingRowHandler result = handler.getBenefactorCollectingRowHandler(
-				mockSnapshotStore, session, handlerReplica, schema, List.of(), userId, validationSchema, collectedIds);
+				mockSnapshotStore, session, handlerReplica, schema, List.of(), userId, schemaId, collectedIds);
 
 		assertNotNull(result);
 		// row with benefactorId — should be collected

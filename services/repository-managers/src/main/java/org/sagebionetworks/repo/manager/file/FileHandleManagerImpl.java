@@ -442,7 +442,7 @@ public class FileHandleManagerImpl implements FileHandleManager {
 	}
 
 	private String getCloudFrontSignedUrlForS3FileHandle(S3FileHandle handle) {
-		String keyPairId = config.getCloudFrontKeyPairId();
+		String keyPairId = config.getCloudFrontKeyId();
 		String distributionDomainName = config.getCloudFrontDomainName();
 		String privateKeyValue = config.getCloudFrontPrivateKey();
 		PrivateKey privateKey = KeyPairUtil.getPrivateKeyFromPEM(privateKeyValue, RSA);

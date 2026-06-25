@@ -139,7 +139,6 @@ public class OpenSearchManagerImplTest {
 
 	private long originalBulkInitialBackoffMs;
 	private long originalProbeInitialBackoffMs;
-	private long originalCountProbeInitialBackoffMs;
 	private long originalSentinelCleanupInitialBackoffMs;
 
 	@BeforeEach
@@ -150,8 +149,6 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = 1L;
 		originalProbeInitialBackoffMs = OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = 1L;
-		originalCountProbeInitialBackoffMs = OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS;
-		OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS = 1L;
 		originalSentinelCleanupInitialBackoffMs = OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = 1L;
 	}
@@ -160,7 +157,6 @@ public class OpenSearchManagerImplTest {
 	public void tearDown() {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = originalBulkInitialBackoffMs;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = originalProbeInitialBackoffMs;
-		OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS = originalCountProbeInitialBackoffMs;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
 	}
 
@@ -392,6 +388,13 @@ public class OpenSearchManagerImplTest {
 	@Test
 	public void testIsRetryableItemStatusFor429() {
 		assertTrue(OpenSearchManagerImpl.isRetryableItemStatus(429));
+	}
+
+	@Test
+	public void testIsRetryableItemStatusFor402() {
+		// AOSS returns 402 service_quota_exceeded_exception when the collection hits its OCU
+		// ceiling — a transient, auto-scaling condition, so it must be retryable.
+		assertTrue(OpenSearchManagerImpl.isRetryableItemStatus(402));
 	}
 
 	@Test
@@ -1195,6 +1198,49 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testBulkIndexWith402ItemStatusExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
+		// AOSS returns 402 service_quota_exceeded_exception ("maximum OCU capacity reached") when the
+		// collection hits its OCU ceiling — classified as retryable so the loop backs off and resubmits
+		// rather than failing the whole index build permanently.
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenAnswer(inv -> allFailedResponse(inv.getArgument(0), 402,
+						"service_quota_exceeded_exception", "maximum OCU capacity reached"));
+
+		// call under test
+		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
+		assertTrue(ex.getMessage().contains(
+				"failed after " + OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES + " attempts"),
+				ex.getMessage());
+		assertTrue(ex.getMessage().contains("3 document(s) still retryable out of 3"), ex.getMessage());
+		// 1 batch attempt, then MAX_RETRIES-1 per-document attempts with 3 ops each.
+		int expected = 1 + (OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES - 1) * 3;
+		verify(openSearchClient, times(expected))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
+	public void testBulkIndexWithMixed402And400FailuresThrowsPermanentRuntimeException() throws Exception {
+		// A retryable 402 mixed with a genuine permanent 400 must still fail permanently — the 400
+		// disqualifies the batch; a 402 alone is retryable but does not rescue a real permanent failure.
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", 402, "service_quota_exceeded_exception", "maximum OCU capacity reached"),
+				failedItem("2", 400, "mapper_parsing_exception", "failed to parse field [geneName]"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"))));
+		assertFalse(ex instanceof RecoverableMessageException,
+				ex.getClass().getName() + ": " + ex.getMessage());
+		assertTrue(ex.getMessage().contains("1 retryable"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("1 permanent"), ex.getMessage());
+	}
+
+	@Test
 	public void testBulkIndexWithMixed500And400FailuresThrowsPermanentRuntimeException() throws Exception {
 		BulkResponse response = bulkResponseOf(
 				failedItem("1", 500, "exception", "Internal error occurred while processing request"),
@@ -1331,6 +1377,44 @@ public class OpenSearchManagerImplTest {
 		assertThrows(RecoverableMessageException.class,
 				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
 		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
+	public void testBulkIndexWithEnvelopeIndexNotFoundExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
+		// AOSS returns index_not_found_exception (404) during the eventual-consistency window
+		// after createIndex — the alias is acknowledged before its shards resolve on every node.
+		// This is transient, so the bulk path must retry rather than fail the index permanently.
+		ErrorResponse notFound = ErrorResponse.of(e -> e
+				.error(err -> err.type("index_not_found_exception").reason("no such index"))
+				.status(404));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(notFound));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
+	public void testBulkIndexWithEnvelopeIndexNotFoundThenSuccessRecovers() throws Exception {
+		// Transient index_not_found on the first two attempts, then success — proves the 404 is
+		// retried within the existing budget instead of escaping as a terminal RuntimeException.
+		ErrorResponse notFound = ErrorResponse.of(e -> e
+				.error(err -> err.type("index_not_found_exception").reason("no such index"))
+				.status(404));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(notFound))
+				.thenThrow(new OpenSearchException(notFound))
+				.thenReturn(bulkResponseOf(okItem("1")));
+
+		// call under test
+		long indexed = manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1")));
+
+		assertEquals(1L, indexed);
+		verify(openSearchClient, times(3))
 				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
@@ -1778,117 +1862,6 @@ public class OpenSearchManagerImplTest {
 
 		verify(openSearchClient, times(1)).index(argThat((IndexRequest<?> req) -> req != null));
 		verify(openSearchClient, times(2)).delete(argThat((DeleteRequest req) -> req != null));
-	}
-
-	// --- waitForDocumentCount ---
-
-	@Test
-	public void testWaitForDocumentCountWithImmediateMatchReturns() throws Exception {
-		// Happy path: AOSS reports the expected count on the first attempt; no retry, no log noise.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(org.opensearch.client.opensearch.core.CountResponse.of(b -> b
-						.count(5L)
-						.shards(s -> s.total(1).successful(1).failed(0))));
-
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(1))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountConvergesAfterUnderCount() throws Exception {
-		// AOSS is eventually consistent: the first probe sees fewer documents than were
-		// bulk-indexed; the second sees the full count and returns.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(countResponse(2L))
-				.thenReturn(countResponse(5L));
-
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(2))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountTreatsExcessAsConverged() throws Exception {
-		// >= rather than == so a leftover readiness-probe sentinel cannot strand convergence
-		// one short. An excess count is therefore a successful return, not a retry.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(countResponse(6L));
-
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 5L);
-
-		verify(openSearchClient, times(1))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
-		// Persistent under-count: every attempt sees fewer documents than expected. The probe
-		// must throw RecoverableMessageException so the lifecycle worker re-queues the message
-		// without writing FAILED — convergence is transient by definition.
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenReturn(countResponse(2L));
-
-		// call under test
-		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
-				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
-
-		assertTrue(ex.getMessage().contains("did not converge"), ex.getMessage());
-		assertTrue(ex.getMessage().contains("2 of 5"), ex.getMessage());
-		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountWithIOExceptionExhaustsRetries() throws Exception {
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenThrow(new IOException("connection reset"));
-
-		// call under test
-		assertThrows(RecoverableMessageException.class,
-				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
-
-		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountWithOpenSearchExceptionExhaustsRetries() throws Exception {
-		// AOSS may briefly return index_not_found_exception (or any other transient error) from
-		// _count while shards are still propagating the freshly-written documents.
-		ErrorResponse notFound = ErrorResponse.of(er -> er
-				.error(ErrorCause.of(e -> e.type("index_not_found_exception").reason("no such index")))
-				.status(404));
-		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
-				.thenThrow(new OpenSearchException(notFound));
-
-		// call under test
-		assertThrows(RecoverableMessageException.class,
-				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
-
-		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
-				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
-	}
-
-	@Test
-	public void testWaitForDocumentCountWithZeroExpectedShortCircuits() throws Exception {
-		// An empty SearchIndex needs no probe — _count would just return 0 and we'd skip the
-		// retry path anyway. Avoid the round-trip entirely.
-		// call under test
-		manager.waitForDocumentCount("search-index-syn1", 0L);
-
-		verifyNoMoreInteractions(openSearchClient);
-	}
-
-	private static org.opensearch.client.opensearch.core.CountResponse countResponse(long count) {
-		return org.opensearch.client.opensearch.core.CountResponse.of(b -> b
-				.count(count)
-				.shards(s -> s.total(1).successful(1).failed(0)));
 	}
 
 	// --- per-document fallback on partial batch failure ---

@@ -132,6 +132,8 @@ import org.sagebionetworks.repo.model.dataaccess.AccessorGroupRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessorGroupResponse;
 import org.sagebionetworks.repo.model.dataaccess.CreateSubmissionRequest;
 import org.sagebionetworks.repo.model.dataaccess.OpenSubmissionPage;
+import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
+import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.ResearchProject;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionInfoPage;
@@ -2092,7 +2094,15 @@ public interface SynapseClient extends BaseClient {
 	 */
 	PrincipalAlias bindOAuthProvidersUserId(OAuthValidationRequest request)
 			throws SynapseException;
-	
+
+	/**
+	 * Bind an OIDC identity (subject) to the user's account.
+	 *
+	 * @param request
+	 * @throws SynapseException
+	 */
+	void bindOIDCIdentity(OAuthValidationRequest request) throws SynapseException;
+
 	/**
 	 * Remove an alias associated with an account via the OAuth mechanism.
 	 * 
@@ -3552,6 +3562,16 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	OpenSubmissionPage getOpenSubmissions(String nextPageToken) throws SynapseException;
+
+	/**
+	 * List a page of available eDUC (electronic Data Use Certificate) templates.
+	 * Only an ACT member can perform this action.
+	 *
+	 * @param request the list request
+	 * @return a page of eDUC template metadata
+	 * @throws SynapseException
+	 */
+	EDucTemplatePage listEDucTemplates(EDucTemplateListRequest request) throws SynapseException;
 
 	/**
 	 * Retrieve a page of AccessorGroup.

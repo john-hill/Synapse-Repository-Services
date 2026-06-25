@@ -66,6 +66,7 @@
 			<id>jitpack.io</id>
 			<url>https://jitpack.io</url>
 		</repository>
+		
 	</repositories>
 
 	<pluginRepositories>
@@ -207,6 +208,12 @@
 			</dependency>
 
 			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-annotations</artifactId>
+				<version>${jackson.annotations.version}</version>
+			</dependency>
+
+			<dependency>
 				<groupId>com.fasterxml.jackson.datatype</groupId>
 				<artifactId>jackson-datatype-jsr310</artifactId>
 				<version>${jackson.version}</version>
@@ -234,6 +241,48 @@
 				<groupId>com.fasterxml.jackson.dataformat</groupId>
 				<artifactId>jackson-dataformat-cbor</artifactId>
 				<version>${jackson.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.fasterxml.jackson.dataformat</groupId>
+				<artifactId>jackson-dataformat-csv</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.fasterxml.jackson.jakarta.rs</groupId>
+				<artifactId>jackson-jakarta-rs-json-provider</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.core</groupId>
+				<artifactId>jersey-client</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.inject</groupId>
+				<artifactId>jersey-hk2</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.media</groupId>
+				<artifactId>jersey-media-multipart</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.glassfish.jersey.media</groupId>
+				<artifactId>jersey-media-json-jackson</artifactId>
+				<version>${jersey.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>com.auth0</groupId>
+				<artifactId>java-jwt</artifactId>
+				<version>${auth0.java-jwt.version}</version>
 			</dependency>
 
 			<!-- Used for timer triggers (cron-like) Note: spring-context-support
@@ -530,6 +579,12 @@
 
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
+				<artifactId>lib-docusign</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
 				<artifactId>lib-jdomodels</artifactId>
 				<version>${project.version}</version>
 			</dependency>
@@ -569,6 +624,12 @@
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
 				<artifactId>lib-stackConfiguration</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
+				<artifactId>lib-dbuserhelper</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 
@@ -628,12 +689,17 @@
 			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
+				<artifactId>csv-utilities</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
 				<artifactId>database-semaphore</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
-				<artifactId>csv-utilities</artifactId>
+				<artifactId>lib-database-configuration</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
@@ -1100,15 +1166,18 @@
 		<findbugs-maven-plugin.version>2.5.2</findbugs-maven-plugin.version>
 		<org.apache.httpcomponents.version>4.5.13</org.apache.httpcomponents.version>
 		<org.apache.pivot.version>2.0.1</org.apache.pivot.version>
-		<log4j.version>2.23.1</log4j.version>
+		<log4j.version>2.26.0</log4j.version>
 		<commonslogging.version>1.2</commonslogging.version>
 		<commonscollections4.version>4.1</commonscollections4.version>
 		<junit.jupiter.version>5.12.2</junit.jupiter.version>
 		<mockito.version>5.23.0</mockito.version>
 		<com.google.cloud.version>1.77.0</com.google.cloud.version>
 		<jsoup.version>1.14.2</jsoup.version>
-		<bouncycastle.version>1.82</bouncycastle.version>
+		<bouncycastle.version>1.84</bouncycastle.version>
 		<jjwt.version>0.11.2</jjwt.version>
+		<jackson.annotations.version>2.20</jackson.annotations.version>
+		<jersey.version>3.1.6</jersey.version>
+		<auth0.java-jwt.version>3.4.1</auth0.java-jwt.version>
 	</properties>
 
 	<distributionManagement>

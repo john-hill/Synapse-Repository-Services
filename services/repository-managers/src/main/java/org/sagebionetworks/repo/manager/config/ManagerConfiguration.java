@@ -22,8 +22,6 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import jakarta.json.stream.JsonParser;
-
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
@@ -51,6 +49,7 @@ import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.oauth.AWSCognitoOAuth2Provider;
 import org.sagebionetworks.repo.manager.oauth.ArcusBioProvider;
 import org.sagebionetworks.repo.manager.oauth.GoogleOAuth2Provider;
+import org.sagebionetworks.repo.manager.oauth.NIHRASProvider;
 import org.sagebionetworks.repo.manager.oauth.OAuthProviderBinding;
 import org.sagebionetworks.repo.manager.oauth.OIDCConfig;
 import org.sagebionetworks.repo.manager.oauth.OrcidOAuth2Provider;
@@ -102,7 +101,9 @@ import dev.samstevens.totp.secret.DefaultSecretGenerator;
 import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
+import jakarta.json.stream.JsonParser;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -316,6 +317,12 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
+	public NIHRASProvider nihRASOAuthProvider(StackConfiguration config, SimpleHttpClient client) {
+		return new NIHRASProvider(config.getOAuth2NIHRASClientId(), config.getOAuth2NIHRASClientSecret(),
+				new OIDCConfig(client, config.getOAuth2NIHRASDiscoveryDocument()));
+	}
+
+	@Bean
 	public TotpManager totpManager() {
 		SecretGenerator secretGenerator = new DefaultSecretGenerator(TotpManager.SECRET_LENGHT);
 
@@ -367,8 +374,24 @@ public class ManagerConfiguration {
 
 	@Bean
 	public BedrockAgentRuntimeAsyncClientBuilder createBedrockAgentRuntimeAsyncClientBuilder() {
-		return BedrockAgentRuntimeAsyncClient.builder().region(Region.US_EAST_1)
-				.httpClientBuilder(NettyNioAsyncHttpClient.builder().readTimeout(Duration.ofMinutes(2)));
+	    // 1. Configure the Netty HTTP client with appropriate networking thresholds
+	    NettyNioAsyncHttpClient.Builder httpClientBuilder = NettyNioAsyncHttpClient.builder()
+	            .connectionTimeout(Duration.ofSeconds(10))
+	            .readTimeout(Duration.ofMinutes(5))  // Give the LLM Agent up to 5 minutes to complete complex tasks
+	            .writeTimeout(Duration.ofSeconds(30))
+	            // Crucial for long-running streaming responses: prevents idle drops
+	            .connectionMaxIdleTime(Duration.ofMinutes(5));
+
+	    // 2. Configure overall SDK wrapper timeouts to prevent the client wrapper from killing the future early
+	    ClientOverrideConfiguration overrideConfig = ClientOverrideConfiguration.builder()
+	            .apiCallTimeout(Duration.ofMinutes(5).plusSeconds(10))        // Must be slightly longer than readTimeout
+	            .apiCallAttemptTimeout(Duration.ofMinutes(5).plusSeconds(5)) // Time allocated per individual request attempt
+	            .build();
+
+	    return BedrockAgentRuntimeAsyncClient.builder()
+	            .region(Region.US_EAST_1)
+	            .overrideConfiguration(overrideConfig)
+	            .httpClientBuilder(httpClientBuilder);
 	}
 
 	@Bean

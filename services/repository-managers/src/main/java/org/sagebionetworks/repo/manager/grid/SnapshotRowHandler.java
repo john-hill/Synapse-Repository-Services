@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.grid;
 
-import static org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridReplicaValidationManagerImpl.cleanupValidationResults;
 import static org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManagerImpl.gridRowToJsonObject;
 
 import java.io.File;
@@ -20,10 +19,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRowValidator;
 import org.sagebionetworks.repo.manager.grid.internal.replica.validation.JsonObjectSubject;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
@@ -68,7 +67,7 @@ public class SnapshotRowHandler implements RowHandler {
 
     // Optional validation fields
     private final JsonSchema validationSchema;
-    private final JsonSchemaValidationManager jsonSchemaValidationManager;
+    private final GridRowValidator gridRowValidator;
     private final List<String> columnNames;
 
     private long nextNodeSequenceNumber = 1;
@@ -112,7 +111,7 @@ public class SnapshotRowHandler implements RowHandler {
 
     public SnapshotRowHandler(SnapshotStore snapshotStore, String sessionId, Long replicaId, List<ColumnModel> schema,
                               List<Integer> requiredColumnIndices, FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider,
-                              Long createdByUserId, JsonSchemaValidationManager jsonSchemaValidationManager, JsonSchema validationSchema) {
+                              Long createdByUserId, GridRowValidator gridRowValidator, String schemaId) {
         super();
         ValidateArgument.required(snapshotStore, "snapshotStore");
 
@@ -126,8 +125,8 @@ public class SnapshotRowHandler implements RowHandler {
         this.encoderProvider = encoderProvider;
 
         // Validation fields
-        this.validationSchema = validationSchema;
-        this.jsonSchemaValidationManager = jsonSchemaValidationManager;
+        this.gridRowValidator = gridRowValidator;
+        this.validationSchema = schemaId != null ? gridRowValidator.getValidationSchema(schemaId) : null;
         this.columnNames = schema.stream().map(ColumnModel::getName).collect(Collectors.toList());
 
         // Create temporary file
@@ -302,7 +301,7 @@ public class SnapshotRowHandler implements RowHandler {
      */
     Optional<ObjectNode> getRowMetadata(Row row, VectorNode rowDataNode, Consumer<Node> nodeConsumer) {
         boolean hasSynapseRow = row.getRowId() != null || row.getVersionNumber() != null || row.getEtag() != null;
-        boolean hasValidation = validationSchema != null && jsonSchemaValidationManager != null;
+        boolean hasValidation = validationSchema != null;
 
         if (!hasSynapseRow && !hasValidation) {
             return Optional.empty();
@@ -358,9 +357,7 @@ public class SnapshotRowHandler implements RowHandler {
         JsonSubject subject = new JsonObjectSubject(rowJson);
 
         // Validate
-        ValidationResults results = jsonSchemaValidationManager.validate(validationSchema, subject);
-
-        cleanupValidationResults(results);
+        ValidationResults results = gridRowValidator.validateBatch(validationSchema, List.of(subject)).get(0);
 
         // Serialize and create constant - timestamp will be > all data constants
         try {

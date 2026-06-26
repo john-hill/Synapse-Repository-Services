@@ -36,7 +36,7 @@ import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRowValidator;
 import org.sagebionetworks.repo.manager.table.RecordSetSchemaResolver;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -55,7 +55,6 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -95,7 +94,7 @@ public class RecordSetCreateGridHandlerTest {
 	private CsvFileHandleProvider mockCsvProvider;
 
 	@Mock
-	private JsonSchemaManager mockJsonSchemaManager;
+	private GridRowValidator mockGridRowValidator;
 
 	@Mock
 	private FileProvider mockFileProvider;
@@ -129,7 +128,6 @@ public class RecordSetCreateGridHandlerTest {
 	private CsvTableDescriptor csvDescriptor;
 	private List<ColumnModel> csvSchema;
 	private RecordSet recordSet;
-	private JsonSchema jsonSchema;
 	private ClockTable clockTable;
 	@Mock
 	private CSVReader mockCsvReader;
@@ -149,7 +147,6 @@ public class RecordSetCreateGridHandlerTest {
 		replicaId = 88L;
 		replica = new GridReplica().setReplicaId(replicaId);
 		schema$id = "someorg-somename";
-		jsonSchema = new JsonSchema().setRequired(List.of("bar"));
 
 		gridSession = new GridSession();
 
@@ -181,7 +178,6 @@ public class RecordSetCreateGridHandlerTest {
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
 				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
-		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(jsonSchema);
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
@@ -197,7 +193,7 @@ public class RecordSetCreateGridHandlerTest {
 				.thenReturn(new RecordSetSchemaResolver.ReconciledSchema(csvSchema, List.of(1)));
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				 List.of(1), mockFileProvider, userId, jsonSchema);
+				 List.of(1), mockFileProvider, userId, schema$id);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -266,8 +262,6 @@ public class RecordSetCreateGridHandlerTest {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
-		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
-		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(jsonSchema);
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
 				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
 
@@ -286,7 +280,7 @@ public class RecordSetCreateGridHandlerTest {
 				.thenReturn(new RecordSetSchemaResolver.ReconciledSchema(csvSchema, List.of(1)));
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(1), mockFileProvider, userId, jsonSchema);
+				List.of(1), mockFileProvider, userId, schema$id);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -311,8 +305,6 @@ public class RecordSetCreateGridHandlerTest {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
-		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
-		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(jsonSchema);
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
 				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
 
@@ -331,7 +323,7 @@ public class RecordSetCreateGridHandlerTest {
 				.thenReturn(new RecordSetSchemaResolver.ReconciledSchema(csvSchema, List.of(1)));
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(1), mockFileProvider, userId, jsonSchema);
+				List.of(1), mockFileProvider, userId, schema$id);
 
 		when(mockCsvReader.readNext()).thenThrow(ioe);
 
@@ -391,7 +383,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		// Call under test
 		SnapshotRowHandler snapshotHandler = handler.getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, userId, jsonSchema);
+				List.of(), mockFileProvider, userId, null);
 
 
 		assertNotNull(snapshotHandler);

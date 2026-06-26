@@ -6,16 +6,14 @@ import javax.sql.DataSource;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.database.semaphore.CountingSemaphore;
-import org.sagebionetworks.database.semaphore.CountingSemaphoreImpl;
-import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAO;
-import org.sagebionetworks.repo.model.dbo.migration.MigrationTypeProvider;
-import org.sagebionetworks.repo.model.dbo.migration.MigrationTypeProviderImpl;
+import org.sagebionetworks.lib.dbuserhelper.DBUserHelper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportResource;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -23,8 +21,15 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * Database infrastructure configuration providing core beans for database access.
+ * This configuration provides DataSource, JdbcTemplate, and TransactionManager beans
+ * for both the main repository database and the migration database.
+ */
 @Configuration
-public class ModelConfig {
+@EnableTransactionManagement
+@ImportResource("classpath:stack-configuration.spb.xml")
+public class DatabaseInfrastructureConfiguration {
 
 	private static <T extends BasicDataSource> T configureRepoDataSource(T dataSource, StackConfiguration stackConfiguration) {
 		dataSource.setDriverClassName(stackConfiguration.getRepositoryDatabaseDriver());
@@ -43,11 +48,12 @@ public class ModelConfig {
 
 	/**
 	 * Default repo data source pool
-	 * 
+	 *
 	 * @param stackConfiguration
 	 * @return
 	 */
 	@Bean(destroyMethod = "close")
+	@Primary
 	public DataSource dataSourcePool(StackConfiguration stackConfiguration) {
 		return configureRepoDataSource(new BasicDataSource(), stackConfiguration);
 	}
@@ -55,7 +61,7 @@ public class ModelConfig {
 	/**
 	 * Special repo data source that enabled rewriting batched statements increasing the throughput of
 	 * inserts, this is used my migration when restoring data
-	 * 
+	 *
 	 * @param stackConfiguration
 	 * @return
 	 */
@@ -69,7 +75,7 @@ public class ModelConfig {
 	// This is the primary transaction manager used by the application, it is also used by the semaphore
 	// but under a different name for clarity
 	@Primary
-	@Bean(name = {"txManager", "semaphoreTransactionManager"})
+	@Bean(name = {"txManager"})
 	public PlatformTransactionManager txManager(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
 		return new DataSourceTransactionManager(dataSourcePool);
 	}
@@ -80,9 +86,13 @@ public class ModelConfig {
 	}
 
 	@Primary
-	@Bean
-	public JdbcTemplate jdbcTemplate(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
-		return new JdbcTemplate(dataSourcePool);
+	@Bean (name="jdbcTemplate")
+	public JdbcTemplate jdbcTemplate(@Qualifier("dataSourcePool") DataSource dataSourcePool,
+			org.sagebionetworks.StackConfiguration stackConfiguration) {
+		JdbcTemplate template = new JdbcTemplate(dataSourcePool);
+		// Create the read-only user in the main database
+		DBUserHelper.createDbReadOnlyUser(template, stackConfiguration);
+		return template;
 	}
 
 	@Bean
@@ -107,7 +117,7 @@ public class ModelConfig {
 
 		return new TransactionTemplate(txManager, txDefinition);
 	}
-	
+
 	@Bean
 	public TransactionTemplate readCommittedRequiresNew(PlatformTransactionManager txManager) {
 		DefaultTransactionDefinition txDefinition = new DefaultTransactionDefinition();
@@ -118,15 +128,5 @@ public class ModelConfig {
 		txDefinition.setName("readCommittedRequiresNew");
 
 		return new TransactionTemplate(txManager, txDefinition);
-	}
-	
-	@Bean
-	public CountingSemaphore countingSemaphore(@Qualifier("dataSourcePool") DataSource dataSourcePool) {
-		return new CountingSemaphoreImpl(dataSourcePool);
-	}
-	
-	@Bean
-	public MigrationTypeProvider createMigrationTypeProvider(MigratableTableDAO migratableTableDao) {
-		return new MigrationTypeProviderImpl(migratableTableDao.getAllMigratableTypes());
 	}
 }

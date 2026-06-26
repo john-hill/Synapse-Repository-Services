@@ -38,8 +38,6 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
@@ -56,11 +54,9 @@ public class GridReplicaValidationManagerImplTest {
 	@Mock
 	private GridReplicaViewManager mockGridReplicaViewManager;
 	@Mock
-	private JsonSchemaManager mockJsonSchemaManager;
+	private GridRowValidator mockGridRowValidator;
 	@Mock
 	private GridDao mockGridDao;
-	@Mock
-	private JsonSchemaValidationManager mockJsonSchemaValidationManager;
 	@Mock
 	private PatchBuilderPublisher mockPatchBuilderPublisher;
 
@@ -340,7 +336,7 @@ public class GridReplicaValidationManagerImplTest {
 		// call under test
 		manager.validateAllRows(sessionId, replicaId);
 
-		verifyNoMoreInteractions(mockPatchBuilderPublisher, mockJsonSchemaManager, mockJsonSchemaValidationManager);
+		verifyNoMoreInteractions(mockPatchBuilderPublisher, mockGridRowValidator);
 	}
 
 	@Test
@@ -353,7 +349,7 @@ public class GridReplicaValidationManagerImplTest {
 
 	@Test
 	public void testValidateRows() {
-		when(mockJsonSchemaManager.getValidationSchema(schemaId)).thenReturn(jsonSchema);
+		when(mockGridRowValidator.getValidationSchema(schemaId)).thenReturn(jsonSchema);
 		rows.get(0).setRowObject(new RowObject()
 				.setData(new RowData().setRowJsonDocument(new JSONObject("{\"key\":\"value1\"}"))));
 		// Sets an existing and equal validation result for the second row
@@ -363,7 +359,7 @@ public class GridReplicaValidationManagerImplTest {
 				new RowMetadata().setRowValidation(new RowValidation().setValidationResults(validationResult))));
 		IntendedChange intendedChange2 = new UpdateMetadataChange().setRowMetadataId(rows.get(1).getArrNodeId());
 
-		when(mockJsonSchemaValidationManager.validateBatch(jsonSchema,
+		when(mockGridRowValidator.validateBatch(jsonSchema,
 				List.of(new JsonObjectSubject(rows.get(0).getRowObject().getData().getRowJsonDocument()),
 						new JsonObjectSubject(rows.get(1).getRowObject().getData().getRowJsonDocument())
 				)))
@@ -382,8 +378,8 @@ public class GridReplicaValidationManagerImplTest {
 	public void testCleanupValidation() {
 		validationResult.setSchema$id(schemaId);
 		validationResult.setValidatedOn(new Date());
-		// call under test
-		manager.cleanupValidationResults(validationResult);
+		// call under test — cleanup lives on GridRowValidator
+		GridRowValidator.cleanupValidationResults(validationResult);
 		assertNull(validationResult.getSchema$id());
 		assertNull(validationResult.getValidatedOn());
 	}

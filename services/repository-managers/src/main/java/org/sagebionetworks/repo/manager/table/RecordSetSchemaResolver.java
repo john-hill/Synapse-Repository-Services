@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -16,7 +17,10 @@ import org.sagebionetworks.repo.manager.grid.CsvSchemaReconciler;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
+import org.sagebionetworks.repo.model.schema.Type;
+import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
 import org.springframework.stereotype.Service;
@@ -90,9 +94,10 @@ public class RecordSetSchemaResolver {
 	 */
 	public ReconciledSchema getReconciledSchema(String entityId, FileHandle fileHandle,
 			CsvTableDescriptor csvDescriptor, boolean fullScan) {
-		List<ColumnModel> schema = inferSchemaFromCsv(fileHandle, csvDescriptor, fullScan);
+		List<ColumnModel> schema = new ArrayList<>(inferSchemaFromCsv(fileHandle, csvDescriptor, fullScan));
 		Optional<JsonSchema> validationSchema = getBoundValidationSchema(entityId);
 		validationSchema.ifPresent(vs -> CsvSchemaReconciler.reconcile(schema, vs));
+		validationSchema.ifPresent(vs -> addJsonSchemaOnlyColumns(schema, vs));
 
 		List<String> required = validationSchema.map(JsonSchema::getRequired).orElse(new ArrayList<>());
 		Map<String, Integer> columnNameToIndex = new HashMap<>();
@@ -105,6 +110,53 @@ public class RecordSetSchemaResolver {
 				.collect(Collectors.toList());
 
 		return new ReconciledSchema(schema, requiredColumnIndices);
+	}
+
+	/**
+	 * Append a column for each top-level JSON Schema property that is not already
+	 * present in the CSV-inferred schema. This ensures that columns declared only
+	 * in the bound JSON Schema (not yet present in the CSV data) are surfaced. The
+	 * column type is derived from the property's declared {@link Type}; properties
+	 * are appended in a deterministic (name-sorted) order.
+	 *
+	 * @param schema           the schema to append to (CSV-inferred, already reconciled)
+	 * @param validationSchema the bound JSON Schema
+	 */
+	static void addJsonSchemaOnlyColumns(List<ColumnModel> schema, JsonSchema validationSchema) {
+		Map<String, JsonSchema> properties = validationSchema.getProperties();
+		if (properties == null) {
+			return;
+		}
+		Set<String> existingNames = schema.stream().map(ColumnModel::getName).collect(Collectors.toSet());
+		properties.entrySet().stream()
+				.filter(e -> !existingNames.contains(e.getKey()))
+				.sorted(Map.Entry.comparingByKey())
+				.forEach(e -> schema.add(toColumnModel(e.getKey(), e.getValue())));
+	}
+
+	/**
+	 * Map a single JSON Schema property to a {@link ColumnModel}. Scalar types map
+	 * to their column equivalents; arrays map to a string list; objects, nulls, and
+	 * untyped properties default to a string.
+	 *
+	 * @param name     the property (column) name
+	 * @param property the property's JSON Schema
+	 * @return a ColumnModel for the property
+	 */
+	static ColumnModel toColumnModel(String name, JsonSchema property) {
+		ColumnModel column = new ColumnModel().setName(name);
+		Type type = property == null ? null : property.getType();
+		if (type == null) {
+			return column.setColumnType(ColumnType.STRING).setMaximumSize(ColumnConstants.DEFAULT_STRING_SIZE);
+		}
+        return switch (type) {
+            case integer -> column.setColumnType(ColumnType.INTEGER);
+            case number -> column.setColumnType(ColumnType.DOUBLE);
+            case _boolean -> column.setColumnType(ColumnType.BOOLEAN);
+            case array ->
+                    column.setColumnType(ColumnType.STRING_LIST).setMaximumSize(ColumnConstants.DEFAULT_STRING_SIZE);
+            default -> column.setColumnType(ColumnType.STRING).setMaximumSize(ColumnConstants.DEFAULT_STRING_SIZE);
+        };
 	}
 
 	List<ColumnModel> inferSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor, boolean fullScan) {

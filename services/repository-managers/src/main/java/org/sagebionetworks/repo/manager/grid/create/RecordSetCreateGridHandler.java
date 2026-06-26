@@ -13,8 +13,7 @@ import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRowValidator;
 import org.sagebionetworks.repo.manager.table.RecordSetSchemaResolver;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -27,7 +26,6 @@ import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
-import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.Row;
@@ -44,8 +42,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final FileHandleManager fileHandleManager;
 	private final EntityAuthorizationManager authorizationManager;
 	private final CsvFileHandleProvider csvProvider;
-	private final JsonSchemaManager jsonSchemaManager;
-	private final JsonSchemaValidationManager jsonSchemaValidationManager;
+	private final GridRowValidator gridRowValidator;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
 	private final RecordSetSchemaResolver schemaResolver;
@@ -54,7 +51,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 
 	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager,
 									  EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider,
-									  JsonSchemaManager jsonSchemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
+									  GridRowValidator gridRowValidator,
 									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider,
 									  RecordSetSchemaResolver schemaResolver) {
 		super();
@@ -63,8 +60,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		this.fileHandleManager = fileHandleManager;
 		this.authorizationManager = authorizationManager;
 		this.csvProvider = csvProvider;
-		this.jsonSchemaManager = jsonSchemaManager;
-		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
+		this.gridRowValidator = gridRowValidator;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
 		this.schemaResolver = schemaResolver;
@@ -85,7 +81,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		// Makes sure the user has download access
 		authorizationManager.hasAccess(user, recordSet.getId(), ACCESS_TYPE.DOWNLOAD).checkAuthorizationOrElseThrow();
 		
-		Optional<String> validationSchemaId = entityManager.findBoundSchema(recordSetId)
+		final Optional<String> validationSchemaId = entityManager.findBoundSchema(recordSetId)
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 
 		GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
@@ -122,12 +118,10 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 			throw new IllegalArgumentException("Cannot determine the schema from the CSV file, at least one column header must be present.");
 		}
 
-		final Optional<JsonSchema> validationSchema = validationSchemaId.map(jsonSchemaManager::getValidationSchema);
-
 		// We can now read the CSV file again and reuse the PatchRowHandler.
 		CSVReader csvReader = csvProvider.getCsvReader(fileHandle, csvDescriptor);
 		SnapshotRowHandler rowHandler = getSnapshotRowHandler(snapshotStore, session, replica, schema, columnsRequiredByJsonSchemaIndices,
-				fileProvider, user.getId(), validationSchema.orElse(null));
+				fileProvider, user.getId(), validationSchemaId.orElse(null));
 		
 		try (csvReader; rowHandler) {
 
@@ -152,9 +146,9 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 
 	SnapshotRowHandler getSnapshotRowHandler(SnapshotStore snapshotStore, GridSession session, GridReplica replica,
 											 List<ColumnModel> schema, List<Integer> requiredColumnIndices, FileProvider fileProvider,
-											 Long createdByUserId, JsonSchema validationSchema) {
+											 Long createdByUserId, String schemaId) {
 		return new SnapshotRowHandler(snapshotStore, session.getSessionId(), replica.getReplicaId(), schema, requiredColumnIndices,
-				fileProvider, encoderProvider, createdByUserId, jsonSchemaValidationManager, validationSchema);
+				fileProvider, encoderProvider, createdByUserId, gridRowValidator, schemaId);
 	}
 
 }

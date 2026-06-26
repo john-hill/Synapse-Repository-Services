@@ -32,4 +32,10 @@ public class MarkdownDaoImplIntegrationTest {
 		String result = "<p>testing Synapse link <a href=\"/Synapse:syn3722562/wiki/219258\">Research Communities</a></p>\n";
 		assertEquals(result, dao.convertMarkdown(rawMarkdown, outputType));
 	}
+
+	@Test (expected = IllegalArgumentException.class)
+	public void testNullPayload() throws Exception {
+		String result = dao.convertMarkdown(null, "html");
+		System.out.println(result);
+	}
 }

@@ -1,5 +1,6 @@
 package org.sagebionetworks.markdown;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -118,6 +119,27 @@ public class MarkdownClientTest {
 		assertNotNull(mdc.getSimpleHttpClient());
 		assertNotNull(mdc.getAwsCredentialsProvider());
 		assertNotNull(mdc.getSigner());
+	}
 
+	@Test
+	public void testInitWithAlreadyConfigured() throws Exception {
+		// markdownClient already has simpleHttpClient, awsCredentialsProvider, and signer set from before()
+		// call under test - pre-set fields should not be replaced
+		markdownClient._init();
+		assertEquals(mockHttpClient, markdownClient.getSimpleHttpClient());
+	}
+
+	@Test
+	public void testGetSet() throws Exception {
+		MarkdownClient mdc = new MarkdownClient();
+		assertNull(mdc.getMarkdownServiceEndpoint());
+		assertNull(mdc.getAwsCredentialsProvider());
+		assertNull(mdc.getSimpleHttpClient());
+		assertNull(mdc.getSigner());
+		mdc.setMarkdownServiceEndpoint("https://service.emdpoint.org");
+		assertEquals("https://service.emdpoint.org", mdc.getMarkdownServiceEndpoint());
+		AwsV4HttpSigner signer = AwsV4HttpSigner.create();
+		mdc.setSigner(signer);
+		assertEquals(signer, mdc.getSigner());
 	}
 }

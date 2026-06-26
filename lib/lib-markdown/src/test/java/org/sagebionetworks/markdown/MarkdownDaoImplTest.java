@@ -1,6 +1,7 @@
 package org.sagebionetworks.markdown;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.markdown.MarkdownDaoImpl.MARKDOWN;
 import static org.sagebionetworks.markdown.MarkdownDaoImpl.OUTPUT;
@@ -50,5 +51,12 @@ public class MarkdownDaoImplTest {
 		String response = "{\"result\":\"<h2 toc=\\\"true\\\">a heading</h2>\\n\"}";
 		when(mockMarkdownClient.requestMarkdownConversion(request.toString())).thenReturn(response);
 		assertEquals(result, dao.convertMarkdown(rawMarkdown, outputType));
+	}
+
+	@Test
+	public void testGetSetSynapseBaseUrl() throws Exception {
+		assertNull(dao.getSynapseBaseUrl());
+		dao.setSynapseBaseUrl("https://synapse.org");
+		assertEquals("https://synapse.org", dao.getSynapseBaseUrl());
 	}
 }

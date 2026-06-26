@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -166,5 +167,62 @@ public class RecordSetSchemaResolverTest {
 		resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, true);
 
 		verify(resolver).inferSchemaFromCsv(fileHandle, csvDescriptor, true);
+	}
+
+	@Test
+	public void testToColumnModel() {
+		assertEquals(ColumnType.INTEGER, RecordSetSchemaResolver.toColumnModel("i", new JsonSchema().setType(Type.integer)).getColumnType());
+		assertEquals(ColumnType.DOUBLE, RecordSetSchemaResolver.toColumnModel("n", new JsonSchema().setType(Type.number)).getColumnType());
+		assertEquals(ColumnType.BOOLEAN, RecordSetSchemaResolver.toColumnModel("b", new JsonSchema().setType(Type._boolean)).getColumnType());
+		// An unconstrained string maps to MEDIUMTEXT.
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("s", new JsonSchema().setType(Type.string)).getColumnType());
+		// A length-constrained string maps to a sized STRING.
+		ColumnModel constrainedString = RecordSetSchemaResolver.toColumnModel("s", new JsonSchema().setType(Type.string).setMaxLength(50L));
+		assertEquals(ColumnType.STRING, constrainedString.getColumnType());
+		assertEquals(50L, constrainedString.getMaximumSize());
+		// An array with no declared items defaults to MEDIUMTEXT.
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr", new JsonSchema().setType(Type.array)).getColumnType());
+		// Arrays map by their element type. A length-constrained string element resolves to STRING -> STRING_LIST.
+		assertEquals(ColumnType.STRING_LIST, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.string).setMaxLength(50L))).getColumnType());
+		assertEquals(ColumnType.INTEGER_LIST, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.integer))).getColumnType());
+		assertEquals(ColumnType.BOOLEAN_LIST, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type._boolean))).getColumnType());
+		// An array whose element type has no list equivalent falls back to MEDIUMTEXT: an
+		// unconstrained string element (-> MEDIUMTEXT) and a number element (-> DOUBLE) both do so.
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.string))).getColumnType());
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.number))).getColumnType());
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("untyped", new JsonSchema()).getColumnType());
+	}
+
+	@Test
+	public void testGetJsonSchemaColumns() {
+		// A LinkedHashMap preserves insertion order so the derived columns are deterministic.
+		Map<String, JsonSchema> properties = new LinkedHashMap<>();
+		properties.put("a", new JsonSchema().setType(Type.integer));
+		properties.put("b", new JsonSchema().setType(Type._boolean));
+		JsonSchema validationSchema = new JsonSchema().setProperties(properties);
+
+		// call under test
+		List<ColumnModel> columns = RecordSetSchemaResolver.getJsonSchemaColumns(validationSchema);
+
+		assertEquals(List.of(
+				new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("b").setColumnType(ColumnType.BOOLEAN)), columns);
+	}
+
+	@Test
+	public void testGetJsonSchemaColumnsWithNullSchema() {
+		// call under test
+		assertTrue(RecordSetSchemaResolver.getJsonSchemaColumns(null).isEmpty());
+	}
+
+	@Test
+	public void testGetJsonSchemaColumnsWithNullProperties() {
+		// call under test
+		assertTrue(RecordSetSchemaResolver.getJsonSchemaColumns(new JsonSchema()).isEmpty());
 	}
 }

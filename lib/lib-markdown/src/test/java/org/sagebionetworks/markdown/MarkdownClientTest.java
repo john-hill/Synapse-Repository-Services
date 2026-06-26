@@ -37,12 +37,16 @@ public class MarkdownClientTest {
 	public void before() {
 		MockitoAnnotations.initMocks(this);
 		markdownClient = new MarkdownClient();
-		ReflectionTestUtils.setField(markdownClient, "simpleHttpClient", mockHttpClient);
-		ReflectionTestUtils.setField(markdownClient, "markdownServiceEndpoint",
-				"https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown");
-		ReflectionTestUtils.setField(markdownClient, "awsCredentialsProvider",
-				StaticCredentialsProvider.create(AwsBasicCredentials.create("akid", "secret")));
-		ReflectionTestUtils.setField(markdownClient, "signer", AwsV4HttpSigner.create());
+//		ReflectionTestUtils.setField(markdownClient, "simpleHttpClient", mockHttpClient);
+//		ReflectionTestUtils.setField(markdownClient, "markdownServiceEndpoint",
+//				"https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown");
+//		ReflectionTestUtils.setField(markdownClient, "awsCredentialsProvider",
+//				StaticCredentialsProvider.create(AwsBasicCredentials.create("akid", "secret")));
+//		ReflectionTestUtils.setField(markdownClient, "signer", AwsV4HttpSigner.create());
+		markdownClient.setSimpleHttpClient(mockHttpClient);
+		markdownClient.setMarkdownServiceEndpoint("https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown");
+		markdownClient.setSigner(AwsV4HttpSigner.create());
+		markdownClient.setAwsCredentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("akid", "secret")));
 	}
 
 	@Test
@@ -105,5 +109,15 @@ public class MarkdownClientTest {
 		assertNotNull(headers.get("X-Amz-Date"));
 		assertEquals("application/json", headers.get("Content-Type"));
 		assertFalse(headers.containsKey("Host"));
+	}
+
+	@Test
+	public void testInit() throws Exception {
+		MarkdownClient mdc = new MarkdownClient();
+		mdc._init();
+		assertNotNull(mdc.getSimpleHttpClient());
+		assertNotNull(mdc.getAwsCredentialsProvider());
+		assertNotNull(mdc.getSigner());
+
 	}
 }

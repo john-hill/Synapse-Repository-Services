@@ -101,16 +101,22 @@ public class MarkdownClient {
 	public String getMarkdownServiceEndpoint() {
 		return markdownServiceEndpoint;
 	}
-
 	public void setMarkdownServiceEndpoint(String markdownServiceEndpoint) {
 		this.markdownServiceEndpoint = markdownServiceEndpoint;
 	}
 
+	public AwsCredentialsProvider getAwsCredentialsProvider() { return this.awsCredentialsProvider; }
 	public void setAwsCredentialsProvider(AwsCredentialsProvider awsCredentialsProvider) {
 		this.awsCredentialsProvider = awsCredentialsProvider;
 	}
 
+	public AwsV4HttpSigner getSigner() { return this.signer; }
 	public void setSigner(AwsV4HttpSigner signer) {
 		this.signer = signer;
+	}
+
+	public SimpleHttpClient getSimpleHttpClient() { return this.simpleHttpClient; }
+	public void setSimpleHttpClient(SimpleHttpClient client) {
+		this.simpleHttpClient = client;
 	}
 }

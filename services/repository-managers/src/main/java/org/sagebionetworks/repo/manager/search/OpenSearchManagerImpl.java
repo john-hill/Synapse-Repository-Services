@@ -117,6 +117,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
+	// Prefix of the per-dependency row-level access-control fields (_benefactor_0, _benefactor_1,
+	// ...) written into each document's _source at build time. They drive the query-time benefactor
+	// terms filter but are not part of the entity schema, so they are stripped from returned hits.
+	private static final String BENEFACTOR_FIELD_PREFIX = "_benefactor_";
 	private static final String SUB_FIELD_KEYWORD = "keyword";
 	private static final String INDEX_NOT_FOUND_EXCEPTION = "index_not_found_exception";
 	// Reason-text fragment AOSS includes when a concurrent index-delete is in flight;
@@ -410,7 +414,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		// Row-level access-control fields: one per source dependency, non-analyzed long
 		// so the query-time benefactor terms filter can match them exactly.
 		for (int i = 0; i < benefactorCount; i++) {
-			m.properties("_benefactor_" + i, p -> p.long_(l -> l));
+			m.properties(BENEFACTOR_FIELD_PREFIX + i, p -> p.long_(l -> l));
 		}
 
 		for (ColumnModel column : columns) {
@@ -1064,8 +1068,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			searchHit.setRowId(toLong(source.get(SYSTEM_FIELD_ROW_ID)));
 			searchHit.setRowVersion(toLong(source.get(SYSTEM_FIELD_ROW_VERSION)));
 
+			// _row_id / _row_version are surfaced via dedicated SearchHit fields above, and the
+			// _benefactor_N fields are internal row-level access-control values (not part of the
+			// entity schema) — exclude all of them so they are never leaked back to the caller.
 			List<SearchFieldValue> fields = source.entrySet().stream()
-					.filter(e -> !SYSTEM_FIELD_ROW_ID.equals(e.getKey()) && !SYSTEM_FIELD_ROW_VERSION.equals(e.getKey()))
+					.filter(e -> !SYSTEM_FIELD_ROW_ID.equals(e.getKey())
+							&& !SYSTEM_FIELD_ROW_VERSION.equals(e.getKey())
+							&& !e.getKey().startsWith(BENEFACTOR_FIELD_PREFIX))
 					.map(e -> {
 						SearchFieldValue fv = new SearchFieldValue();
 						fv.setName(idToName.getOrDefault(e.getKey(), e.getKey()));

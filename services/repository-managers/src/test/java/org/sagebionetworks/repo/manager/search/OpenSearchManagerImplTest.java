@@ -81,6 +81,7 @@ import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
+import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHighlight;
 import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
@@ -569,6 +570,40 @@ public class OpenSearchManagerImplTest {
 		assertEquals(1, out.getHighlights().size());
 		assertEquals("999", out.getHighlights().get(0).getName());
 		assertEquals(Arrays.asList("snip"), out.getHighlights().get(0).getSnippets());
+	}
+
+	// convertHit _source mapping: _row_id / _row_version are surfaced via the dedicated
+	// SearchHit fields, and the internal _benefactor_N row-level access-control fields must be
+	// stripped so they are never leaked back to the caller in SearchHit.fields. A view exposes a
+	// single _benefactor_0; a materialized view over multiple sources exposes _benefactor_0,
+	// _benefactor_1, ... — both prefixes are excluded while real columns survive.
+
+	@Test
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	public void testConvertHitExcludesSystemAndBenefactorFieldsFromSource() {
+		Map<String, Object> source = new LinkedHashMap<>();
+		source.put("_row_id", 7L);
+		source.put("_row_version", 1L);
+		source.put("_benefactor_0", 111L);
+		source.put("_benefactor_1", 222L);
+		source.put("100", "alpha");
+		source.put("101", "beta");
+		Hit<Map> hit = (Hit<Map>) (Hit) Hit.of(b -> b.index("idx").id("d1").source(source));
+
+		Map<String, String> idToName = new LinkedHashMap<>();
+		idToName.put("100", "title");
+		idToName.put("101", "name");
+
+		// call under test
+		SearchHit out = manager.convertHit(hit, idToName);
+
+		assertEquals(Long.valueOf(7L), out.getRowId());
+		assertEquals(Long.valueOf(1L), out.getRowVersion());
+		// Only the real schema columns survive; _row_id / _row_version / _benefactor_* are gone.
+		assertEquals(Arrays.asList(
+				new SearchFieldValue().setName("title").setValue("alpha"),
+				new SearchFieldValue().setName("name").setValue("beta")),
+				out.getFields());
 	}
 
 	// convertFieldValue stringifies a single AOSS _source value for SearchFieldValue.value.

@@ -591,6 +591,11 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
+	public StsClient stsClient(AwsCredentialsProvider credentialProvider) {
+		return StsClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
 	public String gridReplicaChangeTopicArn(SnsClient client, StackConfiguration config) {
 		return getTopicArnByName(config.getQueueName("GRID_REPLICA_CHANGES"), client);
 	}

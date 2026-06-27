@@ -73,6 +73,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final Logger LOG = LogManager.getLogger(OpenSearchManagerImpl.class);
 
 	private static final int HTTP_TOO_MANY_REQUESTS = 429;
+	// AOSS returns 402 with service_quota_exceeded_exception ("maximum OCU capacity reached")
+	// when the collection hits its OCU ceiling — a transient, auto-scaling condition, so retryable.
+	private static final int HTTP_PAYMENT_REQUIRED = 402;
 	private static final int HTTP_INTERNAL_SERVER_ERROR = 500;
 	private static final int HTTP_MAX_SERVER_ERROR = 599;
 
@@ -712,6 +715,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	static boolean isRetryableItemStatus(int status) {
 		return status == HTTP_TOO_MANY_REQUESTS
+				|| status == HTTP_PAYMENT_REQUIRED
 				|| (status >= HTTP_INTERNAL_SERVER_ERROR && status <= HTTP_MAX_SERVER_ERROR);
 	}
 

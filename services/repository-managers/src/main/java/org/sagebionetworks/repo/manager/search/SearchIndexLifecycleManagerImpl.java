@@ -82,12 +82,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	// select a subset of columns), so this never under-shards.
 	// Target shard size sits mid the AWS-recommended 10-30 GiB band, safely under the 50 GiB ceiling.
 	static final long TARGET_SHARD_BYTES = 25L * 1024 * 1024 * 1024;
-	// Synapse maximum table size; bounds the largest source a SearchIndex can be built from.
-	static final long MAX_TABLE_BYTES = 146L * 1000 * 1000 * 1000;
-	// Derived from the ceiling (not a magic number): ceil(MAX_TABLE_BYTES / TARGET_SHARD_BYTES).
-	// At the ceiling this keeps each shard ~24 GiB, in band. Acts as a guard against a
-	// runaway/garbage size reading, since dataSizeBytes <= MAX_TABLE_BYTES always holds.
-	static final int MAX_SHARDS = (int) (((MAX_TABLE_BYTES + TARGET_SHARD_BYTES) - 1) / TARGET_SHARD_BYTES);
+	// 6 shards x 50 GiB effective = ~300 GiB capacity, well above the
+	// ~146 GiB max MySQL source table. Guards a runaway size reading.
+	static final int MAX_SHARDS = 6;
 
 	/**
 	 * Compute the number of primary shards for an index from the source table's data size.

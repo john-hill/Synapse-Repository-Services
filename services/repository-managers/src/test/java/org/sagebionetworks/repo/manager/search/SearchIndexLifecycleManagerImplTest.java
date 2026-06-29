@@ -1567,23 +1567,15 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testComputeShardCountWithMaxTableBytes() {
-		// MAX_TABLE_BYTES should yield MAX_SHARDS
-		// call under test
-		assertEquals(SearchIndexLifecycleManagerImpl.MAX_SHARDS,
-				SearchIndexLifecycleManagerImpl.computeShardCount(
-						SearchIndexLifecycleManagerImpl.MAX_TABLE_BYTES));
-	}
-
-	@Test
 	public void testComputeShardCountWithClampToMax() {
-		// A size well above MAX_TABLE_BYTES but not close to Long.MAX_VALUE (which would overflow
-		// the ceiling arithmetic). 10 * MAX_TABLE_BYTES is safely representable and yields far more
-		// than MAX_SHARDS shards without overflowing — clamp must cap it.
-		long hugeBytes = SearchIndexLifecycleManagerImpl.MAX_TABLE_BYTES * 10;
+		// A size that would bucket into MAX_SHARDS + 1 shards must be clamped down to
+		// MAX_SHARDS. Expressed as a multiple of TARGET_SHARD_BYTES so it stays well clear
+		// of the ceiling-arithmetic overflow that Long.MAX_VALUE would cause.
+		long overMaxBytes = SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES
+				* (SearchIndexLifecycleManagerImpl.MAX_SHARDS + 1);
 		// call under test
 		assertEquals(SearchIndexLifecycleManagerImpl.MAX_SHARDS,
-				SearchIndexLifecycleManagerImpl.computeShardCount(hugeBytes));
+				SearchIndexLifecycleManagerImpl.computeShardCount(overMaxBytes));
 	}
 
 }

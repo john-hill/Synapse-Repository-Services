@@ -1251,11 +1251,6 @@ public class StackConfigurationImpl implements StackConfiguration {
 		return configuration.getProperty("org.sagebionetworks.searchservice.endpoint");
 	}
 
-	@Override
-	public String getSearchIndexOpenSearchDomainEndpoint() {
-		return configuration.getProperty("org.sagebionetworks.search.index.opensearch.domain.endpoint");
-	}
-
 	/**
 	 * 
 	 * @return docker service endpoint

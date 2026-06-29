@@ -409,6 +409,13 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
+	public software.amazon.awssdk.services.opensearch.OpenSearchClient searchIndexManagementClient(
+			AwsCredentialsProvider credentialProvider) {
+		return software.amazon.awssdk.services.opensearch.OpenSearchClient.builder()
+				.credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
 	public SdkHttpClient ossHttpClient() {
 		return ApacheHttpClient.builder().build();
 	}
@@ -432,17 +439,23 @@ public class ManagerConfiguration {
 
 	/**
 	 * Data-plane client for the per-entity SearchIndex managed Amazon OpenSearch Service
-	 * domain. Unlike the AOSS collection (whose endpoint is discovered at boot via
-	 * {@code batchGetCollection}), the managed domain's VPC endpoint is injected by the
-	 * stack as a configuration property, so this bean needs no control-plane client.
-	 * Signs requests for the {@code es} service (managed OpenSearch) rather than
-	 * {@code aoss} (serverless).
+	 * domain. The domain's VPC endpoint is discovered at bean-init via {@code describeDomain}
+	 * (control-plane), mirroring how {@link #synSearchOssClient} discovers the AOSS collection
+	 * endpoint via {@code batchGetCollection} — so a developer running the service locally
+	 * needs only the stack/instance configuration, not an injected endpoint. A VPC domain
+	 * leaves {@code DomainStatus.endpoint()} null and publishes its host under the
+	 * {@code endpoints()} map's {@code "vpc"} key. Signs requests for the {@code es} service
+	 * (managed OpenSearch) rather than {@code aoss} (serverless).
 	 */
 	@Bean
-	public OpenSearchClient searchIndexManagedClient(AwsCredentialsProvider credentialProvider,
-			StackConfiguration config, SdkHttpClient httpClient) {
-		String endpoint = config.getSearchIndexOpenSearchDomainEndpoint();
-		ValidateArgument.requiredNotBlank(endpoint, "org.sagebionetworks.search.index.opensearch.domain.endpoint");
+	public OpenSearchClient searchIndexManagedClient(
+			software.amazon.awssdk.services.opensearch.OpenSearchClient searchIndexManagementClient,
+			AwsCredentialsProvider credentialProvider, StackConfiguration config, SdkHttpClient httpClient) {
+		String domainName = config.getStack() + "-" + config.getStackInstance() + "-synidx";
+
+		String endpoint = searchIndexManagementClient.describeDomain(req -> req.domainName(domainName))
+				.domainStatus().endpoints().get("vpc");
+		ValidateArgument.requiredNotBlank(endpoint, "VPC endpoint for OpenSearch domain " + domainName);
 
 		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
 				endpoint.replace("https://", ""), "es", Region.US_EAST_1,

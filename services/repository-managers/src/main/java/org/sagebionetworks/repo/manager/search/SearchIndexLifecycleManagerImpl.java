@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
@@ -76,6 +77,31 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final long MAX_ROWS = 500_000L;
 	private static final ObjectMapper SEARCH_DOC_MAPPER = new ObjectMapper();
 
+	// Build-time dynamic shard sizing for the managed OpenSearch domain. The source table's
+	// on-disk size is a conservative upper bound for the derived index (the defining SQL may
+	// select a subset of columns), so this never under-shards.
+	// Target shard size sits mid the AWS-recommended 10-30 GiB band, safely under the 50 GiB ceiling.
+	static final long TARGET_SHARD_BYTES = 25L * 1024 * 1024 * 1024;
+	// Synapse maximum table size; bounds the largest source a SearchIndex can be built from.
+	static final long MAX_TABLE_BYTES = 146L * 1000 * 1000 * 1000;
+	// Derived from the ceiling (not a magic number): ceil(MAX_TABLE_BYTES / TARGET_SHARD_BYTES).
+	// At the ceiling this keeps each shard ~24 GiB, in band. Acts as a guard against a
+	// runaway/garbage size reading, since dataSizeBytes <= MAX_TABLE_BYTES always holds.
+	static final int MAX_SHARDS = (int) (((MAX_TABLE_BYTES + TARGET_SHARD_BYTES) - 1) / TARGET_SHARD_BYTES);
+
+	/**
+	 * Compute the number of primary shards for an index from the source table's data size.
+	 * Null or zero size maps to a single shard; otherwise the byte count is bucketed into
+	 * {@link #TARGET_SHARD_BYTES} shards, clamped to {@code [1, MAX_SHARDS]}.
+	 */
+	static int computeShardCount(Long dataSizeBytes) {
+		if (dataSizeBytes == null || dataSizeBytes <= 0) {
+			return 1;
+		}
+		long shards = ((dataSizeBytes + TARGET_SHARD_BYTES) - 1) / TARGET_SHARD_BYTES;
+		return (int) Math.max(1, Math.min(shards, MAX_SHARDS));
+	}
+
     /**
 	 * Convert a raw String row value (as delivered by the table query stream) into the Java
 	 * type expected by the column's OpenSearch mapping. List columns are parsed as JSON
@@ -119,6 +145,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final TableManagerSupport tableManagerSupport;
 	private final ColumnModelManager columnModelManager;
 	private final WriteReadSemaphore writeReadSemaphore;
+	private final StackConfiguration stackConfiguration;
 
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
@@ -129,7 +156,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			TextAnalyzerDao textAnalyzerDao,
 			TableManagerSupport tableManagerSupport,
 			ColumnModelManager columnModelManager,
-			WriteReadSemaphore writeReadSemaphore) {
+			WriteReadSemaphore writeReadSemaphore,
+			StackConfiguration stackConfiguration) {
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
@@ -142,6 +170,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.tableManagerSupport = tableManagerSupport;
 		this.columnModelManager = columnModelManager;
 		this.writeReadSemaphore = writeReadSemaphore;
+		this.stackConfiguration = stackConfiguration;
 	}
 
 	@Override
@@ -285,13 +314,23 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// IllegalArgumentException via SearchOpaqueJsonUtil.
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
+			// Size the index from the source table's on-disk bytes. The source is a conservative
+			// upper bound for the derived index, so this never under-shards. Replicas are
+			// stack-coupled: the single-node dev domain cannot allocate a replica (it would sit
+			// UNASSIGNED), so dev uses 0; prod uses 1 for HA and read scaling.
+			IdAndVersion sourceId = TableModelUtils.getSourceTableIds(definingSQL).get(0);
+			Long dataSizeBytes = connectionFactory.getConnection(sourceId).getDataSizeBytesForTable(sourceId);
+			int numberOfShards = computeShardCount(dataSizeBytes);
+			int numberOfReplicas = stackConfiguration.isProductionStack() ? 1 : 0;
+
 			String indexName = getIndexName(entityId);
 			if (deleteExistingFirst) {
 				openSearchManager.deleteIndex(indexName);
 			}
 			openSearchManager.createIndex(indexName, selectedColumns,
 					defaultAnalyzer,
-					overrides, resolvedAnalyzers);
+					overrides, resolvedAnalyzers,
+					numberOfShards, numberOfReplicas);
 
 			// AOSS acknowledges createIndex and returns an already-queryable index before its
 			// shards are actually ready to accept writes. Block until a real sentinel write

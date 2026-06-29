@@ -785,7 +785,7 @@ public class OpenSearchManagerImplTest {
 
 		// call under test
 		Optional<String> appliedJson = manager.createIndex(indexName, columns, qname,
-				Collections.emptyList(), resolvedAnalyzers);
+				Collections.emptyList(), resolvedAnalyzers, 1, 0);
 
 		assertTrue(appliedJson.isPresent());
 		String applied = appliedJson.get();
@@ -849,7 +849,7 @@ public class OpenSearchManagerImplTest {
 
 		// call under test
 		Optional<String> appliedJson = manager.createIndex(indexName, columns, primaryQname,
-				Collections.singletonList(override), resolvedAnalyzers);
+				Collections.singletonList(override), resolvedAnalyzers, 1, 0);
 
 		assertTrue(appliedJson.isPresent());
 		// Parse the applied JSON and assert on the typed shape rather than JSON-token order
@@ -898,7 +898,7 @@ public class OpenSearchManagerImplTest {
 
 		// call under test
 		Optional<String> appliedJson = manager.createIndex(indexName, columns, primaryQname,
-				Collections.singletonList(override), resolvedAnalyzers);
+				Collections.singletonList(override), resolvedAnalyzers, 1, 0);
 
 		assertTrue(appliedJson.isPresent());
 		JsonNode field100 = MAPPER.readTree(appliedJson.get())
@@ -928,7 +928,7 @@ public class OpenSearchManagerImplTest {
 		// call under test
 		RuntimeException ex = assertThrows(RuntimeException.class,
 				() -> manager.createIndex(indexName, Collections.emptyList(), null,
-						Collections.emptyList(), Collections.emptyMap()));
+						Collections.emptyList(), Collections.emptyMap(), 1, 0));
 
 		assertEquals(openSearchException, ex.getCause());
 		assertEquals("Failed to create search index: " + indexName
@@ -950,7 +950,7 @@ public class OpenSearchManagerImplTest {
 
 		// call under test
 		Optional<String> result = manager.createIndex(indexName, Collections.emptyList(), null,
-				Collections.emptyList(), Collections.emptyMap());
+				Collections.emptyList(), Collections.emptyMap(), 1, 0);
 
 		assertEquals(Optional.empty(), result);
 	}
@@ -966,7 +966,7 @@ public class OpenSearchManagerImplTest {
 		// call under test
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.createIndex(indexName, Collections.emptyList(), null,
-						Collections.emptyList(), Collections.emptyMap()));
+						Collections.emptyList(), Collections.emptyMap(), 1, 0));
 
 		assertEquals("Search index " + indexName + " creation was not acknowledged.",
 				ex.getMessage());
@@ -983,7 +983,7 @@ public class OpenSearchManagerImplTest {
 		// call under test
 		RuntimeException ex = assertThrows(RuntimeException.class,
 				() -> manager.createIndex(indexName, Collections.emptyList(), null,
-						Collections.emptyList(), Collections.emptyMap()));
+						Collections.emptyList(), Collections.emptyMap(), 1, 0));
 
 		assertEquals(ioException, ex.getCause());
 		assertEquals("Failed to create search index: " + indexName, ex.getMessage());
@@ -1009,10 +1009,44 @@ public class OpenSearchManagerImplTest {
 
 		// call under test — must not throw on the duplicate name key
 		Optional<String> result = manager.createIndex(indexName, columns, qname,
-				Collections.emptyList(), resolvedAnalyzers);
+				Collections.emptyList(), resolvedAnalyzers, 1, 0);
 
 		assertTrue(result.isPresent());
 		verify(indicesClient).create(argThat((CreateIndexRequest req) -> indexName.equals(req.index())));
+	}
+
+	@Test
+	public void testCreateIndexWithShardAndReplicaSettings() throws IOException {
+		// Verify that numberOfShards and numberOfReplicas are serialised into the
+		// CreateIndexRequest JSON under settings.number_of_shards / number_of_replicas.
+		String indexName = "search-index-syn1";
+		String qname = "org.sagebionetworks-SCIENTIFIC";
+		String settingsJson = "{\"analyzer\":{"
+				+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
+		Map<String, IndexSettingsAnalysis> resolvedAnalyzers =
+				Collections.singletonMap(qname, toAnalysis(settingsJson));
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
+
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		ArgumentCaptor<CreateIndexRequest> requestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+		when(indicesClient.create(requestCaptor.capture()))
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(b -> b
+						.acknowledged(true).shardsAcknowledged(true).index(indexName)));
+
+		// call under test — 3 shards, 1 replica
+		Optional<String> appliedJson = manager.createIndex(indexName, columns, qname,
+				Collections.emptyList(), resolvedAnalyzers, 3, 1);
+
+		assertTrue(appliedJson.isPresent());
+		String applied = appliedJson.get();
+
+		// The applied JSON must carry number_of_shards and number_of_replicas.
+		JsonNode settings = MAPPER.readTree(applied).at("/settings");
+		assertEquals(3, settings.path("number_of_shards").asInt(),
+				"number_of_shards must equal the value passed to createIndex: " + applied);
+		assertEquals(1, settings.path("number_of_replicas").asInt(),
+				"number_of_replicas must equal the value passed to createIndex: " + applied);
 	}
 
 	@Test

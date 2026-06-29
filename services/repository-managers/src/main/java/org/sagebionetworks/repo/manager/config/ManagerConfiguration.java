@@ -33,6 +33,7 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
 import org.opensearch.client.transport.aws.AwsSdk2Transport;
 import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.avro.pfb.model.Metadata;
 import org.sagebionetworks.aws.v2.AwsCredentialsProviderV2;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
@@ -422,6 +423,29 @@ public class ManagerConfiguration {
 
 		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
 				collection.collectionEndpoint().replace("https://", ""), "aoss", Region.US_EAST_1,
+				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
+
+		warmAnalysisDeserializers(client);
+
+		return client;
+	}
+
+	/**
+	 * Data-plane client for the per-entity SearchIndex managed Amazon OpenSearch Service
+	 * domain. Unlike the AOSS collection (whose endpoint is discovered at boot via
+	 * {@code batchGetCollection}), the managed domain's VPC endpoint is injected by the
+	 * stack as a configuration property, so this bean needs no control-plane client.
+	 * Signs requests for the {@code es} service (managed OpenSearch) rather than
+	 * {@code aoss} (serverless).
+	 */
+	@Bean
+	public OpenSearchClient searchIndexManagedClient(AwsCredentialsProvider credentialProvider,
+			StackConfiguration config, SdkHttpClient httpClient) {
+		String endpoint = config.getSearchIndexOpenSearchDomainEndpoint();
+		ValidateArgument.requiredNotBlank(endpoint, "org.sagebionetworks.search.index.opensearch.domain.endpoint");
+
+		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
+				endpoint.replace("https://", ""), "es", Region.US_EAST_1,
 				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
 
 		warmAnalysisDeserializers(client);

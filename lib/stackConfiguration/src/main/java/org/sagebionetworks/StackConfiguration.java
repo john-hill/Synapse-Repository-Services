@@ -840,10 +840,19 @@ public interface StackConfiguration {
 	public String getFileServiceEndpoint();
 
 	/**
-	 * 
+	 *
 	 * @return search service endpoint
 	 */
 	public String getSearchServiceEndpoint();
+
+	/**
+	 * The endpoint (host, no scheme) of the managed Amazon OpenSearch Service domain
+	 * that hosts the per-entity SearchIndex indexes. Injected by the stack at deploy
+	 * time from the domain's CloudFormation output.
+	 *
+	 * @return the per-entity SearchIndex OpenSearch domain endpoint
+	 */
+	public String getSearchIndexOpenSearchDomainEndpoint();
 
 	/**
 	 * 

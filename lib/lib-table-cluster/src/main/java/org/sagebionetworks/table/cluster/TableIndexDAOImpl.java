@@ -373,6 +373,25 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 	}
 
 	@Override
+	public Long getDataSizeBytesForTable(IdAndVersion tableId) {
+		String mainTableName = SQLUtils.getTableNameForId(tableId, false);
+		// Multi-value list columns live in separate physical tables named
+		// <mainTable>_INDEX_C<colId>_, so a list-heavy source would be undercounted by the
+		// main table alone. Escape the '_' wildcard so the LIKE matches only this table's
+		// multi-value tables and nothing with a coincidentally similar name. '!' is the
+		// escape designator ('\' would be consumed by the SQL string literal); it never
+		// appears in generated table names.
+		String multiValueLikePattern = mainTableName.replace("_", "!_") + "!_INDEX!_%";
+		Long size = template.queryForObject(
+				"SELECT SUM(DATA_LENGTH + INDEX_LENGTH) FROM information_schema.TABLES"
+				+ " WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME = ? OR TABLE_NAME LIKE ? ESCAPE '!')",
+				Long.class, mainTableName, multiValueLikePattern);
+		// SUM over zero matching rows returns NULL; map that absent-table case to null,
+		// matching getRowCountForTable's contract.
+		return size;
+	}
+
+	@Override
 	public Long getMaxCurrentCompleteVersionForTable(IdAndVersion tableId) {
 		String sql = SQLUtils.getStatusMaxVersionSQL(tableId);
 		try {

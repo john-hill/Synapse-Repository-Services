@@ -182,6 +182,12 @@ public class CSVUtils {
 				} else {
 					cm.setMaximumListLength(currentListSize);
 				}
+				if (cm.getMaximumListLength() != null) {
+					// Sampled rows may contain only single-element lists, yielding 1; a LIST column requires
+					// maximumListLength >= MINIMUM_LIST_LENGTH (enforced by ColumnModelUtils). A null value is
+					// left as-is and defaults to DEFAULT_LIST_LENGTH downstream.
+					cm.setMaximumListLength(Math.max(cm.getMaximumListLength(), ColumnConstants.MINIMUM_LIST_LENGTH));
+				}
 			}
 			try {
 				TableModelUtils.validateValue(value, cm);

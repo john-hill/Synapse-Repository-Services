@@ -22,6 +22,7 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
+import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.springframework.stereotype.Service;
 
 import au.com.bytecode.opencsv.CSVReader;
@@ -140,15 +141,12 @@ public class RecordSetSchemaResolver {
 			case integer -> column.setColumnType(ColumnType.INTEGER);
 			case number -> column.setColumnType(ColumnType.DOUBLE);
 			case _boolean -> column.setColumnType(ColumnType.BOOLEAN);
-			case array -> {
+			case object -> column.setColumnType(ColumnType.JSON);
+			case array ->  {
 				column = toColumnModel(name, property.getItems());
-				if (column.getColumnType().equals(ColumnType.STRING)) {
-					column.setColumnType(ColumnType.STRING_LIST);
-				} else if (column.getColumnType().equals(ColumnType.INTEGER)) {
-					column.setColumnType(ColumnType.INTEGER_LIST);
-				} else if (column.getColumnType().equals(ColumnType.BOOLEAN)) {
-					column.setColumnType(ColumnType.BOOLEAN_LIST);
-				} else {
+				try {
+					column.setColumnType(ColumnTypeListMappings.listType(column.getColumnType()));
+				} catch (IllegalArgumentException e) {
 					column.setColumnType(ColumnType.MEDIUMTEXT);
 				}
 				yield column;
@@ -159,7 +157,7 @@ public class RecordSetSchemaResolver {
 				}
 				yield column.setColumnType(ColumnType.MEDIUMTEXT);
 			}
-			default -> column.setColumnType(ColumnType.MEDIUMTEXT);
+			case _null -> column.setColumnType(ColumnType.MEDIUMTEXT);
 		};
 	}
 

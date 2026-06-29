@@ -182,9 +182,16 @@ public class RecordSetSchemaResolverTest {
 		assertEquals(50L, constrainedString.getMaximumSize());
 		// An array with no declared items defaults to MEDIUMTEXT.
 		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr", new JsonSchema().setType(Type.array)).getColumnType());
-		// Arrays map by their element type. A length-constrained string element resolves to STRING -> STRING_LIST.
-		assertEquals(ColumnType.STRING_LIST, RecordSetSchemaResolver.toColumnModel("arr",
-				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.string).setMaxLength(50L))).getColumnType());
+		// An object maps to JSON.
+		assertEquals(ColumnType.JSON, RecordSetSchemaResolver.toColumnModel("o", new JsonSchema().setType(Type.object)).getColumnType());
+		// An explicit "null" type maps to MEDIUMTEXT (distinct from a property with no type set).
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("nul", new JsonSchema().setType(Type._null)).getColumnType());
+		// Arrays map by their element type. A length-constrained string element resolves to STRING -> STRING_LIST,
+		// and the element's maximumSize is carried onto the list column.
+		ColumnModel stringList = RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.string).setMaxLength(50L)));
+		assertEquals(ColumnType.STRING_LIST, stringList.getColumnType());
+		assertEquals(50L, stringList.getMaximumSize());
 		assertEquals(ColumnType.INTEGER_LIST, RecordSetSchemaResolver.toColumnModel("arr",
 				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.integer))).getColumnType());
 		assertEquals(ColumnType.BOOLEAN_LIST, RecordSetSchemaResolver.toColumnModel("arr",
@@ -195,6 +202,13 @@ public class RecordSetSchemaResolverTest {
 				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.string))).getColumnType());
 		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr",
 				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.number))).getColumnType());
+		// An array of objects: the element resolves to JSON, which has no list equivalent -> MEDIUMTEXT.
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.object))).getColumnType());
+		// An array of arrays: the element resolves to a list type, which itself has no list equivalent -> MEDIUMTEXT.
+		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("arr",
+				new JsonSchema().setType(Type.array).setItems(
+						new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.integer)))).getColumnType());
 		assertEquals(ColumnType.MEDIUMTEXT, RecordSetSchemaResolver.toColumnModel("untyped", new JsonSchema()).getColumnType());
 	}
 

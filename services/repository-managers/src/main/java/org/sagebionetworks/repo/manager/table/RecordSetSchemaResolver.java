@@ -16,6 +16,7 @@ import org.sagebionetworks.repo.manager.grid.CsvSchemaReconciler;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
+import org.sagebionetworks.repo.model.schema.JsonSchemaProperties;
 import org.sagebionetworks.repo.model.schema.Type;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -111,11 +112,7 @@ public class RecordSetSchemaResolver {
 
 
 	public static List<ColumnModel> getJsonSchemaColumns(JsonSchema validationSchema) {
-		if (validationSchema == null || validationSchema.getProperties() == null) {
-			return Collections.emptyList();
-		}
-		return validationSchema
-				.getProperties()
+		return JsonSchemaProperties.collectTopLevelProperties(validationSchema)
 				.entrySet()
 				.stream()
 				.map(e -> toColumnModel(e.getKey(), e.getValue()))

@@ -225,4 +225,25 @@ public class RecordSetSchemaResolverTest {
 		// call under test
 		assertTrue(RecordSetSchemaResolver.getJsonSchemaColumns(new JsonSchema()).isEmpty());
 	}
+
+	@Test
+	public void testGetJsonSchemaColumnsWithComposedSchema() {
+		// Properties live behind an allOf + $ref, as produced by a validation schema.
+		Map<String, JsonSchema> defProperties = new LinkedHashMap<>();
+		defProperties.put("a", new JsonSchema().setType(Type.integer));
+		defProperties.put("b", new JsonSchema().setType(Type._boolean));
+		Map<String, JsonSchema> definitions = new LinkedHashMap<>();
+		definitions.put("X", new JsonSchema().setProperties(defProperties));
+
+		JsonSchema validationSchema = new JsonSchema()
+				.setDefinitions(definitions)
+				.setAllOf(List.of(new JsonSchema().set$ref("#/definitions/X")));
+
+		// call under test
+		List<ColumnModel> columns = RecordSetSchemaResolver.getJsonSchemaColumns(validationSchema);
+
+		assertEquals(List.of(
+				new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("b").setColumnType(ColumnType.BOOLEAN)), columns);
+	}
 }

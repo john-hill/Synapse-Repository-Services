@@ -285,10 +285,11 @@ public class ManagerConfiguration {
 	@Bean
 	public Map<OAuthProvider, OAuthProviderBinding> oauthProvidersBindingMap(StackConfiguration config,
 			SimpleHttpClient client) {
-		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client), 
+		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client),
 				OAuthProvider.ORCID, orcidOAuthProvider(config, client),
 				OAuthProvider.ARCUS_BIOSCIENCES, arcusBioOAuthProvider(config, client),
-				OAuthProvider.SAGE_BIONETWORKS, sageBioOAuthProvider(config, client)
+				OAuthProvider.SAGE_BIONETWORKS, sageBioOAuthProvider(config, client),
+				OAuthProvider.NIH_RESEARCHER_AUTH_SERVICE, nihRASOAuthProvider(config, client)
 				);
 	}
 

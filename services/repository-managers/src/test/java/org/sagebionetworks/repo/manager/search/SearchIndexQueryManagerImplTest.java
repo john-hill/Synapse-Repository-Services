@@ -35,7 +35,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.opensearch.client.opensearch.core.search.SourceFilter;
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.table.BenefactorAccessFilter;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
+import org.sagebionetworks.repo.manager.table.TableQueryManager;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
@@ -63,7 +66,6 @@ import org.sagebionetworks.table.cluster.description.BenefactorDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
-import org.springframework.jdbc.BadSqlGrammarException;
 
 /**
  * Mockito unit tests for {@link SearchIndexQueryManagerImpl}. Covers the translation
@@ -83,6 +85,8 @@ public class SearchIndexQueryManagerImplTest {
 	private OpenSearchManager openSearchManager;
 	@Mock
 	private TableManagerSupport tableManagerSupport;
+	@Mock
+	private TableQueryManager tableQueryManager;
 	@Mock
 	private SearchIndexStatusDao searchIndexStatusDao;
 
@@ -958,7 +962,7 @@ public class SearchIndexQueryManagerImplTest {
 	public void testAutocompleteWithNullRequestThrows() {
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.autocomplete(user, null));
-		verifyNoMoreInteractions(entityManager, connectionFactory, openSearchManager, tableManagerSupport);
+		verifyNoMoreInteractions(entityManager, connectionFactory, openSearchManager, tableManagerSupport, tableQueryManager);
 	}
 
 	@Test
@@ -967,7 +971,7 @@ public class SearchIndexQueryManagerImplTest {
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.autocomplete(user, request));
-		verifyNoMoreInteractions(entityManager, connectionFactory, openSearchManager, tableManagerSupport);
+		verifyNoMoreInteractions(entityManager, connectionFactory, openSearchManager, tableManagerSupport, tableQueryManager);
 	}
 
 	@Test
@@ -976,7 +980,7 @@ public class SearchIndexQueryManagerImplTest {
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.autocomplete(user, request));
-		verifyNoMoreInteractions(entityManager, connectionFactory, openSearchManager, tableManagerSupport);
+		verifyNoMoreInteractions(entityManager, connectionFactory, openSearchManager, tableManagerSupport, tableQueryManager);
 	}
 
 	@Test
@@ -1117,7 +1121,7 @@ public class SearchIndexQueryManagerImplTest {
 
 			// Reset mocks per iteration so each scenario starts fresh.
 			reset(entityManager, connectionFactory, openSearchManager,
-					tableManagerSupport, searchIndexStatusDao);
+					tableManagerSupport, tableQueryManager, searchIndexStatusDao);
 
 			SearchIndex si = setupSearchIndex();
 			when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
@@ -1183,17 +1187,15 @@ public class SearchIndexQueryManagerImplTest {
 
 		TableIndexDAO indexDao = org.mockito.Mockito.mock(TableIndexDAO.class);
 		when(connectionFactory.getConnection(SOURCE_ID)).thenReturn(indexDao);
-		when(indexDao.getDistinctLongValues(SOURCE_ID, "ROW_BENEFACTOR_A0"))
-				.thenReturn(new java.util.HashSet<>(Arrays.asList(10L, 11L)));
-		when(indexDao.getDistinctLongValues(SOURCE_ID, "ROW_BENEFACTOR_A1"))
-				.thenReturn(new java.util.HashSet<>(Arrays.asList(20L)));
 		// User can read benefactor 10 (dep 0) and 20 (dep 1) but not 11.
-		when(tableManagerSupport.getAccessibleBenefactors(user, org.sagebionetworks.repo.model.ObjectType.ENTITY,
-				new java.util.HashSet<>(Arrays.asList(10L, 11L)), org.sagebionetworks.repo.model.ACCESS_TYPE.READ))
-				.thenReturn(new java.util.HashSet<>(Arrays.asList(10L)));
-		when(tableManagerSupport.getAccessibleBenefactors(user, org.sagebionetworks.repo.model.ObjectType.ENTITY,
-				new java.util.HashSet<>(Arrays.asList(20L)), org.sagebionetworks.repo.model.ACCESS_TYPE.READ))
-				.thenReturn(new java.util.HashSet<>(Arrays.asList(20L)));
+		// computeAccessibleBenefactors already bakes in the -1 sentinel.
+		when(tableQueryManager.computeAccessibleBenefactors(
+				eq(user), eq(source), eq(indexDao), eq(ACCESS_TYPE.READ)))
+				.thenReturn(Arrays.asList(
+						new BenefactorAccessFilter("ROW_BENEFACTOR_A0",
+								new java.util.HashSet<>(Arrays.asList(10L, -1L))),
+						new BenefactorAccessFilter("ROW_BENEFACTOR_A1",
+								new java.util.HashSet<>(Arrays.asList(20L, -1L)))));
 
 		// call under test
 		List<org.opensearch.client.opensearch._types.query_dsl.Query> filters =
@@ -1214,11 +1216,10 @@ public class SearchIndexQueryManagerImplTest {
 
 	@Test
 	public void testBuildBenefactorAccessFiltersWhenSourceTableNotBuilt() {
-		// When the source index table does not exist yet, getDistinctLongValues throws
-		// BadSqlGrammarException. The candidate set falls back to empty, so no benefactor
-		// resolves as accessible — but the -1 sentinel is always added. The resulting filter
-		// matches ONLY _benefactor_0 == -1, which is fail-closed: it never widens to all rows,
-		// so benefactor-protected data is never exposed while the table is still building.
+		// When the source index table does not exist yet, computeAccessibleBenefactors handles
+		// the BadSqlGrammarException internally and returns fail-closed results: only the -1
+		// sentinel is accessible. The filter matches ONLY _benefactor_0 == -1, so
+		// benefactor-protected data is never exposed while the table is still building.
 		IndexDescription source = org.mockito.Mockito.mock(IndexDescription.class);
 		when(source.getBenefactors()).thenReturn(Arrays.asList(
 				new BenefactorDescription("ROW_BENEFACTOR_A0", org.sagebionetworks.repo.model.ObjectType.ENTITY)));
@@ -1226,14 +1227,13 @@ public class SearchIndexQueryManagerImplTest {
 
 		TableIndexDAO indexDao = org.mockito.Mockito.mock(TableIndexDAO.class);
 		when(connectionFactory.getConnection(SOURCE_ID)).thenReturn(indexDao);
-		when(indexDao.getDistinctLongValues(SOURCE_ID, "ROW_BENEFACTOR_A0"))
-				.thenThrow(new BadSqlGrammarException("getDistinctLongValues", "SELECT ...",
-						new java.sql.SQLException("table does not exist")));
-		// Empty candidate set in → empty accessible set out, mirroring the real ACL DAO's
-		// short-circuit for empty input.
-		when(tableManagerSupport.getAccessibleBenefactors(user, org.sagebionetworks.repo.model.ObjectType.ENTITY,
-				Collections.emptySet(), org.sagebionetworks.repo.model.ACCESS_TYPE.READ))
-				.thenReturn(new java.util.HashSet<>());
+		// computeAccessibleBenefactors already bakes in the -1 sentinel and handles the
+		// table-not-yet-built case internally by falling back to {-1L}.
+		when(tableQueryManager.computeAccessibleBenefactors(
+				eq(user), eq(source), eq(indexDao), eq(ACCESS_TYPE.READ)))
+				.thenReturn(Collections.singletonList(
+						new BenefactorAccessFilter("ROW_BENEFACTOR_A0",
+								new java.util.HashSet<>(Arrays.asList(-1L)))));
 
 		// call under test
 		List<org.opensearch.client.opensearch._types.query_dsl.Query> filters =

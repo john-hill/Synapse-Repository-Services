@@ -210,12 +210,6 @@ public class TableQueryManagerImpl implements TableQueryManager {
 	 */
 	QueryTranslations queryPreflight(UserInfo user, Query query, Long maxBytesPerPage, QueryOptions options, ACCESS_TYPE...types)
 			throws EmptyResultException, NotFoundException, TableUnavailableException, TableFailedException {
-		return queryPreflight(user, query, maxBytesPerPage, options, false, types);
-	}
-
-	QueryTranslations queryPreflight(UserInfo user, Query query, Long maxBytesPerPage, QueryOptions options,
-			boolean includeRowBenefactors, ACCESS_TYPE...types)
-			throws EmptyResultException, NotFoundException, TableUnavailableException, TableFailedException {
 		ValidateArgument.required(user, "UserInfo");
 		ValidateArgument.required(query, "Query");
 		ValidateArgument.required(query.getSql(), "Query");
@@ -256,7 +250,6 @@ public class TableQueryManagerImpl implements TableQueryManager {
 			.setOffset(query.getOffset())
 			.setSort(query.getSort())
 			.setIncludeEntityEtag(query.getIncludeEntityEtag())
-			.setIncludeRowBenefactors(includeRowBenefactors)
 		.build();
 
 		return new QueryTranslations(expansion, options);
@@ -560,20 +553,12 @@ public class TableQueryManagerImpl implements TableQueryManager {
 	public QueryResultBundle runQueryAsStream(ProgressCallback progressCallback, UserInfo user, Query request,
 			RowHandlerProvider provider, ACCESS_TYPE...types) throws TableUnavailableException, NotFoundException, TableFailedException,
 			LockUnavilableException, IOException {
-		return runQueryAsStream(progressCallback, user, request, provider, false, types);
-	}
-
-	@Override
-	public QueryResultBundle runQueryAsStream(ProgressCallback progressCallback, UserInfo user, Query request,
-			RowHandlerProvider provider, boolean includeRowBenefactors, ACCESS_TYPE...types)
-			throws TableUnavailableException, NotFoundException, TableFailedException,
-			LockUnavilableException, IOException {
 		try {
 			QueryOptions options = new QueryOptions().withRunQuery(true).withReturnSelectColumns(true)
 					.withRunCount(false).withReturnFacets(false);
 			// there is no limit to the size
 			Long maxBytes = null;
-			final QueryTranslations query = queryPreflight(user, request, maxBytes, options, includeRowBenefactors, types);
+			final QueryTranslations query = queryPreflight(user, request, maxBytes, options, types);
 			try(RowHandler handler = provider.getHandler(query)){
 				return queryAfterAuthorization(progressCallback, user, query, options,
 						new StreamingQueryExecutor(handler));
@@ -799,20 +784,31 @@ public class TableQueryManagerImpl implements TableQueryManager {
 			return;
 		}
 		TableIndexDAO indexDao = tableConnectionFactory.getConnection(idAndVersion);
-		QuerySpecification resultQuery = query;
-		for(BenefactorDescription dependencyDesc: indexDescription.getBenefactors()) {
+		for (BenefactorAccessFilter filter : computeAccessibleBenefactors(user, indexDescription, indexDao, types)) {
+			buildBenefactorFilter(query, filter.accessibleIds(), filter.benefactorColumnName());
+		}
+	}
+
+	@Override
+	public List<BenefactorAccessFilter> computeAccessibleBenefactors(UserInfo user,
+			IndexDescription indexDescription, TableIndexDAO indexDao, ACCESS_TYPE... types) {
+		List<BenefactorDescription> benefactors = indexDescription.getBenefactors();
+		List<BenefactorAccessFilter> filters = new ArrayList<>(benefactors.size());
+		for (BenefactorDescription dependencyDesc : benefactors) {
 			// lookup the distinct benefactor IDs applied to the table.
-			Set<Long> tableBenefactors = null;
+			Set<Long> tableBenefactors;
 			try {
-				tableBenefactors = indexDao.getDistinctLongValues(idAndVersion, dependencyDesc.getBenefactorColumnName());
+				tableBenefactors = indexDao.getDistinctLongValues(indexDescription.getIdAndVersion(), dependencyDesc.getBenefactorColumnName());
 			} catch (BadSqlGrammarException e) { // table has not been created yet
 				tableBenefactors = Collections.emptySet();
 			}
-
 			Set<Long> accessibleBenefactors = tableManagerSupport.getAccessibleBenefactors(user, dependencyDesc.getBenefactorType(), tableBenefactors, types);
 
-			buildBenefactorFilter(resultQuery, accessibleBenefactors, dependencyDesc.getBenefactorColumnName());
+			// -1 is the default value for a row with no benefactor; it must always be accessible.
+			accessibleBenefactors.add(-1L);
+			filters.add(new BenefactorAccessFilter(dependencyDesc.getBenefactorColumnName(), accessibleBenefactors));
 		}
+		return filters;
 	}
 
     /**
@@ -829,9 +825,6 @@ public class TableQueryManagerImpl implements TableQueryManager {
                                                            String benefactorColumnName) {
         ValidateArgument.required(originalQuery, "originalQuery");
         ValidateArgument.required(accessibleBenefactors, "accessibleBenefactors");
-
-		// add -1 to set, as -1 is default value for benefactors column
-		accessibleBenefactors.add(-1l);
 
         // copy the original model
         try {

@@ -478,7 +478,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		
 		// We use spring to create create the prepared statement
 		namedTemplate.query(query.getOutputSQL(), new MapSqlParameterSource(query.getParameters()), (RowCallbackHandler) rs -> {
-			Row row = SQLTranslatorUtils.readRow(rs, query.getIncludesRowIdAndVersion(), query.getIncludeEntityEtag(), query.getIncludeBenefactorId(), query.getRowBenefactorColumnCount(), infoArray);
+			Row row = SQLTranslatorUtils.readRow(rs, query.getIncludesRowIdAndVersion(), query.getIncludeEntityEtag(), query.getIncludeBenefactorId(), infoArray);
 			handler.nextRow(row);
 		});
 		

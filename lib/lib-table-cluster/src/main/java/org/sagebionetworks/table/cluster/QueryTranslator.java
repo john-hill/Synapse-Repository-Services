@@ -14,6 +14,7 @@ import org.apache.commons.lang3.BooleanUtils;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.table.cluster.description.ColumnToAdd;
@@ -193,20 +194,23 @@ public class QueryTranslator implements TranslatedQuery {
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
 			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
-			// When requested, append the index's benefactor columns to the select so
-			// they can be read positionally. Never for aggregates.
+			// When requested, append the index's benefactor columns to the select. Never for
+			// aggregates.
 			this.includeRowBenefactors = BooleanUtils.isTrue(includeRowBenefactors) && !this.isAggregatedResult;
 			// Build headers that describe how the client should read the results of this
 			// query.
 			this.selectColumns = SQLTranslatorUtils.getSelectColumns(firstPart.getQuerySpecification().getSelectList(), firstPart.getMapper(),
 					this.isAggregatedResult);
-			// The benefactor columns are appended to the select list ahead of the by-name
-			// metadata columns below. They are not document columns, so they are NOT mirrored
-			// into selectColumns; the reader is told how many trailing benefactor columns to
-			// read past the select columns via getRowBenefactorColumnCount().
+			// The benefactor columns are appended to the select list (ahead of the by-name
+			// ROW_ID/ROW_VERSION metadata columns below) and mirrored into selectColumns as
+			// INTEGER columns so they are read like any other select column, in order.
 			List<ColumnToAdd> rowBenefactorColumns = this.includeRowBenefactors
 					? indexDescription.getRowBenefactorColumnsToAddToSelect()
 					: java.util.Collections.emptyList();
+			for (ColumnToAdd benefactorColumn : rowBenefactorColumns) {
+				this.selectColumns.add(new SelectColumn().setName(benefactorColumn.getSql())
+						.setColumnType(ColumnType.INTEGER));
+			}
 			// Maximum row size is a function of both the select clause and schema.
 			this.maxRowSizeBytes = TableModelUtils.calculateMaxRowSize(selectColumns, TableModelUtils.createColumnNameToModelMap(unionOfSchemas));
 
@@ -296,18 +300,7 @@ public class QueryTranslator implements TranslatedQuery {
 	}
 
 	/**
-	 * The number of trailing positional values in each Row that are appended
-	 * row-benefactor columns (i.e. not part of the defining-SQL select). Zero
-	 * unless this query was built with {@code includeRowBenefactors}.
-	 *
-	 * @return
-	 */
-	public int getRowBenefactorColumnCount() {
-		return this.includeRowBenefactors ? indexDescription.getRowBenefactorColumnsToAddToSelect().size() : 0;
-	}
-
-	/**
-	 * Get the original input SQL (prior to translation). 
+	 * Get the original input SQL (prior to translation).
 	 * @return
 	 */
 	public String getInputSql() {

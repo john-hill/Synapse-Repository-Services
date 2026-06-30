@@ -20,6 +20,8 @@ import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.query.ParseException;
 import org.sagebionetworks.util.csv.CSVWriterStream;
 import org.sagebionetworks.util.progress.ProgressCallback;
@@ -144,19 +146,23 @@ public interface TableQueryManager {
 			RowHandlerProvider provider, ACCESS_TYPE...types) throws TableUnavailableException, NotFoundException, TableFailedException,
 			LockUnavilableException, IOException;
 
-	/**
-	 * Run a query and stream the results to the provided {@link RowHandler}, optionally
-	 * appending the index's per-dependency benefactor columns to the select so the
-	 * row handler can read them positionally.
-	 *
-	 * @param includeRowBenefactors When true, append the row-benefactor columns to the
-	 *                              select. Off by default.
-	 */
-	QueryResultBundle runQueryAsStream(ProgressCallback progressCallback, UserInfo user, Query request,
-			RowHandlerProvider provider, boolean includeRowBenefactors, ACCESS_TYPE...types)
-			throws TableUnavailableException, NotFoundException, TableFailedException,
-			LockUnavilableException, IOException;
-
 	Long getMaxBytesPerRequest();
-	
+
+	/**
+	 * For each benefactor column of the source described by {@code indexDescription} (in
+	 * {@code getBenefactors()} order), compute the set of benefactor IDs the user can access
+	 * for the given access {@code types}. The {@code -1} sentinel (the default for a row with
+	 * no benefactor) is always included. This is the single source of truth shared by the
+	 * table-query SQL row-level filter and the search-query OpenSearch filter; it has no side
+	 * effects on the query.
+	 *
+	 * @param user             the user whose access is being resolved.
+	 * @param indexDescription the source index description providing the benefactor columns.
+	 * @param indexDao         connection to the source's index database for distinct-value lookup.
+	 * @param types            the access types required (e.g. READ, or READ + DOWNLOAD).
+	 * @return one filter per benefactor column, in {@code getBenefactors()} order.
+	 */
+	List<BenefactorAccessFilter> computeAccessibleBenefactors(UserInfo user,
+			IndexDescription indexDescription, TableIndexDAO indexDao, ACCESS_TYPE... types);
+
 }

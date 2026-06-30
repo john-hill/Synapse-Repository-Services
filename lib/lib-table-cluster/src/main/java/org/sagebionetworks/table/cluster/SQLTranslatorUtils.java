@@ -328,15 +328,12 @@ public class SQLTranslatorUtils {
 	 * @param rs
 	 * @param includesRowIdAndVersion Is ROW_ID and ROW_VERSION included in the result set?
 	 * @param includeEtag Is the read row an EntityRow?
-	 * @param rowBenefactorColumnCount The number of benefactor columns appended to the select
-	 *                                 after the {@code colunTypes} columns. These are read
-	 *                                 positionally as INTEGER and appended to the row values.
 	 * @return
 	 * @throws SQLException
 	 */
-	public static Row readRow(ResultSet rs, boolean includesRowIdAndVersion, boolean includeEtag, boolean includeBenefactorId, int rowBenefactorColumnCount, ColumnTypeInfo[] colunTypes) throws SQLException{
+	public static Row readRow(ResultSet rs, boolean includesRowIdAndVersion, boolean includeEtag, boolean includeBenefactorId, ColumnTypeInfo[] colunTypes) throws SQLException{
 		Row row = new Row();
-		List<String> values = new ArrayList<String>(colunTypes.length + rowBenefactorColumnCount);
+		List<String> values = new ArrayList<String>(colunTypes.length);
 		row.setValues(values);
 		if(includesRowIdAndVersion){
 			row.setRowId(rs.getLong(ROW_ID));
@@ -353,14 +350,6 @@ public class SQLTranslatorUtils {
 			ColumnTypeInfo type = colunTypes[i];
 			String value = rs.getString(i+1);
 			value = TableModelUtils.translateRowValueFromQuery(value, type);
-			values.add(value);
-		}
-		// Read the trailing benefactor columns. They are appended to the select after the
-		// select columns (and ahead of the by-name ROW_ID/ROW_VERSION), are always BIGINT, and
-		// are appended to the row values so a consumer can read them by their known position.
-		for(int i=0; i < rowBenefactorColumnCount; i++){
-			String value = rs.getString(colunTypes.length + i + 1);
-			value = TableModelUtils.translateRowValueFromQuery(value, ColumnTypeInfo.INTEGER);
 			values.add(value);
 		}
 		return row;

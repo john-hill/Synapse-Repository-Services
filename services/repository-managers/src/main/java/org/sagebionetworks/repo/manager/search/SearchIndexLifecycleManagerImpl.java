@@ -22,9 +22,6 @@ import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.manager.table.TableQueryManager;
-import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
-import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
@@ -42,16 +39,15 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.repo.model.table.Query;
-import org.sagebionetworks.repo.model.table.QueryOptions;
-import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.QueryTranslator;
+import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
@@ -110,7 +106,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
 	private final SearchConfigurationResolver searchConfigurationResolver;
-	private final TableQueryManager tableQueryManager;
 	private final UserManager userManager;
 	private final EntityManager entityManager;
 	private final SynonymSetDao synonymSetDao;
@@ -123,7 +118,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
 			SearchConfigurationResolver searchConfigurationResolver,
-			TableQueryManager tableQueryManager, UserManager userManager,
+			UserManager userManager,
 			EntityManager entityManager,
 			SynonymSetDao synonymSetDao, ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
 			TextAnalyzerDao textAnalyzerDao,
@@ -133,7 +128,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
-		this.tableQueryManager = tableQueryManager;
 		this.userManager = userManager;
 		this.entityManager = entityManager;
 		this.synonymSetDao = synonymSetDao;
@@ -208,12 +202,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 * on permanent failure. Transient failures (table unavailable, lock contention,
 	 * concurrent-delete on AOSS) propagate as {@link RecoverableMessageException}
 	 * so the worker can re-queue without flipping the index to FAILED.
+	 * <p>
+	 * Every source row is indexed without authorization; read access is enforced only at
+	 * query time via the per-row {@code _benefactor_<i>} filtering.
 	 *
 	 * @param progressCallback     Refreshes the per-entity write lock during the build.
 	 * @param entityId             SearchIndex entity ID.
-	 * @param userId               User who triggered the change. Authorization for the
-	 *                             row stream is performed as the realm's anonymous user;
-	 *                             this id is recorded for audit only.
+	 * @param userId               User who triggered the change. Used to load the SearchIndex
+	 *                             entity and resolve its configuration; it only feeds
+	 *                             CURRENT_USER() substitution in the row stream, which is not
+	 *                             authorized.
 	 * @param deleteExistingFirst  When true, the AOSS index is dropped before the build
 	 *                             (the rebuild path); when false, the build assumes no
 	 *                             existing index exists.
@@ -244,8 +242,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// path is qname-only — no more inline branches.
 			Map<String, TextAnalyzer> inlineAnalyzers = materializeInlineAnalyzerSlots(config, overrides);
 
-			// Bound schema order must match the streamed row values' order positionally —
-			// runQueryAsStream below relies on this alignment to map values to columns.
+			// Bound schema order must match the streamed row values' order positionally — the
+			// SearchIndexRowHandler relies on this alignment to map the leading row values to
+			// document columns (and treat any trailing values as benefactor columns).
 			List<ColumnModel> selectedColumns = tableManagerSupport.getTableSchema(IdAndVersion.parse(entityId));
 			if (selectedColumns == null || selectedColumns.isEmpty()) {
 				throw new IllegalStateException("SearchIndex " + entityId
@@ -253,22 +252,30 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 			List<SelectColumn> selectColumns = TableModelUtils.getSelectColumns(selectedColumns);
 
-			// Build the index as the anonymous user. This enforces Sage governance:
-			// only tables marked DataType.OPEN_DATA with PUBLIC read access can be
-			// indexed. Any other table will fail authorization during queryPreflight,
-			// and the search index will be recorded as FAILED.
-			UserInfo anonymousUser = userManager.getUserInfo(user.getRealmAnonymousUserId());
-			Query query = new Query();
-			query.setSql(definingSQL);
+			IdAndVersion sourceId = TableModelUtils.getSourceTableIds(definingSQL).get(0);
+			IndexDescription sourceIndexDescription = tableManagerSupport.getIndexDescription(sourceId);
+			TableIndexDAO indexDao = connectionFactory.getConnection(sourceId);
 
-			QueryOptions countOnly = new QueryOptions()
-					.withRunQuery(false)
-					.withRunCount(true)
-					.withReturnSelectColumns(false)
-					.withReturnFacets(false);
-			QueryResultBundle countResult = tableQueryManager.querySinglePage(
-					progressCallback, anonymousUser, query, countOnly);
-			Long rowCount = countResult.getQueryCount();
+			// The index is built directly from the source table's index database, with no
+			// authorization on the row stream: every source row is indexed. Read access is
+			// enforced only at query time via the per-row _benefactor_<i> filtering. Require the
+			// source to be AVAILABLE first; a PROCESSING source throws TableUnavailableException
+			// (the worker re-queues as recoverable) and a failed source throws TableFailedException.
+			TableStatus sourceStatus = tableManagerSupport.getTableStatusOrCreateIfNotExists(sourceId);
+			switch (sourceStatus.getState()) {
+			case AVAILABLE:
+				break;
+			case PROCESSING:
+				throw new TableUnavailableException(sourceStatus);
+			default:
+				throw new TableFailedException(sourceStatus);
+			}
+
+			// Conservative whole-table ceiling: the defining SQL queries a single source table
+			// so it cannot expand the row count beyond the source's row count.
+			// The handler's mid-stream MAX_ROWS guard remains
+			// the backstop. A null count means the source index table is absent.
+			Long rowCount = indexDao.getRowCountForTable(sourceId);
 			if (rowCount != null && rowCount > MAX_ROWS) {
 				throw new IllegalStateException(
 						"Search index would exceed maximum of " + MAX_ROWS
@@ -294,8 +301,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// IllegalArgumentException via SearchOpaqueJsonUtil.
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
-			IndexDescription sourceIndexDescription = tableManagerSupport.getIndexDescription(
-					TableModelUtils.getSourceTableIds(definingSQL).get(0));
 			int benefactorCount = sourceIndexDescription.getBenefactors().size();
 
 			String indexName = getIndexName(entityId);
@@ -311,12 +316,24 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// succeeds so the bulk stream below does not race against index_not_found_exception.
 			openSearchManager.waitForIndexWritable(indexName);
 
-			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
-					(QueryTranslations translations) -> new SearchIndexRowHandler(
-							indexName, selectColumns, openSearchManager, sourceIndexDescription,
-							translations.getMainQuery().getTranslator().getRowBenefactorColumnCount()),
-					true,
-					ACCESS_TYPE.READ);
+			// Query the source's index table directly. SqlContext.query (not build) emits the select against the
+			// source's materialized index table for any of them. includeRowBenefactors appends
+			// the benefactor columns so the handler can read them as trailing row values. userId
+			// only feeds CURRENT_USER() substitution — no authorization occurs on this path.
+			QueryTranslator translator = QueryTranslator.builder()
+					.sql(definingSQL)
+					.schemaProvider(tableManagerSupport)
+					.sqlContext(SqlContext.query)
+					.indexDescription(sourceIndexDescription)
+					.includeRowBenefactors(true)
+					.userId(userId)
+					.build();
+			// queryAsStream does not close the handler; the try-with-resources flushes the final
+			// partial batch.
+			try (SearchIndexRowHandler handler = new SearchIndexRowHandler(
+					indexName, selectColumns, openSearchManager)) {
+				indexDao.queryAsStream(translator, handler);
+			}
 
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
@@ -576,24 +593,13 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		private final String indexName;
 		private final List<SelectColumn> columns;
 		private final OpenSearchManager client;
-		private final int benefactorCount;
-		private final int positionalBenefactorCount;
 		private final List<BulkOperation> batch = new ArrayList<>();
 		private long totalRows = 0;
 
-		SearchIndexRowHandler(String indexName, List<SelectColumn> columns, OpenSearchManager client,
-				IndexDescription indexDescription, int positionalBenefactorCount) {
+		SearchIndexRowHandler(String indexName, List<SelectColumn> columns, OpenSearchManager client) {
 			this.indexName = indexName;
 			this.columns = columns;
 			this.client = client;
-			this.benefactorCount = indexDescription.getBenefactors().size();
-			// The number of benefactor columns the QueryTranslator appended to the build select
-			// (after the defining-SQL columns), which this handler reads positionally from
-			// Row.getValues(). Sourced from the translator that built the query so the read
-			// offset matches what was actually selected. A materialized view appends one per
-			// dependency; a view/table appends none (a view's single benefactor is read by name
-			// from Row.benefactorId).
-			this.positionalBenefactorCount = positionalBenefactorCount;
 		}
 
 		@Override
@@ -606,28 +612,31 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			doc.put("_row_id", row.getRowId());
 			doc.put("_row_version", row.getVersionNumber());
 			List<String> values = row.getValues();
-			// The trailing positional benefactor values are not document columns, so the
-			// document columns are only the leading values.
-			int documentColumnCount = values.size() - positionalBenefactorCount;
-			for (int i = 0; i < columns.size() && i < documentColumnCount; i++) {
+			// The bound schema (columns) defines the document columns; they are the leading
+			// values of the row. Any trailing values are the benefactor columns the translator
+			// appended to the select (one per source dependency, in getBenefactors() order).
+			// This relies on the invariant that the translated select's document-column count
+			// equals the bound-schema width, since both derive from the same defining SQL.
+			for (int i = 0; i < columns.size() && i < values.size(); i++) {
 				String value = values.get(i);
 				if (value != null) {
 					SelectColumn column = columns.get(i);
 					doc.put(column.getId(), convertForDocument(value, column.getColumnType()));
 				}
 			}
-			// Write one _benefactor_N field per source dependency, in getBenefactors() order
-			// (== the order produced by getRowBenefactorColumnsToAddToSelect and the order the
-			// query-time ACL filter expects).
-			if (positionalBenefactorCount > 0) {
-				for (int i = 0; i < positionalBenefactorCount; i++) {
-					String value = values.get(documentColumnCount + i);
+			// Write one _benefactor_N field per source dependency, in the same order the
+			// query-time ACL filter expects. A materialized view appends its benefactor columns
+			// as trailing row values; a view exposes its single benefactor through the by-name
+			// scalar Row.benefactorId (nothing trails values). A plain table has no benefactor
+			// and leaves both empty.
+			if (values.size() > columns.size()) {
+				for (int i = columns.size(); i < values.size(); i++) {
+					String value = values.get(i);
 					if (value != null) {
-						doc.put("_benefactor_" + i, Long.valueOf(value));
+						doc.put("_benefactor_" + (i - columns.size()), Long.valueOf(value));
 					}
 				}
-			} else if (benefactorCount > 0 && row.getBenefactorId() != null) {
-				// A view exposes its single benefactor through Row.benefactorId.
+			} else if (row.getBenefactorId() != null) {
 				doc.put("_benefactor_0", row.getBenefactorId());
 			}
 			String docId = String.valueOf(row.getRowId());

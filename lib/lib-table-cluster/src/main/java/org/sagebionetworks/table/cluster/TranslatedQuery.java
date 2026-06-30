@@ -56,14 +56,6 @@ public interface TranslatedQuery {
 	boolean getIncludeBenefactorId();
 
 	/**
-	 * The number of benefactor columns appended to the select after the defining-SQL
-	 * columns, read positionally as the trailing values of each Row. Zero unless the
-	 * query was built with {@code includeRowBenefactors}.
-	 * @return
-	 */
-	int getRowBenefactorColumnCount();
-
-	/**
 	 * Get a hash for the table/view. A change in the hash can prevent a stale cache
 	 * hit.
 	 *

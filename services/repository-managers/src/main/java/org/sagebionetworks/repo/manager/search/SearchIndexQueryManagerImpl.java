@@ -13,7 +13,9 @@ import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.search.SourceConfig;
 import org.opensearch.client.opensearch.core.search.SourceFilter;
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.table.BenefactorAccessFilter;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
+import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -36,7 +38,6 @@ import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -48,15 +49,18 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
 	private final TableManagerSupport tableManagerSupport;
+	private final TableQueryManager tableQueryManager;
 
 	public SearchIndexQueryManagerImpl(EntityManager entityManager,
 			ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
-			TableManagerSupport tableManagerSupport) {
+			TableManagerSupport tableManagerSupport,
+			TableQueryManager tableQueryManager) {
 		this.entityManager = entityManager;
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.tableManagerSupport = tableManagerSupport;
+		this.tableQueryManager = tableQueryManager;
 	}
 
 	@Override
@@ -136,30 +140,19 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	 * {@link #preflightAndCheckIndex}.
 	 */
 	List<Query> buildBenefactorAccessFilters(UserInfo user, IndexDescription sourceIndexDescription) {
-		List<BenefactorDescription> benefactors = sourceIndexDescription.getBenefactors();
-		if (benefactors.isEmpty()) {
+		if (sourceIndexDescription.getBenefactors().isEmpty()) {
 			return Collections.emptyList();
 		}
-		IdAndVersion sourceId = sourceIndexDescription.getIdAndVersion();
-		TableIndexDAO indexDao = connectionFactory.getConnection(sourceId);
-		List<Query> filters = new java.util.ArrayList<>(benefactors.size());
-		for (int i = 0; i < benefactors.size(); i++) {
-			BenefactorDescription desc = benefactors.get(i);
-			// The candidate benefactors present on the source come from the source index DAO
-			// (AOSS has no distinct-value lookup). A missing table yields an empty candidate set.
-			Set<Long> candidateBenefactors;
-			try {
-				candidateBenefactors = indexDao.getDistinctLongValues(sourceId, desc.getBenefactorColumnName());
-			} catch (BadSqlGrammarException e) { // source index table not built yet
-				candidateBenefactors = Collections.emptySet();
-			}
-			Set<Long> accessibleBenefactors = tableManagerSupport.getAccessibleBenefactors(
-					user, desc.getBenefactorType(), candidateBenefactors, ACCESS_TYPE.READ);
-			// -1 is the IFNULL default for a row with no benefactor; it must always be readable,
-			// matching the MySQL row-level filter's behavior (the terms set is never empty).
-			accessibleBenefactors.add(-1L);
+		TableIndexDAO indexDao = connectionFactory.getConnection(sourceIndexDescription.getIdAndVersion());
+		// Shared with the table-query SQL row-level filter so both gates compute accessibility
+		// identically (including the -1 sentinel). The list is in getBenefactors() order, which
+		// matches the _benefactor_i field naming written at build time.
+		List<BenefactorAccessFilter> accessibleBenefactors =
+				tableQueryManager.computeAccessibleBenefactors(user, sourceIndexDescription, indexDao, ACCESS_TYPE.READ);
+		List<Query> filters = new java.util.ArrayList<>(accessibleBenefactors.size());
+		for (int i = 0; i < accessibleBenefactors.size(); i++) {
 			final String field = "_benefactor_" + i;
-			final Set<Long> terms = accessibleBenefactors;
+			final Set<Long> terms = accessibleBenefactors.get(i).accessibleIds();
 			filters.add(Query.of(tq -> tq.terms(t -> t
 					.field(field)
 					.terms(qt -> qt.value(terms.stream()

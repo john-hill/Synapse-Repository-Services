@@ -118,8 +118,8 @@ public class CachedQueryRequest implements TranslatedQuery {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(expiresInSec, includeEntityEtag, includeBenefactorId,
-				includesRowIdAndVersion, outputSQL, parameters, selectColumns, singleTableId, tableHash);
+		return Objects.hash(expiresInSec, includeEntityEtag, includeBenefactorId, includesRowIdAndVersion, outputSQL,
+				parameters, selectColumns, singleTableId, tableHash);
 	}
 
 	@Override
@@ -143,8 +143,7 @@ public class CachedQueryRequest implements TranslatedQuery {
 	public String toString() {
 		return "CachedQueryRequest [selectColumns=" + selectColumns + ", parameters=" + parameters + ", outputSQL="
 				+ outputSQL + ", includesRowIdAndVersion=" + includesRowIdAndVersion + ", includeEntityEtag="
-				+ includeEntityEtag + ", includeBenefactorId=" + includeBenefactorId
-				+ ", singleTableId=" + singleTableId
+				+ includeEntityEtag + ", includeBenefactorId=" + includeBenefactorId + ", singleTableId=" + singleTableId
 				+ ", expiresInSec=" + expiresInSec + ", tableHash=" + tableHash + "]";
 	}
 	

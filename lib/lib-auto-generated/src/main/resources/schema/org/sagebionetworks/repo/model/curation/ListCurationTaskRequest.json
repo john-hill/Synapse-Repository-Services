@@ -23,7 +23,7 @@
       },
       "description": "Optional. Filter tasks by their current state."
     },
-    "taskIds": {
+    "taskId": {
       "type": "array",
       "items": {
         "type": "integer"

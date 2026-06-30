@@ -319,10 +319,10 @@ public class CurationTaskManagerImplUnitTest {
 
     @Test
     public void testGetCurationTasksWithTaskIdsFilter() {
-        List<Long> taskIds = List.of(taskId);
+        List<Long> taskId = List.of(this.taskId);
         ListCurationTaskRequest request = new ListCurationTaskRequest()
                 .setProjectId(projectId)
-                .setTaskIds(taskIds);
+                .setTaskId(taskId);
         CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = List.of(bundle1);
@@ -330,7 +330,7 @@ public class CurationTaskManagerImplUnitTest {
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
                 .thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
-                eq(null), eq(null), eq(taskIds), anyLong(), anyLong())).thenReturn(bundles);
+                eq(null), eq(null), eq(taskId), anyLong(), anyLong())).thenReturn(bundles);
 
         // call under test
         ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -341,8 +341,8 @@ public class CurationTaskManagerImplUnitTest {
 
     @Test
     public void testGetCurationTasksWithTaskIdsNoProjectId() {
-        List<Long> taskIds = List.of(taskId);
-        ListCurationTaskRequest request = new ListCurationTaskRequest().setTaskIds(taskIds);
+        List<Long> taskId = List.of(this.taskId);
+        ListCurationTaskRequest request = new ListCurationTaskRequest().setTaskId(taskId);
 
         Set<Long> allProjectIds = new HashSet<>(Arrays.asList(100L, 200L));
         Set<Long> accessibleIds = new HashSet<>(Arrays.asList(100L, 200L));
@@ -355,7 +355,7 @@ public class CurationTaskManagerImplUnitTest {
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = List.of(bundle1);
 
-        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq(taskIds), anyLong(), anyLong()))
+        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq(taskId), anyLong(), anyLong()))
                 .thenReturn(bundles);
 
         // call under test

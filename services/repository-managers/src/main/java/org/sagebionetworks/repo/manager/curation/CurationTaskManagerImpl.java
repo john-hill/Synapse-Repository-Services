@@ -141,7 +141,7 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
 
         List<TaskBundle> bundles = curationTaskDao.getCurationTaskBundles(
                 accessibleProjectIds, assigneeIds, request.getStateFilter(),
-                request.getTaskIds(), token.getLimitForQuery(), token.getOffset());
+                request.getTaskId(), token.getLimitForQuery(), token.getOffset());
 
         List<CurationTask> tasks = bundles.stream().map(TaskBundle::getTask).collect(Collectors.toList());
 

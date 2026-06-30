@@ -277,4 +277,49 @@ public class ITCurationTaskControllerTest {
         }
     }
 
+    @Test
+    public void testListCurationTasksWithTaskIdsFilter() throws SynapseException {
+        // Two tasks in the same project — taskId filter must exclude the second one.
+        // This end-to-end test confirms the "taskId" JSON field name is correctly
+        // serialized by the client and applied as an IN filter on the server.
+        CurationTask fbTask = new CurationTask()
+                .setProjectId(project.getId())
+                .setDataType("taskids-fb")
+                .setTaskProperties(
+                        new FileBasedMetadataTaskProperties()
+                                .setFileViewId(view.getId())
+                                .setUploadFolderId(folder.getId())
+                );
+
+        CurationTask rbTask = new CurationTask()
+                .setProjectId(project.getId())
+                .setDataType("taskids-rb")
+                .setTaskProperties(
+                        new RecordBasedMetadataTaskProperties().setRecordSetId(recordSet.getId())
+                );
+
+        fbTask = synapse.createCurationTask(fbTask);
+        rbTask = synapse.createCurationTask(rbTask);
+
+        try {
+            // call under test - filter by fbTask's ID only; rbTask must not appear in results
+            ListCurationTaskResponse response = synapse.listMetadataTasks(
+                    new ListCurationTaskRequest()
+                            .setProjectId(project.getId())
+                            .setTaskId(Arrays.asList(fbTask.getTaskId()))
+            );
+
+            assertNotNull(response.getPage());
+            assertEquals(1, response.getPage().size());
+            assertEquals(fbTask.getTaskId(), response.getPage().get(0).getTaskId());
+
+            assertNotNull(response.getBundlePage());
+            assertEquals(1, response.getBundlePage().size());
+            assertEquals(fbTask.getTaskId(), response.getBundlePage().get(0).getTask().getTaskId());
+        } finally {
+            synapse.deleteMetadataTask(fbTask.getTaskId());
+            synapse.deleteMetadataTask(rbTask.getTaskId());
+        }
+    }
+
 }

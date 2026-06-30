@@ -23,9 +23,12 @@
       },
       "description": "Optional. Filter tasks by their current state."
     },
-    "taskId": {
-      "type": "integer",
-      "description": "Optional. Filter by a specific task ID."
+    "taskIds": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Optional. Filter to tasks with these IDs. Tasks that do not exist or are not accessible are silently excluded."
     },
     "nextPageToken": {
       "type": "string",

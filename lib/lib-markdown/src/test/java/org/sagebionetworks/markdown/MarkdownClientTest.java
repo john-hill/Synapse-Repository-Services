@@ -1,16 +1,17 @@
 package org.sagebionetworks.markdown;
 
-import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -21,33 +22,24 @@ import org.mockito.MockitoAnnotations;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpRequest;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpResponse;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
 
 public class MarkdownClientTest {
 	@Mock
 	private SimpleHttpClient mockHttpClient;
 	@Mock
 	private SimpleHttpResponse mockResponse;
+	@Mock
+	private RequestSigner mockSigner;
 	private MarkdownClient markdownClient;
 
 	@BeforeEach
 	public void before() {
 		MockitoAnnotations.initMocks(this);
-		markdownClient = new MarkdownClient();
-//		ReflectionTestUtils.setField(markdownClient, "simpleHttpClient", mockHttpClient);
-//		ReflectionTestUtils.setField(markdownClient, "markdownServiceEndpoint",
-//				"https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown");
-//		ReflectionTestUtils.setField(markdownClient, "awsCredentialsProvider",
-//				StaticCredentialsProvider.create(AwsBasicCredentials.create("akid", "secret")));
-//		ReflectionTestUtils.setField(markdownClient, "signer", AwsV4HttpSigner.create());
-		markdownClient.setSimpleHttpClient(mockHttpClient);
-		markdownClient.setMarkdownServiceEndpoint("https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown");
-		markdownClient.setSigner(AwsV4HttpSigner.create());
-		markdownClient.setAwsCredentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("akid", "secret")));
+		markdownClient = new MarkdownClient(
+			"https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown",
+			mockSigner,
+			mockHttpClient
+		);
 	}
 
 	@Test
@@ -56,7 +48,9 @@ public class MarkdownClientTest {
 		String response = "{\"error\":\"Service unavailable\"}";
 		when(mockResponse.getStatusCode()).thenReturn(500);
 		when(mockResponse.getContent()).thenReturn(response);
+		when(mockSigner.sign(any(URI.class), any(byte[].class))).thenReturn(new HashMap<>());
 		when(mockHttpClient.post(any(SimpleHttpRequest.class), eq(request))).thenReturn(mockResponse);
+
 		MarkdownClientException e = assertThrows(MarkdownClientException.class, ()->{
 			// call under test
 			markdownClient.requestMarkdownConversion(request);
@@ -69,7 +63,9 @@ public class MarkdownClientTest {
 	public void testRequestMarkdownConversionIOException() throws Exception {
 		String request = "{\"markdown\":\"## a heading\"}";
 		IOException io = new IOException("some kind of connection problem");
+		when(mockSigner.sign(any(URI.class), any(byte[].class))).thenReturn(new HashMap<>());
 		when(mockHttpClient.post(any(SimpleHttpRequest.class), eq(request))).thenThrow(io);
+
 		MarkdownClientException e = assertThrows(MarkdownClientException.class, ()->{
 			// call under test
 			markdownClient.requestMarkdownConversion(request);
@@ -84,16 +80,28 @@ public class MarkdownClientTest {
 		String response = "{\"html\":\"<h2 toc=\\\"true\\\">a heading</h2>\\n\"}";
 		when(mockResponse.getStatusCode()).thenReturn(200);
 		when(mockResponse.getContent()).thenReturn(response);
+		when(mockSigner.sign(any(URI.class), any(byte[].class))).thenReturn(new HashMap<>());
 		when(mockHttpClient.post(any(SimpleHttpRequest.class), eq(request))).thenReturn(mockResponse);
-		assertEquals(response, markdownClient.requestMarkdownConversion(request));
+
+		// call under test
+		String result = markdownClient.requestMarkdownConversion(request);
+
+		assertEquals(response, result);
 	}
 
 	@Test
-	public void testRequestMarkdownConversionWithIamSigning() throws Exception {
+	public void testRequestMarkdownConversionCallsSigner() throws Exception {
 		String request = "{\"markdown\":\"## a heading\"}";
+		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
 		String response = "{\"html\":\"<h2 toc=\\\"true\\\">a heading</h2>\\n\"}";
+
 		when(mockResponse.getStatusCode()).thenReturn(200);
 		when(mockResponse.getContent()).thenReturn(response);
+
+		Map<String, String> signedHeaders = new HashMap<>();
+		signedHeaders.put("Authorization", "AWS4-HMAC-SHA256 Credential=...");
+		signedHeaders.put("X-Amz-Date", "20240101T000000Z");
+		when(mockSigner.sign(any(URI.class), any(byte[].class))).thenReturn(signedHeaders);
 
 		ArgumentCaptor<SimpleHttpRequest> requestCaptor = ArgumentCaptor.forClass(SimpleHttpRequest.class);
 		when(mockHttpClient.post(requestCaptor.capture(), eq(request))).thenReturn(mockResponse);
@@ -101,45 +109,19 @@ public class MarkdownClientTest {
 		// call under test
 		markdownClient.requestMarkdownConversion(request);
 
-		Map<String, String> headers = requestCaptor.getValue().getHeaders();
+		// Verify signer was called with correct URI and payload
+		ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+		ArgumentCaptor<byte[]> payloadCaptor = ArgumentCaptor.forClass(byte[].class);
+		verify(mockSigner).sign(uriCaptor.capture(), payloadCaptor.capture());
 
-		String authHeader = headers.get("Authorization");
-		assertNotNull(authHeader);
-		assertTrue(authHeader.startsWith("AWS4-HMAC-SHA256 Credential=akid/"));
+		assertEquals(endpoint, uriCaptor.getValue().toString());
+		assertEquals(request, new String(payloadCaptor.getValue(), StandardCharsets.UTF_8));
 
-		assertNotNull(headers.get("X-Amz-Date"));
+		// Verify signed headers were included in the request
+		SimpleHttpRequest capturedRequest = requestCaptor.getValue();
+		Map<String, String> headers = capturedRequest.getHeaders();
+		assertEquals("AWS4-HMAC-SHA256 Credential=...", headers.get("Authorization"));
+		assertEquals("20240101T000000Z", headers.get("X-Amz-Date"));
 		assertEquals("application/json", headers.get("Content-Type"));
-		assertFalse(headers.containsKey("Host"));
-	}
-
-	@Test
-	public void testInit() throws Exception {
-		MarkdownClient mdc = new MarkdownClient();
-		mdc._init();
-		assertNotNull(mdc.getSimpleHttpClient());
-		assertNotNull(mdc.getAwsCredentialsProvider());
-		assertNotNull(mdc.getSigner());
-	}
-
-	@Test
-	public void testInitWithAlreadyConfigured() throws Exception {
-		// markdownClient already has simpleHttpClient, awsCredentialsProvider, and signer set from before()
-		// call under test - pre-set fields should not be replaced
-		markdownClient._init();
-		assertEquals(mockHttpClient, markdownClient.getSimpleHttpClient());
-	}
-
-	@Test
-	public void testGetSet() throws Exception {
-		MarkdownClient mdc = new MarkdownClient();
-		assertNull(mdc.getMarkdownServiceEndpoint());
-		assertNull(mdc.getAwsCredentialsProvider());
-		assertNull(mdc.getSimpleHttpClient());
-		assertNull(mdc.getSigner());
-		mdc.setMarkdownServiceEndpoint("https://service.emdpoint.org");
-		assertEquals("https://service.emdpoint.org", mdc.getMarkdownServiceEndpoint());
-		AwsV4HttpSigner signer = AwsV4HttpSigner.create();
-		mdc.setSigner(signer);
-		assertEquals(signer, mdc.getSigner());
 	}
 }

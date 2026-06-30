@@ -1,7 +1,6 @@
 package org.sagebionetworks.markdown;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.markdown.MarkdownDaoImpl.MARKDOWN;
 import static org.sagebionetworks.markdown.MarkdownDaoImpl.OUTPUT;
@@ -11,7 +10,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.test.util.ReflectionTestUtils;
 
 public class MarkdownDaoImplTest {
 	@Mock
@@ -22,8 +20,7 @@ public class MarkdownDaoImplTest {
 	@Before
 	public void before() {
 		MockitoAnnotations.initMocks(this);
-		dao = new MarkdownDaoImpl();
-		ReflectionTestUtils.setField(dao, "markdownClient", mockMarkdownClient);
+		dao = new MarkdownDaoImpl(mockMarkdownClient, "https://synapse.org");
 	}
 
 	@Test (expected = IllegalArgumentException.class)
@@ -36,6 +33,7 @@ public class MarkdownDaoImplTest {
 		String rawMarkdown = "## a heading";
 		JSONObject request = new JSONObject();
 		request.put(MARKDOWN, rawMarkdown);
+		request.put(MarkdownDaoImpl.BASE_URL, "https://synapse.org");
 		when(mockMarkdownClient.requestMarkdownConversion(request.toString())).thenThrow(new MarkdownClientException(500,""));
 		dao.convertMarkdown(rawMarkdown, null);
 	}
@@ -46,6 +44,7 @@ public class MarkdownDaoImplTest {
 		String outputType = "html";
 		JSONObject request = new JSONObject();
 		request.put(MARKDOWN, rawMarkdown);
+		request.put(MarkdownDaoImpl.BASE_URL, "https://synapse.org");
 		request.put(OUTPUT, outputType);
 		String result = "<h2 toc=\"true\">a heading</h2>\n";
 		String response = "{\"result\":\"<h2 toc=\\\"true\\\">a heading</h2>\\n\"}";
@@ -54,9 +53,7 @@ public class MarkdownDaoImplTest {
 	}
 
 	@Test
-	public void testGetSetSynapseBaseUrl() throws Exception {
-		assertNull(dao.getSynapseBaseUrl());
-		dao.setSynapseBaseUrl("https://synapse.org");
+	public void testGetSynapseBaseUrl() throws Exception {
 		assertEquals("https://synapse.org", dao.getSynapseBaseUrl());
 	}
 }

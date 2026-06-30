@@ -256,11 +256,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			IndexDescription sourceIndexDescription = tableManagerSupport.getIndexDescription(sourceId);
 			TableIndexDAO indexDao = connectionFactory.getConnection(sourceId);
 
-			// The index is built directly from the source table's index database, with no
-			// authorization on the row stream: every source row is indexed. Read access is
-			// enforced only at query time via the per-row _benefactor_<i> filtering. Require the
-			// source to be AVAILABLE first; a PROCESSING source throws TableUnavailableException
-			// (the worker re-queues as recoverable) and a failed source throws TableFailedException.
+			// Require the source to be AVAILABLE first; a PROCESSING source throws
+			// TableUnavailableException (the worker re-queues as recoverable) and a failed source
+			// throws TableFailedException.
 			TableStatus sourceStatus = tableManagerSupport.getTableStatusOrCreateIfNotExists(sourceId);
 			switch (sourceStatus.getState()) {
 			case AVAILABLE:
@@ -316,10 +314,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// succeeds so the bulk stream below does not race against index_not_found_exception.
 			openSearchManager.waitForIndexWritable(indexName);
 
-			// Query the source's index table directly. SqlContext.query (not build) emits the select against the
-			// source's materialized index table for any of them. includeRowBenefactors appends
-			// the benefactor columns so the handler can read them as trailing row values. userId
-			// only feeds CURRENT_USER() substitution — no authorization occurs on this path.
+			// SqlContext.query (not build) emits the select against the source's materialized
+			// index table. includeRowBenefactors appends the benefactor columns so the handler can
+			// read them as trailing row values. userId only feeds CURRENT_USER() substitution.
 			QueryTranslator translator = QueryTranslator.builder()
 					.sql(definingSQL)
 					.schemaProvider(tableManagerSupport)

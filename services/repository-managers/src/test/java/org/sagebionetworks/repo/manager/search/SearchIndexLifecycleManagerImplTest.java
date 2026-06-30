@@ -745,12 +745,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		BulkOperation op = captor.getValue().get(0);
 		@SuppressWarnings("unchecked")
 		Map<String, Object> doc = (Map<String, Object>) op.index().document();
-		// Only the leading defining-SQL column becomes a document field.
 		assertEquals("hello", doc.get("100"));
-		// Trailing benefactors mapped positionally to _benefactor_0/_benefactor_1.
 		assertEquals(11L, doc.get("_benefactor_0"));
 		assertEquals(22L, doc.get("_benefactor_1"));
-		// Document id is the stable ROW_ID.
 		assertEquals("7", op.index().id());
 	}
 

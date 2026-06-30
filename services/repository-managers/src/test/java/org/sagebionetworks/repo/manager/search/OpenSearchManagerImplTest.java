@@ -579,12 +579,6 @@ public class OpenSearchManagerImplTest {
 		assertEquals(Arrays.asList("snip"), out.getHighlights().get(0).getSnippets());
 	}
 
-	// convertHit _source mapping: _row_id / _row_version are surfaced via the dedicated
-	// SearchHit fields, and the internal _benefactor_N row-level access-control fields must be
-	// stripped so they are never leaked back to the caller in SearchHit.fields. A view exposes a
-	// single _benefactor_0; a materialized view over multiple sources exposes _benefactor_0,
-	// _benefactor_1, ... — both prefixes are excluded while real columns survive.
-
 	@Test
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	public void testConvertHitExcludesSystemAndBenefactorFieldsFromSource() {

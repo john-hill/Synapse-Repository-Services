@@ -2719,8 +2719,6 @@ public class QueryTranslatorTest {
 
 		QueryTranslator translator = QueryTranslator.builder("select foo from syn123", mockSchemaProvider, userId)
 				.indexDescription(new TableIndexDescription(idAndVersion)).build();
-		// Off by default: no benefactor columns appended, only the defining-SQL column is
-		// selected and the output is unchanged.
 		assertEquals(1, translator.getSelectColumns().size());
 		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION FROM T123", translator.getOutputSQL());
 	}
@@ -2742,15 +2740,12 @@ public class QueryTranslatorTest {
 		QueryTranslator translator = QueryTranslator.builder("select foo from syn123", mockSchemaProvider, userId)
 				.indexDescription(mvDescription).includeRowBenefactors(true).build();
 
-		// The two benefactor columns are mirrored into selectColumns (after the defining-SQL
-		// column) as INTEGER columns, so they are read like any other select column.
 		List<SelectColumn> selectColumns = translator.getSelectColumns();
 		assertEquals(3, selectColumns.size());
 		assertEquals("ROW_BENEFACTOR__A0", selectColumns.get(1).getName());
 		assertEquals(ColumnType.INTEGER, selectColumns.get(1).getColumnType());
 		assertEquals("ROW_BENEFACTOR__A1", selectColumns.get(2).getName());
 		assertEquals(ColumnType.INTEGER, selectColumns.get(2).getColumnType());
-		// The benefactor columns appear in the output SQL ahead of ROW_ID/ROW_VERSION.
 		assertEquals(
 				"SELECT _C111_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T123",
 				translator.getOutputSQL());

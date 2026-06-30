@@ -194,8 +194,6 @@ public class QueryTranslator implements TranslatedQuery {
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
 			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
-			// When requested, append the index's benefactor columns to the select. Never for
-			// aggregates.
 			this.includeRowBenefactors = BooleanUtils.isTrue(includeRowBenefactors) && !this.isAggregatedResult;
 			// Build headers that describe how the client should read the results of this
 			// query.

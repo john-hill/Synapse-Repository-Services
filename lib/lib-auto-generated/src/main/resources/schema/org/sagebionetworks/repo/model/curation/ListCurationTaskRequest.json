@@ -28,7 +28,7 @@
       "items": {
         "type": "integer"
       },
-      "description": "Optional. Filter to tasks with these IDs. Tasks that do not exist or are not accessible are silently excluded."
+      "description": "Optional. Filter tasks by their task ID."
     },
     "nextPageToken": {
       "type": "string",

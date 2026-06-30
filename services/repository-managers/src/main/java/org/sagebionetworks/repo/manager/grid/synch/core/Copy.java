@@ -48,4 +48,21 @@ public interface Copy<C extends CopyItem, S extends SourceItem> {
 	 */
 	void addItem(S sourceItem);
 
+	/**
+	 * Notification that a copy item was retained unchanged during Phase 1 of
+	 * synchronization, i.e. it exists in both the copy and the source and the two
+	 * already {@link Source#matches(CopyItem, SourceItem) match}, so no mutation is
+	 * issued for it. The synchronization engine otherwise processes such items
+	 * silently; this hook lets implementations observe unchanged items.
+	 *
+	 * <p>
+	 * Default behavior is a no-op.
+	 *
+	 * @param copyItem   the unchanged item from the copy
+	 * @param sourceItem the matching item from the source
+	 */
+	default void onItemRetained(C copyItem, S sourceItem) {
+		// no-op by default
+	}
+
 }

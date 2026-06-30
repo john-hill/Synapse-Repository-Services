@@ -32,6 +32,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.SyncType;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -42,6 +43,7 @@ import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.FileProvider;
+import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -155,6 +157,22 @@ public class EntityViewSourceHandler implements SourceHandler {
 	@Override
 	public boolean canAddRemoveColumns() {
 		return false;
+	}
+
+	/**
+	 * EntityView sources support only {@link SyncType#PULL_PUSH}. PULL is rejected
+	 * because entity-view row membership is query-driven and cannot be written back
+	 * to the source independently of a push.
+	 */
+	@Override
+	public void resolveAndValidateSyncType(SyncType syncType) {
+		ValidateArgument.required(syncType, "syncType");
+		switch (syncType) {
+            case PULL -> throw new IllegalArgumentException("PULL synchronization is not supported for EntityView-based grid sessions.");
+            case PULL_PUSH -> {
+				// allowed
+            }
+        }
 	}
 
 	@Override

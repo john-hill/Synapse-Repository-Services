@@ -42,17 +42,34 @@ public interface SynchronizeProvider {
 	SchemaSource getSchemaSource(SourceHandler handler);
 
 	/**
-	 * Creates a Copy implementation for row synchronization during Phase 2.
+	 * Creates a Source implementation for schema synchronization over an explicit
+	 * set of source column names (rather than the handler's reported schema). Used
+	 * to present the union of the resolved source columns and the grid's existing
+	 * columns, so that no grid column is dropped during schema synchronization.
 	 *
-	 * @param intendedChangePublisher publisher for recording intended row changes
-	 *                                to the copy
-	 * @param finalSchema             the synchronized schema from Phase 1 used for
-	 *                                row operations
+	 * @param handler           handler for applying schema changes to the source
+	 * @param sourceColumnNames the effective source column names
+	 * @return a SchemaSource over the provided column names
+	 */
+	SchemaSource getSchemaSource(SourceHandler handler, List<String> sourceColumnNames);
+
+	/**
+	 * Creates a Copy implementation for row synchronization during Phase 2. The copy
+	 * applies grid CRDT changes (insert/delete) directly via the
+	 * {@code intendedChangePublisher} and reports surviving rows to the source
+	 * handler.
+	 *
+	 * @param intendedChangePublisher publisher for recording grid CRDT changes
+	 * @param finalSchema             the synchronized schema from Phase 1
 	 * @param reader                  handler providing access to the copy's current
 	 *                                rows
+	 * @param handler                 the source handler, used for key extraction,
+	 *                                baseline-based deletion detection, freezing, and
+	 *                                surviving-row observation
 	 * @return a RowCopy instance for synchronizing row data
 	 */
-	RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader);
+	RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader,
+	                   SourceHandler handler);
 
 	/**
 	 * Creates a Source implementation for row synchronization during Phase 2.
@@ -66,18 +83,22 @@ public interface SynchronizeProvider {
 
 	/**
 	 * Creates a Merge implementation for resolving conflicts during row
-	 * synchronization in Phase 2. Determines how to merge changes when a row exists
-	 * in both copy and source but has different values.
+	 * synchronization in Phase 2. The merge writes user changes back to the source,
+	 * applies grid CRDT changes via the {@code intendedChangePublisher}, and reports
+	 * surviving rows to the source handler.
 	 *
 	 * @param logic                   the synchronization logic for recursive
 	 *                                merging of cell-level changes
-	 * @param intendedChangePublisher publisher for recording merge results
+	 * @param intendedChangePublisher publisher for recording grid CRDT changes
 	 * @param finalSchema             the synchronized schema from Phase 1
-	 * @param reader                  handler for reading copy state
-	 * @param handler                 handler for applying changes to source
+	 * @param reader                  handler for reading copy CRDT metadata
+	 * @param handler                 the source handler for write-back and
+	 *                                surviving-row observation
+	 * @param preserveUserAttribution when true (PULL), user-changed cells are not
+	 *                                rewritten in the grid, preserving attribution
 	 * @return a RowMerge instance for resolving row conflicts
 	 */
-	RowMerge getRowMerge(SynchronizationLogic logic, IntendedChangePublisher intendedChangePublisher,
-			List<Column> finalSchema, CopyHandler reader, SourceHandler handler);
+	RowMerge getRowMerge(SynchronizationLogic logic, IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader, SourceHandler handler,
+	                     boolean preserveUserAttribution);
 
 }

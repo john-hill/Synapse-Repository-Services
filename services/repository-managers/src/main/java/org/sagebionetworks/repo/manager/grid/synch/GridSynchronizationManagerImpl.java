@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.synch;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -25,6 +26,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.SyncType;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridResponse;
 import org.sagebionetworks.util.ValidateArgument;
@@ -62,6 +64,9 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		ValidateArgument.required(request.getGridSessionId(), "request.gridSessionId");
 		GridSession session = gridManager.getGridSession(user, request.getGridSessionId());
 
+		// If not provided, the default SyncType is PULL_PUSH
+		SyncType syncType = Optional.ofNullable(request.getSyncType()).orElse(SyncType.PULL_PUSH);
+
 		List<String> errorMessage;
 		Set<Long> benefactorIds;
 		try (CopyHandler copyHandler = copyHandlerProvider.createCopyHandler(session);
@@ -70,22 +75,52 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 				RowSourceItemReader sourceReader = sourceHandler.getSourceRowReader();
 				IntendedChangePublisher icp = newIntendedChangePublisher(copyHandler)) {
 
+			// Check if this syncType is supported by the source
+			sourceHandler.resolveAndValidateSyncType(syncType);
+
 			// Phase one: synchronize the schema
 			List<Column> finalSchema;
 			try (SchemaCopy schemaCopy = synchronizeProvider.getSchemaCopy(icp, copyHandler)) {
-				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler);
+				List<String> effectiveCols = sourceHandler
+						.getEffectiveSchemaColumnNames(copyHandler.getHeader().getOrderedColumns());
+				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler, effectiveCols);
 				logic.synchronize(schemaCopy, schemaSource, Merge.noOp());
 				finalSchema = schemaCopy.getFinalSchema();
 			}
 
-			// Phase two: synchronize the rows
-			RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, finalSchema, copyHandler);
+			// On a PULL (no write-back to source) the merge must not rewrite cells the user
+			// changed, otherwise their CRDT nodes are re-minted under the service replica and
+			// lose their user-attribution, causing a subsequent PULL to revert the edit.
+			boolean preserveUserAttribution = SyncType.PULL.equals(syncType);
+
+			// Prepare any push artifact this source may build during the merge
+			sourceHandler.beginPush(callback, finalSchema, syncType);
+
+			// Phase two: run the row merge. The row copy/merge apply grid CRDT changes
+			// directly and report every surviving row to the source handler.
+			RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, finalSchema, copyHandler, sourceHandler);
 			RowSource rowSource = synchronizeProvider.getRowSource(sourceReader, sourceHandler);
-			RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, finalSchema, copyHandler, sourceHandler);
+			RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, finalSchema, copyHandler, sourceHandler, preserveUserAttribution);
 			logic.synchronize(rowCopy, rowSource, rowMerge);
 
 			errorMessage = sourceHandler.getErrorMessages();
 			benefactorIds = sourceHandler.getBenefactorIds();
+
+			// Record the source revision the grid is now synchronized to (the new
+			// baseline version) for deletion detection on subsequent syncs.
+			sourceHandler.getSourceVersion()
+					.ifPresent(version -> gridManager.updateSourceEntityVersion(session.getSessionId(), version));
+
+			// Record the source's current bound JSON schema $id, so subsequent row
+			// validation runs against the schema the grid was synchronized to.
+			sourceHandler.getSourceSchema$Id()
+					.ifPresent(schemaId -> gridManager.updateSessionSchemaId(session.getSessionId(), schemaId));
+
+			// Flush the push if applicable. The source writes the artifact back as a new
+			// version (RecordSet PULL_PUSH only; other cases are no-ops). The new source
+			// version supersedes the version recorded above.
+			sourceHandler.completePush()
+					.ifPresent(version -> gridManager.updateSourceEntityVersion(session.getSessionId(), version));
 		}
 		// Update benefactor IDs and evict any connections that no longer have access.
 		gridManager.updateSessionBenefactorIds(session.getSessionId(), benefactorIds);

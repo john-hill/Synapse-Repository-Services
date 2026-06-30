@@ -34,9 +34,14 @@ public class SynchronizeProviderImpl implements SynchronizeProvider {
 	}
 
 	@Override
+	public SchemaSource getSchemaSource(SourceHandler handler, List<String> sourceColumnNames) {
+		return new SchemaSourceImpl(handler, sourceColumnNames);
+	}
+
+	@Override
 	public RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema,
-			CopyHandler reader) {
-		return new RowCopyImpl(finalSchema, intendedChangePublisher, reader);
+			CopyHandler reader, SourceHandler handler) {
+		return new RowCopyImpl(finalSchema, intendedChangePublisher, reader, handler);
 	}
 
 	@Override
@@ -46,8 +51,8 @@ public class SynchronizeProviderImpl implements SynchronizeProvider {
 
 	@Override
 	public RowMerge getRowMerge(SynchronizationLogic logic, IntendedChangePublisher intendedChangePublisher,
-			List<Column> finalSchema, CopyHandler reader, SourceHandler handler) {
-		return new RowMergeImpl(logic, handler, intendedChangePublisher, reader, finalSchema);
+			List<Column> finalSchema, CopyHandler reader, SourceHandler handler, boolean preserveUserAttribution) {
+		return new RowMergeImpl(logic, handler, intendedChangePublisher, reader, finalSchema, preserveUserAttribution);
 	}
 
 }

@@ -75,8 +75,11 @@ public class SynchronizationLogic {
 				if (!source.matches(copyItem, sourceItem)) {
 					// Items don't match - merge them together
 					merge.merge(key, copyItem, sourceItem);
+				} else {
+					// Items match - no mutation needed, but notify the copy that this item
+					// survives unchanged so it can observe every retained row.
+					copy.onItemRetained(copyItem, sourceItem);
 				}
-				// If items match, no action needed
 			} else {
 				// Item exists only in copy
 				if (copyItem.wasChangedByUser() && source.isItemAdditionSupported()) {

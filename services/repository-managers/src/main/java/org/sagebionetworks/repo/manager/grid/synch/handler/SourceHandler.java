@@ -4,11 +4,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.grid.SyncType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
 /**
@@ -156,6 +160,174 @@ public interface SourceHandler extends AutoCloseable {
 	 */
 	default Set<Long> getBenefactorIds() {
 		return Collections.emptySet();
+	}
+
+	/**
+	 * Returns whether the given row key existed in the synced baseline — the source
+	 * revision the grid was last reconciled against. Used during Phase 2 to decide
+	 * whether a row present in the source but absent from the grid was deleted by
+	 * the user (key was in the baseline) versus newly added to the source (key was
+	 * not in the baseline).
+	 *
+	 * <p>
+	 * Defaults to false. Sources without a baseline concept (e.g. entity views)
+	 * may inherit the default.
+	 *
+	 * @param key the row key to check
+	 * @return true if the key was present in the synced baseline, false otherwise
+	 */
+	default boolean wasInSyncedBaseline(String key) {
+		return false;
+	}
+
+	/**
+	 * Returns the source revision this synchronization reconciled the grid to (the
+	 * latest source revision read). After a successful pull, the orchestration
+	 * records this as the session's baseline version
+	 * ({@code sourceEntityVersionNumber}) for subsequent deletion detection.
+	 *
+	 * <p>
+	 * Defaults to empty. Sources without a versioned revision concept (e.g. entity
+	 * views) inherit the default, so no baseline version is recorded.
+	 *
+	 * @return the synchronized source revision, or empty if not applicable
+	 */
+	default Optional<Long> getSourceVersion() {
+		return Optional.empty();
+	}
+
+	/**
+	 * Returns the bound JSON schema $id the source's rows should be validated
+	 * against, if any. After synchronization the orchestration records this as the
+	 * session's {@code gridJsonSchema$Id} so that row validation runs against the
+	 * current schema.
+	 *
+	 * <p>
+	 * Defaults to empty. Sources without a bound schema concept inherit the
+	 * default.
+	 *
+	 * @return the bound JSON schema $id, or empty if none
+	 */
+	default Optional<String> getSourceSchema$Id() {
+		return Optional.empty();
+	}
+
+	/**
+	 * Returns whether the given copy (grid) row should be frozen during
+	 * synchronization — left entirely untouched (never matched, merged, or removed)
+	 * and excluded from the keyed Phase 1 traversal. For a RecordSet source this is
+	 * true for rows with an incomplete {@code upsertKey}, which cannot be matched to
+	 * a source row. A frozen row still survives in the grid and (for PULL_PUSH) is
+	 * still written to the pushed CSV.
+	 *
+	 * <p>
+	 * Defaults to false. Sources whose row identity is intrinsic (e.g. entity views,
+	 * keyed by row id) inherit the default and freeze nothing.
+	 *
+	 * @param row the copy row to test
+	 * @return true if the row should be left untouched by synchronization
+	 */
+	default boolean isFrozenCopyRow(RowCopyItem row) {
+		return false;
+	}
+
+	/**
+	 * Returns whether the source row for the given key changed between the synced
+	 * baseline revision and the latest revision. Used during Phase 2 to refine
+	 * deletion detection: a row the user deleted from the grid is re-imported (not
+	 * treated as a deletion) when the upstream source row has materially changed
+	 * since the baseline, so the user can reconsider the new data.
+	 *
+	 * <p>
+	 * Only meaningful for keys present in BOTH revisions. Defaults to false; sources
+	 * without a baseline concept (e.g. entity views) should inherit the default.
+	 *
+	 * @param key the row key to check
+	 * @return true if the source row changed since the synced baseline
+	 */
+	default boolean changedSinceBaseline(String key) {
+		return false;
+	}
+
+	/**
+	 * Resolves and validates the requested {@link SyncType} for this source. Each
+	 * source type supports a different set of sync types; implementations must throw
+	 * {@link IllegalArgumentException} for unsupported combinations.
+	 *
+	 * @param syncType the requested sync type (cannot be null)
+	 * @return the resolved sync type
+	 * @throws IllegalArgumentException if the requested type is not supported by
+	 *                                  this source
+	 */
+	void resolveAndValidateSyncType(SyncType syncType);
+
+	/**
+	 * Returns the effective list of column names to present to the schema
+	 * synchronization engine during Phase 1. Most sources use the source schema
+	 * as-is (so the engine can drop columns removed from the source). Sources that
+	 * preserve all existing grid columns (e.g. RecordSet) override this to return
+	 * the union of the source schema and the grid's existing columns.
+	 *
+	 * <p>
+	 * Defaults to {@link #getCurrentSourceSchema()}, preserving the existing
+	 * drop behavior.
+	 *
+	 * @param gridColumns the columns currently in the grid (from the copy header)
+	 * @return the effective column name list for schema synchronization
+	 */
+	default List<String> getEffectiveSchemaColumnNames(List<Column> gridColumns) {
+		return getCurrentSourceSchema();
+	}
+
+	/**
+	 * Prepares any push artifact this source builds during the merge. Called once,
+	 * after Phase 1 schema synchronization and before the row merge, so the source
+	 * can create a builder keyed to the final schema.
+	 *
+	 * <p>
+	 * Defaults to a no-op. Only sources that push a new artifact (RecordSet
+	 * PULL_PUSH) override it; all other sources/sync types inherit the no-op and
+	 * push nothing.
+	 *
+	 * @param callback    the async-job progress callback (used for job id)
+	 * @param finalSchema the synchronized schema produced by Phase 1
+	 * @param syncType    the resolved sync type for this run
+	 * @throws IOException if the push artifact cannot be opened
+	 */
+	default void beginPush(AsyncJobProgressCallback callback, List<Column> finalSchema, SyncType syncType)
+			throws IOException {
+		// no-op by default
+	}
+
+	/**
+	 * Notification that a single grid row survived the merge with the given final
+	 * cell values. The row merge feeds every surviving row here (merged, pulled in,
+	 * retained, user-added, or frozen) and never feeds removed rows, so a source
+	 * building a pushed artifact can capture the exact final grid contents.
+	 *
+	 * <p>
+	 * Defaults to a no-op. Only sources that push an artifact (RecordSet PULL_PUSH)
+	 * override it; all other sources/sync types inherit the no-op.
+	 *
+	 * @param finalCells the surviving row's final cell values, keyed by column name
+	 */
+	default void onSurvivingRow(Map<String, ConValue> finalCells) {
+		// no-op by default
+	}
+
+	/**
+	 * Flushes any push artifact accumulated during the merge to the source and
+	 * returns the new source version number. Called after the row merge finishes.
+	 *
+	 * <p>
+	 * Defaults to empty. Only sources that push an artifact (RecordSet PULL_PUSH)
+	 * override it; all others inherit the empty default.
+	 *
+	 * @return the new source version number, or empty if no push was performed
+	 * @throws Exception if the push fails
+	 */
+	default Optional<Long> completePush() throws Exception {
+		return Optional.empty();
 	}
 
 }

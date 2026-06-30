@@ -61,8 +61,25 @@ public class SchemaSourceImpl implements SchemaSource {
 	 *                operations
 	 */
 	public SchemaSourceImpl(SourceHandler handler) {
+		this(handler, handler.getCurrentSourceSchema());
+	}
+
+	/**
+	 * Creates a schema source over an explicit set of effective source column names,
+	 * rather than the handler's raw reported schema. The caller is responsible for
+	 * computing the effective list — typically via
+	 * {@link SourceHandler#getEffectiveSchemaColumnNames} — which may apply
+	 * source-specific reconciliation logic such as preserving grid-only columns,
+	 * honoring user column deletions, or always including JSON Schema properties.
+	 *
+	 * @param handler           the source handler (used for add/remove column
+	 *                          operations and the canAddRemoveColumns flag)
+	 * @param sourceColumnNames the effective source column names, as computed by
+	 *                          {@link SourceHandler#getEffectiveSchemaColumnNames}
+	 */
+	public SchemaSourceImpl(SourceHandler handler, List<String> sourceColumnNames) {
 		this.handler = handler;
-		this.schema = handler.getCurrentSourceSchema().stream().map(n -> new ColumnSourceItem().setColumnName(n))
+		this.schema = sourceColumnNames.stream().map(n -> new ColumnSourceItem().setColumnName(n))
 				.collect(Collectors.toList());
 	}
 

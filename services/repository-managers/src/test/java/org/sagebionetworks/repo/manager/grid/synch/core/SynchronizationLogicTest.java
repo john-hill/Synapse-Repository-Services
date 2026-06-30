@@ -66,6 +66,10 @@ public class SynchronizationLogicTest {
 		// call under test
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
+		// both rows are unchanged and retained
+		verify(mockCopy).onItemRetained(copyItems.get(0), sourceItems.get(0));
+		verify(mockCopy).onItemRetained(copyItems.get(1), sourceItems.get(1));
+
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
 
@@ -96,6 +100,8 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockMerge).merge("two", copyItems.get(1), sourceItems.get(1));
+		// the matching row is retained
+		verify(mockCopy).onItemRetained(copyItems.get(0), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
@@ -125,6 +131,7 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockSource).addItem(copyItems.get(0));
+		verify(mockCopy).onItemRetained(copyItems.get(1), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
@@ -157,6 +164,7 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockCopy).removeItem(copyItems.get(0));
+		verify(mockCopy).onItemRetained(copyItems.get(1), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
@@ -185,6 +193,7 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockCopy).removeItem(copyItems.get(0));
+		verify(mockCopy).onItemRetained(copyItems.get(1), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
@@ -211,6 +220,7 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockCopy).addItem(sourceItems.get(1));
+		verify(mockCopy).onItemRetained(copyItems.get(0), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
@@ -238,6 +248,7 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockSource).removeItem(sourceItems.get(1));
+		verify(mockCopy).onItemRetained(copyItems.get(0), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}
@@ -268,6 +279,7 @@ public class SynchronizationLogicTest {
 		logic.synchronize(mockCopy, mockSource, mockMerge);
 
 		verify(mockCopy).addItem(sourceItems.get(1));
+		verify(mockCopy).onItemRetained(copyItems.get(0), sourceItems.get(0));
 
 		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge);
 	}

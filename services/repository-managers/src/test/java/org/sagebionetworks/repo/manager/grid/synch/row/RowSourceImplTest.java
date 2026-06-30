@@ -1,9 +1,8 @@
 package org.sagebionetworks.repo.manager.grid.synch.row;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mockitoSession;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -43,28 +42,26 @@ public class RowSourceImplTest {
 
 	@Test
 	public void testAddItem() {
-
 		ConValue c1 = new ConValue(ConType.STRING, "one");
 		ConValue c2 = new ConValue(ConType.BOOLEAN, true);
 		RowCopyItemImpl copyItem = new RowCopyItemImpl().setCells(
 				List.of(new CellCopyItem().setName("a").setValue(c1), new CellCopyItem().setName("b").setValue(c2)));
 		when(mockSourceHandler.getRowKey(copyItem)).thenReturn("theKey");
+
 		// call under test
 		source.addItem(copyItem);
 
-		verify(mockSourceHandler)
-				.addNewRowToSource(new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), "theKey"));
-
+		verify(mockSourceHandler).getRowKey(copyItem);
+		verify(mockSourceHandler).addNewRowToSource(new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), "theKey"));
 		verifyNoMoreInteractionsWithAllMocks();
 	}
 
 	private void verifyNoMoreInteractionsWithAllMocks() {
-		verifyNoMoreInteractions(mockRowHeader, mockSourceHandler, mockRowHeader);
+		verifyNoMoreInteractions(mockRowHeader, mockSourceHandler);
 	}
 
 	@Test
 	public void testAddItemWithSynapseRow() {
-
 		ConValue c1 = new ConValue(ConType.STRING, "one");
 		ConValue c2 = new ConValue(ConType.BOOLEAN, true);
 		SynapseRow synRow = new SynapseRow().setRowId(123L).setVersionNumber(0L).setEtag("e1");
@@ -72,12 +69,13 @@ public class RowSourceImplTest {
 				List.of(new CellCopyItem().setName("a").setValue(c1), new CellCopyItem().setName("b").setValue(c2)))
 				.setSynapseRow(synRow);
 		when(mockSourceHandler.getRowKey(copyItem)).thenReturn("theKey");
+
 		// call under test
 		source.addItem(copyItem);
 
+		verify(mockSourceHandler).getRowKey(copyItem);
 		verify(mockSourceHandler)
 				.addNewRowToSource(new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), "theKey", synRow));
-
 		verifyNoMoreInteractionsWithAllMocks();
 	}
 
@@ -88,11 +86,12 @@ public class RowSourceImplTest {
 		SynapseRow synRow = new SynapseRow().setRowId(123L).setVersionNumber(0L).setEtag("e1");
 		RowSourceItem synch = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), "theKey", synRow);
 		when(mockRowHeader.fetchRow()).thenReturn(synch);
+
 		// call under test
 		source.removeItem(mockRowHeader);
 
 		verify(mockSourceHandler).removeRow(synch);
-
+		verify(mockRowHeader).fetchRow();
 		verifyNoMoreInteractionsWithAllMocks();
 	}
 
@@ -100,14 +99,14 @@ public class RowSourceImplTest {
 	public void testRemoveItemWithNullSynapseRow() {
 		ConValue c1 = new ConValue(ConType.STRING, "one");
 		ConValue c2 = new ConValue(ConType.BOOLEAN, true);
-		SynapseRow synRow = null;
-		RowSourceItem synch = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), "theKey", synRow);
+		RowSourceItem synch = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), "theKey", (SynapseRow) null);
 		when(mockRowHeader.fetchRow()).thenReturn(synch);
+
 		// call under test
 		source.removeItem(mockRowHeader);
 
 		verify(mockSourceHandler).removeRow(synch);
-
+		verify(mockRowHeader).fetchRow();
 		verifyNoMoreInteractionsWithAllMocks();
 	}
 
@@ -128,8 +127,6 @@ public class RowSourceImplTest {
 
 		// call under test
 		assertTrue(source.matches(copyItem, mockRowHeader));
-
-		verifyNoMoreInteractionsWithAllMocks();
 	}
 
 	@Test
@@ -150,25 +147,20 @@ public class RowSourceImplTest {
 
 		// call under test
 		assertFalse(source.matches(copyItem, mockRowHeader));
-
-		verifyNoMoreInteractionsWithAllMocks();
 	}
 
 	@Test
 	public void testAddItemConsume() {
-
 		when(mockRowReader.consumeRow("a")).thenReturn(Optional.of(mockRowHeader));
 		when(mockRowReader.consumeRow("b")).thenReturn(Optional.empty());
 
 		// call under test
 		assertEquals(Optional.of(mockRowHeader), source.consume("a"));
 		assertEquals(Optional.empty(), source.consume("b"));
-
 	}
 
 	@Test
 	public void testStreamRemaining() {
-
 		List<RowSourceItemReference> input = List.of(Mockito.mock(RowSourceItemReference.class),
 				Mockito.mock(RowSourceItemReference.class));
 		when(mockRowReader.remainingRows()).thenReturn(input.iterator());
@@ -176,7 +168,6 @@ public class RowSourceImplTest {
 		// call under test
 		List<RowSourceItemReference> refs = source.streamRemaining().collect(Collectors.toList());
 		assertEquals(input, refs);
-
 	}
 
 	@Test

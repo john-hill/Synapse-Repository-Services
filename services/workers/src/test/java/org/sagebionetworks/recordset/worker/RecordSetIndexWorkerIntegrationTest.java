@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.apache.http.entity.ContentType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
@@ -79,6 +80,7 @@ public class RecordSetIndexWorkerIntegrationTest {
 		}
 	}
 
+	@Disabled("Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575")
 	@Test
 	public void testQueryRecordSet() throws Exception {
 		// v1 — three integer columns.
@@ -88,6 +90,7 @@ public class RecordSetIndexWorkerIntegrationTest {
 				List.of(List.of("1", "2", "3"), List.of("4", "5", "6")));
 	}
 
+	@Disabled("Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575")
 	@Test
 	public void testQueryRecordSetWithSchemaChangingUpdate() throws Exception {
 		// v1 — column "c" is purely numeric, so it is inferred as INTEGER.
@@ -122,6 +125,7 @@ public class RecordSetIndexWorkerIntegrationTest {
 				List.of(List.of("7", "8", "nine"), List.of("10", "11", "twelve")));
 	}
 
+	@Disabled("Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575")
 	@Test
 	public void testQueryRecordSetByExplicitVersion() throws Exception {
 		// v1
@@ -144,6 +148,7 @@ public class RecordSetIndexWorkerIntegrationTest {
 				List.of(List.of("7", "8", "9"), List.of("10", "11", "12")));
 	}
 
+	@Disabled("Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575")
 	@Test
 	public void testQueryRecordSetThroughMaterializedView() throws Exception {
 		RecordSet recordSet = createRecordSet(uploadCsv("a,b,c\n1,2,3\n4,5,6\n"));

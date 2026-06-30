@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.service.metadata;
 
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
@@ -72,7 +73,9 @@ public class RecordSetMetadataProviderTest {
 		// The file provider runs first, then the schema is inferred and bound.
 		InOrder order = inOrder(mockFileEntityMetadataProvider, mockRecordSetManager);
 		order.verify(mockFileEntityMetadataProvider).entityCreated(userInfo, recordSet);
-		order.verify(mockRecordSetManager).inferSchemaAndBindToIndex(userInfo, recordSet);
+
+		// Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575
+		order.verify(mockRecordSetManager, never()).inferSchemaAndBindToIndex(userInfo, recordSet);
 	}
 
 	@ParameterizedTest
@@ -84,7 +87,9 @@ public class RecordSetMetadataProviderTest {
 		// The file provider runs first, then the schema is inferred and bound.
 		InOrder order = inOrder(mockFileEntityMetadataProvider, mockRecordSetManager);
 		order.verify(mockFileEntityMetadataProvider).entityUpdated(userInfo, recordSet, wasNewVersionCreated);
-		order.verify(mockRecordSetManager).inferSchemaAndBindToIndex(userInfo, recordSet);
+
+		// Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575
+		order.verify(mockRecordSetManager, never()).inferSchemaAndBindToIndex(userInfo, recordSet);
 	}
 
 	@ParameterizedTest

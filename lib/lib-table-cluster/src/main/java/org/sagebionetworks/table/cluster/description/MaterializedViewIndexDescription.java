@@ -109,21 +109,6 @@ public class MaterializedViewIndexDescription implements IndexDescription {
 	}
 
 	@Override
-	public List<ColumnToAdd> getRowBenefactorColumnsToAddToSelect() {
-		// A materialized view's benefactor columns are physical columns of the materialized
-		// index table (T<id>), referenced here by their physical column name. They are appended
-		// to the select after the defining-SQL columns and become trailing select columns, one
-		// per getBenefactors() entry in the same order. (This differs from the build-context
-		// columns, which reference the source dependencies' join aliases via IFNULL and are only
-		// valid while materializing the view, not when querying the materialized table.)
-		List<ColumnToAdd> columns = new ArrayList<>(benefactorDescriptions.size());
-		for (BenefactorDescription desc : benefactorDescriptions) {
-			columns.add(new ColumnToAdd(idAndVersion, desc.getBenefactorColumnName()));
-		}
-		return columns;
-	}
-
-	@Override
 	public TableType getTableType() {
 		return TableType.materializedview;
 	}

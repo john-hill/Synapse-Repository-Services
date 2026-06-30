@@ -2712,43 +2712,4 @@ public class QueryTranslatorTest {
 		assertEquals(expectedParams.toString(), query.getParameters().toString());
 	}
 
-	@Test
-	public void testQueryWithoutIncludeRowBenefactorsDefaultsOff() throws ParseException {
-		when(mockSchemaProvider.getTableSchema(any())).thenReturn(tableSchema);
-		setupGetColumns(columnNameToModelMap.get("foo"));
-
-		QueryTranslator translator = QueryTranslator.builder("select foo from syn123", mockSchemaProvider, userId)
-				.indexDescription(new TableIndexDescription(idAndVersion)).build();
-		assertEquals(1, translator.getSelectColumns().size());
-		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION FROM T123", translator.getOutputSQL());
-	}
-
-	@Test
-	public void testQueryWithIncludeRowBenefactorsForMaterializedView() throws ParseException {
-		when(mockSchemaProvider.getTableSchema(any())).thenReturn(tableSchema);
-		setupGetColumns(columnNameToModelMap.get("foo"));
-
-		// The materialized view syn123 joins two views, so it exposes two benefactor
-		// columns on its index table.
-		setupLookup(new ViewIndexDescription(IdAndVersion.parse("syn999"),
-				org.sagebionetworks.repo.model.dao.table.TableType.entityview, 0L),
-				new ViewIndexDescription(IdAndVersion.parse("syn888"),
-						org.sagebionetworks.repo.model.dao.table.TableType.entityview, 0L));
-		MaterializedViewIndexDescription mvDescription = new MaterializedViewIndexDescription(idAndVersion,
-				"select * from syn999 a join syn888 b on (a.id=b.id)", mockIndexDescriptionLookup);
-
-		QueryTranslator translator = QueryTranslator.builder("select foo from syn123", mockSchemaProvider, userId)
-				.indexDescription(mvDescription).includeRowBenefactors(true).build();
-
-		List<SelectColumn> selectColumns = translator.getSelectColumns();
-		assertEquals(3, selectColumns.size());
-		assertEquals("ROW_BENEFACTOR__A0", selectColumns.get(1).getName());
-		assertEquals(ColumnType.INTEGER, selectColumns.get(1).getColumnType());
-		assertEquals("ROW_BENEFACTOR__A1", selectColumns.get(2).getName());
-		assertEquals(ColumnType.INTEGER, selectColumns.get(2).getColumnType());
-		assertEquals(
-				"SELECT _C111_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T123",
-				translator.getOutputSQL());
-	}
-
 }

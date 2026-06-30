@@ -46,9 +46,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.IdAndChecksum;
 import org.sagebionetworks.repo.model.IdAndEtag;
 import org.sagebionetworks.repo.model.dao.table.TableType;
@@ -75,11 +73,7 @@ import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.model.table.ViewObjectType;
 import org.sagebionetworks.table.cluster.SQLUtils.TableIndexType;
-import org.sagebionetworks.table.cluster.description.BenefactorDescription;
-import org.sagebionetworks.table.cluster.description.ColumnToAdd;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
-import org.sagebionetworks.table.cluster.description.IndexDescriptionLookup;
-import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.cluster.metadata.ObjectFieldModelResolverFactory;
@@ -96,7 +90,6 @@ import org.sagebionetworks.table.model.SparseChangeSet;
 import org.sagebionetworks.table.model.SparseRow;
 import org.sagebionetworks.table.query.ParseException;
 import org.sagebionetworks.table.query.model.QuerySpecification;
-import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.table.query.util.SimpleAggregateQueryException;
 import org.sagebionetworks.table.query.util.SqlElementUtils;
@@ -5480,224 +5473,5 @@ public class TableIndexDAOImplTest {
 			tableIndexDAO.consumeFirstVisibleViewUpdate(null);
 		}).getMessage();
 		assertEquals("handler is required.", message);
-	}
-
-	@Test
-	public void testMaterializedViewBenefactorColumnsToAddBySqlContext() {
-		TwoViewMaterializedView f = newTwoViewMaterializedView();
-
-		// One benefactor per joined view, in join order, named after the source column + index alias.
-		assertEquals(List.of(
-				new BenefactorDescription("ROW_BENEFACTOR__A0", ObjectType.ENTITY),
-				new BenefactorDescription("ROW_BENEFACTOR__A1", ObjectType.ENTITY)),
-				f.mvIndex.getBenefactors());
-
-		// query context adds only ROW_ID/ROW_VERSION — no benefactor columns. This is the exact gap
-		// getRowBenefactorColumnsToAddToSelect() fills.
-		assertEquals(List.of(new ColumnToAdd(f.mvId, ROW_ID), new ColumnToAdd(f.mvId, ROW_VERSION)),
-				f.mvIndex.getColumnNamesToAddToSelect(SqlContext.query, false, false));
-
-		// build context adds IFNULL expressions over the SOURCE dependency tables (T801/T802, later
-		// translated to the _A0/_A1 join aliases) — valid only while materializing the view.
-		assertEquals(List.of(
-				new ColumnToAdd(f.leftViewId, "IFNULL( T801.ROW_BENEFACTOR , -1)"),
-				new ColumnToAdd(f.rightViewId, "IFNULL( T802.ROW_BENEFACTOR , -1)")),
-				f.mvIndex.getColumnNamesToAddToSelect(SqlContext.build, false, false));
-
-		// Only this method yields the PHYSICAL benefactor columns of T<mvId> — the form needed to
-		// query the already-materialized table.
-		assertEquals(List.of(
-				new ColumnToAdd(f.mvId, "ROW_BENEFACTOR__A0"),
-				new ColumnToAdd(f.mvId, "ROW_BENEFACTOR__A1")),
-				f.mvIndex.getRowBenefactorColumnsToAddToSelect());
-	}
-
-	@Test
-	public void testQueryTranslatorBenefactorWiringBySqlContext() throws ParseException {
-		TwoViewMaterializedView f = newTwoViewMaterializedView();
-
-		// build context: benefactors come from getColumnNamesToAddToSelect(build,...) and the
-		// row-benefactor method is never used. The SQL joins the SOURCE tables, never T<mvId>.
-		MaterializedViewIndexDescription buildIndexSpy = Mockito.spy(f.mvIndex);
-		QueryTranslator buildTranslator = QueryTranslator.builder().sql(f.definingSql)
-				.schemaProvider(f.schemaProvider).sqlContext(SqlContext.build).indexDescription(buildIndexSpy)
-				.userId(userId).build();
-
-		Mockito.verify(buildIndexSpy).getColumnNamesToAddToSelect(SqlContext.build, false, false);
-		Mockito.verify(buildIndexSpy, Mockito.never()).getRowBenefactorColumnsToAddToSelect();
-		assertEquals("SELECT _A0._C701_, IFNULL(_A0.ROW_BENEFACTOR,-1), IFNULL(_A1.ROW_BENEFACTOR,-1)"
-				+ " FROM T801 _A0 JOIN T802 _A1 ON ( _A0._C701_ = _A1._C702_ ) ORDER BY _A0._C701_",
-				buildTranslator.getOutputSQL());
-
-		// query context with includeRowBenefactors: physical benefactor columns come from
-		// getRowBenefactorColumnsToAddToSelect(), metadata from getColumnNamesToAddToSelect(query,...).
-		MaterializedViewIndexDescription queryIndexSpy = Mockito.spy(f.mvIndex);
-		QueryTranslator queryTranslator = QueryTranslator.builder().sql("select * from " + f.mvId)
-				.schemaProvider(f.schemaProvider).sqlContext(SqlContext.query).indexDescription(queryIndexSpy)
-				.includeRowBenefactors(true).userId(userId).build();
-
-		Mockito.verify(queryIndexSpy).getRowBenefactorColumnsToAddToSelect();
-		Mockito.verify(queryIndexSpy).getColumnNamesToAddToSelect(SqlContext.query, false, false);
-		assertEquals("SELECT _C703_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T803",
-				queryTranslator.getOutputSQL());
-		// Benefactor columns are mirrored into the result headers (INTEGER) after the document column;
-		// ROW_ID/ROW_VERSION are read by name and are not select headers.
-		assertEquals(List.of(
-				new SelectColumn().setName("studyId").setColumnType(ColumnType.INTEGER).setId("703"),
-				new SelectColumn().setName("ROW_BENEFACTOR__A0").setColumnType(ColumnType.INTEGER),
-				new SelectColumn().setName("ROW_BENEFACTOR__A1").setColumnType(ColumnType.INTEGER)),
-				queryTranslator.getSelectColumns());
-	}
-
-	@Test
-	public void testQueryMaterializedViewBenefactorsWithJoinAcrossTwoViews() throws ParseException {
-		TwoViewMaterializedView f = newTwoViewMaterializedView();
-		try {
-			// Start from fresh tables so the MV's AUTO_INCREMENT ROW_ID is deterministic even after a
-			// crashed prior run.
-			f.deleteIndexTables(tableIndexDAO);
-
-			// Two source views; each row carries a distinct ROW_BENEFACTOR. studyId 10 and 20 are
-			// shared so the join yields two rows; left benefactors (1110, 1120) differ from right
-			// (2210, 2220).
-			createOrUpdateTable(List.of(f.leftStudy), f.leftView);
-			createOrUpdateTable(List.of(f.rightStudy), f.rightView);
-			insertViewRow(f.leftViewId, f.leftStudy, 1L, 10L, 1110L);
-			insertViewRow(f.leftViewId, f.leftStudy, 2L, 20L, 1120L);
-			insertViewRow(f.rightViewId, f.rightStudy, 3L, 10L, 2210L);
-			insertViewRow(f.rightViewId, f.rightStudy, 4L, 20L, 2220L);
-
-			// Materialize T<mvId> as MaterializedViewManagerImpl does: build-context output SQL + the
-			// INSERT...SELECT that copies the document column and both benefactor columns.
-			createOrUpdateTable(f.mvSchema, f.mvIndex);
-			QueryTranslator buildTranslator = QueryTranslator.builder().sql(f.definingSql)
-					.schemaProvider(f.schemaProvider).sqlContext(SqlContext.build).indexDescription(f.mvIndex)
-					.userId(userId).build();
-			String insertSql = SQLTranslatorUtils.createMaterializedViewInsertSql(f.mvSchema,
-					buildTranslator.getOutputSQL(), f.mvIndex);
-			assertEquals("INSERT INTO T803 (_C703_,ROW_BENEFACTOR__A0,ROW_BENEFACTOR__A1) "
-					+ buildTranslator.getOutputSQL(), insertSql);
-			tableIndexDAO.update(insertSql, buildTranslator.getParameters());
-			assertEquals(2L, tableIndexDAO.getRowCountForTable(f.mvId));
-
-			// call under test — the SearchIndex build path: stream T<mvId> with the query-context
-			// translator and includeRowBenefactors.
-			QueryTranslator queryTranslator = QueryTranslator.builder().sql("select * from " + f.mvId)
-					.schemaProvider(f.schemaProvider).sqlContext(SqlContext.query).indexDescription(f.mvIndex)
-					.includeRowBenefactors(true).userId(userId).build();
-			List<Row> rows = new ArrayList<>();
-			boolean result = tableIndexDAO.queryAsStream(queryTranslator, rows::add);
-
-			assertTrue(result);
-			// Each row: the MV's own AUTO_INCREMENT ROW_ID, then the document column followed by both
-			// benefactors (left view _A0, right view _A1) as trailing result values.
-			assertEquals(List.of(
-					new Row().setRowId(1L).setVersionNumber(0L).setValues(List.of("10", "1110", "2210")),
-					new Row().setRowId(2L).setVersionNumber(0L).setValues(List.of("20", "1120", "2220"))),
-					rows);
-		} finally {
-			f.deleteIndexTables(tableIndexDAO);
-		}
-	}
-
-	/**
-	 * Insert a single row into a view's index table with an explicit benefactor. The standard
-	 * RowSet append path does not populate the NOT NULL ROW_BENEFACTOR column, so write it directly.
-	 */
-	private void insertViewRow(IdAndVersion viewId, ColumnModel studyColumn, long rowId, long studyValue,
-			long benefactorId) {
-		String tableName = SQLUtils.getTableNameForId(viewId, TableIndexType.INDEX);
-		String studyColumnName = SQLUtils.getColumnNameForId(studyColumn.getId());
-		Map<String, Object> params = new HashMap<>();
-		params.put("rowId", rowId);
-		params.put("study", studyValue);
-		params.put("benefactor", benefactorId);
-		tableIndexDAO.update("INSERT INTO " + tableName + " (" + ROW_ID + ", " + ROW_VERSION + ", "
-				+ TableConstants.ROW_ETAG + ", " + TableConstants.ROW_BENEFACTOR + ", " + studyColumnName
-				+ ") VALUES (:rowId, 1, 'etag" + rowId + "', :benefactor, :study)", params);
-	}
-
-	/**
-	 * Build the shared fixture for the materialized-view benefactor tests: two entity views joined on
-	 * a shared "studyId" column and the materialized view over them. Ids and column ids are chosen so
-	 * the translated table/column names are stable across runs and databases.
-	 */
-	private TwoViewMaterializedView newTwoViewMaterializedView() {
-		return new TwoViewMaterializedView();
-	}
-
-	/**
-	 * Holder for the two-view materialized-view fixture. The two source views share a "studyId"
-	 * INTEGER join column (distinct column ids so the translated _C<id>_ names do not collide), and
-	 * the MV's defining SQL joins them. The {@link SchemaProvider} and {@link IndexDescriptionLookup}
-	 * resolve all three tables.
-	 */
-	private static class TwoViewMaterializedView {
-		final IdAndVersion leftViewId = IdAndVersion.parse("syn801");
-		final IdAndVersion rightViewId = IdAndVersion.parse("syn802");
-		final IdAndVersion mvId = IdAndVersion.parse("syn803");
-		final IndexDescription leftView = new ViewIndexDescription(leftViewId, TableType.entityview, -1L);
-		final IndexDescription rightView = new ViewIndexDescription(rightViewId, TableType.entityview, -1L);
-		final ColumnModel leftStudy = TableModelTestUtils.createColumn(701L, "studyId", ColumnType.INTEGER);
-		final ColumnModel rightStudy = TableModelTestUtils.createColumn(702L, "studyId", ColumnType.INTEGER);
-		// The MV's single output column. Production binds the schema-of-select to real ColumnModel ids
-		// before materializing; mirror that with an explicit id so T<mvId> has a named document column.
-		final ColumnModel mvStudy = TableModelTestUtils.createColumn(703L, "studyId", ColumnType.INTEGER);
-		final List<ColumnModel> mvSchema = List.of(mvStudy);
-		final String definingSql = "select " + leftViewId + ".studyId from " + leftViewId + " join " + rightViewId
-				+ " on (" + leftViewId + ".studyId = " + rightViewId + ".studyId) order by " + leftViewId + ".studyId";
-
-		final SchemaProvider schemaProvider = new SchemaProvider() {
-			@Override
-			public TableType getTableType(IdAndVersion id) {
-				return TableType.entityview;
-			}
-
-			@Override
-			public List<ColumnModel> getTableSchema(IdAndVersion id) {
-				if (leftViewId.equals(id)) {
-					return List.of(leftStudy);
-				}
-				if (rightViewId.equals(id)) {
-					return List.of(rightStudy);
-				}
-				if (mvId.equals(id)) {
-					return mvSchema;
-				}
-				throw new IllegalStateException("Unexpected table: " + id);
-			}
-
-			@Override
-			public ColumnModel getColumnModel(String id) {
-				if (leftStudy.getId().equals(id)) {
-					return leftStudy;
-				}
-				if (rightStudy.getId().equals(id)) {
-					return rightStudy;
-				}
-				if (mvStudy.getId().equals(id)) {
-					return mvStudy;
-				}
-				throw new IllegalStateException("Unexpected column: " + id);
-			}
-		};
-
-		final IndexDescriptionLookup lookup = id -> {
-			if (leftViewId.equals(id)) {
-				return leftView;
-			}
-			if (rightViewId.equals(id)) {
-				return rightView;
-			}
-			throw new IllegalStateException("Unexpected table: " + id);
-		};
-
-		final MaterializedViewIndexDescription mvIndex = new MaterializedViewIndexDescription(mvId, definingSql, lookup);
-
-		void deleteIndexTables(TableIndexDAO dao) {
-			dao.deleteTable(mvId);
-			dao.deleteTable(leftViewId);
-			dao.deleteTable(rightViewId);
-		}
 	}
 }

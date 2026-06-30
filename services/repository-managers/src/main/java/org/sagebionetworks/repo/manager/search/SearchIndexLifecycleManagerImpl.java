@@ -48,6 +48,7 @@ import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.QueryTranslator;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.TranslatedQuery;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
@@ -315,21 +316,22 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			openSearchManager.waitForIndexWritable(indexName);
 
 			// SqlContext.query (not build) emits the select against the source's materialized
-			// index table. includeRowBenefactors appends the benefactor columns so the handler can
-			// read them as trailing row values. userId only feeds CURRENT_USER() substitution.
-			QueryTranslator translator = QueryTranslator.builder()
+			// index table. userId only feeds CURRENT_USER() substitution.
+			QueryTranslator base = QueryTranslator.builder()
 					.sql(definingSQL)
 					.schemaProvider(tableManagerSupport)
 					.sqlContext(SqlContext.query)
 					.indexDescription(sourceIndexDescription)
-					.includeRowBenefactors(true)
 					.userId(userId)
 					.build();
+			// Splice the source's per-dependency benefactor columns into the select so the handler can
+			// read them as trailing row values.
+			TranslatedQuery query = SearchIndexBenefactorQuery.buildWithBenefactorColumns(base, sourceIndexDescription);
 			// queryAsStream does not close the handler; the try-with-resources flushes the final
 			// partial batch.
 			try (SearchIndexRowHandler handler = new SearchIndexRowHandler(
 					indexName, selectColumns, openSearchManager)) {
-				indexDao.queryAsStream(translator, handler);
+				indexDao.queryAsStream(query, handler);
 			}
 
 			statusDao.createOrUpdate(new SearchIndexStatus()

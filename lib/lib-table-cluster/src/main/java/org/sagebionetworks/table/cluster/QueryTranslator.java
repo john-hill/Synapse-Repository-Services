@@ -7,14 +7,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.BooleanUtils;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.table.ColumnModel;
-import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.table.cluster.description.ColumnToAdd;
@@ -83,12 +81,6 @@ public class QueryTranslator implements TranslatedQuery {
 	private final boolean includeBenefactorId;
 
 	/**
-	 * Should the query append the index's per-dependency benefactor columns to the
-	 * select so they can be read positionally from each Row? Off by default.
-	 */
-	private final boolean includeRowBenefactors;
-
-	/**
 	 * Aggregated results are queries that included one or more aggregation
 	 * functions in the select clause. These query results will not match columns in
 	 * the table. In addition rowIDs and rowVersionNumbers will be null when
@@ -124,8 +116,7 @@ public class QueryTranslator implements TranslatedQuery {
 	 * @throws ParseException
 	 */
 	QueryTranslator(String startingSql, SchemaProvider schemaProvider, Long maxBytesPerPage,
-			Boolean includeEntityEtag, Long userId, IndexDescription indexDescription, SqlContext sqlContextIn, Long changeNumber,
-			Boolean includeRowBenefactors) {
+			Boolean includeEntityEtag, Long userId, IndexDescription indexDescription, SqlContext sqlContextIn, Long changeNumber) {
 		ValidateArgument.required(schemaProvider, "schemaProvider");
 		ValidateArgument.required(indexDescription, "indexDescription");
 		this.tableHash = indexDescription.getTableHash();
@@ -194,21 +185,10 @@ public class QueryTranslator implements TranslatedQuery {
 			this.isAggregatedResult = transformedModel.hasAnyAggregateElements();
 			this.includesRowIdAndVersion = !this.isAggregatedResult && !this.isCommonTableExpression;
 			this.includeBenefactorId = this.includesRowIdAndVersion && indexDescription.getTableType().isViewEntityType();
-			this.includeRowBenefactors = BooleanUtils.isTrue(includeRowBenefactors) && !this.isAggregatedResult;
 			// Build headers that describe how the client should read the results of this
 			// query.
 			this.selectColumns = SQLTranslatorUtils.getSelectColumns(firstPart.getQuerySpecification().getSelectList(), firstPart.getMapper(),
 					this.isAggregatedResult);
-			// The benefactor columns are appended to the select list (ahead of the by-name
-			// ROW_ID/ROW_VERSION metadata columns below) and mirrored into selectColumns as
-			// INTEGER columns so they are read like any other select column, in order.
-			List<ColumnToAdd> rowBenefactorColumns = this.includeRowBenefactors
-					? indexDescription.getRowBenefactorColumnsToAddToSelect()
-					: java.util.Collections.emptyList();
-			for (ColumnToAdd benefactorColumn : rowBenefactorColumns) {
-				this.selectColumns.add(new SelectColumn().setName(benefactorColumn.getSql())
-						.setColumnType(ColumnType.INTEGER));
-			}
 			// Maximum row size is a function of both the select clause and schema.
 			this.maxRowSizeBytes = TableModelUtils.calculateMaxRowSize(selectColumns, TableModelUtils.createColumnNameToModelMap(unionOfSchemas));
 
@@ -223,15 +203,11 @@ public class QueryTranslator implements TranslatedQuery {
 
 			List<ColumnToAdd> columnsToAddToSelect = indexDescription
 					.getColumnNamesToAddToSelect(sqlContext, this.includeEntityEtag, this.isAggregatedResult);
-
+			
+			
 			parts.forEach(p -> {
-				Set<IdAndVersion> partTableIds = new HashSet<>(p.getMapper().getTableIds());
-				// Positional benefactor columns first (read into Row.values), then the
-				// by-name ROW_ID/ROW_VERSION/etc. metadata columns.
 				SQLTranslatorUtils.addMetadataColumnsToSelect(p.getQuerySpecification().getSelectList(),
-						partTableIds, rowBenefactorColumns);
-				SQLTranslatorUtils.addMetadataColumnsToSelect(p.getQuerySpecification().getSelectList(),
-						partTableIds, columnsToAddToSelect);
+						new HashSet<>(p.getMapper().getTableIds()), columnsToAddToSelect);
 
 				// translate each part
 				SQLTranslatorUtils.translateModel(p.getQuerySpecification(), parameters, userId, p.getMapper());
@@ -298,7 +274,7 @@ public class QueryTranslator implements TranslatedQuery {
 	}
 
 	/**
-	 * Get the original input SQL (prior to translation).
+	 * Get the original input SQL (prior to translation). 
 	 * @return
 	 */
 	public String getInputSql() {
@@ -479,9 +455,8 @@ public class QueryTranslator implements TranslatedQuery {
 		private IndexDescription indexDescription;
 		private SqlContext sqlContext;
 		private Long changeNumber;
-		private Boolean includeRowBenefactors;
-
-
+		
+		
 		public Builder sql(String sql) {
 			this.sql = sql;
 			return this;
@@ -520,18 +495,9 @@ public class QueryTranslator implements TranslatedQuery {
 			return this;
 		}
 
-		/**
-		 * When true, append the index's per-dependency benefactor columns to the select
-		 * so they can be read positionally from each Row. Off by default.
-		 */
-		public Builder includeRowBenefactors(Boolean includeRowBenefactors) {
-			this.includeRowBenefactors = includeRowBenefactors;
-			return this;
-		}
-
 		public QueryTranslator build() {
 			return new QueryTranslator(sql, schemaProvider, maxBytesPerPage, includeEntityEtag, userId, indexDescription,
-					sqlContext, changeNumber, includeRowBenefactors);
+					sqlContext, changeNumber);
 		}
 
 	}

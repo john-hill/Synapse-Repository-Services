@@ -55,23 +55,6 @@ public interface IndexDescription extends Comparable<IndexDescription> {
 	List<ColumnToAdd> getColumnNamesToAddToSelect(SqlContext context, boolean includeEtag, boolean isAggregate);
 
 	/**
-	 * The additional select columns appended so each row can carry its per-dependency
-	 * benefactor values. Unlike {@link #getColumnNamesToAddToSelect}, whose columns are
-	 * read by name into dedicated {@code Row} fields, these are appended after the
-	 * defining-SQL columns and mirrored into the query's select columns, so they are read
-	 * as ordinary result values from {@code Row.getValues()}.
-	 *
-	 * <p>The returned order is load-bearing: one column per {@link #getBenefactors()}
-	 * (same order). Default is empty (tables and views need nothing here; a view's
-	 * single benefactor is already read by name into {@code Row.benefactorId}).
-	 *
-	 * @return
-	 */
-	default List<ColumnToAdd> getRowBenefactorColumnsToAddToSelect() {
-		return java.util.Collections.emptyList();
-	}
-
-	/**
 	 * Get the dependencies of this Index.
 	 * 
 	 * @return

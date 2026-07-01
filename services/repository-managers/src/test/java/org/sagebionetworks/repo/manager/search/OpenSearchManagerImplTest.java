@@ -1036,7 +1036,7 @@ public class OpenSearchManagerImplTest {
 
 		// call under test — 3 shards, 1 replica
 		Optional<String> appliedJson = manager.createIndex(indexName, columns, qname,
-				Collections.emptyList(), resolvedAnalyzers, 3, 1);
+				Collections.emptyList(), resolvedAnalyzers, 3, 1, 0);
 
 		assertTrue(appliedJson.isPresent());
 		String applied = appliedJson.get();

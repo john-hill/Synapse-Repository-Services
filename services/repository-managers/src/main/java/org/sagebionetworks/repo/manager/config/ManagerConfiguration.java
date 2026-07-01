@@ -121,6 +121,7 @@ import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
+import software.amazon.awssdk.services.opensearch.model.DomainStatus;
 import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
 import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -439,13 +440,14 @@ public class ManagerConfiguration {
 
 	/**
 	 * Data-plane client for the per-entity SearchIndex managed Amazon OpenSearch Service
-	 * domain. The domain's VPC endpoint is discovered at bean-init via {@code describeDomain}
+	 * domain. The domain's endpoint is discovered at bean-init via {@code describeDomain}
 	 * (control-plane), mirroring how {@link #synSearchOssClient} discovers the AOSS collection
 	 * endpoint via {@code batchGetCollection} — so a developer running the service locally
-	 * needs only the stack/instance configuration, not an injected endpoint. A VPC domain
-	 * leaves {@code DomainStatus.endpoint()} null and publishes its host under the
-	 * {@code endpoints()} map's {@code "vpc"} key. Signs requests for the {@code es} service
-	 * (managed OpenSearch) rather than {@code aoss} (serverless).
+	 * needs only the stack/instance configuration, not an injected endpoint. A VPC-attached
+	 * domain (prod) leaves {@code DomainStatus.endpoint()} null and publishes its host under
+	 * the {@code endpoints()} map's {@code "vpc"} key; a domain with no VPCOptions (dev) has a
+	 * public endpoint under {@code DomainStatus.endpoint()} instead. Signs requests for the
+	 * {@code es} service (managed OpenSearch) rather than {@code aoss} (serverless).
 	 */
 	@Bean
 	public OpenSearchClient searchIndexManagedClient(
@@ -453,9 +455,11 @@ public class ManagerConfiguration {
 			AwsCredentialsProvider credentialProvider, StackConfiguration config, SdkHttpClient httpClient) {
 		String domainName = config.getStack() + "-" + config.getStackInstance() + "-synidx";
 
-		String endpoint = searchIndexManagementClient.describeDomain(req -> req.domainName(domainName))
-				.domainStatus().endpoints().get("vpc");
-		ValidateArgument.requiredNotBlank(endpoint, "VPC endpoint for OpenSearch domain " + domainName);
+		DomainStatus domainStatus = searchIndexManagementClient.describeDomain(req -> req.domainName(domainName))
+				.domainStatus();
+		String endpoint = domainStatus.vpcOptions() != null ? domainStatus.endpoints().get("vpc")
+				: domainStatus.endpoint();
+		ValidateArgument.requiredNotBlank(endpoint, "Endpoint for OpenSearch domain " + domainName);
 
 		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
 				endpoint.replace("https://", ""), "es", Region.US_EAST_1,

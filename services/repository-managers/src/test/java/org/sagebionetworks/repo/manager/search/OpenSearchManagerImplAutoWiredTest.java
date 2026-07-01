@@ -1038,7 +1038,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
 			try {
 				result[0] = openSearchManager.search(indexName, body, columns,
-						EnumSet.allOf(SearchQueryPart.class));
+						EnumSet.allOf(SearchQueryPart.class), Collections.emptyList());
 				return result[0].getHits() != null && result[0].getHits().stream()
 						.anyMatch(h -> Long.valueOf(rowId).equals(h.getRowId()));
 			} catch (IllegalStateException e) {

@@ -4,11 +4,13 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.v2.AwsCredentialsProviderV2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportResource;
 import org.springframework.context.annotation.Scope;
 
 import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
 
 @Configuration
+@ImportResource("classpath:stack-configuration.spb.xml")
 public class MarkdownClientConfiguration {
 
 	private final StackConfiguration stackConfiguration;

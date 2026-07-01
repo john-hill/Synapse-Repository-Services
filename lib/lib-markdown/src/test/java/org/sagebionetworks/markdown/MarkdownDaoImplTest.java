@@ -33,7 +33,7 @@ public class MarkdownDaoImplTest {
 	}
 
 	@Test
-	public void testConvertMarkdownWithNullResponse() {
+	public void testConvertMarkdownWithNullResponse() throws Exception {
 		String rawMarkdown = "## a heading";
 		JSONObject request = new JSONObject();
 		request.put(MARKDOWN, rawMarkdown);
@@ -45,7 +45,7 @@ public class MarkdownDaoImplTest {
 	}
 
 	@Test
-	public void testConvertMarkdown() {
+	public void testConvertMarkdown() throws Exception {
 		String rawMarkdown = "## a heading";
 		String outputType = "html";
 		JSONObject request = new JSONObject();

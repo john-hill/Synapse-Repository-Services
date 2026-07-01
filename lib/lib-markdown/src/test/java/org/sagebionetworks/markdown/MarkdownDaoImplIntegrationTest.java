@@ -7,14 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-@SpringJUnitConfig(locations = {"classpath:test-context.xml"})
+@SpringJUnitConfig(classes = {MarkdownClientConfiguration.class})
 public class MarkdownDaoImplIntegrationTest {
 
 	@Autowired
 	MarkdownDao dao;
 
 	@Test
-	public void testSimpleText() {
+	public void testSimpleText() throws Exception {
 		String rawMarkdown = "## a heading";
 		String outputType = "html";
 		String result = "<h2 toc=\"true\">a heading</h2>\n";
@@ -22,7 +22,7 @@ public class MarkdownDaoImplIntegrationTest {
 	}
 
 	@Test
-	public void testEntityId() {
+	public void testEntityId() throws Exception {
 		String rawMarkdown = "testing Synapse link [Research Communities](#!Synapse:syn3722562/wiki/219258)";
 		String outputType = "html";
 		String result = "<p>testing Synapse link <a href=\"/Synapse:syn3722562/wiki/219258\">Research Communities</a></p>\n";

@@ -1,45 +1,51 @@
 package org.sagebionetworks.markdown;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.markdown.MarkdownDaoImpl.MARKDOWN;
 import static org.sagebionetworks.markdown.MarkdownDaoImpl.OUTPUT;
 
 import org.json.JSONObject;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 public class MarkdownDaoImplTest {
 	@Mock
 	MarkdownClient mockMarkdownClient;
 
 	private MarkdownDaoImpl dao;
 
-	@Before
+	@BeforeEach
 	public void before() {
-		MockitoAnnotations.initMocks(this);
 		dao = new MarkdownDaoImpl(mockMarkdownClient, "https://synapse.org");
 	}
 
-	@Test (expected = IllegalArgumentException.class)
-	public void testConvertMarkdownWithNullMarkdown() throws Exception {
-		dao.convertMarkdown(null, null);
+	@Test
+	public void testConvertMarkdownWithNullMarkdown() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			dao.convertMarkdown(null, null);
+		});
 	}
 
-	@Test (expected = MarkdownClientException.class)
-	public void testConvertMarkdownWithNullResponse() throws Exception {
+	@Test
+	public void testConvertMarkdownWithNullResponse() {
 		String rawMarkdown = "## a heading";
 		JSONObject request = new JSONObject();
 		request.put(MARKDOWN, rawMarkdown);
 		request.put(MarkdownDaoImpl.BASE_URL, "https://synapse.org");
 		when(mockMarkdownClient.requestMarkdownConversion(request.toString())).thenThrow(new MarkdownClientException(500,""));
-		dao.convertMarkdown(rawMarkdown, null);
+		assertThrows(MarkdownClientException.class, () -> {
+			dao.convertMarkdown(rawMarkdown, null);
+		});
 	}
 
 	@Test
-	public void testConvertMarkdown() throws Exception {
+	public void testConvertMarkdown() {
 		String rawMarkdown = "## a heading";
 		String outputType = "html";
 		JSONObject request = new JSONObject();
@@ -53,7 +59,7 @@ public class MarkdownDaoImplTest {
 	}
 
 	@Test
-	public void testGetSynapseBaseUrl() throws Exception {
+	public void testGetSynapseBaseUrl() {
 		assertEquals("https://synapse.org", dao.getSynapseBaseUrl());
 	}
 }

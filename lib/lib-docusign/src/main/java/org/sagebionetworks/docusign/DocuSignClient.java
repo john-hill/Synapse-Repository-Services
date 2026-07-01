@@ -1,16 +1,24 @@
 package org.sagebionetworks.docusign;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
 import com.docusign.esign.client.ApiException;
+import com.docusign.esign.model.EnvelopeDefinition;
+import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
+import com.docusign.esign.model.Tabs;
+import com.docusign.esign.model.TemplateRole;
+import com.docusign.esign.model.Text;
 
 /**
  * Client for the DocuSign REST API. Authenticates headlessly via the JWT Bearer
@@ -22,12 +30,14 @@ public class DocuSignClient {
 
 	private final DocuSignClientConfig config;
 	private final DocuSignTemplatesApi templatesApi;
+	private final DocuSignEnvelopesApi envelopesApi;
 	private final DocuSignAccessTokenProvider accessTokenProvider;
 
 	DocuSignClient(DocuSignClientConfig config, DocuSignTemplatesApi templatesApi,
-			DocuSignAccessTokenProvider accessTokenProvider) {
+			DocuSignEnvelopesApi envelopesApi, DocuSignAccessTokenProvider accessTokenProvider) {
 		this.config = config;
 		this.templatesApi = templatesApi;
+		this.envelopesApi = envelopesApi;
 		this.accessTokenProvider = accessTokenProvider;
 	}
 
@@ -47,6 +57,109 @@ public class DocuSignClient {
 			accessTokenProvider.invalidateAccessToken();
 			return listTemplatesOnce(startPosition, count, accessTokenProvider.getAccessToken());
 		}
+	}
+
+	/**
+	 * Validates that the given template has the required signer roles and tabs.
+	 * Throws IllegalArgumentException if the template does not meet requirements.
+	 */
+	public void validateTemplate(String templateId) {
+		ValidateArgument.required(templateId, "templateId");
+		try {
+			validateTemplateOnce(templateId, accessTokenProvider.getAccessToken());
+		} catch (DocuSignUnauthorizedException e) {
+			accessTokenProvider.invalidateAccessToken();
+			validateTemplateOnce(templateId, accessTokenProvider.getAccessToken());
+		}
+	}
+
+	/**
+	 * Creates and immediately sends an envelope from the specified template.
+	 *
+	 * @param templateId the DocuSign template ID
+	 * @param roleEmails map from role name to the signer's email address
+	 * @param tabValues map from (roleName, tabLabel) to the text value to pre-fill
+	 * @return the envelope ID of the created envelope
+	 */
+	public String createAndSendEnvelope(String templateId, Map<String, String> roleEmails,
+			Map<RoleTabKey, String> tabValues) {
+		ValidateArgument.required(templateId, "templateId");
+		ValidateArgument.required(roleEmails, "roleEmails");
+		ValidateArgument.required(tabValues, "tabValues");
+		try {
+			return createAndSendEnvelopeOnce(templateId, roleEmails, tabValues,
+					accessTokenProvider.getAccessToken());
+		} catch (DocuSignUnauthorizedException e) {
+			accessTokenProvider.invalidateAccessToken();
+			return createAndSendEnvelopeOnce(templateId, roleEmails, tabValues,
+					accessTokenProvider.getAccessToken());
+		}
+	}
+
+	private void validateTemplateOnce(String templateId, String accessToken) {
+		try {
+			EnvelopeTemplate template = templatesApi.getTemplate(
+					config.getBasePath(), accessToken, config.getAccountId(), templateId);
+			DocuSignTemplateValidator.validate(template);
+		} catch (ApiException e) {
+			throw convertApiException(e);
+		}
+	}
+
+	private String createAndSendEnvelopeOnce(String templateId, Map<String, String> roleEmails,
+			Map<RoleTabKey, String> tabValues, String accessToken) {
+		try {
+			EnvelopeTemplate template = templatesApi.getTemplate(
+					config.getBasePath(), accessToken, config.getAccountId(), templateId);
+			DocuSignTemplateValidator.validate(template);
+
+			List<TemplateRole> templateRoles = buildTemplateRoles(roleEmails, tabValues);
+			EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
+			envelopeDefinition.setTemplateId(templateId);
+			envelopeDefinition.setTemplateRoles(templateRoles);
+			envelopeDefinition.setStatus("sent");
+
+			EnvelopeSummary summary = envelopesApi.createEnvelope(
+					config.getBasePath(), accessToken, config.getAccountId(), envelopeDefinition);
+			return summary.getEnvelopeId();
+		} catch (ApiException e) {
+			throw convertApiException(e);
+		}
+	}
+
+	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
+			Map<RoleTabKey, String> tabValues) {
+		List<TemplateRole> roles = new ArrayList<>();
+		for (Map.Entry<String, String> entry : roleEmails.entrySet()) {
+			String roleName = entry.getKey();
+			String email = entry.getValue();
+
+			TemplateRole role = new TemplateRole();
+			role.setRoleName(roleName);
+			role.setEmail(email);
+
+			List<Text> textTabs = new ArrayList<>();
+			for (Map.Entry<RoleTabKey, String> tabEntry : tabValues.entrySet()) {
+				if (tabEntry.getKey().roleName().equals(roleName)) {
+					Text text = new Text();
+					text.setTabLabel(tabEntry.getKey().tabLabel());
+					text.setValue(tabEntry.getValue());
+					textTabs.add(text);
+
+					if (tabEntry.getKey().tabLabel().endsWith("_name")) {
+						role.setName(tabEntry.getValue());
+					}
+				}
+			}
+			if (!textTabs.isEmpty()) {
+				Tabs tabs = new Tabs();
+				tabs.setTextTabs(textTabs);
+				role.setTabs(tabs);
+			}
+
+			roles.add(role);
+		}
+		return roles;
 	}
 
 	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken) {

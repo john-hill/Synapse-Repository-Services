@@ -1,6 +1,7 @@
 package org.sagebionetworks.docusign;
 
 import com.docusign.esign.client.ApiException;
+import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
 
 /**
@@ -11,4 +12,7 @@ interface DocuSignTemplatesApi {
 
 	EnvelopeTemplateResults listTemplates(String basePath, String accessToken, String accountId,
 			String startPosition, String count) throws ApiException;
+
+	EnvelopeTemplate getTemplate(String basePath, String accessToken, String accountId,
+			String templateId) throws ApiException;
 }

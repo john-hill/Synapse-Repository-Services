@@ -36,6 +36,7 @@ import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
+import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
@@ -822,15 +823,16 @@ public class OpenSearchManagerImplAutoWiredTest {
 		}
 
 		SearchQuery body = matchAllBody().setAggregations(aggregations);
-		SearchQueryResults results = waitForSearch(body, columns, 1L);
-
-		assertEquals(1L, results.getTotalHits());
-		assertEquals(1, results.getHits().size());
+		SearchQueryResults results = waitForRealRow(body, columns, 1L);
 
 		Map<String, String> idToName = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName));
+		SearchHit realRow = results.getHits().stream()
+				.filter(h -> Long.valueOf(1L).equals(h.getRowId()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("real row was not returned"));
 		Map<String, String> returnedByName = new HashMap<>();
-		for (SearchFieldValue fv : results.getHits().get(0).getFields()) {
+		for (SearchFieldValue fv : realRow.getFields()) {
 			returnedByName.put(fv.getName(), fv.getValue());
 		}
 
@@ -1020,6 +1022,31 @@ public class OpenSearchManagerImplAutoWiredTest {
 			}
 		});
 		assertTrue(success, "Timed out waiting for search results (expected at least " + expectedMinHits + " hits)");
+		return result[0];
+	}
+
+	/**
+	 * Poll {@link OpenSearchManager#search} until a hit for the given real {@code _row_id} is
+	 * present. Gating on {@code totalHits} alone is not sufficient right after
+	 * {@link OpenSearchManager#waitForIndexWritable}: the readiness sentinel
+	 * ({@code _row_id = -1}) and its deletion refresh independently of the real row's write, so
+	 * a {@code match_all} probe can report a hit for the leftover sentinel before the real row
+	 * is visible. Waiting for the real row-id removes that race.
+	 */
+	private SearchQueryResults waitForRealRow(SearchQuery body, List<ColumnModel> columns, long rowId) {
+		SearchQueryResults[] result = {null};
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				result[0] = openSearchManager.search(indexName, body, columns,
+						EnumSet.allOf(SearchQueryPart.class));
+				return result[0].getHits() != null && result[0].getHits().stream()
+						.anyMatch(h -> Long.valueOf(rowId).equals(h.getRowId()));
+			} catch (IllegalStateException e) {
+				// index_not_found — not ready yet
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for search to return row " + rowId);
 		return result[0];
 	}
 

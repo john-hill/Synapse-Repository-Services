@@ -1791,7 +1791,7 @@ public class OpenSearchManagerImplTest {
 	public void testWaitForIndexWritableWithImmediateSuccessDeletesSentinelAndReturns() throws Exception {
 		when(openSearchClient.index(argThat((IndexRequest<?> req) -> req != null)))
 				.thenReturn(okIndexResponse());
-		when(openSearchClient.delete(ArgumentMatchers.<java.util.function.Function>any()))
+		when(openSearchClient.delete(any(DeleteRequest.class)))
 				.thenReturn(okDeleteResponse());
 
 		// call under test
@@ -1846,7 +1846,7 @@ public class OpenSearchManagerImplTest {
 		verify(openSearchClient, times(OpenSearchManagerImpl.INDEX_WRITABLE_MAX_RETRIES))
 				.index(argThat((IndexRequest<?> req) -> req != null));
 		// No sentinel was ever written, so no cleanup delete is attempted.
-		verify(openSearchClient, times(0)).delete(ArgumentMatchers.<java.util.function.Function>any());
+		verify(openSearchClient, times(0)).delete(any(DeleteRequest.class));
 	}
 
 	@Test

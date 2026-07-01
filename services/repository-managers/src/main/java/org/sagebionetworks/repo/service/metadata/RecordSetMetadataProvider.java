@@ -29,13 +29,15 @@ public class RecordSetMetadataProvider implements EntityValidator<RecordSet>, Ty
 	@Override
 	public void entityUpdated(UserInfo userInfo, RecordSet entity, boolean wasNewVersionCreated) {
 		fileEntityMetadataProvider.entityUpdated(userInfo, entity, wasNewVersionCreated);
-		recordSetManager.inferSchemaAndBindToIndex(userInfo, entity);
+		// Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575
+		// recordSetManager.inferSchemaAndBindToIndex(userInfo, entity);
 	}
 
 	@Override
 	public void entityCreated(UserInfo userInfo, RecordSet entity) {
 		fileEntityMetadataProvider.entityCreated(userInfo, entity);
-		recordSetManager.inferSchemaAndBindToIndex(userInfo, entity);
+		// Schema binding is broken (PLFM-9765). Will be fixed in the completion of PLFM-9575
+		// recordSetManager.inferSchemaAndBindToIndex(userInfo, entity);
 	}
 
 	@Override

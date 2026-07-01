@@ -3,11 +3,13 @@ package org.sagebionetworks.repo.manager.table;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -94,9 +96,10 @@ public class RecordSetSchemaResolver {
 	 */
 	public ReconciledSchema getReconciledSchema(String entityId, FileHandle fileHandle,
 			CsvTableDescriptor csvDescriptor, boolean fullScan) {
-		List<ColumnModel> schema = inferSchemaFromCsv(fileHandle, csvDescriptor, fullScan);
+		List<ColumnModel> schema = new ArrayList<>(inferSchemaFromCsv(fileHandle, csvDescriptor, fullScan));
 		Optional<JsonSchema> validationSchema = getBoundValidationSchema(entityId);
 		validationSchema.ifPresent(vs -> CsvSchemaReconciler.reconcile(schema, vs));
+		validationSchema.ifPresent(vs -> addJsonSchemaOnlyColumns(schema, vs));
 
 		List<String> required = validationSchema.map(JsonSchema::getRequired).orElse(new ArrayList<>());
 		Map<String, Integer> columnNameToIndex = new HashMap<>();
@@ -119,6 +122,25 @@ public class RecordSetSchemaResolver {
 				.map(e -> toColumnModel(e.getKey(), e.getValue()))
 				.toList();
 	}
+
+    /**
+     * Append a column for each top-level JSON Schema property that is not already
+     * present in the CSV-inferred schema. This ensures that columns declared only
+     * in the bound JSON Schema (not yet present in the CSV data) are surfaced. The
+     * column type is derived from the property's declared {@link Type}; properties
+     * are appended in a deterministic (name-sorted) order.
+     *
+     * @param schema           the schema to append to (CSV-inferred, already reconciled)
+     * @param validationSchema the bound JSON Schema
+     */
+    static void addJsonSchemaOnlyColumns(List<ColumnModel> schema, JsonSchema validationSchema) {
+        List<ColumnModel> properties = getJsonSchemaColumns(validationSchema);
+        Set<String> existingNames = schema.stream().map(ColumnModel::getName).collect(Collectors.toSet());
+        properties.stream()
+                .filter(e -> !existingNames.contains(e.getName()))
+                .sorted(Comparator.comparing(ColumnModel::getName))
+                .forEach(schema::add);
+    }
 
 	/**
 	 * Map a single JSON Schema property to a {@link ColumnModel}. Scalar types map

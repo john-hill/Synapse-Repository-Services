@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.service.auth;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
@@ -51,6 +52,7 @@ import org.sagebionetworks.repo.model.oauth.OAuthUrlResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthValidationRequest;
 import org.sagebionetworks.repo.model.principal.AliasType;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
+import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -310,6 +312,34 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		}
 		// now bind the ID to the user account
 		return userManager.bindAlias(providersUserId.getAlias(), providersUserId.getType(), userId);
+	}
+	
+	@Override
+	public void bindOIDCIdentity(Long userId, OAuthValidationRequest validationRequest) {
+		
+		UserInfo user = userManager.getUserInfo(userId);
+		
+		if (user.isUserAnonymous()) {
+			throw new UnauthorizedException("User ID is required.");
+		}
+		
+		// only allow the binding if the given provider is in the user's realm
+		IdentityProvider identityProvider = new OAuthIdentityProvider().setProvider(validationRequest.getProvider());
+		Optional<String> optionalRealmId = realmDao.getRealmIdForIdentityProvider(identityProvider);
+		if (optionalRealmId.isEmpty()) {
+			throw new IllegalArgumentException("There is no security realm associated with "+validationRequest.getProvider().name());
+		}
+		if (!user.getRealmId().equals(optionalRealmId.get())) {
+			throw new IllegalArgumentException("Cannot bind an alias from "+validationRequest.getProvider().name()+" for this user.");
+		}
+
+		ProvidedUserInfo providedUserInfo = oauthManager.validateUserWithProvider(
+			validationRequest.getProvider(), 
+			validationRequest.getAuthenticationCode(),
+			validationRequest.getRedirectUrl());
+		
+		PrincipalAlias principalAlias = new PrincipalAlias().setPrincipalId(user.getId());
+		userManager.bindUserToOidcSubject(principalAlias, validationRequest.getProvider(), providedUserInfo.getSubject());
 	}
 	
 	@Override

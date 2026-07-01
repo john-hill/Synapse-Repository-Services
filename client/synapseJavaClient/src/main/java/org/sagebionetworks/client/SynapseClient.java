@@ -2094,7 +2094,15 @@ public interface SynapseClient extends BaseClient {
 	 */
 	PrincipalAlias bindOAuthProvidersUserId(OAuthValidationRequest request)
 			throws SynapseException;
-	
+
+	/**
+	 * Bind an OIDC identity (subject) to the user's account.
+	 *
+	 * @param request
+	 * @throws SynapseException
+	 */
+	void bindOIDCIdentity(OAuthValidationRequest request) throws SynapseException;
+
 	/**
 	 * Remove an alias associated with an account via the OAuth mechanism.
 	 * 

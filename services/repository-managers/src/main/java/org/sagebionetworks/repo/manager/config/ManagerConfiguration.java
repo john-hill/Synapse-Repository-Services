@@ -49,6 +49,7 @@ import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.oauth.AWSCognitoOAuth2Provider;
 import org.sagebionetworks.repo.manager.oauth.ArcusBioProvider;
 import org.sagebionetworks.repo.manager.oauth.GoogleOAuth2Provider;
+import org.sagebionetworks.repo.manager.oauth.NIHRASProvider;
 import org.sagebionetworks.repo.manager.oauth.OAuthProviderBinding;
 import org.sagebionetworks.repo.manager.oauth.OIDCConfig;
 import org.sagebionetworks.repo.manager.oauth.OrcidOAuth2Provider;
@@ -284,10 +285,11 @@ public class ManagerConfiguration {
 	@Bean
 	public Map<OAuthProvider, OAuthProviderBinding> oauthProvidersBindingMap(StackConfiguration config,
 			SimpleHttpClient client) {
-		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client), 
+		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client),
 				OAuthProvider.ORCID, orcidOAuthProvider(config, client),
 				OAuthProvider.ARCUS_BIOSCIENCES, arcusBioOAuthProvider(config, client),
-				OAuthProvider.SAGE_BIONETWORKS, sageBioOAuthProvider(config, client)
+				OAuthProvider.SAGE_BIONETWORKS, sageBioOAuthProvider(config, client),
+				OAuthProvider.NIH_RESEARCHER_AUTH_SERVICE, nihRASOAuthProvider(config, client)
 				);
 	}
 
@@ -313,6 +315,12 @@ public class ManagerConfiguration {
 	public AWSCognitoOAuth2Provider sageBioOAuthProvider(StackConfiguration config, SimpleHttpClient client) {
 		return new AWSCognitoOAuth2Provider(config.getOAuth2SageBioClientId(), config.getOAuth2SageBioClientSecret(),
 				new OIDCConfig(client, config.getOAuth2SageBioDiscoveryDocument()));
+	}
+
+	@Bean
+	public NIHRASProvider nihRASOAuthProvider(StackConfiguration config, SimpleHttpClient client) {
+		return new NIHRASProvider(config.getOAuth2NIHRASClientId(), config.getOAuth2NIHRASClientSecret(),
+				new OIDCConfig(client, config.getOAuth2NIHRASDiscoveryDocument()));
 	}
 
 	@Bean

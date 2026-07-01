@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -127,7 +128,7 @@ public class RecordSetSchemaResolverTest {
 				csvDescriptor, false);
 
 		assertEquals(List.of("a", "b", "c"),
-				result.getSchema().stream().map(ColumnModel::getName).collect(java.util.stream.Collectors.toList()));
+				result.getSchema().stream().map(ColumnModel::getName).collect(Collectors.toList()));
 		// "a" is index 0, "c" is index 2 in the inferred schema.
 		assertEquals(List.of(0, 2), result.getRequiredColumnIndices());
 	}
@@ -259,5 +260,22 @@ public class RecordSetSchemaResolverTest {
 		assertEquals(List.of(
 				new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
 				new ColumnModel().setName("b").setColumnType(ColumnType.BOOLEAN)), columns);
+	}
+
+	@Test
+	public void testGetReconciledSchemaAddsSchemaOnlyColumn() {
+		// The CSV has only "a"; the bound schema declares an additional property "c"
+		// that is not in the CSV. "c" must be appended as a new column.
+		stubInferSchema(List.of(new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER)));
+		JsonSchema validationSchema = new JsonSchema()
+				.setProperties(Map.of("c", new JsonSchema().setType(Type.integer)));
+		stubBoundSchema(validationSchema);
+
+		// call under test
+		List<ColumnModel> schema = resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, false).getSchema();
+
+		assertEquals(List.of("a", "c"),
+				schema.stream().map(ColumnModel::getName).collect(Collectors.toList()));
+		assertEquals(ColumnType.INTEGER, schema.get(1).getColumnType());
 	}
 }

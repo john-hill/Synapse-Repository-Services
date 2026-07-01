@@ -640,7 +640,8 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public static final String AUTH_OAUTH_2_SESSION_V2 = AUTH_OAUTH_2+"/session2";
 	public static final String AUTH_OAUTH_2_ACCOUNT_V2 = AUTH_OAUTH_2+"/account2";
 	public static final String AUTH_OAUTH_2_ALIAS = AUTH_OAUTH_2+"/alias";
-	
+	public static final String AUTH_OAUTH_2_IDENTITY = AUTH_OAUTH_2+"/identity";
+
 	public static final String AUTH_OPENID_CONFIG = "/.well-known/openid-configuration";
 	public static final String AUTH_OAUTH_2_JWKS = AUTH_OAUTH_2+"/jwks";
 	public static final String AUTH_OAUTH_2_CLIENT = AUTH_OAUTH_2+"/client";
@@ -4660,9 +4661,14 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public PrincipalAlias bindOAuthProvidersUserId(OAuthValidationRequest request)
 			throws SynapseException {
 		return postJSONEntity(getAuthEndpoint(), AUTH_OAUTH_2_ALIAS, request, PrincipalAlias.class);
-		
+
 	}
-	
+
+	@Override
+	public void bindOIDCIdentity(OAuthValidationRequest request) throws SynapseException {
+		voidPost(getAuthEndpoint(), AUTH_OAUTH_2_IDENTITY, request, null);
+	}
+
 	@Override
 	public void unbindOAuthProvidersUserId(OAuthProvider provider, String alias) throws SynapseException {
 		ValidateArgument.required(provider, "provider");

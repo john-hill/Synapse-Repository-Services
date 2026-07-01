@@ -22,8 +22,6 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
-import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -46,18 +44,15 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 	private static final Logger log = LogManager.getLogger(GridReplicaValidationManagerImpl.class);
 
 	private final GridReplicaViewManager gridReplicaViewManager;
-	private final JsonSchemaManager jsonSchemaManager;
 	private final GridDao gridDao;
-	private final JsonSchemaValidationManager jsonSchemaValidationManager;
+	private final GridRowValidator gridRowValidator;
 	private final PatchBuilderPublisher patchBuilderPublisher;
 
-	public GridReplicaValidationManagerImpl(GridReplicaViewManager gridReplicaViewManager,
-			JsonSchemaManager jsonSchemaManager, GridDao gridDao,
-			JsonSchemaValidationManager jsonSchemaValidationManager, PatchBuilderPublisher patchBuilderPublisher) {
+	public GridReplicaValidationManagerImpl(GridReplicaViewManager gridReplicaViewManager, GridDao gridDao,
+			GridRowValidator gridRowValidator, PatchBuilderPublisher patchBuilderPublisher) {
 		this.gridReplicaViewManager = gridReplicaViewManager;
-		this.jsonSchemaManager = jsonSchemaManager;
 		this.gridDao = gridDao;
-		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
+		this.gridRowValidator = gridRowValidator;
 		this.patchBuilderPublisher = patchBuilderPublisher;
 	}
 
@@ -240,12 +235,12 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 	 * @return
 	 */
 	List<IntendedChange> validateRows(GridHeader header, String schemaId, List<RowView> rowsToValidate) {
-		JsonSchema schema = jsonSchemaManager.getValidationSchema(schemaId);
+		JsonSchema schema = gridRowValidator.getValidationSchema(schemaId);
 
 		List<JsonSubject> subjects = rowsToValidate.stream()
 				.map(row -> new JsonObjectSubject(row.getRowObject().getData().getRowJsonDocument())).collect(Collectors.toList());
 
-		List<ValidationResults> results = jsonSchemaValidationManager.validateBatch(schema, subjects);
+		List<ValidationResults> results = gridRowValidator.validateBatch(schema, subjects);
 
 		List<IntendedChange> changes = new ArrayList<>();
 
@@ -253,25 +248,12 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 			ValidationResults validationResults = results.get(i);
 			RowView row = rowsToValidate.get(i);
 
-			cleanupValidationResults(validationResults);
-
 			// Always apply the new validation results, even if the value did not change.
 			// The client uses the timestamp to determine if results are up-to-date with its local changes.
 			changes.add(createChange(row, validationResults));
 		}
 
 		return changes;
-	}
-
-	/**
-	 * Remove 'extra' data from a row's validation results to reduce its size.
-	 * 
-	 * @param validationResults
-	 */
-	public static void cleanupValidationResults(ValidationResults validationResults) {
-		validationResults.setValidatedOn(null);
-		validationResults.setSchema$id(null);
-		validationResults.setValidationException(null);
 	}
 
 	/**

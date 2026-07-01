@@ -28,6 +28,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
+import org.sagebionetworks.docusign.DocuSignTemplateValidator.TabType;
+
 import com.docusign.esign.client.ApiException;
 import com.docusign.esign.model.DateSigned;
 import com.docusign.esign.model.Email;
@@ -332,22 +334,56 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testBuildTemplateRolesDerivesNameFromTabValues() {
+	public void testBuildTemplateRolesWithCorrectTabTypes() {
 		Map<String, String> roleEmails = Map.of("signing_official", "so@example.com");
+		RoleTabKey nameKey = new RoleTabKey("signing_official", "signing_official_name");
+		RoleTabKey titleKey = new RoleTabKey("signing_official", "signing_official_title");
+		RoleTabKey emailKey = new RoleTabKey("signing_official", "signing_official_email");
+		RoleTabKey userNameKey = new RoleTabKey("signing_official", "signing_official_user_name");
 		Map<RoleTabKey, String> tabValues = Map.of(
-				new RoleTabKey("signing_official", "signing_official_name"), "Dr. Smith",
-				new RoleTabKey("signing_official", "signing_official_title"), "Director"
+				nameKey, "Dr. Smith",
+				titleKey, "Director",
+				emailKey, "so@example.com",
+				userNameKey, "smith123"
+		);
+		Map<RoleTabKey, TabType> tabTypeMap = Map.of(
+				nameKey, TabType.FULL_NAME,
+				titleKey, TabType.TITLE,
+				emailKey, TabType.EMAIL,
+				userNameKey, TabType.TEXT
 		);
 
 		// call under test
-		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues);
+		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues, tabTypeMap);
 
 		assertEquals(1, roles.size());
 		TemplateRole role = roles.get(0);
 		assertEquals("signing_official", role.getRoleName());
 		assertEquals("so@example.com", role.getEmail());
 		assertEquals("Dr. Smith", role.getName());
-		assertEquals(2, role.getTabs().getTextTabs().size());
+		assertEquals(1, role.getTabs().getFullNameTabs().size());
+		assertEquals("signing_official_name", role.getTabs().getFullNameTabs().get(0).getTabLabel());
+		assertEquals(1, role.getTabs().getTitleTabs().size());
+		assertEquals("Director", role.getTabs().getTitleTabs().get(0).getValue());
+		assertEquals(1, role.getTabs().getEmailTabs().size());
+		assertEquals("so@example.com", role.getTabs().getEmailTabs().get(0).getValue());
+		assertEquals(1, role.getTabs().getTextTabs().size());
+		assertEquals("smith123", role.getTabs().getTextTabs().get(0).getValue());
+	}
+
+	@Test
+	public void testBuildTabTypeMap() {
+		EnvelopeTemplate template = buildValidTemplate();
+
+		// call under test
+		Map<RoleTabKey, TabType> result = DocuSignClient.buildTabTypeMap(template);
+
+		assertEquals(TabType.FULL_NAME, result.get(new RoleTabKey("signing_official", "signing_official_name")));
+		assertEquals(TabType.TITLE, result.get(new RoleTabKey("signing_official", "signing_official_title")));
+		assertEquals(TabType.EMAIL, result.get(new RoleTabKey("signing_official", "signing_official_email")));
+		assertEquals(TabType.TEXT, result.get(new RoleTabKey("principal_investigator", "principal_investigator_institution")));
+		assertEquals(TabType.TEXT, result.get(new RoleTabKey("collaborator_1", "collaborator_1_user_name")));
+		assertEquals(TabType.FULL_NAME, result.get(new RoleTabKey("collaborator_1", "collaborator_1_name")));
 	}
 
 	private static EnvelopeTemplate buildValidTemplate() {

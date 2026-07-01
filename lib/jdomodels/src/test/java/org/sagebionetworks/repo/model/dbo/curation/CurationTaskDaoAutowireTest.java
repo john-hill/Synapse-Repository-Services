@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -373,6 +374,7 @@ class CurationTaskDaoAutowireTest {
         assertNull(status.getExecutionDetails());
         assertNull(status.getLastUpdatedBy());
         assertNull(status.getLastUpdatedOn());
+        assertNull(status.getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }
@@ -406,6 +408,36 @@ class CurationTaskDaoAutowireTest {
         assertEquals(userId.toString(), updated.getLastUpdatedBy());
         assertNotNull(updated.getLastUpdatedOn());
         assertNull(updated.getExecutionDetails());
+
+        dao.deleteCurationTask(created.getTaskId());
+    }
+
+    @Test
+    public void testUpdateTaskStatusWithDueDate() {
+        CurationTask created = dao.createCurationTask(userId, new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("fastq")
+                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
+
+        TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
+        assertNull(initialStatus.getDueDate());
+
+        // A due date is a calendar date (no time component). Use a local-midnight value so the
+        // DATE column round-trips exactly.
+        Date dueDate = new Date(java.sql.Date.valueOf(LocalDate.of(2026, 8, 15)).getTime());
+
+        TaskStatus statusUpdate = new TaskStatus()
+                .setState(TaskState.IN_PROGRESS)
+                .setEtag(initialStatus.getEtag())
+                .setDueDate(dueDate);
+
+        // call under test
+        TaskStatus updated = dao.updateTaskStatus(userId, created.getTaskId(), statusUpdate);
+
+        assertEquals(dueDate, updated.getDueDate());
+
+        // Verify the due date is persisted and returned on a subsequent read
+        assertEquals(dueDate, dao.getTaskStatus(created.getTaskId()).getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }

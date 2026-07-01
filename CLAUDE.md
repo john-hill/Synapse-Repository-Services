@@ -187,6 +187,7 @@ See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for th
 - **Controller testing**: Use IT tests with the Java client in `integration-test/`, not autowired controller tests (`*AutowiredTest` classes). Every new controller method needs a corresponding `SynapseClient`/`SynapseClientImpl` method and an IT test. Deep logic checks belong in manager unit tests; IT tests just verify each HTTP call works.
 - **Exception mapping**: `NumberFormatException` extends `IllegalArgumentException`, which maps to HTTP 400. It is acceptable to let it propagate without wrapping.
 - **Reuse existing constants**: Before defining a new string constant, check if it already exists in a shared constants class (e.g., `SqlConstants`). Add new constants to the appropriate shared class rather than defining them locally.
+- **Multi-value LIST columns**: Stored as JSON on the main table (`T<id>`) and unnested at query time via `JSON_TABLE(...)` — they are **not** separate physical index tables (that model was removed in PLFM-7968).
 
 ## Critical Constraints
 

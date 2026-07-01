@@ -962,7 +962,7 @@ public class SQLTranslatorUtilsTest {
 		verify(mockResultSet, never()).getLong(ROW_BENEFACTOR);
 		assertNull(result.getBenefactorId());
 	}	
-
+	
 	@Test
 	public void testTranslateTableName() throws ParseException{
 		QueryExpression rootModel = new TableQueryParser("select * from syn123").queryExpression();

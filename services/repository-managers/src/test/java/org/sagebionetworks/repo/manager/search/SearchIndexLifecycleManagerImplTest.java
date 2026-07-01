@@ -47,6 +47,7 @@ import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.TableType;
+import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
@@ -68,11 +69,18 @@ import org.sagebionetworks.repo.model.table.TableState;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
+import org.sagebionetworks.table.cluster.QueryTranslator;
+import org.sagebionetworks.table.cluster.SchemaProvider;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.TranslatedQuery;
 import org.sagebionetworks.table.cluster.description.BenefactorDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
+import org.sagebionetworks.table.cluster.description.IndexDescriptionLookup;
+import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
+import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
+import org.sagebionetworks.table.query.ParseException;
 import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -1526,6 +1534,76 @@ public class SearchIndexLifecycleManagerImplTest {
 		manager.registerSchema(searchIndexId, "SELECT foo, COUNT(*) FROM syn789 GROUP BY foo");
 
 		verify(columnModelManager).bindColumnsToVersionOfObject(any(), eq(searchIndexId));
+	}
+
+	// -------- buildWithBenefactorColumns (package-private) --------
+
+	@Test
+	public void testBuildWithBenefactorColumnsWithMaterializedViewOverTwoViews() throws ParseException {
+		// Two entity views joined on a shared "studyId" column, and a materialized view over them. Ids
+		// and column ids match the lib-table-cluster TwoViewMaterializedView fixture so the translated
+		// names are stable (T801/T802/T803, _C701_/_C702_/_C703_, ROW_BENEFACTOR__A0/__A1).
+		IdAndVersion leftViewId = IdAndVersion.parse("syn801");
+		IdAndVersion rightViewId = IdAndVersion.parse("syn802");
+		IdAndVersion mvId = IdAndVersion.parse("syn803");
+		IndexDescription leftView = new ViewIndexDescription(leftViewId, TableType.entityview, -1L);
+		IndexDescription rightView = new ViewIndexDescription(rightViewId, TableType.entityview, -1L);
+		ColumnModel leftStudy = TableModelTestUtils.createColumn(701L, "studyId", ColumnType.INTEGER);
+		ColumnModel rightStudy = TableModelTestUtils.createColumn(702L, "studyId", ColumnType.INTEGER);
+		ColumnModel mvStudy = TableModelTestUtils.createColumn(703L, "studyId", ColumnType.INTEGER);
+		String mvDefiningSql = "select " + leftViewId + ".studyId from " + leftViewId + " join " + rightViewId
+				+ " on (" + leftViewId + ".studyId = " + rightViewId + ".studyId) order by " + leftViewId + ".studyId";
+
+		SchemaProvider schemaProvider = new SchemaProvider() {
+			@Override
+			public TableType getTableType(IdAndVersion id) {
+				return TableType.entityview;
+			}
+
+			@Override
+			public List<ColumnModel> getTableSchema(IdAndVersion id) {
+				if (leftViewId.equals(id)) {
+					return List.of(leftStudy);
+				}
+				if (rightViewId.equals(id)) {
+					return List.of(rightStudy);
+				}
+				return List.of(mvStudy);
+			}
+
+			@Override
+			public ColumnModel getColumnModel(String id) {
+				if (leftStudy.getId().equals(id)) {
+					return leftStudy;
+				}
+				if (rightStudy.getId().equals(id)) {
+					return rightStudy;
+				}
+				return mvStudy;
+			}
+		};
+
+		IndexDescriptionLookup lookup = id -> leftViewId.equals(id) ? leftView : rightView;
+		MaterializedViewIndexDescription mvIndex = new MaterializedViewIndexDescription(mvId, mvDefiningSql, lookup);
+
+		QueryTranslator base = QueryTranslator.builder().sql("select * from " + mvId).schemaProvider(schemaProvider)
+				.sqlContext(SqlContext.query).indexDescription(mvIndex).userId(1L).build();
+
+		// call under test
+		TranslatedQuery query = SearchIndexLifecycleManagerImpl.buildWithBenefactorColumns(base, mvIndex);
+
+		// The two physical benefactor columns are spliced in after the document column and ahead of the
+		// by-name ROW_ID/ROW_VERSION metadata.
+		assertEquals("SELECT _C703_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T803",
+				query.getOutputSQL());
+		// The benefactor columns are mirrored into the result headers as INTEGER columns, in
+		// getBenefactors() order, after the document column. ROW_ID/ROW_VERSION are read by name and are
+		// not select headers.
+		assertEquals(List.of(
+				new SelectColumn().setName("studyId").setColumnType(ColumnType.INTEGER).setId("703"),
+				new SelectColumn().setName("ROW_BENEFACTOR__A0").setColumnType(ColumnType.INTEGER),
+				new SelectColumn().setName("ROW_BENEFACTOR__A1").setColumnType(ColumnType.INTEGER)),
+				query.getSelectColumns());
 	}
 
 }

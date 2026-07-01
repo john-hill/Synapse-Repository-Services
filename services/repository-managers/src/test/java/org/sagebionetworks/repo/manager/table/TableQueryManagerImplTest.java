@@ -2724,10 +2724,6 @@ public class TableQueryManagerImplTest {
 
 		verify(mockRowHandler, never()).close();
 	}
-	
-	////////////////////////////
-	// computeAccessibleBenefactors() Tests
-	////////////////////////////
 
 	@Test
 	public void testComputeAccessibleBenefactorsWithMultipleBenefactors() {

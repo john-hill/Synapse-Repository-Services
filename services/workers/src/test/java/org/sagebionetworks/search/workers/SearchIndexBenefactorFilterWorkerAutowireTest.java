@@ -8,6 +8,7 @@ import static org.sagebionetworks.repo.model.util.AccessControlListUtil.createRe
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -24,8 +25,6 @@ import org.sagebionetworks.repo.manager.search.TextAnalyzerBootstrap;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
-import org.sagebionetworks.repo.model.Entity;
-import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
@@ -35,9 +34,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2TestUtils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
-import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.helper.AccessControlListObjectHelper;
-import org.sagebionetworks.repo.model.helper.FileHandleObjectHelper;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
@@ -62,13 +59,17 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 /**
  * Autowired integration test proving that a {@link SearchIndex} built over a materialized view of
  * two entity views applies row-level benefactor (ACL) filtering at query time: two users with
- * different access to the source files see different result sets, even though both can read the
+ * different access to the source rows see different result sets, even though both can read the
  * SearchIndex and its source views.
  *
  * <p>The build indexes every source row without authorization (read access is enforced only at
  * query time via the per-row {@code _benefactor_<i>} terms filters), so this is the end-to-end
  * proof that the query-side {@code SearchIndexQueryManager.buildBenefactorAccessFilters} +
  * {@code TableQueryManager.computeAccessibleBenefactors} gate actually restricts hits per user.
+ *
+ * <p>The view rows are folders (a folder is both an entity with a benefactor and a view row), which
+ * keeps the fixture to the minimum needed to exercise per-row benefactor filtering with no file
+ * handles.
  *
  * <p>Live against the Tomcat + MySQL + AOSS stack via {@code test-context.xml}.
  */
@@ -90,8 +91,6 @@ public class SearchIndexBenefactorFilterWorkerAutowireTest {
 	private AsynchronousJobWorkerHelper asyncHelper;
 	@Autowired
 	private TextAnalyzerBootstrap textAnalyzerBootstrap;
-	@Autowired
-	private FileHandleObjectHelper fileHandleObjectHelper;
 	@Autowired
 	private AccessControlListObjectHelper aclDaoHelper;
 
@@ -123,30 +122,30 @@ public class SearchIndexBenefactorFilterWorkerAutowireTest {
 
 	/**
 	 * Build a SearchIndex over an MV joining two entity views, then query it as two users with
-	 * different ACLs. Each project hierarchy splits its files between {@code folderOne} (benefactor
-	 * = project) and {@code folderTwo} (benefactor = folderTwo, with its own ACL). Both users get
+	 * different ACLs. Each project holds two folders: an even-index folder that inherits the project
+	 * benefactor and an odd-index folder with its own ACL (benefactor = that folder). Both users get
 	 * READ on the two projects, the two views, and the MV — so both pass the recursive source
-	 * read-access check and can query. Only {@code userA} additionally gets READ on the two
-	 * {@code folderTwo} benefactors, so the per-row {@code _benefactor} filters let userA see every
-	 * row while userB sees only the project-benefactor rows.
+	 * read-access check and can query. Only {@code userA} additionally gets READ on the own-ACL
+	 * folders, so the per-row {@code _benefactor} filters let userA see every row while userB sees
+	 * only the project-benefactor row.
 	 */
 	@Test
 	public void testSearchIndexBenefactorFilteringDiffersByUser() throws Exception {
-		int filesPerProject = 5;
-		Hierarchy left = createProjectHierachy(filesPerProject);
-		Hierarchy right = createProjectHierachy(filesPerProject);
+		int foldersPerProject = 2;
+		Hierarchy left = createProjectHierachy(foldersPerProject);
+		Hierarchy right = createProjectHierachy(foldersPerProject);
 
-		// Both users can read both projects (and therefore the folderOne files that inherit the
-		// project benefactor) and can read the views/MV built below.
+		// Both users can read both projects (and therefore the folders that inherit the project
+		// benefactor) and can read the views/MV built below.
 		grantRead(left.project.getId(), userA, userB);
 		grantRead(right.project.getId(), userA, userB);
 
-		// Only userA can read the separately-benefactored folderTwo on each side.
-		grantRead(left.folderTwo.getId(), userA);
-		grantRead(right.folderTwo.getId(), userA);
+		// Only userA can read the separately-benefactored folders on each side.
+		left.ownAclFolderIds().forEach(id -> grantRead(id, userA));
+		right.ownAclFolderIds().forEach(id -> grantRead(id, userA));
 
-		IdAndVersion leftViewId = createFileView(left);
-		IdAndVersion rightViewId = createFileView(right);
+		IdAndVersion leftViewId = createFolderView(left);
+		IdAndVersion rightViewId = createFolderView(right);
 
 		// Join the two views on the shared annotation so each MV row carries two benefactor columns
 		// (ROW_BENEFACTOR__A0 from left, ROW_BENEFACTOR__A1 from right). Alias the selected columns
@@ -177,17 +176,17 @@ public class SearchIndexBenefactorFilterWorkerAutowireTest {
 		query.setSearchQuery(new SearchQuery().setQuery(new Query().setMatch_all(new MatchAllQuery())).setSize(100L));
 		query.setResponseParts(EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
 
-		// userA reads every folderTwo benefactor, so every MV row is visible. The query worker
-		// retries while the index is still CREATING and while AOSS catches up to the writes.
-		Set<String> idsVisibleToA = new java.util.HashSet<>(left.fileIds());
+		// userA reads every own-ACL folder, so every MV row is visible. The query worker retries
+		// while the index is still CREATING and while AOSS catches up to the writes.
+		Set<String> idsVisibleToA = new HashSet<>(left.folderIds());
 		asyncHelper.assertJobResponse(userA, query, (SearchQueryResults results) -> {
 			Set<String> ids = hitIds(results);
 			assertEquals(idsVisibleToA.size(), ids.size());
 			assertEquals(idsVisibleToA, ids);
 		}, MAX_WAIT_MS, AsynchronousJobWorkerHelper.INFINITE_RETRIES);
 
-		// userB lacks both folderTwo benefactors, so the rows whose left OR right benefactor is a
-		// folderTwo are filtered out — userB sees a strict subset of what userA sees.
+		// userB lacks both own-ACL folders, so the rows whose left OR right benefactor is an own-ACL
+		// folder are filtered out — userB sees a strict subset of what userA sees.
 		Set<String> idsVisibleToB = idsVisibleToProjectOnly(left, right);
 		assertTrue(idsVisibleToB.size() < idsVisibleToA.size(),
 				"test fixture must yield fewer rows for the less-privileged user");
@@ -201,18 +200,18 @@ public class SearchIndexBenefactorFilterWorkerAutowireTest {
 
 	/**
 	 * The MV joins left and right on {@code groupKey}. Both hierarchies use the same groupKey layout
-	 * (file i has groupKey i), so the join is row-aligned: MV row i carries left file i's benefactor
-	 * as {@code __A0} and right file i's as {@code __A1}. A user sees MV row i only if it can read
-	 * BOTH side-i benefactors. userB can read only the project benefactor on each side, so it sees
-	 * MV row i only when BOTH side-i files live in folderOne (benefactor = project).
-	 * createProjectHierachy puts file i in folderOne when i is even, so the row-aligned join keeps
-	 * exactly the even-index files.
+	 * (folder i has groupKey i), so the join is row-aligned: MV row i carries left folder i's
+	 * benefactor as {@code __A0} and right folder i's as {@code __A1}. A user sees MV row i only if it
+	 * can read BOTH side-i benefactors. userB can read only the project benefactor on each side, so it
+	 * sees MV row i only when BOTH side-i folders inherit the project benefactor. createProjectHierachy
+	 * gives folder i the project benefactor when i is even, so the row-aligned join keeps exactly the
+	 * even-index folders.
 	 */
 	private Set<String> idsVisibleToProjectOnly(Hierarchy left, Hierarchy right) {
-		Set<String> visible = new java.util.HashSet<>();
-		for (int i = 0; i < left.files.size(); i++) {
+		Set<String> visible = new HashSet<>();
+		for (int i = 0; i < left.folders.size(); i++) {
 			if (left.isProjectBenefactor(i) && right.isProjectBenefactor(i)) {
-				visible.add(left.files.get(i).getId());
+				visible.add(left.folders.get(i).getId());
 			}
 		}
 		return visible;
@@ -244,28 +243,27 @@ public class SearchIndexBenefactorFilterWorkerAutowireTest {
 	}
 
 	/**
-	 * Create an entity view over the hierarchy's project, schema = id + groupKey. Annotates each
-	 * file with its index as groupKey so the two views join row-for-row, and waits for replication.
+	 * Create a Folder-scoped entity view over the hierarchy's project, schema = id + groupKey.
+	 * Annotates each folder with its index as groupKey so the two views join row-for-row, and waits
+	 * for replication.
 	 */
-	private IdAndVersion createFileView(Hierarchy h) throws Exception {
+	private IdAndVersion createFolderView(Hierarchy h) throws Exception {
 		List<ColumnModel> schema = Arrays.asList(
 				new ColumnModel().setName(ObjectField.id.name()).setColumnType(ColumnType.ENTITYID),
 				new ColumnModel().setName("groupKey").setColumnType(ColumnType.INTEGER));
 		schema = columnModelManager.createColumnModels(adminUser, schema);
 
-		for (int i = 0; i < h.files.size(); i++) {
-			FileEntity file = h.files.get(i);
-			Annotations annos = entityManager.getAnnotations(adminUser, file.getId());
+		for (int i = 0; i < h.folders.size(); i++) {
+			Folder folder = h.folders.get(i);
+			Annotations annos = entityManager.getAnnotations(adminUser, folder.getId());
 			AnnotationsV2TestUtils.putAnnotations(annos, "groupKey", Long.toString(i), AnnotationsValueType.LONG);
-			entityManager.updateAnnotations(adminUser, file.getId(), annos);
-		}
-		for (Entity e : h.all) {
-			asyncHelper.waitForEntityReplication(adminUser, e.getId(), MAX_WAIT_MS);
+			entityManager.updateAnnotations(adminUser, folder.getId(), annos);
+			asyncHelper.waitForEntityReplication(adminUser, folder.getId(), MAX_WAIT_MS);
 		}
 
 		List<String> columnIds = schema.stream().map(ColumnModel::getId).collect(Collectors.toList());
 		EntityView view = asyncHelper.createEntityView(adminUser, UUID.randomUUID().toString(), h.project.getId(),
-				columnIds, Arrays.asList(h.project.getId()), ViewTypeMask.File.getMask(), false);
+				columnIds, Arrays.asList(h.project.getId()), ViewTypeMask.Folder.getMask(), false);
 
 		// Wait for the view to build so the MV over it can materialize.
 		asyncHelper.assertQueryResult(adminUser, "select count(*) from " + view.getId(), (results) -> {
@@ -275,56 +273,54 @@ public class SearchIndexBenefactorFilterWorkerAutowireTest {
 	}
 
 	/**
-	 * A project with two folders and {@code numberOfFiles} files alternately parented under them.
-	 * folderOne's files inherit the project benefactor; folderTwo has its own ACL, so its files'
-	 * benefactor is folderTwo. File i is under folderOne when i is even.
+	 * A project with {@code numberOfFolders} folders that serve as the view rows. Even-index folders
+	 * inherit the project benefactor; odd-index folders get their own ACL, so their benefactor is the
+	 * folder itself.
 	 */
-	private Hierarchy createProjectHierachy(int numberOfFiles) {
+	private Hierarchy createProjectHierachy(int numberOfFolders) {
 		Project project = entityManager.getEntity(adminUser,
 				entityManager.createEntity(adminUser, new Project().setName(UUID.randomUUID().toString()), null),
 				Project.class);
-		Folder folderOne = entityManager.getEntity(adminUser, entityManager.createEntity(adminUser,
-				new Folder().setName("folder one").setParentId(project.getId()), null), Folder.class);
-		Folder folderTwo = entityManager.getEntity(adminUser, entityManager.createEntity(adminUser,
-				new Folder().setName("folder two").setParentId(project.getId()), null), Folder.class);
 
-		// Give folderTwo its own ACL (admin only for now) so its files get folderTwo as benefactor
-		// rather than inheriting the project. Per-user READ is granted by the test as needed.
-		aclDaoHelper.create(a -> {
-			a.setId(folderTwo.getId());
-			a.getResourceAccess().add(createResourceAccess(adminUser.getId(), ACCESS_TYPE.CHANGE_PERMISSIONS));
-			a.getResourceAccess().add(createResourceAccess(adminUser.getId(), ACCESS_TYPE.READ));
-		});
-
-		List<FileEntity> files = new ArrayList<>(numberOfFiles);
-		for (int i = 0; i < numberOfFiles; i++) {
-			String parentId = i % 2 == 0 ? folderOne.getId() : folderTwo.getId();
-			final int index = i;
-			S3FileHandle fileHandle = fileHandleObjectHelper.createS3(f -> f.setFileName("f" + index));
-			FileEntity file = entityManager.getEntity(adminUser, entityManager.createEntity(adminUser,
-					new FileEntity().setName("file_" + index).setParentId(parentId)
-							.setDataFileHandleId(fileHandle.getId()), null), FileEntity.class);
-			files.add(file);
+		List<Folder> folders = new ArrayList<>(numberOfFolders);
+		for (int i = 0; i < numberOfFolders; i++) {
+			Folder folder = entityManager.getEntity(adminUser, entityManager.createEntity(adminUser,
+					new Folder().setName("folder_" + i).setParentId(project.getId()), null), Folder.class);
+			if (i % 2 != 0) {
+				// An own ACL (admin only for now) makes the folder its own benefactor rather than
+				// inheriting the project. Per-user READ is granted by the test as needed.
+				aclDaoHelper.create(a -> {
+					a.setId(folder.getId());
+					a.getResourceAccess().add(createResourceAccess(adminUser.getId(), ACCESS_TYPE.CHANGE_PERMISSIONS));
+					a.getResourceAccess().add(createResourceAccess(adminUser.getId(), ACCESS_TYPE.READ));
+				});
+			}
+			folders.add(folder);
 		}
-		return new Hierarchy(project, folderTwo, files);
+		return new Hierarchy(project, folders);
 	}
 
 	private static class Hierarchy {
 		final Project project;
-		final Folder folderTwo;
-		final List<FileEntity> files;
-		final List<Entity> all = new ArrayList<>();
+		final List<Folder> folders;
 
-		Hierarchy(Project project, Folder folderTwo, List<FileEntity> files) {
+		Hierarchy(Project project, List<Folder> folders) {
 			this.project = project;
-			this.folderTwo = folderTwo;
-			this.files = files;
-			all.add(project);
-			all.addAll(files);
+			this.folders = folders;
 		}
 
-		List<String> fileIds() {
-			return files.stream().map(FileEntity::getId).collect(Collectors.toList());
+		List<String> folderIds() {
+			return folders.stream().map(Folder::getId).collect(Collectors.toList());
+		}
+
+		List<String> ownAclFolderIds() {
+			List<String> ids = new ArrayList<>();
+			for (int i = 0; i < folders.size(); i++) {
+				if (!isProjectBenefactor(i)) {
+					ids.add(folders.get(i).getId());
+				}
+			}
+			return ids;
 		}
 
 		boolean isProjectBenefactor(int i) {

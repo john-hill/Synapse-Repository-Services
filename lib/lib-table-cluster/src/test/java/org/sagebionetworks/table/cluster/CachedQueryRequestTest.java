@@ -15,8 +15,7 @@ public class CachedQueryRequestTest {
 	@Test
 	public void testClone() {
 		CachedQueryRequest request = new CachedQueryRequest().setExpiresInSec(60).setIncludeEntityEtag(true)
-				.setIncludeBenefactorId(true).setIncludesRowIdAndVersion(false)
-				.setOutputSQL("select * from syn123")
+				.setIncludeBenefactorId(true).setIncludesRowIdAndVersion(false).setOutputSQL("select * from syn123")
 				.setParameters(Map.of("key", "value")).setSingleTableId("syn123")
 				.setSelectColumns(List.of(new SelectColumn().setName("foo"))).setTableHash("hash");
 

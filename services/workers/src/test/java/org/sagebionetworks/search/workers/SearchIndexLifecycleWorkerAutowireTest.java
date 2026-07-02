@@ -112,9 +112,11 @@ public class SearchIndexLifecycleWorkerAutowireTest {
                 AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 
         userA = userManager.createOrGetTestUser(adminUser,
-                new NewUser().setUserName(UUID.randomUUID().toString()).setEmail("employee@sagebase.org"));
+                new NewUser().setUserName(UUID.randomUUID().toString())
+                        .setEmail(UUID.randomUUID() + "@sagebase.org"));
         userB = userManager.createOrGetTestUser(adminUser,
-                new NewUser().setUserName(UUID.randomUUID().toString()).setEmail("employee1@sagebase.org"));
+                new NewUser().setUserName(UUID.randomUUID().toString())
+                        .setEmail(UUID.randomUUID() + "@sagebase.org"));
     }
 
     @AfterEach

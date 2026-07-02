@@ -84,9 +84,7 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			// Phase one: synchronize the schema
 			List<Column> finalSchema;
 			try (SchemaCopy schemaCopy = synchronizeProvider.getSchemaCopy(icp, copyHandler)) {
-				List<String> effectiveCols = sourceHandler
-						.getEffectiveSchemaColumnNames(copyHandler.getHeader().getOrderedColumns());
-				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler, effectiveCols);
+				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler);
 				logic.synchronize(schemaCopy, schemaSource, Merge.noOp());
 				finalSchema = schemaCopy.getFinalSchema();
 			}

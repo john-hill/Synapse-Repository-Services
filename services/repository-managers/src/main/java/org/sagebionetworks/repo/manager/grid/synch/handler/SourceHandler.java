@@ -265,21 +265,41 @@ public interface SourceHandler extends AutoCloseable {
 	void resolveAndValidateSyncType(SyncType syncType);
 
 	/**
-	 * Returns the effective list of column names to present to the schema
-	 * synchronization engine during Phase 1. Most sources use the source schema
-	 * as-is (so the engine can drop columns removed from the source). Sources that
-	 * preserve all existing grid columns (e.g. RecordSet) override this to return
-	 * the union of the source schema and the grid's existing columns.
+	 * Returns whether the given grid column should be excluded from Phase 1 schema
+	 * matching — left in the grid, never dropped, and never pushed as a source
+	 * schema change. Sources that preserve all existing grid columns (e.g.
+	 * RecordSet) return true for a grid column that is absent from the current
+	 * source schema; most sources let the engine drop such columns.
 	 *
 	 * <p>
-	 * Defaults to {@link #getCurrentSourceSchema()}, preserving the existing
-	 * drop behavior.
+	 * Defaults to false. Only meaningful for columns absent from the source schema
+	 * (a column present in the source is matched and retained regardless).
 	 *
-	 * @param gridColumns the columns currently in the grid (from the copy header)
-	 * @return the effective column name list for schema synchronization
+	 * @param columnName the grid column name to test
+	 * @return true if the grid column should be preserved untouched by schema sync
 	 */
-	default List<String> getEffectiveSchemaColumnNames(List<Column> gridColumns) {
-		return getCurrentSourceSchema();
+	default boolean isColumnExcludedFromMatching(String columnName) {
+		return false;
+	}
+
+	/**
+	 * Returns whether a source column absent from the grid was deleted by the user
+	 * (rather than being a source-side addition to import). When true the column is
+	 * not re-imported into the grid; when false it is added to the grid.
+	 * <p>
+	 * For a RecordSet source this is true when the grid is fully synced to the latest
+	 * source version and the column is not a JSON Schema property; JSON Schema
+	 * properties and columns from a newer-than-baseline source are always imported.
+	 *
+	 * <p>
+	 * Defaults to false. Sources without a baseline concept (e.g. entity views)
+	 * inherit the default and always import unmatched source columns.
+	 *
+	 * @param columnName the source column name, known to be absent from the grid
+	 * @return true if the user deleted this column from the grid
+	 */
+	default boolean isColumnDeletedByUser(String columnName) {
+		return false;
 	}
 
 	/**

@@ -56,30 +56,16 @@ public class SchemaSourceImpl implements SchemaSource {
 	 * Initializes the source schema from
 	 * {@link SourceHandler#getCurrentSourceSchema()}, converting each column name
 	 * into a {@link ColumnSourceItem} for processing during synchronization.
+	 * Source-specific reconciliation (preserving grid-only columns, honoring user
+	 * column deletions) is applied by the engine via {@link #isExcludedFromMatching}
+	 * and {@link #wasDeletedByUser}.
 	 *
 	 * @param handler the handler providing access to the source data and schema
 	 *                operations
 	 */
 	public SchemaSourceImpl(SourceHandler handler) {
-		this(handler, handler.getCurrentSourceSchema());
-	}
-
-	/**
-	 * Creates a schema source over an explicit set of effective source column names,
-	 * rather than the handler's raw reported schema. The caller is responsible for
-	 * computing the effective list — typically via
-	 * {@link SourceHandler#getEffectiveSchemaColumnNames} — which may apply
-	 * source-specific reconciliation logic such as preserving grid-only columns,
-	 * honoring user column deletions, or always including JSON Schema properties.
-	 *
-	 * @param handler           the source handler (used for add/remove column
-	 *                          operations and the canAddRemoveColumns flag)
-	 * @param sourceColumnNames the effective source column names, as computed by
-	 *                          {@link SourceHandler#getEffectiveSchemaColumnNames}
-	 */
-	public SchemaSourceImpl(SourceHandler handler, List<String> sourceColumnNames) {
 		this.handler = handler;
-		this.schema = sourceColumnNames.stream().map(n -> new ColumnSourceItem().setColumnName(n))
+		this.schema = handler.getCurrentSourceSchema().stream().map(n -> new ColumnSourceItem().setColumnName(n))
 				.collect(Collectors.toList());
 	}
 
@@ -207,6 +193,28 @@ public class SchemaSourceImpl implements SchemaSource {
 	@Override
 	public boolean matches(ColumnCopyItem copyItem, ColumnSourceItem sourceItem) {
 		return Objects.equal(copyItem.getColumnName(), sourceItem.getColumnName());
+	}
+
+	/**
+	 * Excludes a grid column from Phase 1 matching when the source preserves it —
+	 * delegated to {@link SourceHandler#isColumnExcludedFromMatching}. For a
+	 * RecordSet source this is a grid column absent from the source schema, so it is
+	 * left in the grid (never dropped, never pushed). Other sources let such columns
+	 * be dropped.
+	 */
+	@Override
+	public boolean isExcludedFromMatching(ColumnCopyItem copyItem) {
+		return handler.isColumnExcludedFromMatching(copyItem.getColumnName());
+	}
+
+	/**
+	 * Determines whether a source column absent from the grid was deleted by the
+	 * user — delegated to {@link SourceHandler#isColumnDeletedByUser}. When true the
+	 * column is not re-imported into the grid; when false it is added.
+	 */
+	@Override
+	public boolean wasDeletedByUser(ColumnSourceItem sourceItem) {
+		return handler.isColumnDeletedByUser(sourceItem.getColumnName());
 	}
 
 }

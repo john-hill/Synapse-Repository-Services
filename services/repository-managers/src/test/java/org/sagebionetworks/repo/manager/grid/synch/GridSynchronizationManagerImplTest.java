@@ -121,13 +121,9 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSourceHandlerProvdier.createNewProvider(mockCallback, mockUser, gridSession, gridSource))
 				.thenReturn(mockSourceHandler);
 		when(mockSourceHandler.getSourceRowReader()).thenReturn(mockSourceReader);
-		when(mockCopyHandler.getHeader()).thenReturn(mockHeader);
-		when(mockHeader.getOrderedColumns()).thenReturn(List.of());
-		when(mockSourceHandler.getEffectiveSchemaColumnNames(List.of())).thenReturn(List.of("foo"));
 		when(mockSynchronizeProvider.getSchemaCopy(eq(mockIntendedChangePublisher), any())).thenReturn(mockSchemaCopy);
 		when(mockSchemaCopy.getFinalSchema()).thenReturn(finalSchema);
-		when(mockSynchronizeProvider.getSchemaSource(eq(mockSourceHandler), eq(List.of("foo"))))
-				.thenReturn(mockSchemaSource);
+		when(mockSynchronizeProvider.getSchemaSource(mockSourceHandler)).thenReturn(mockSchemaSource);
 		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler))
 				.thenReturn(mockRowCopy);
 		when(mockSynchronizeProvider.getRowSource(mockSourceReader, mockSourceHandler)).thenReturn(mockRowSource);
@@ -207,12 +203,9 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSourceHandlerProvdier.createNewProvider(mockCallback, mockUser, gridSession, recordSetSource))
 				.thenReturn(mockSourceHandler);
 		when(mockSourceHandler.getSourceRowReader()).thenReturn(mockSourceReader);
-		when(mockCopyHandler.getHeader()).thenReturn(mockHeader);
-		when(mockHeader.getOrderedColumns()).thenReturn(List.of());
-		when(mockSourceHandler.getEffectiveSchemaColumnNames(List.of())).thenReturn(List.of("foo"));
 		when(mockSynchronizeProvider.getSchemaCopy(eq(mockIntendedChangePublisher), any())).thenReturn(mockSchemaCopy);
 		when(mockSchemaCopy.getFinalSchema()).thenReturn(finalSchema);
-		when(mockSynchronizeProvider.getSchemaSource(eq(mockSourceHandler), any())).thenReturn(mockSchemaSource);
+		when(mockSynchronizeProvider.getSchemaSource(mockSourceHandler)).thenReturn(mockSchemaSource);
 		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler))
 				.thenReturn(mockRowCopy);
 		when(mockSynchronizeProvider.getRowSource(mockSourceReader, mockSourceHandler)).thenReturn(mockRowSource);
@@ -245,12 +238,9 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSourceHandlerProvdier.createNewProvider(mockCallback, mockUser, gridSession, recordSetSource))
 				.thenReturn(mockSourceHandler);
 		when(mockSourceHandler.getSourceRowReader()).thenReturn(mockSourceReader);
-		when(mockCopyHandler.getHeader()).thenReturn(mockHeader);
-		when(mockHeader.getOrderedColumns()).thenReturn(List.of());
-		when(mockSourceHandler.getEffectiveSchemaColumnNames(List.of())).thenReturn(List.of("foo"));
 		when(mockSynchronizeProvider.getSchemaCopy(eq(mockIntendedChangePublisher), any())).thenReturn(mockSchemaCopy);
 		when(mockSchemaCopy.getFinalSchema()).thenReturn(finalSchema);
-		when(mockSynchronizeProvider.getSchemaSource(eq(mockSourceHandler), any())).thenReturn(mockSchemaSource);
+		when(mockSynchronizeProvider.getSchemaSource(mockSourceHandler)).thenReturn(mockSchemaSource);
 		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler))
 				.thenReturn(mockRowCopy);
 		when(mockSynchronizeProvider.getRowSource(mockSourceReader, mockSourceHandler)).thenReturn(mockRowSource);

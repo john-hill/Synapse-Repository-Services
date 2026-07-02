@@ -1,8 +1,8 @@
 package org.sagebionetworks.repo.manager.grid.synch.schema;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -115,6 +115,30 @@ public class SchemaSourceImplTest {
 		assertFalse(source.isItemRemovalSupported());
 
 		verify(mockHandler).canAddRemoveColumns();
+		verifyNoMoreInteractions(mockHandler);
+	}
+
+	@Test
+	public void testIsExcludedFromMatching() {
+		setupSource(List.of("a", "b", "c"));
+		when(mockHandler.isColumnExcludedFromMatching("gridOnly")).thenReturn(true);
+
+		// call under test — delegates the grid column name to the handler
+		assertTrue(source.isExcludedFromMatching(new ColumnCopyItem().setColumnName("gridOnly")));
+
+		verify(mockHandler).isColumnExcludedFromMatching("gridOnly");
+		verifyNoMoreInteractions(mockHandler);
+	}
+
+	@Test
+	public void testWasDeletedByUser() {
+		setupSource(List.of("a", "b", "c"));
+		when(mockHandler.isColumnDeletedByUser("d")).thenReturn(true);
+
+		// call under test — delegates the source column name to the handler
+		assertTrue(source.wasDeletedByUser(new ColumnSourceItem().setColumnName("d")));
+
+		verify(mockHandler).isColumnDeletedByUser("d");
 		verifyNoMoreInteractions(mockHandler);
 	}
 

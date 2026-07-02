@@ -45,18 +45,6 @@ public interface SynchronizeProvider {
 	SchemaSource getSchemaSource(SourceHandler handler);
 
 	/**
-	 * Creates a Source implementation for schema synchronization over an explicit
-	 * set of source column names (rather than the handler's reported schema). Used
-	 * to present the union of the resolved source columns and the grid's existing
-	 * columns, so that no grid column is dropped during schema synchronization.
-	 *
-	 * @param handler           handler for applying schema changes to the source
-	 * @param sourceColumnNames the effective source column names
-	 * @return a SchemaSource over the provided column names
-	 */
-	SchemaSource getSchemaSource(SourceHandler handler, List<String> sourceColumnNames);
-
-	/**
 	 * Creates a Copy implementation for row synchronization during Phase 2. The copy
 	 * applies grid CRDT changes (insert/delete) directly via the
 	 * {@code intendedChangePublisher}. It depends only on the copy (CRDT) side.

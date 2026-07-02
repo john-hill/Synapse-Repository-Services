@@ -38,11 +38,6 @@ public class SynchronizeProviderImpl implements SynchronizeProvider {
 	}
 
 	@Override
-	public SchemaSource getSchemaSource(SourceHandler handler, List<String> sourceColumnNames) {
-		return new SchemaSourceImpl(handler, sourceColumnNames);
-	}
-
-	@Override
 	public RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema,
 			CopyHandler reader) {
 		return new RowCopyImpl(finalSchema, intendedChangePublisher, reader);

@@ -79,7 +79,7 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 				IntendedChangePublisher icp = newIntendedChangePublisher(copyHandler)) {
 
 			// Check if this syncType is supported by the source
-			sourceHandler.resolveAndValidateSyncType(syncType);
+			sourceHandler.validateSyncType(syncType);
 
 			// Phase one: synchronize the schema
 			List<Column> finalSchema;

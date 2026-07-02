@@ -165,7 +165,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	 * to the source independently of a push.
 	 */
 	@Override
-	public void resolveAndValidateSyncType(SyncType syncType) {
+	public void validateSyncType(SyncType syncType) {
 		ValidateArgument.required(syncType, "syncType");
 		switch (syncType) {
             case PULL -> throw new IllegalArgumentException("PULL synchronization is not supported for EntityView-based grid sessions.");

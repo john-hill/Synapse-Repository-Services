@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.synch.handler;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -37,9 +39,9 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItemImpl;
 import org.sagebionetworks.repo.manager.schema.AnnotationsTranslator;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
@@ -54,6 +56,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.SyncType;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -601,4 +604,75 @@ public class EntityViewSourceHandlerTest {
 		}
 	}
 
+	@Test
+	public void testResolveSyncTypeEntityViewNullRejected() throws Exception {
+		EntityViewSourceHandler handler = buildHandlerForSyncTypeTests();
+		// call under test — null causes IllegalArgumentException
+		assertThrows(IllegalArgumentException.class, () -> handler.validateSyncType(null));
+	}
+
+	@Test
+	public void testResolveSyncTypeEntityViewPullPushAccepted() throws Exception {
+		EntityViewSourceHandler handler = buildHandlerForSyncTypeTests();
+		// call under test — PULL_PUSH is the only supported type
+		assertDoesNotThrow(() -> handler.validateSyncType(SyncType.PULL_PUSH));
+	}
+
+	@Test
+	public void testResolveSyncTypeEntityViewPullRejected() throws Exception {
+		EntityViewSourceHandler handler = buildHandlerForSyncTypeTests();
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			handler.validateSyncType(SyncType.PULL);
+		}).getMessage();
+		assertEquals("PULL synchronization is not supported for EntityView-based grid sessions.", message);
+	}
+
+	/**
+	 * Minimal setup for tests that only need a constructed handler and do not call
+	 * {@link EntityViewSourceHandler#getSourceRowReader()}. Avoids the
+	 * {@code createRandomAccessFile} stub that {@link #setupHandler} includes,
+	 * which would be flagged as an unnecessary stubbing.
+	 */
+	private EntityViewSourceHandler buildHandlerForSyncTypeTests() throws Exception {
+		GridSession noSchemaSession = new GridSession().setSourceEntityId("syn123").setSessionId("111");
+		List<ColumnModel> schema = List.of(new ColumnModel().setColumnType(ColumnType.STRING).setName("aString"));
+		List<Row> rows = List.of();
+
+		doAnswer((InvocationOnMock invocation) -> {
+			return File.createTempFile((String) invocation.getArgument(0), (String) invocation.getArgument(1));
+		}).when(mockFileProvider).createTempFile("Source-" + noSchemaSession.getSourceEntityId(), ".bin");
+		doAnswer((InvocationOnMock invocation) -> {
+			return new BufferedOutputStream(new FileOutputStream((File) invocation.getArgument(0)));
+		}).when(mockFileProvider).createFileOutputStream(any());
+		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, noSchemaSession.getSessionId()))
+				.thenReturn(mockSessionOwner);
+		doAnswer((InvocationOnMock invocation) -> {
+			RowHandlerProvider rhp = invocation.getArgument(3);
+			when(mockQueryTranslations.getMainQuery()).thenReturn(mockMainQuery);
+			when(mockMainQuery.getTranslator()).thenReturn(mockQueryTranslator);
+			when(mockQueryTranslator.getSchemaOfSelect()).thenReturn(schema);
+			try (RowHandler rowHandler = rhp.getHandler(mockQueryTranslations)) {
+				rows.forEach(r -> rowHandler.nextRow(r));
+			}
+			return new QueryResultBundle();
+		}).when(mockTableQueryManager).runQueryAsStream(eq(mockCallback), eq(mockSessionOwner),
+				eq(new Query().setSql("select * from " + noSchemaSession.getSourceEntityId())), any(),
+				eq(ACCESS_TYPE.READ), eq(ACCESS_TYPE.UPDATE));
+
+		return new EntityViewSourceHandler(mockCallback, mockUser, noSchemaSession, mockTableQueryManager,
+				mockGridAuthorizationManager, mockFileProvider, mockAnnotationWriter, mockJsonSchemaManager,
+				mockAnnotationsTranslator);
+	}
+
+	@Test
+	public void testPushLifecycleIsNoOp() throws Exception {
+		EntityViewSourceHandler handler = buildHandlerForSyncTypeTests();
+
+		// call under test — EntityView writes annotations eagerly per-row (inline in the
+		// row merge) and never pushes a new artifact, so the push lifecycle is a no-op.
+		handler.beginPush(mockCallback, List.of(), SyncType.PULL_PUSH);
+		handler.onSurvivingRow(Map.of());
+		assertEquals(Optional.empty(), handler.completePush());
+	}
 }

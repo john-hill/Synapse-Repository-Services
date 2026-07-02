@@ -253,16 +253,15 @@ public interface SourceHandler extends AutoCloseable {
 	}
 
 	/**
-	 * Resolves and validates the requested {@link SyncType} for this source. Each
+	 * Validates the requested {@link SyncType} for this source. Each
 	 * source type supports a different set of sync types; implementations must throw
 	 * {@link IllegalArgumentException} for unsupported combinations.
 	 *
 	 * @param syncType the requested sync type (cannot be null)
-	 * @return the resolved sync type
 	 * @throws IllegalArgumentException if the requested type is not supported by
 	 *                                  this source
 	 */
-	void resolveAndValidateSyncType(SyncType syncType);
+	void validateSyncType(SyncType syncType) throws IllegalArgumentException;
 
 	/**
 	 * Returns whether the given grid column should be excluded from Phase 1 schema

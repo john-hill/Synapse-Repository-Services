@@ -146,7 +146,7 @@ public class GridSynchronizationManagerImplTest {
 				.setErrorMessages(List.of("errorOne", "errorTwo")), response);
 
 		// null syncType defaults to PULL_PUSH and is validated against the source
-		verify(mockSourceHandler).resolveAndValidateSyncType(SyncType.PULL_PUSH);
+		verify(mockSourceHandler).validateSyncType(SyncType.PULL_PUSH);
 		// the source prepares any push artifact keyed to the final schema
 		verify(mockSourceHandler).beginPush(mockCallback, finalSchema, SyncType.PULL_PUSH);
 		verify(mockLogic).synchronize(eq(mockSchemaCopy), eq(mockSchemaSource), any());
@@ -176,7 +176,7 @@ public class GridSynchronizationManagerImplTest {
 				.thenReturn(mockSourceHandler);
 		when(mockSourceHandler.getSourceRowReader()).thenReturn(mockSourceReader);
 		doThrow(new IllegalArgumentException(expectedError))
-				.when(mockSourceHandler).resolveAndValidateSyncType(SyncType.PULL);
+				.when(mockSourceHandler).validateSyncType(SyncType.PULL);
 		doReturn(mockIntendedChangePublisher).when(manager).newIntendedChangePublisher(mockCopyHandler);
 
 		String message = Assertions.assertThrows(IllegalArgumentException.class, () -> {

@@ -14,23 +14,16 @@ public class CellCopyImpl implements Copy<CellCopyItem, CellSourceItem> {
 
 	private final List<CellCopyItem> cells;
 	private final Map<String, ConValue> mergeCells;
-	private final Set<String> userDeletedCells;
 
 	public CellCopyImpl(RowCopyItem copyItem, Set<String> finalColumnNames) {
 		this.cells = copyItem.getCells().stream().filter(c -> finalColumnNames.contains(c.getName()))
 				.collect(Collectors.toList());
 		mergeCells = cells.stream().collect(Collectors.toMap(CellCopyItem::getName, CellCopyItem::getValue));
-		this.userDeletedCells = getUserDeletedCells(copyItem);
 	}
 
 	@Override
 	public Stream<CellCopyItem> streamItems() {
 		return cells.stream();
-	}
-
-	@Override
-	public boolean wasDeletedByUser(String key) {
-		return userDeletedCells.contains(key);
 	}
 
 	@Override

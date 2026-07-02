@@ -11,13 +11,16 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilde
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.synch.core.Merge;
+import org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandlerProvider;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandlerProvider;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
 import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
@@ -97,11 +100,13 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			sourceHandler.beginPush(callback, finalSchema, syncType);
 
 			// Phase two: run the row merge. The row copy/merge apply grid CRDT changes
-			// directly and report every surviving row to the source handler.
-			RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, finalSchema, copyHandler, sourceHandler);
+			// directly; the outcome listener reports every surviving row to the source
+			// handler so a pushed artifact can capture the full final grid contents.
+			RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, finalSchema, copyHandler);
 			RowSource rowSource = synchronizeProvider.getRowSource(sourceReader, sourceHandler);
 			RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, finalSchema, copyHandler, sourceHandler, preserveUserAttribution);
-			logic.synchronize(rowCopy, rowSource, rowMerge);
+			SyncOutcomeListener<RowCopyItem, RowSourceItemReference> outcomeListener = synchronizeProvider.getRowSyncOutcomeListener(sourceHandler);
+			logic.synchronize(rowCopy, rowSource, rowMerge, outcomeListener);
 
 			errorMessage = sourceHandler.getErrorMessages();
 			benefactorIds = sourceHandler.getBenefactorIds();

@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.sagebionetworks.repo.manager.grid.synch.core.Source;
@@ -15,13 +16,15 @@ public class CellSourceImpl implements Source<CellCopyItem, CellSourceItem> {
 
 	private final Map<String, CellSourceItem> sourceMap;
 	private final Map<String, ConValue> userChangedCells;
+	private final Set<String> userDeletedCells;
 
-	public CellSourceImpl(RowSourceItem sourceItem) {
+	public CellSourceImpl(RowSourceItem sourceItem, Set<String> userDeletedCells) {
 		this.sourceMap = new HashMap<>();
 		for (Entry<String, ConValue> e : sourceItem.getData().entrySet()) {
 			sourceMap.put(e.getKey(), new CellSourceItem().setColumnName(e.getKey()).setValue(e.getValue()));
 		}
 		this.userChangedCells = new HashMap<>();
+		this.userDeletedCells = userDeletedCells;
 	}
 
 	@Override
@@ -54,7 +57,21 @@ public class CellSourceImpl implements Source<CellCopyItem, CellSourceItem> {
 	public boolean matches(CellCopyItem copyItem, CellSourceItem sourceItem) {
 		return Objects.equals(copyItem.getValue(), sourceItem.getValue());
 	}
-	
+
+	/**
+	 * A source cell absent from the copy was deleted by the user when its column is
+	 * in the user-deleted set (the user cleared the cell to null/undefined in the
+	 * CRDT). This is a copy-side fact supplied by the merge, since the source cell
+	 * itself carries no user-change tracking.
+	 *
+	 * @param sourceItem the unmatched source cell
+	 * @return true if the user cleared this cell in the copy
+	 */
+	@Override
+	public boolean wasDeletedByUser(CellSourceItem sourceItem) {
+		return userDeletedCells.contains(sourceItem.getKey());
+	}
+
 	public Map<String, ConValue> getUserChangedCells(){
 		return this.userChangedCells;
 	}

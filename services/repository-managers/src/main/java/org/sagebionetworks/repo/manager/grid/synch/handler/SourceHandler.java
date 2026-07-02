@@ -213,21 +213,24 @@ public interface SourceHandler extends AutoCloseable {
 	}
 
 	/**
-	 * Returns whether the given copy (grid) row should be frozen during
-	 * synchronization — left entirely untouched (never matched, merged, or removed)
-	 * and excluded from the keyed Phase 1 traversal. For a RecordSet source this is
-	 * true for rows with an incomplete {@code upsertKey}, which cannot be matched to
-	 * a source row. A frozen row still survives in the grid and (for PULL_PUSH) is
-	 * still written to the pushed CSV.
+	 * Returns whether the given copy (grid) row is unmatchable during
+	 * synchronization. If unmatchable, the row left entirely untouched in the copy,
+	 * and is excluded from the keyed Phase 1 traversal.
+	 *
+	 * <p>
+	 * For a RecordSet source this is true for rows with an incomplete
+	 * {@code upsertKey}, which cannot be matched to a source row. An unmatchable row
+	 * still survives in the grid and (for PULL_PUSH) is still written to the
+	 * pushed CSV.
 	 *
 	 * <p>
 	 * Defaults to false. Sources whose row identity is intrinsic (e.g. entity views,
-	 * keyed by row id) inherit the default and freeze nothing.
+	 * keyed by row id) inherit the default and all rows are considered matchable.
 	 *
 	 * @param row the copy row to test
 	 * @return true if the row should be left untouched by synchronization
 	 */
-	default boolean isFrozenCopyRow(RowCopyItem row) {
+	default boolean isUnmatchableCopyRow(RowCopyItem row) {
 		return false;
 	}
 
@@ -302,7 +305,7 @@ public interface SourceHandler extends AutoCloseable {
 	/**
 	 * Notification that a single grid row survived the merge with the given final
 	 * cell values. The row merge feeds every surviving row here (merged, pulled in,
-	 * retained, user-added, or frozen) and never feeds removed rows, so a source
+	 * retained, or user-added) and never feeds removed rows, so a source
 	 * building a pushed artifact can capture the exact final grid contents.
 	 *
 	 * <p>

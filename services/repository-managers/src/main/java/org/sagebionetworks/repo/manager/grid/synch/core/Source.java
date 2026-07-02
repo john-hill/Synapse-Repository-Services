@@ -99,4 +99,42 @@ public interface Source<C extends CopyItem, S extends SourceItem> {
   return true;
  }
 
+ /**
+  * Returns whether the given copy item should be excluded from matching during
+  * Phase 1 traversal. Items that are excluded from matching cannot be merged,
+  * or removed, so they survive in the copy. The source owns this decision because it
+  * depends on the source's keying rules (e.g. a RecordSet copy's row with an incomplete
+  * upsert key cannot be matched to a source row, but should not be removed from the copy).
+  *
+  * <p>
+  * Defaults to false. Sources whose row identity is intrinsic (e.g. entity views)
+  * inherit the default and exclude nothing.
+  *
+  * @param copyItem the copy item to test
+  * @return true if the item should be left untouched by synchronization
+  */
+ default boolean isExcludedFromMatching(C copyItem) {
+  return false;
+ }
+
+ /**
+  * Determines whether the given source item — present in the source but absent
+  * from the copy during Phase 2 — was deleted by the user in the copy. When true,
+  * the item is removed from the source (push the user's deletion); when false it
+  * is added back to the copy (a source-side addition).
+  *
+  * <p>
+  * The source owns this decision because, for row-based sources, the copy (CRDT)
+  * is not rich enough to determine that a user deleted the row. The answer can
+  * only be inferred from the synced baseline, which is source-side state.
+  * <p>
+  * Defaults to false; sources without a baseline concept (e.g. entity views)
+  * inherit the default.
+  *
+  * @param sourceItem the unmatched source item to test
+  * @return true if the user deleted this item from the copy, false otherwise
+  */
+ default boolean wasDeletedByUser(S sourceItem) {
+  return false;
+ }
 }

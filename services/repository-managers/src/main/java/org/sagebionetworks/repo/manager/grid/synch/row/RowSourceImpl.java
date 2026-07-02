@@ -173,6 +173,37 @@ public class RowSourceImpl implements RowSource {
 	}
 
 	/**
+	 * Checks if a copy row is unmatchable with the source, delegated to
+	 * {@link SourceHandler#isUnmatchableCopyRow}. For a RecordSet source this is a row
+	 * with an incomplete upsert key; other sources inherit the default (all rows are
+	 * matchable).
+	 *
+	 * @param copyItem the copy row to test
+	 * @return true if the row should be excluded from keyed matching but preserved
+	 */
+	@Override
+	public boolean isExcludedFromMatching(RowCopyItem copyItem) {
+		return sourceHandler.isUnmatchableCopyRow(copyItem);
+	}
+
+	/**
+	 * Determines whether a source row absent from the copy was deleted by the user.
+	 * A deletion is recognized only when the row's key was present in the synced
+	 * baseline AND the source row has not changed since then (otherwise the deletion
+	 * was made against stale data and the row is re-imported). Delegated to the
+	 * baseline queries on {@link SourceHandler}; sources without a baseline concept
+	 * (e.g. entity views) return false.
+	 *
+	 * @param sourceItem the unmatched source row
+	 * @return true if the user deleted this row from the copy, false otherwise
+	 */
+	@Override
+	public boolean wasDeletedByUser(RowSourceItemReference sourceItem) {
+		String key = sourceItem.getKey();
+		return sourceHandler.wasInSyncedBaseline(key) && !sourceHandler.changedSinceBaseline(key);
+	}
+
+	/**
 	 * Determines whether a copy row and source row match (have identical content).
 	 * Uses hash-based comparison for efficient change detection without comparing
 	 * individual cells.

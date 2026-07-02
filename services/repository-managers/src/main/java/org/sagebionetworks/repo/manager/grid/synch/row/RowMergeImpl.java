@@ -123,7 +123,7 @@ public class RowMergeImpl implements RowMerge {
 
 		RowSourceItem sourceItem = sourceItemRef.fetchRow();
 		CellCopyImpl cellCopy = new CellCopyImpl(copyItem, columnNameMap.keySet());
-		CellSourceImpl cellSource = new CellSourceImpl(sourceItem);
+		CellSourceImpl cellSource = new CellSourceImpl(sourceItem, CellCopyImpl.getUserDeletedCells(copyItem));
 
 		// Cells the user changed that diverge from the source (resolved via the
 		// wasChangedByUser branch). On a PULL these are preserved rather than rewritten,

@@ -191,4 +191,48 @@ public class RowSourceImplTest {
 		verify(mockSourceHandler).canAddRemoveRows();
 		verifyNoMoreInteractionsWithAllMocks();
 	}
+
+	@Test
+	public void testIsExcludedFromMatching() {
+		RowCopyItemImpl copyItem = new RowCopyItemImpl().setSynapseRow(new SynapseRow().setRowId(1L));
+		when(mockSourceHandler.isUnmatchableCopyRow(copyItem)).thenReturn(true);
+
+		// call under test — freezing delegates to the source handler's keying rules.
+		assertTrue(source.isExcludedFromMatching(copyItem));
+
+		verify(mockSourceHandler).isUnmatchableCopyRow(copyItem);
+		verifyNoMoreInteractionsWithAllMocks();
+	}
+
+	@Test
+	public void testWasDeletedByUserWhenInBaselineAndUnchanged() {
+		when(mockRowHeader.getKey()).thenReturn("k1");
+		when(mockSourceHandler.wasInSyncedBaseline("k1")).thenReturn(true);
+		when(mockSourceHandler.changedSinceBaseline("k1")).thenReturn(false);
+
+		// call under test — a row absent from the grid was deleted by the user iff its
+		// key was in the synced baseline AND the source row has not changed since then.
+		assertTrue(source.wasDeletedByUser(mockRowHeader));
+	}
+
+	@Test
+	public void testWasDeletedByUserWhenNotInBaseline() {
+		when(mockRowHeader.getKey()).thenReturn("k1");
+		when(mockSourceHandler.wasInSyncedBaseline("k1")).thenReturn(false);
+
+		// call under test — the key was never in the baseline, so its absence is a
+		// source-side addition, not a user deletion.
+		assertFalse(source.wasDeletedByUser(mockRowHeader));
+	}
+
+	@Test
+	public void testWasDeletedByUserWhenSourceChangedSinceBaseline() {
+		when(mockRowHeader.getKey()).thenReturn("k1");
+		when(mockSourceHandler.wasInSyncedBaseline("k1")).thenReturn(true);
+		when(mockSourceHandler.changedSinceBaseline("k1")).thenReturn(true);
+
+		// call under test — the user deleted this row, but the source row changed since
+		// the synced revision, so it is re-imported rather than treated as a deletion.
+		assertFalse(source.wasDeletedByUser(mockRowHeader));
+	}
 }

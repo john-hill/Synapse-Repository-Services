@@ -5,10 +5,13 @@ import java.util.List;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
+import org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
 import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
@@ -56,20 +59,25 @@ public interface SynchronizeProvider {
 	/**
 	 * Creates a Copy implementation for row synchronization during Phase 2. The copy
 	 * applies grid CRDT changes (insert/delete) directly via the
-	 * {@code intendedChangePublisher} and reports surviving rows to the source
-	 * handler.
+	 * {@code intendedChangePublisher}. It depends only on the copy (CRDT) side.
 	 *
 	 * @param intendedChangePublisher publisher for recording grid CRDT changes
 	 * @param finalSchema             the synchronized schema from Phase 1
 	 * @param reader                  handler providing access to the copy's current
 	 *                                rows
-	 * @param handler                 the source handler, used for key extraction,
-	 *                                baseline-based deletion detection, freezing, and
-	 *                                surviving-row observation
 	 * @return a RowCopy instance for synchronizing row data
 	 */
-	RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader,
-	                   SourceHandler handler);
+	RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader);
+
+	/**
+	 * Creates the row-phase {@link SyncOutcomeListener} that forwards surviving rows
+	 * (both retained and pulled) to the source handler so a pushed artifact can
+	 * capture the full final grid contents.
+	 *
+	 * @param handler the source handler receiving surviving rows
+	 * @return a listener over row items
+	 */
+	SyncOutcomeListener<RowCopyItem, RowSourceItemReference> getRowSyncOutcomeListener(SourceHandler handler);
 
 	/**
 	 * Creates a Source implementation for row synchronization during Phase 2.

@@ -27,12 +27,15 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilde
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
+import org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandlerProvider;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandlerProvider;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
 import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
@@ -79,6 +82,8 @@ public class GridSynchronizationManagerImplTest {
 	@Mock
 	private RowMerge mockRowMerge;
 	@Mock
+	private SyncOutcomeListener<RowCopyItem, RowSourceItemReference> mockRowSyncListener;
+	@Mock
 	private IntendedChangePublisher mockIntendedChangePublisher;
 	@Mock
 	private AsyncJobProgressCallback mockCallback;
@@ -123,11 +128,12 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSchemaCopy.getFinalSchema()).thenReturn(finalSchema);
 		when(mockSynchronizeProvider.getSchemaSource(eq(mockSourceHandler), eq(List.of("foo"))))
 				.thenReturn(mockSchemaSource);
-		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler,
-				mockSourceHandler)).thenReturn(mockRowCopy);
+		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler))
+				.thenReturn(mockRowCopy);
 		when(mockSynchronizeProvider.getRowSource(mockSourceReader, mockSourceHandler)).thenReturn(mockRowSource);
 		when(mockSynchronizeProvider.getRowMerge(mockLogic, mockIntendedChangePublisher, finalSchema, mockCopyHandler, mockSourceHandler,
 				false)).thenReturn(mockRowMerge);
+		when(mockSynchronizeProvider.getRowSyncOutcomeListener(mockSourceHandler)).thenReturn(mockRowSyncListener);
 
 		Set<Long> benefactorIds = Set.of(111L, 222L);
 		when(mockSourceHandler.getErrorMessages()).thenReturn(List.of("errorOne", "errorTwo"));
@@ -148,7 +154,7 @@ public class GridSynchronizationManagerImplTest {
 		// the source prepares any push artifact keyed to the final schema
 		verify(mockSourceHandler).beginPush(mockCallback, finalSchema, SyncType.PULL_PUSH);
 		verify(mockLogic).synchronize(eq(mockSchemaCopy), eq(mockSchemaSource), any());
-		verify(mockLogic).synchronize(mockRowCopy, mockRowSource, mockRowMerge);
+		verify(mockLogic).synchronize(mockRowCopy, mockRowSource, mockRowMerge, mockRowSyncListener);
 		// updateSessionBenefactorIds on gridManager handles both DAO update and eviction
 		verify(mockGridManager).updateSessionBenefactorIds(gridSessionId, benefactorIds);
 		// the synced source revision is recorded as the new baseline version
@@ -207,8 +213,8 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSynchronizeProvider.getSchemaCopy(eq(mockIntendedChangePublisher), any())).thenReturn(mockSchemaCopy);
 		when(mockSchemaCopy.getFinalSchema()).thenReturn(finalSchema);
 		when(mockSynchronizeProvider.getSchemaSource(eq(mockSourceHandler), any())).thenReturn(mockSchemaSource);
-		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler,
-				mockSourceHandler)).thenReturn(mockRowCopy);
+		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler))
+				.thenReturn(mockRowCopy);
 		when(mockSynchronizeProvider.getRowSource(mockSourceReader, mockSourceHandler)).thenReturn(mockRowSource);
 		when(mockSynchronizeProvider.getRowMerge(mockLogic, mockIntendedChangePublisher, finalSchema, mockCopyHandler, mockSourceHandler,
 				false)).thenReturn(mockRowMerge);
@@ -245,8 +251,8 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSynchronizeProvider.getSchemaCopy(eq(mockIntendedChangePublisher), any())).thenReturn(mockSchemaCopy);
 		when(mockSchemaCopy.getFinalSchema()).thenReturn(finalSchema);
 		when(mockSynchronizeProvider.getSchemaSource(eq(mockSourceHandler), any())).thenReturn(mockSchemaSource);
-		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler,
-				mockSourceHandler)).thenReturn(mockRowCopy);
+		when(mockSynchronizeProvider.getRowCopy(mockIntendedChangePublisher, finalSchema, mockCopyHandler))
+				.thenReturn(mockRowCopy);
 		when(mockSynchronizeProvider.getRowSource(mockSourceReader, mockSourceHandler)).thenReturn(mockRowSource);
 		// PULL: the merge must preserve user attribution
 		when(mockSynchronizeProvider.getRowMerge(mockLogic, mockIntendedChangePublisher, finalSchema, mockCopyHandler, mockSourceHandler,

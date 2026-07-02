@@ -5,15 +5,19 @@ import java.util.List;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
+import org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyImpl;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowMergeImpl;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowSourceImpl;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
 import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopyImpl;
 import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSource;
@@ -40,8 +44,13 @@ public class SynchronizeProviderImpl implements SynchronizeProvider {
 
 	@Override
 	public RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema,
-			CopyHandler reader, SourceHandler handler) {
-		return new RowCopyImpl(finalSchema, intendedChangePublisher, reader, handler);
+			CopyHandler reader) {
+		return new RowCopyImpl(finalSchema, intendedChangePublisher, reader);
+	}
+
+	@Override
+	public SyncOutcomeListener<RowCopyItem, RowSourceItemReference> getRowSyncOutcomeListener(SourceHandler handler) {
+		return new RowSyncOutcomeListener(handler);
 	}
 
 	@Override

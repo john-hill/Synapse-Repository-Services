@@ -131,31 +131,6 @@ public class SchemaCopyImpl implements SchemaCopy {
 	}
 
 	/**
-	 * Determines whether a column was deleted by the user from the copy. This is
-	 * used during Phase 2 of {@link SynchronizationLogic#synchronize} to decide
-	 * whether to remove the column from the source (push user deletion) or add it
-	 * to the copy (external addition).
-	 *
-	 * <p>
-	 * TODO: Find a way to determine if a column was deleted by the user. For now,
-	 * returns false which means if a column was deleted in the grid, it will be
-	 * added back from the source during synchronization.
-	 *
-	 * @param key the column name to check
-	 * @return false (always, until user deletion tracking is implemented)
-	 */
-	@Override
-	public boolean wasDeletedByUser(String key) {
-		/*
-		 * TODO: find a way to determine if a column was deleted by the user. For now,
-		 * return false which means if a column was deleted in the grid, it will be
-		 * added back from the source during synchronization.
-		 * 
-		 */
-		return false;
-	}
-
-	/**
 	 * Removes a column from the copy schema. Called during Phase 1 of
 	 * {@link SynchronizationLogic#synchronize} when a column exists in the copy but
 	 * not in the source, and was not changed by the user (pulling external deletion

@@ -161,7 +161,6 @@ public class CSVUtils {
 		if(currentType != null){
 			currentMaxSize = currentType.getMaximumSize();
 		}
-		Long currentListSize = currentType != null ? currentType.getMaximumListLength() : null;
 		int startIndex = findIndexOf(currentType);
 		// Try each type in order
 		for(int i=startIndex; i<typesToCheck.length; i++){
@@ -176,18 +175,7 @@ public class CSVUtils {
 			}
 			cm.setMaximumSize(maxSize);
 			if (ColumnTypeListMappings.isList(type)) {
-				if (listInfo.isPresent()) {
-					long valueListSize = listInfo.get().listSize;
-					cm.setMaximumListLength(currentListSize != null ? Math.max(valueListSize, currentListSize) : valueListSize);
-				} else {
-					cm.setMaximumListLength(currentListSize);
-				}
-				if (cm.getMaximumListLength() != null) {
-					// Sampled rows may contain only single-element lists, yielding 1; a LIST column requires
-					// maximumListLength >= MINIMUM_LIST_LENGTH (enforced by ColumnModelUtils). A null value is
-					// left as-is and defaults to DEFAULT_LIST_LENGTH downstream.
-					cm.setMaximumListLength(Math.max(cm.getMaximumListLength(), ColumnConstants.MINIMUM_LIST_LENGTH));
-				}
+				cm.setMaximumListLength(ColumnConstants.DEFAULT_LIST_LENGTH);
 			}
 			try {
 				TableModelUtils.validateValue(value, cm);

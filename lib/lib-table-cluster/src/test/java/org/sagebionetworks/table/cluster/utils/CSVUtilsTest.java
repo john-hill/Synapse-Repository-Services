@@ -525,8 +525,7 @@ public class CSVUtilsTest {
 		ColumnModel cm = CSVUtils.checkType("[\"a\",\"b\"]", intList);
 		assertNotNull(cm);
 		assertEquals(ColumnType.STRING_LIST, cm.getColumnType());
-		// maximumListLength should be carried forward (max of 3 and 2)
-		assertEquals(Long.valueOf(3), cm.getMaximumListLength());
+		assertEquals(ColumnConstants.DEFAULT_LIST_LENGTH, cm.getMaximumListLength());
 	}
 
 	@Test
@@ -601,7 +600,8 @@ public class CSVUtilsTest {
 		ColumnModel cm = CSVUtils.checkType("[\"a\",\"b\"]", current);
 		// maximumSize is max of current (4) and longest element "a"/"b" (1) = 4
 		assertEquals(
-				new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(4L).setMaximumListLength(2L),
+				new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(4L)
+						.setMaximumListLength(ColumnConstants.DEFAULT_LIST_LENGTH),
 				cm);
 	}
 
@@ -611,44 +611,8 @@ public class CSVUtilsTest {
 		// call under test
 		ColumnModel cm = CSVUtils.checkType("[1,2,3,4]", current);
 		assertEquals(
-				new ColumnModel().setColumnType(ColumnType.INTEGER_LIST).setMaximumSize(9L).setMaximumListLength(4L),
-				cm);
-	}
-
-	@Test
-	public void testCheckTypeWithSingleElementStringListFloorsToMinimum() {
-		// A single-element list yields an inferred list size of 1, but a LIST column requires
-		// maximumListLength >= MINIMUM_LIST_LENGTH (2), so the value must be floored to 2.
-		// call under test
-		ColumnModel cm = CSVUtils.checkType("[\"a\"]", null);
-		assertEquals(
-				new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(1L)
-						.setMaximumListLength(ColumnConstants.MINIMUM_LIST_LENGTH),
-				cm);
-	}
-
-	@Test
-	public void testCheckTypeWithSingleElementIntegerListFloorsToMinimum() {
-		// call under test
-		ColumnModel cm = CSVUtils.checkType("[1]", null);
-		// maximumSize for a non-STRING_LIST type is derived from the whole cell length ("[1]" = 3).
-		assertEquals(
-				new ColumnModel().setColumnType(ColumnType.INTEGER_LIST).setMaximumSize(3L)
-						.setMaximumListLength(ColumnConstants.MINIMUM_LIST_LENGTH),
-				cm);
-	}
-
-	@Test
-	public void testCheckTypeWithCurrentSingleElementListFloorsToMinimum() {
-		// Both the current column and the new value carry a single-element list, so the running
-		// max is 1; it must still be floored to MINIMUM_LIST_LENGTH (2).
-		ColumnModel current = new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(1L)
-				.setMaximumListLength(1L);
-		// call under test
-		ColumnModel cm = CSVUtils.checkType("[\"b\"]", current);
-		assertEquals(
-				new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(1L)
-						.setMaximumListLength(ColumnConstants.MINIMUM_LIST_LENGTH),
+				new ColumnModel().setColumnType(ColumnType.INTEGER_LIST).setMaximumSize(9L)
+						.setMaximumListLength(ColumnConstants.DEFAULT_LIST_LENGTH),
 				cm);
 	}
 

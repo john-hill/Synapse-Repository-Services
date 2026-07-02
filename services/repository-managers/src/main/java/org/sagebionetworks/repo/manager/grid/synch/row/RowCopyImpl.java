@@ -41,7 +41,7 @@ import com.google.common.base.Functions;
  *
  * <p>
  * It depends only on the copy (CRDT) side: it never consults the source. All
- * source-derived decisions (keying, freezing, deletion detection) live on the
+ * source-derived decisions (keying, matchability, deletion detection) live on the
  * {@link org.sagebionetworks.repo.manager.grid.synch.core.Source} side, and
  * surviving-row observation is handled by a
  * {@link org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener}.

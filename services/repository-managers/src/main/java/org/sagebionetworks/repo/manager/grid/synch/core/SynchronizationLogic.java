@@ -88,9 +88,8 @@ public class SynchronizationLogic {
 		// Phase 1: Process all items in the copy
 		Set<String> seenKeys = new HashSet<>();
 		copy.streamItems().forEach(copyItem -> {
-			// A frozen item is excluded from keyed matching (the source cannot match it)
-			// but still survives in the copy.
 			if (source.isExcludedFromMatching(copyItem)) {
+				// An item which excluded from matching does not proceed in the sync, but still survives in the copy.
 				listener.onRetainedInCopy(copyItem);
 				return;
 			}

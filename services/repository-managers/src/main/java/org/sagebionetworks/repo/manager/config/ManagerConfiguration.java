@@ -33,6 +33,7 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
 import org.opensearch.client.transport.aws.AwsSdk2Transport;
 import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.avro.pfb.model.Metadata;
 import org.sagebionetworks.aws.v2.AwsCredentialsProviderV2;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
@@ -120,6 +121,7 @@ import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
+import software.amazon.awssdk.services.opensearch.model.DomainStatus;
 import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
 import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -285,10 +287,11 @@ public class ManagerConfiguration {
 	@Bean
 	public Map<OAuthProvider, OAuthProviderBinding> oauthProvidersBindingMap(StackConfiguration config,
 			SimpleHttpClient client) {
-		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client), 
+		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client),
 				OAuthProvider.ORCID, orcidOAuthProvider(config, client),
 				OAuthProvider.ARCUS_BIOSCIENCES, arcusBioOAuthProvider(config, client),
-				OAuthProvider.SAGE_BIONETWORKS, sageBioOAuthProvider(config, client)
+				OAuthProvider.SAGE_BIONETWORKS, sageBioOAuthProvider(config, client),
+				OAuthProvider.NIH_RESEARCHER_AUTH_SERVICE, nihRASOAuthProvider(config, client)
 				);
 	}
 
@@ -408,6 +411,13 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
+	public software.amazon.awssdk.services.opensearch.OpenSearchClient searchIndexManagementClient(
+			AwsCredentialsProvider credentialProvider) {
+		return software.amazon.awssdk.services.opensearch.OpenSearchClient.builder()
+				.credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
 	public SdkHttpClient ossHttpClient() {
 		return ApacheHttpClient.builder().build();
 	}
@@ -422,6 +432,38 @@ public class ManagerConfiguration {
 
 		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
 				collection.collectionEndpoint().replace("https://", ""), "aoss", Region.US_EAST_1,
+				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
+
+		warmAnalysisDeserializers(client);
+
+		return client;
+	}
+
+	/**
+	 * Data-plane client for the per-entity SearchIndex managed Amazon OpenSearch Service
+	 * domain. The domain's endpoint is discovered at bean-init via {@code describeDomain}
+	 * (control-plane), mirroring how {@link #synSearchOssClient} discovers the AOSS collection
+	 * endpoint via {@code batchGetCollection} — so a developer running the service locally
+	 * needs only the stack/instance configuration, not an injected endpoint. A VPC-attached
+	 * domain (prod) leaves {@code DomainStatus.endpoint()} null and publishes its host under
+	 * the {@code endpoints()} map's {@code "vpc"} key; a domain with no VPCOptions (dev) has a
+	 * public endpoint under {@code DomainStatus.endpoint()} instead. Signs requests for the
+	 * {@code es} service (managed OpenSearch) rather than {@code aoss} (serverless).
+	 */
+	@Bean
+	public OpenSearchClient searchIndexManagedClient(
+			software.amazon.awssdk.services.opensearch.OpenSearchClient searchIndexManagementClient,
+			AwsCredentialsProvider credentialProvider, StackConfiguration config, SdkHttpClient httpClient) {
+		String domainName = config.getStack() + "-" + config.getStackInstance() + "-synidx";
+
+		DomainStatus domainStatus = searchIndexManagementClient.describeDomain(req -> req.domainName(domainName))
+				.domainStatus();
+		String endpoint = domainStatus.vpcOptions() != null ? domainStatus.endpoints().get("vpc")
+				: domainStatus.endpoint();
+		ValidateArgument.requiredNotBlank(endpoint, "Endpoint for OpenSearch domain " + domainName);
+
+		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
+				endpoint.replace("https://", ""), "es", Region.US_EAST_1,
 				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
 
 		warmAnalysisDeserializers(client);

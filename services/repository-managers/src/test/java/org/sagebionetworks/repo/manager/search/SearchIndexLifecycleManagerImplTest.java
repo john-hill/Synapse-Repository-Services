@@ -39,6 +39,7 @@ import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManagerImpl.SearchIndexRowHandler;
@@ -134,6 +135,8 @@ public class SearchIndexLifecycleManagerImplTest {
 	private WriteLock writeLock;
 	@Mock
 	private TableIndexDAO indexDao;
+	@Mock
+	private StackConfiguration stackConfiguration;
 
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
@@ -322,7 +325,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
 		// The pre-build deleteIndex was attempted (it threw); createIndex / row stream never ran.
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 		verify(indexDao, never()).queryAsStream(any(), any());
 	}
 
@@ -488,7 +491,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(statusDao, never()).createOrUpdate(any());
 		verify(openSearchManager, never()).deleteIndex(any());
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 	}
 
 	@Test
@@ -529,7 +532,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager, indexDao);
 		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
 		order.verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID),
-				any(), any(), any(), any(), anyInt());
+				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 		order.verify(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
 		order.verify(indexDao).queryAsStream(any(), any());
 	}
@@ -1032,7 +1035,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		verify(openSearchManager).createIndex(any(), any(), any(), any(), any(), anyInt());
+		verify(openSearchManager).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 	}
 
 	@Test
@@ -1055,7 +1058,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any(), anyInt());
+		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any(), anyInt(), anyInt(), anyInt());
 	}
 
 	@Test
@@ -1604,6 +1607,61 @@ public class SearchIndexLifecycleManagerImplTest {
 				new SelectColumn().setName("ROW_BENEFACTOR__A0").setColumnType(ColumnType.INTEGER),
 				new SelectColumn().setName("ROW_BENEFACTOR__A1").setColumnType(ColumnType.INTEGER)),
 				query.getSelectColumns());
+	}
+
+	// -------- computeShardCount boundary tests --------
+
+	@Test
+	public void testComputeShardCountWithNull() {
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(null));
+	}
+
+	@Test
+	public void testComputeShardCountWithZero() {
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(0L));
+	}
+
+	@Test
+	public void testComputeShardCountWithNegative() {
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(-5L));
+	}
+
+	@Test
+	public void testComputeShardCountWithOneByteYieldsSingleShard() {
+		// 1 byte << TARGET_SHARD_BYTES — always 1 shard
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(1L));
+	}
+
+	@Test
+	public void testComputeShardCountWithExactMultiple() {
+		// Exactly one TARGET_SHARD_BYTES = ceil(1) = 1 shard
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(
+				SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES));
+	}
+
+	@Test
+	public void testComputeShardCountWithOneByteOverTarget() {
+		// TARGET_SHARD_BYTES + 1 = ceil(>1.0) = 2 shards
+		// call under test
+		assertEquals(2, SearchIndexLifecycleManagerImpl.computeShardCount(
+				SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES + 1));
+	}
+
+	@Test
+	public void testComputeShardCountWithClampToMax() {
+		// A size that would bucket into MAX_SHARDS + 1 shards must be clamped down to
+		// MAX_SHARDS. Expressed as a multiple of TARGET_SHARD_BYTES so it stays well clear
+		// of the ceiling-arithmetic overflow that Long.MAX_VALUE would cause.
+		long overMaxBytes = SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES
+				* (SearchIndexLifecycleManagerImpl.MAX_SHARDS + 1);
+		// call under test
+		assertEquals(SearchIndexLifecycleManagerImpl.MAX_SHARDS,
+				SearchIndexLifecycleManagerImpl.computeShardCount(overMaxBytes));
 	}
 
 }

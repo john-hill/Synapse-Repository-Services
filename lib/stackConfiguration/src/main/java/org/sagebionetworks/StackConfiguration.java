@@ -840,7 +840,7 @@ public interface StackConfiguration {
 	public String getFileServiceEndpoint();
 
 	/**
-	 * 
+	 *
 	 * @return search service endpoint
 	 */
 	public String getSearchServiceEndpoint();

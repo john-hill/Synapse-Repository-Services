@@ -56,6 +56,7 @@ import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 /**
@@ -177,8 +178,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private final OpenSearchClient openSearchClient;
 
-	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
-		this.openSearchClient = openSearchClient;
+	public OpenSearchManagerImpl(@Qualifier("searchIndexManagedClient") OpenSearchClient searchIndexManagedClient) {
+		this.openSearchClient = searchIndexManagedClient;
 	}
 
 	@Override
@@ -186,7 +187,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
-			int benefactorCount) {
+			int benefactorCount, int numberOfShards, int numberOfReplicas) {
 		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
 
 		Map<String, String> nameToId = columns.stream()
@@ -196,10 +197,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		try {
 			CreateIndexRequest request = CreateIndexRequest.of(req -> req
 					.index(indexName)
-					.settings(s -> s.analysis(a -> {
-						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-						return a;
-					}))
+					.settings(s -> s
+						.numberOfShards(numberOfShards)
+						.numberOfReplicas(numberOfReplicas)
+						.analysis(a -> {
+							buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+							return a;
+						}))
 					.mappings(m -> {
 						buildMappings(m, columns, defaultAnalyzer,
 								overrideMap, resolvedAnalyzers, benefactorCount);

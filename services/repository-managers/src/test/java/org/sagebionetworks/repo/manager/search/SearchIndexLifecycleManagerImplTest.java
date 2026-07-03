@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
@@ -35,6 +36,7 @@ import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManagerImpl.SearchIndexRowHandler;
@@ -42,6 +44,7 @@ import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
@@ -109,6 +112,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	private WriteReadSemaphore writeReadSemaphore;
 	@Mock
 	private WriteLock writeLock;
+	@Mock
+	private StackConfiguration stackConfiguration;
+	@Mock
+	private TableIndexDAO tableIndexDao;
 
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
@@ -148,6 +155,9 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anon);
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
@@ -288,6 +298,9 @@ public class SearchIndexLifecycleManagerImplTest {
 				ErrorResponse.of(er -> er.error(cause).status(400)));
 
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
@@ -314,7 +327,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
 		// The pre-build deleteIndex was attempted (it threw); createIndex / row stream never ran.
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt());
 		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
 	}
 
@@ -459,7 +472,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(statusDao, never()).createOrUpdate(any());
 		verify(openSearchManager, never()).deleteIndex(any());
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt());
 	}
 
 	@Test
@@ -471,6 +484,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		searchIndex.setParentId("syn100");
 
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
@@ -528,6 +544,9 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
@@ -544,7 +563,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager, tableQueryManager);
 		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
 		order.verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID),
-				any(), any(), any(), any());
+				any(), any(), any(), any(), anyInt(), anyInt());
 		order.verify(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
 		order.verify(tableQueryManager).runQueryAsStream(eq(progressCallback), any(UserInfo.class),
 				any(), any(), any());
@@ -562,6 +581,9 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
@@ -936,7 +958,8 @@ public class SearchIndexLifecycleManagerImplTest {
 		return org.mockito.ArgumentMatchers.anyList();
 	}
 
-	/** Stub the minimum chain that lets buildIndex reach the row-stream phase. */
+	/** Stub the minimum chain through the row-count gate. Does NOT stub shard-sizing; call
+	 * {@link #stubShardSizing()} additionally for tests that proceed past the count check. */
 	private void stubHappyPathThroughCreateIndex() throws Exception {
 		stubBuildLock();
 		UserInfo triggering = triggeringUser();
@@ -951,6 +974,15 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+	}
+
+	/** Stub the shard-sizing lookups. Must be called for any test that proceeds past the
+	 * row-count check so the connectionFactory.getConnection and stackConfiguration calls do not
+	 * raise UnnecessaryStubbingException on tests that throw before reaching this code. */
+	private void stubShardSizing() {
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 	}
 
 	// -------- buildIndex — additional branch coverage --------
@@ -1017,18 +1049,20 @@ public class SearchIndexLifecycleManagerImplTest {
 	public void testHandleCreateAcceptsNullRowCount() throws Exception {
 		// L257: rowCount == null — short-circuits the > MAX_ROWS guard and proceeds.
 		stubHappyPathThroughCreateIndex();
+		stubShardSizing();
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenReturn(new QueryResultBundle()); // no queryCount set
 
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		verify(openSearchManager).createIndex(any(), any(), any(), any(), any());
+		verify(openSearchManager).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt());
 	}
 
 	@Test
 	public void testHandleCreateWithConfigSetsDefaultAnalyzer() throws Exception {
 		// L265: config != null branch — readRef extracts the qname and forwards it to createIndex.
 		stubHappyPathThroughCreateIndex();
+		stubShardSizing();
 		String defaultQname = "org.sagebionetworks-SCIENTIFIC";
 		SearchConfiguration config = new SearchConfiguration()
 				.setDefaultAnalyzer(new org.json.JSONObject().put("$ref", defaultQname));
@@ -1043,7 +1077,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any());
+		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any(), anyInt(), anyInt());
 	}
 
 	@Test
@@ -1051,6 +1085,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// An IOException from the stream is a genuine build failure — falls through to
 		// the FAILED-marking path. The IOException itself is swallowed.
 		stubHappyPathThroughCreateIndex();
+		stubShardSizing();
 		doThrow(new IOException("disk full"))
 				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
 
@@ -1067,6 +1102,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// L319: OpenSearchException that ISN'T a concurrent-delete falls through to the
 		// FAILED-marking path.
 		stubHappyPathThroughCreateIndex();
+		stubShardSizing();
 		org.opensearch.client.opensearch._types.OpenSearchException opensearchEx =
 				new org.opensearch.client.opensearch._types.OpenSearchException(
 						new org.opensearch.client.opensearch._types.ErrorResponse.Builder()
@@ -1092,6 +1128,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// L335: e.getMessage() == null — truncate guard short-circuits cleanly and the
 		// FAILED status carries a null errorMessage.
 		stubHappyPathThroughCreateIndex();
+		stubShardSizing();
 		doThrow(new RuntimeException((String) null))
 				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
 
@@ -1451,6 +1488,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
 
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
+		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		when(stackConfiguration.isProductionStack()).thenReturn(false);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
@@ -1481,6 +1521,61 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertTrue(nestedLockCaptor.getAllValues().stream()
 				.noneMatch(s -> s.getState() == SearchIndexState.FAILED),
 				"nested lock-unavailable must not mark the index FAILED");
+	}
+
+	// -------- computeShardCount boundary tests --------
+
+	@Test
+	public void testComputeShardCountWithNull() {
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(null));
+	}
+
+	@Test
+	public void testComputeShardCountWithZero() {
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(0L));
+	}
+
+	@Test
+	public void testComputeShardCountWithNegative() {
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(-5L));
+	}
+
+	@Test
+	public void testComputeShardCountWithOneByteYieldsSingleShard() {
+		// 1 byte << TARGET_SHARD_BYTES — always 1 shard
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(1L));
+	}
+
+	@Test
+	public void testComputeShardCountWithExactMultiple() {
+		// Exactly one TARGET_SHARD_BYTES = ceil(1) = 1 shard
+		// call under test
+		assertEquals(1, SearchIndexLifecycleManagerImpl.computeShardCount(
+				SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES));
+	}
+
+	@Test
+	public void testComputeShardCountWithOneByteOverTarget() {
+		// TARGET_SHARD_BYTES + 1 = ceil(>1.0) = 2 shards
+		// call under test
+		assertEquals(2, SearchIndexLifecycleManagerImpl.computeShardCount(
+				SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES + 1));
+	}
+
+	@Test
+	public void testComputeShardCountWithClampToMax() {
+		// A size that would bucket into MAX_SHARDS + 1 shards must be clamped down to
+		// MAX_SHARDS. Expressed as a multiple of TARGET_SHARD_BYTES so it stays well clear
+		// of the ceiling-arithmetic overflow that Long.MAX_VALUE would cause.
+		long overMaxBytes = SearchIndexLifecycleManagerImpl.TARGET_SHARD_BYTES
+				* (SearchIndexLifecycleManagerImpl.MAX_SHARDS + 1);
+		// call under test
+		assertEquals(SearchIndexLifecycleManagerImpl.MAX_SHARDS,
+				SearchIndexLifecycleManagerImpl.computeShardCount(overMaxBytes));
 	}
 
 }

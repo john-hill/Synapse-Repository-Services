@@ -44,12 +44,17 @@ public interface OpenSearchManager {
 	 *                                 {@link SearchAnalyzerJsonUtil#resolveRefs}. Each value is the
 	 *                                 {@code settings.analysis} block for one TextAnalyzer with all
 	 *                                 {@code $ref} entries already substituted.
+	 * @param numberOfShards           The number of primary shards for the index, computed at build
+	 *                                 time from the source table's data size.
+	 * @param numberOfReplicas         The number of replica shards for the index (1 on prod, 0 on the
+	 *                                 single-node dev domain).
 	 * @return The JSON representation of the CreateIndexRequest, or empty if the index already existed
 	 */
 	Optional<String> createIndex(String indexName, List<ColumnModel> columns,
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers);
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int numberOfShards, int numberOfReplicas);
 
 	/**
 	 * Delete an OpenSearch index. No-op if the index does not exist.

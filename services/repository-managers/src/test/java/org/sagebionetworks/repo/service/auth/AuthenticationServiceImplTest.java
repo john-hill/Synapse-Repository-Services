@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -745,6 +746,78 @@ public class AuthenticationServiceImplTest {
 		});
 	}
 	
+
+	@Test
+	public void testBindOIDCIdentity() {
+		String realmId = "3";
+		userInfo = new UserInfo(false, userId, realmId);
+		OAuthValidationRequest request = new OAuthValidationRequest();
+		request.setAuthenticationCode("some code");
+		request.setProvider(OAuthProvider.GOOGLE_OAUTH_2_0);
+		request.setRedirectUrl("https://domain.com");
+		String subject = "subject-123";
+
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(realmId));
+		ProvidedUserInfo providedUserInfo = new ProvidedUserInfo();
+		providedUserInfo.setSubject(subject);
+		when(mockOAuthManager.validateUserWithProvider(
+				request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl())).thenReturn(providedUserInfo);
+
+		// call under test
+		service.bindOIDCIdentity(userId, request);
+
+		PrincipalAlias expectedAlias = new PrincipalAlias().setPrincipalId(userId);
+		verify(mockUserManager).bindUserToOidcSubject(eq(expectedAlias), eq(OAuthProvider.GOOGLE_OAUTH_2_0), eq(subject));
+	}
+
+	@Test
+	public void testBindOIDCIdentityWithAnonymous() {
+		Long anonId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+		UserInfo anonUserInfo = new UserInfo(false, anonId, "0");
+		anonUserInfo.setRealmAnonymousUserId(anonId);
+		when(mockUserManager.getUserInfo(anonId)).thenReturn(anonUserInfo);
+		assertThrows(UnauthorizedException.class, () -> service.bindOIDCIdentity(anonId, null));
+	}
+
+	@Test
+	public void testBindOIDCIdentityWithWrongRealm() {
+		String userRealmId = "3";
+		String requestRealmId = "4";
+		userInfo = new UserInfo(false, userId, userRealmId);
+		OAuthValidationRequest request = new OAuthValidationRequest();
+		request.setAuthenticationCode("some code");
+		request.setProvider(OAuthProvider.GOOGLE_OAUTH_2_0);
+		request.setRedirectUrl("https://domain.com");
+
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(requestRealmId));
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> {
+			service.bindOIDCIdentity(userId, request);
+		});
+		verify(mockOAuthManager, never()).validateUserWithProvider(any(), any(), any());
+	}
+
+	@Test
+	public void testBindOIDCIdentityWithNoRealm() {
+		String userRealmId = "3";
+		userInfo = new UserInfo(false, userId, userRealmId);
+		OAuthValidationRequest request = new OAuthValidationRequest();
+		request.setAuthenticationCode("some code");
+		request.setProvider(OAuthProvider.GOOGLE_OAUTH_2_0);
+		request.setRedirectUrl("https://domain.com");
+
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.empty());
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> {
+			service.bindOIDCIdentity(userId, request);
+		});
+		verify(mockOAuthManager, never()).validateUserWithProvider(any(), any(), any());
+	}
 
 	@Test
 	public void testUnbindExternalID() throws NotFoundException{

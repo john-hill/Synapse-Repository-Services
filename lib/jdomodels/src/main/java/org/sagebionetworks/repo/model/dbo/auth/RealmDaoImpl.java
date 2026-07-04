@@ -348,6 +348,9 @@ public class RealmDaoImpl implements RealmDao {
 		OAuthIdentityProvider orcidIdp = new OAuthIdentityProvider();
 		orcidIdp.setProvider(OAuthProvider.ORCID);
 		idps.add(orcidIdp);
+		OAuthIdentityProvider nihRasIdp = new OAuthIdentityProvider();
+		nihRasIdp.setProvider(OAuthProvider.NIH_RESEARCHER_AUTH_SERVICE);
+		idps.add(nihRasIdp);
 		defaultRealm.setIdentityProvider(idps);
 		// idempotent MUST be true to ensure that multiple, concurrent servers
 		// can bootstrap the default realm without any errors

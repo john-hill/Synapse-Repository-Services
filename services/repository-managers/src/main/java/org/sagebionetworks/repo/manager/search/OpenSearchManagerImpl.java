@@ -55,6 +55,7 @@ import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 /**
@@ -73,6 +74,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final Logger LOG = LogManager.getLogger(OpenSearchManagerImpl.class);
 
 	private static final int HTTP_TOO_MANY_REQUESTS = 429;
+	// AOSS returns 402 with service_quota_exceeded_exception ("maximum OCU capacity reached")
+	// when the collection hits its OCU ceiling — a transient, auto-scaling condition, so retryable.
+	private static final int HTTP_PAYMENT_REQUIRED = 402;
 	private static final int HTTP_INTERNAL_SERVER_ERROR = 500;
 	private static final int HTTP_MAX_SERVER_ERROR = 599;
 
@@ -169,15 +173,16 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private final OpenSearchClient openSearchClient;
 
-	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
-		this.openSearchClient = openSearchClient;
+	public OpenSearchManagerImpl(@Qualifier("searchIndexManagedClient") OpenSearchClient searchIndexManagedClient) {
+		this.openSearchClient = searchIndexManagedClient;
 	}
 
 	@Override
 	public Optional<String> createIndex(String indexName, List<ColumnModel> columns,
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers) {
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int numberOfShards, int numberOfReplicas) {
 		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
 
 		Map<String, String> nameToId = columns.stream()
@@ -187,10 +192,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		try {
 			CreateIndexRequest request = CreateIndexRequest.of(req -> req
 					.index(indexName)
-					.settings(s -> s.analysis(a -> {
-						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-						return a;
-					}))
+					.settings(s -> s
+						.numberOfShards(numberOfShards)
+						.numberOfReplicas(numberOfReplicas)
+						.analysis(a -> {
+							buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+							return a;
+						}))
 					.mappings(m -> {
 						buildMappings(m, columns, defaultAnalyzer,
 								overrideMap, resolvedAnalyzers);
@@ -712,6 +720,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	static boolean isRetryableItemStatus(int status) {
 		return status == HTTP_TOO_MANY_REQUESTS
+				|| status == HTTP_PAYMENT_REQUIRED
 				|| (status >= HTTP_INTERNAL_SERVER_ERROR && status <= HTTP_MAX_SERVER_ERROR);
 	}
 

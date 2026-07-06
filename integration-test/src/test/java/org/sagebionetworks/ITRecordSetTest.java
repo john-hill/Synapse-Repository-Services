@@ -27,8 +27,6 @@ import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 @ExtendWith(ITTestExtension.class)
 public class ITRecordSetTest {
 
-	private static final long INDEX_TIMEOUT_MS = 1000L * 60 * 2;
-
 	private SynapseAdminClient adminSynapse;
 	private SynapseClient synapse;
 	private Project project;

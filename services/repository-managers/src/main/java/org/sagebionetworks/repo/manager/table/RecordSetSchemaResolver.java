@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.table;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,12 +18,13 @@ import org.sagebionetworks.repo.manager.grid.CsvSchemaReconciler;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
+import org.sagebionetworks.repo.model.schema.JsonSchemaProperties;
 import org.sagebionetworks.repo.model.schema.Type;
-import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
+import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.springframework.stereotype.Service;
 
 import au.com.bytecode.opencsv.CSVReader;
@@ -112,32 +114,39 @@ public class RecordSetSchemaResolver {
 		return new ReconciledSchema(schema, requiredColumnIndices);
 	}
 
-	/**
-	 * Append a column for each top-level JSON Schema property that is not already
-	 * present in the CSV-inferred schema. This ensures that columns declared only
-	 * in the bound JSON Schema (not yet present in the CSV data) are surfaced. The
-	 * column type is derived from the property's declared {@link Type}; properties
-	 * are appended in a deterministic (name-sorted) order.
-	 *
-	 * @param schema           the schema to append to (CSV-inferred, already reconciled)
-	 * @param validationSchema the bound JSON Schema
-	 */
-	static void addJsonSchemaOnlyColumns(List<ColumnModel> schema, JsonSchema validationSchema) {
-		Map<String, JsonSchema> properties = validationSchema.getProperties();
-		if (properties == null) {
-			return;
-		}
-		Set<String> existingNames = schema.stream().map(ColumnModel::getName).collect(Collectors.toSet());
-		properties.entrySet().stream()
-				.filter(e -> !existingNames.contains(e.getKey()))
-				.sorted(Map.Entry.comparingByKey())
-				.forEach(e -> schema.add(toColumnModel(e.getKey(), e.getValue())));
+
+	public static List<ColumnModel> getJsonSchemaColumns(JsonSchema validationSchema) {
+		return JsonSchemaProperties.collectTopLevelProperties(validationSchema)
+				.entrySet()
+				.stream()
+				.map(e -> toColumnModel(e.getKey(), e.getValue()))
+				.toList();
 	}
+
+    /**
+     * Append a column for each top-level JSON Schema property that is not already
+     * present in the CSV-inferred schema. This ensures that columns declared only
+     * in the bound JSON Schema (not yet present in the CSV data) are surfaced. The
+     * column type is derived from the property's declared {@link Type}; properties
+     * are appended in a deterministic (name-sorted) order.
+     *
+     * @param schema           the schema to append to (CSV-inferred, already reconciled)
+     * @param validationSchema the bound JSON Schema
+     */
+    static void addJsonSchemaOnlyColumns(List<ColumnModel> schema, JsonSchema validationSchema) {
+        List<ColumnModel> properties = getJsonSchemaColumns(validationSchema);
+        Set<String> existingNames = schema.stream().map(ColumnModel::getName).collect(Collectors.toSet());
+        properties.stream()
+                .filter(e -> !existingNames.contains(e.getName()))
+                .sorted(Comparator.comparing(ColumnModel::getName))
+                .forEach(schema::add);
+    }
 
 	/**
 	 * Map a single JSON Schema property to a {@link ColumnModel}. Scalar types map
-	 * to their column equivalents; arrays map to a string list; objects, nulls, and
-	 * untyped properties default to a string.
+	 * to their column equivalents; length-constrained strings map to strings, arrays
+	 * map to a string list; objects, nulls, untyped properties and non-length-constrained
+	 * strings map to MEDIUMTEXT.
 	 *
 	 * @param name     the property (column) name
 	 * @param property the property's JSON Schema
@@ -145,18 +154,33 @@ public class RecordSetSchemaResolver {
 	 */
 	static ColumnModel toColumnModel(String name, JsonSchema property) {
 		ColumnModel column = new ColumnModel().setName(name);
+
 		Type type = property == null ? null : property.getType();
 		if (type == null) {
-			return column.setColumnType(ColumnType.STRING).setMaximumSize(ColumnConstants.DEFAULT_STRING_SIZE);
+			return column.setColumnType(ColumnType.MEDIUMTEXT);
 		}
-        return switch (type) {
-            case integer -> column.setColumnType(ColumnType.INTEGER);
-            case number -> column.setColumnType(ColumnType.DOUBLE);
-            case _boolean -> column.setColumnType(ColumnType.BOOLEAN);
-            case array ->
-                    column.setColumnType(ColumnType.STRING_LIST).setMaximumSize(ColumnConstants.DEFAULT_STRING_SIZE);
-            default -> column.setColumnType(ColumnType.STRING).setMaximumSize(ColumnConstants.DEFAULT_STRING_SIZE);
-        };
+		return switch (type) {
+			case integer -> column.setColumnType(ColumnType.INTEGER);
+			case number -> column.setColumnType(ColumnType.DOUBLE);
+			case _boolean -> column.setColumnType(ColumnType.BOOLEAN);
+			case object -> column.setColumnType(ColumnType.JSON);
+			case array ->  {
+				column = toColumnModel(name, property.getItems());
+				try {
+					column.setColumnType(ColumnTypeListMappings.listType(column.getColumnType()));
+				} catch (IllegalArgumentException e) {
+					column.setColumnType(ColumnType.MEDIUMTEXT);
+				}
+				yield column;
+			}
+			case string -> {
+				if (property.getMaxLength() != null) {
+					yield column.setColumnType(ColumnType.STRING).setMaximumSize(property.getMaxLength());
+				}
+				yield column.setColumnType(ColumnType.MEDIUMTEXT);
+			}
+			case _null -> column.setColumnType(ColumnType.MEDIUMTEXT);
+		};
 	}
 
 	List<ColumnModel> inferSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor, boolean fullScan) {
@@ -175,7 +199,7 @@ public class RecordSetSchemaResolver {
 		}
 	}
 
-	Optional<JsonSchema> getBoundValidationSchema(String entityId) {
+	public Optional<JsonSchema> getBoundValidationSchema(String entityId) {
 		return entityManager.findBoundSchema(entityId)
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id())
 				.map(jsonSchemaManager::getValidationSchema);

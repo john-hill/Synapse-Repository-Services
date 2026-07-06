@@ -53,7 +53,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
  * a schema can be bound to the freshly-created entity, the flow is:
  * create -> bind schema -> update. The update re-fires the provider with the
  * schema now bound, which binds the column schema and emits the change message
- * that drives the real RecordSetIndexWorker to build the index.
+ * that drives the RecordSetIndexWorker to build the index.
  * <p>
  * RecordSets MUST be created/updated through {@link EntityService} (not
  * {@link org.sagebionetworks.repo.manager.EntityManager}) so the

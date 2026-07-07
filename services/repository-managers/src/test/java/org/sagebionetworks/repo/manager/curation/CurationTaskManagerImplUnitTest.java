@@ -355,7 +355,7 @@ public class CurationTaskManagerImplUnitTest {
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = List.of(bundle1);
 
-        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq(taskId), anyLong(), anyLong()))
+        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq(taskIds), anyLong(), anyLong()))
                 .thenReturn(bundles);
 
         // call under test

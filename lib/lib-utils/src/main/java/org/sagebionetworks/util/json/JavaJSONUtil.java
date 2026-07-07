@@ -21,6 +21,7 @@ import org.sagebionetworks.util.json.translator.EnumTranslator;
 import org.sagebionetworks.util.json.translator.IdentityTranslator;
 import org.sagebionetworks.util.json.translator.JSONEntityTranslator;
 import org.sagebionetworks.util.json.translator.JSONType;
+import org.sagebionetworks.util.json.translator.SqlDateTranslator;
 import org.sagebionetworks.util.json.translator.TimestampTranslator;
 import org.sagebionetworks.util.json.translator.Translator;
 
@@ -34,7 +35,7 @@ public class JavaJSONUtil {
 			new IdentityTranslator<>(Long.class, long.class), new IdentityTranslator<>(Integer.class, int.class),
 			new IdentityTranslator<>(String.class), new IdentityTranslator<>(Boolean.class, boolean.class),
 			new IdentityTranslator<>(Double.class, double.class), new ByteArrayTranslator(), new DateTranslator(),
-			new TimestampTranslator(), new JSONEntityTranslator(), new EnumTranslator()));
+			new SqlDateTranslator(), new TimestampTranslator(), new JSONEntityTranslator(), new EnumTranslator()));
 
 	/**
 	 * Write the provided list of simple Java objects to a JSONArray. Each object

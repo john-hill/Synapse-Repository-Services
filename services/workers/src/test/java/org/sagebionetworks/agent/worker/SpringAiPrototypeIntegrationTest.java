@@ -15,7 +15,6 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
@@ -27,10 +26,10 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.AgentAccessLevel;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.utils.ContentTypeUtil;
 import org.springaicommunity.agentcore.artifacts.GeneratedFile;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
-import org.sagebionetworks.utils.ContentTypeUtil;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -61,7 +60,6 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
-//@EnabledIfSystemProperty(named = "spring.ai.tests.enabled", matches = "true")
 public class SpringAiPrototypeIntegrationTest {
 
 	@Autowired

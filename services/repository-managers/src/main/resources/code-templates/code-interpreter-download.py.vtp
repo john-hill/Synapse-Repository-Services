@@ -1,0 +1,4 @@
+import urllib.request
+url = """${presignedUrl}"""
+urllib.request.urlretrieve(url, '${fileName}')
+print('File downloaded successfully')

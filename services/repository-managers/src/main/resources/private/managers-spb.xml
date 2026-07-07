@@ -122,9 +122,6 @@
     
 	<bean id="sesClient" class="org.sagebionetworks.repo.manager.principal.SynapseEmailServiceImpl"/>
 
-	<bean id="amazonStsClient" class="org.sagebionetworks.aws.AwsClientFactory"
-		factory-method="createAmazonSecurityTokenServiceClient"/>
-
 	<bean id="messageManager" class="org.sagebionetworks.repo.manager.MessageManagerImpl" />
 
 	<bean id="fileProvider" class="org.sagebionetworks.util.FileProviderImpl" scope="singleton"/>

@@ -306,7 +306,7 @@ public class ITCurationTaskControllerTest {
             ListCurationTaskResponse response = synapse.listMetadataTasks(
                     new ListCurationTaskRequest()
                             .setProjectId(project.getId())
-                            .setTaskId(Arrays.asList(fbTask.getTaskId()))
+                            .setTaskIds(Arrays.asList(fbTask.getTaskId()))
             );
 
             assertNotNull(response.getPage());

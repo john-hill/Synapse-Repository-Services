@@ -341,8 +341,8 @@ public class CurationTaskManagerImplUnitTest {
 
     @Test
     public void testGetCurationTasksWithTaskIdsNoProjectId() {
-        List<Long> taskId = List.of(this.taskId);
-        ListCurationTaskRequest request = new ListCurationTaskRequest().setTaskId(taskId);
+        List<Long> taskIds = List.of(this.taskId);
+        ListCurationTaskRequest request = new ListCurationTaskRequest().setTaskIds(taskIds);
 
         Set<Long> allProjectIds = new HashSet<>(Arrays.asList(100L, 200L));
         Set<Long> accessibleIds = new HashSet<>(Arrays.asList(100L, 200L));

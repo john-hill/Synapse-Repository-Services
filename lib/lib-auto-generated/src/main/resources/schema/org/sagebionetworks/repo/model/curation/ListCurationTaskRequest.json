@@ -23,12 +23,12 @@
       },
       "description": "Optional. Filter tasks by their current state."
     },
-    "taskId": {
+    "taskIds": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Optional. Filter tasks by their task ID."
+      "description": "Optional. Filter tasks by their task IDs."
     },
     "nextPageToken": {
       "type": "string",

@@ -4,10 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -25,11 +22,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.docusign.DocuSignTemplateValidator.TabType;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
 import com.docusign.esign.client.ApiException;
+
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
@@ -40,27 +37,15 @@ import com.docusign.esign.model.TemplateRole;
 public class DocuSignClientTest {
 
 	@Mock
-	private DocuSignClientConfig mockConfig;
-	@Mock
 	private DocuSignTemplatesApi mockDocuSignTemplatesApi;
 	@Mock
 	private DocuSignEnvelopesApi mockDocuSignEnvelopesApi;
-	@Mock
-	private DocuSignAccessTokenProvider mockAccessTokenProvider;
 
 	@InjectMocks
 	private DocuSignClient client;
 
-	private static final String BASE_PATH = "https://demo.docusign.net/restapi";
-	private static final String ACCOUNT_ID = "account-guid";
-	private static final String ACCESS_TOKEN = "access-token";
-
 	@Test
-	public void testListTemplatesSuccess() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-
+	public void testListTemplatesSuccess() {
 		String createdIso = "2024-01-15T10:00:00.0000000Z";
 		String modifiedIso = "2024-02-20T15:30:00.0000000Z";
 		EnvelopeTemplate t1 = new EnvelopeTemplate();
@@ -75,8 +60,7 @@ public class DocuSignClientTest {
 		t2.setDescription("Data sharing agreement");
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
 		results.setEnvelopeTemplates(Arrays.asList(t1, t2));
-		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
-				.thenReturn(results);
+		when(mockDocuSignTemplatesApi.listTemplates("0", "51")).thenReturn(results);
 
 		// call under test
 		EDucTemplatePage page = client.listTemplates(0, 51);
@@ -99,18 +83,14 @@ public class DocuSignClientTest {
 		mapped2.setDescription("Data sharing agreement");
 		assertEquals(mapped2, page.getResults().get(1));
 
-		verify(mockDocuSignTemplatesApi).listTemplates(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "0", "51");
+		verify(mockDocuSignTemplatesApi).listTemplates("0", "51");
 	}
 
 	@Test
-	public void testListTemplatesWithEmptyResults() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
+	public void testListTemplatesWithEmptyResults() {
 		EnvelopeTemplateResults results = new EnvelopeTemplateResults();
 		results.setEnvelopeTemplates(null);
-		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
-				.thenReturn(results);
+		when(mockDocuSignTemplatesApi.listTemplates(any(), any())).thenReturn(results);
 
 		// call under test
 		EDucTemplatePage page = client.listTemplates(0, 51);
@@ -120,141 +100,33 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testListTemplatesInvalidatesCacheOn401AndRetries() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken())
-				.thenReturn("first-token")
-				.thenReturn("retry-token");
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-
-		EnvelopeTemplateResults success = new EnvelopeTemplateResults();
-		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
-				.thenThrow(new ApiException(401, "Unauthorized"))
-				.thenReturn(success);
-
-		// call under test
-		EDucTemplatePage page = client.listTemplates(0, 51);
-
-		assertNotNull(page);
-		verify(mockAccessTokenProvider).invalidateAccessToken();
-		verify(mockAccessTokenProvider, times(2)).getAccessToken();
-		verify(mockDocuSignTemplatesApi).listTemplates(BASE_PATH, "first-token", ACCOUNT_ID, "0", "51");
-		verify(mockDocuSignTemplatesApi).listTemplates(BASE_PATH, "retry-token", ACCOUNT_ID, "0", "51");
-	}
-
-	@Test
-	public void testListTemplatesPropagatesPersistent401() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken())
-				.thenReturn("t1")
-				.thenReturn("t2");
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any(), any()))
-				.thenThrow(new ApiException(401, "Unauthorized"));
-
-		// call under test
-		assertThrows(DocuSignUnauthorizedException.class, () -> client.listTemplates(0, 51));
-
-		verify(mockAccessTokenProvider).invalidateAccessToken();
-		verify(mockAccessTokenProvider, times(2)).getAccessToken();
-	}
-
-	@Test
-	public void testListTemplatesWithServerError() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		when(mockDocuSignTemplatesApi.listTemplates(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any(), any()))
-				.thenThrow(new ApiException(500, "Server error"));
-
-		// call under test
-		IllegalStateException ex = assertThrows(IllegalStateException.class,
-				() -> client.listTemplates(0, 51));
-		assertTrue(ex.getMessage().contains("500"));
-	}
-
-	@Test
-	public void testHandleApiExceptionMapping() {
-		assertEquals(DocuSignUnauthorizedException.class,
-				DocuSignClient.convertApiException(new ApiException(401, "x")).getClass());
-		assertEquals(IllegalStateException.class,
-				DocuSignClient.convertApiException(new ApiException(403, "x")).getClass());
-		assertEquals(IllegalStateException.class,
-				DocuSignClient.convertApiException(new ApiException(404, "x")).getClass());
-		assertEquals(IllegalStateException.class,
-				DocuSignClient.convertApiException(new ApiException(500, "x")).getClass());
-		assertEquals(IllegalStateException.class,
-				DocuSignClient.convertApiException(new ApiException(429, "x")).getClass());
-	}
-
-	@Test
-	public void testListTemplatesWithTokenProviderFailure() {
-		when(mockAccessTokenProvider.getAccessToken()).thenThrow(new IllegalStateException("boom"));
-
-		// call under test
-		assertThrows(IllegalStateException.class, () -> client.listTemplates(0, 51));
-	}
-
-	@Test
-	public void testValidateTemplateSuccess() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
+	public void testValidateTemplateSuccess() {
 		EnvelopeTemplate template = TestTemplateHelper.buildValidTemplate(1);
-		when(mockDocuSignTemplatesApi.getTemplate(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "tpl-1"))
-				.thenReturn(template);
+		when(mockDocuSignTemplatesApi.getTemplate("tpl-1")).thenReturn(template);
 
 		// call under test
 		client.validateTemplate("tpl-1");
 
-		verify(mockDocuSignTemplatesApi).getTemplate(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "tpl-1");
+		verify(mockDocuSignTemplatesApi).getTemplate("tpl-1");
 	}
 
 	@Test
-	public void testValidateTemplateWithInvalidTemplate() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
+	public void testValidateTemplateWithInvalidTemplate() {
 		EnvelopeTemplate template = new EnvelopeTemplate();
 		template.setRecipients(null);
-		when(mockDocuSignTemplatesApi.getTemplate(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "tpl-1"))
-				.thenReturn(template);
+		when(mockDocuSignTemplatesApi.getTemplate("tpl-1")).thenReturn(template);
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> client.validateTemplate("tpl-1"));
 	}
 
 	@Test
-	public void testValidateTemplateRetryOn401() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken())
-				.thenReturn("first-token")
-				.thenReturn("retry-token");
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
+	public void testCreateAndSendEnvelopeSuccess() {
 		EnvelopeTemplate template = TestTemplateHelper.buildValidTemplate(1);
-		when(mockDocuSignTemplatesApi.getTemplate(eq(BASE_PATH), any(), eq(ACCOUNT_ID), eq("tpl-1")))
-				.thenThrow(new ApiException(401, "Unauthorized"))
-				.thenReturn(template);
-
-		// call under test
-		client.validateTemplate("tpl-1");
-
-		verify(mockAccessTokenProvider).invalidateAccessToken();
-		verify(mockAccessTokenProvider, times(2)).getAccessToken();
-	}
-
-	@Test
-	public void testCreateAndSendEnvelopeSuccess() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		EnvelopeTemplate template = TestTemplateHelper.buildValidTemplate(1);
-		when(mockDocuSignTemplatesApi.getTemplate(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "tpl-1"))
-				.thenReturn(template);
+		when(mockDocuSignTemplatesApi.getTemplate("tpl-1")).thenReturn(template);
 		EnvelopeSummary summary = new EnvelopeSummary();
 		summary.setEnvelopeId("env-123");
-		when(mockDocuSignEnvelopesApi.createEnvelope(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), any()))
-				.thenReturn(summary);
+		when(mockDocuSignEnvelopesApi.createEnvelope(any())).thenReturn(summary);
 
 		Map<String, String> roleEmails = Map.of(
 				"signing_official", "so@example.com",
@@ -270,7 +142,7 @@ public class DocuSignClientTest {
 
 		assertEquals("env-123", envelopeId);
 		ArgumentCaptor<EnvelopeDefinition> captor = ArgumentCaptor.forClass(EnvelopeDefinition.class);
-		verify(mockDocuSignEnvelopesApi).createEnvelope(eq(BASE_PATH), eq(ACCESS_TOKEN), eq(ACCOUNT_ID), captor.capture());
+		verify(mockDocuSignEnvelopesApi).createEnvelope(captor.capture());
 		EnvelopeDefinition captured = captor.getValue();
 		assertEquals("tpl-1", captured.getTemplateId());
 		assertEquals("sent", captured.getStatus());
@@ -278,40 +150,10 @@ public class DocuSignClientTest {
 	}
 
 	@Test
-	public void testCreateAndSendEnvelopeRetryOn401() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken())
-				.thenReturn("first-token")
-				.thenReturn("retry-token");
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
-		EnvelopeTemplate template = TestTemplateHelper.buildValidTemplate(1);
-		when(mockDocuSignTemplatesApi.getTemplate(eq(BASE_PATH), any(), eq(ACCOUNT_ID), eq("tpl-1")))
-				.thenThrow(new ApiException(401, "Unauthorized"))
-				.thenReturn(template);
-		EnvelopeSummary summary = new EnvelopeSummary();
-		summary.setEnvelopeId("env-456");
-		when(mockDocuSignEnvelopesApi.createEnvelope(eq(BASE_PATH), any(), eq(ACCOUNT_ID), any()))
-				.thenReturn(summary);
-
-		Map<String, String> roleEmails = Map.of("signing_official", "so@example.com");
-		Map<RoleTabKey, String> tabValues = Map.of();
-
-		// call under test
-		String envelopeId = client.createAndSendEnvelope("tpl-1", roleEmails, tabValues);
-
-		assertEquals("env-456", envelopeId);
-		verify(mockAccessTokenProvider).invalidateAccessToken();
-	}
-
-	@Test
-	public void testCreateAndSendEnvelopeValidationFailure() throws Exception {
-		when(mockAccessTokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
-		when(mockConfig.getBasePath()).thenReturn(BASE_PATH);
-		when(mockConfig.getAccountId()).thenReturn(ACCOUNT_ID);
+	public void testCreateAndSendEnvelopeValidationFailure() {
 		EnvelopeTemplate template = new EnvelopeTemplate();
 		template.setRecipients(null);
-		when(mockDocuSignTemplatesApi.getTemplate(BASE_PATH, ACCESS_TOKEN, ACCOUNT_ID, "tpl-1"))
-				.thenReturn(template);
+		when(mockDocuSignTemplatesApi.getTemplate("tpl-1")).thenReturn(template);
 
 		Map<String, String> roleEmails = Map.of("signing_official", "so@example.com");
 		Map<RoleTabKey, String> tabValues = Map.of();
@@ -325,55 +167,49 @@ public class DocuSignClientTest {
 
 	@Test
 	public void testBuildTemplateRolesWithCorrectTabTypes() {
-		Map<String, String> roleEmails = Map.of("signing_official", "so@example.com");
-		RoleTabKey nameKey = new RoleTabKey("signing_official", "signing_official_name");
-		RoleTabKey titleKey = new RoleTabKey("signing_official", "signing_official_title");
-		RoleTabKey emailKey = new RoleTabKey("signing_official", "signing_official_email");
-		RoleTabKey userNameKey = new RoleTabKey("signing_official", "signing_official_user_name");
-		Map<RoleTabKey, String> tabValues = Map.of(
-				nameKey, "Dr. Smith",
-				titleKey, "Director",
-				emailKey, "so@example.com",
-				userNameKey, "smith123"
+		Map<String, String> roleEmails = Map.of(
+				"signing_official", "so@example.com",
+				"principal_investigator", "pi@example.com"
 		);
-		Map<RoleTabKey, TabType> tabTypeMap = Map.of(
-				nameKey, TabType.FULL_NAME,
-				titleKey, TabType.TITLE,
-				emailKey, TabType.EMAIL,
-				userNameKey, TabType.TEXT
+		Map<RoleTabKey, String> tabValues = Map.of(
+				new RoleTabKey("signing_official", "signing_official_name"), "Dr. Smith",
+				new RoleTabKey("signing_official", "signing_official_title"), "Director",
+				new RoleTabKey("signing_official", "signing_official_email"), "so@example.com",
+				new RoleTabKey("principal_investigator", "principal_investigator_institution"), "MIT"
 		);
 
 		// call under test
-		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues, tabTypeMap);
+		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues);
 
-		assertEquals(1, roles.size());
-		TemplateRole role = roles.get(0);
-		assertEquals("signing_official", role.getRoleName());
-		assertEquals("so@example.com", role.getEmail());
-		assertEquals("Dr. Smith", role.getName());
-		assertEquals(1, role.getTabs().getFullNameTabs().size());
-		assertEquals("signing_official_name", role.getTabs().getFullNameTabs().get(0).getTabLabel());
-		assertEquals(1, role.getTabs().getTitleTabs().size());
-		assertEquals("Director", role.getTabs().getTitleTabs().get(0).getValue());
-		assertEquals(1, role.getTabs().getEmailTabs().size());
-		assertEquals("so@example.com", role.getTabs().getEmailTabs().get(0).getValue());
-		assertEquals(1, role.getTabs().getTextTabs().size());
-		assertEquals("smith123", role.getTabs().getTextTabs().get(0).getValue());
+		assertEquals(2, roles.size());
+		TemplateRole soRole = roles.stream()
+				.filter(r -> "signing_official".equals(r.getRoleName())).findFirst().orElseThrow();
+		assertEquals("so@example.com", soRole.getEmail());
+		assertEquals("Dr. Smith", soRole.getName());
+		assertEquals(1, soRole.getTabs().getFullNameTabs().size());
+		assertEquals("signing_official_name", soRole.getTabs().getFullNameTabs().get(0).getTabLabel());
+		assertEquals(1, soRole.getTabs().getTitleTabs().size());
+		assertEquals("Director", soRole.getTabs().getTitleTabs().get(0).getValue());
+		assertEquals(1, soRole.getTabs().getEmailTabs().size());
+		assertEquals("so@example.com", soRole.getTabs().getEmailTabs().get(0).getValue());
+
+		TemplateRole piRole = roles.stream()
+				.filter(r -> "principal_investigator".equals(r.getRoleName())).findFirst().orElseThrow();
+		assertEquals(1, piRole.getTabs().getTextTabs().size());
+		assertEquals("MIT", piRole.getTabs().getTextTabs().get(0).getValue());
 	}
 
 	@Test
-	public void testBuildTabTypeMap() {
-		EnvelopeTemplate template = TestTemplateHelper.buildValidTemplate(1);
-
-		// call under test
-		Map<RoleTabKey, TabType> result = DocuSignClient.buildTabTypeMap(template);
-
-		assertEquals(TabType.FULL_NAME, result.get(new RoleTabKey("signing_official", "signing_official_name")));
-		assertEquals(TabType.TITLE, result.get(new RoleTabKey("signing_official", "signing_official_title")));
-		assertEquals(TabType.EMAIL, result.get(new RoleTabKey("signing_official", "signing_official_email")));
-		assertEquals(TabType.TEXT, result.get(new RoleTabKey("principal_investigator", "principal_investigator_institution")));
-		assertEquals(TabType.TEXT, result.get(new RoleTabKey("collaborator_1", "collaborator_1_user_name")));
-		assertEquals(TabType.FULL_NAME, result.get(new RoleTabKey("collaborator_1", "collaborator_1_name")));
+	public void testHandleApiExceptionMapping() {
+		assertEquals(DocuSignUnauthorizedException.class,
+				DocuSignApiRetryHelper.convertApiException(new ApiException(401, "x")).getClass());
+		assertEquals(IllegalStateException.class,
+				DocuSignApiRetryHelper.convertApiException(new ApiException(403, "x")).getClass());
+		assertEquals(IllegalStateException.class,
+				DocuSignApiRetryHelper.convertApiException(new ApiException(404, "x")).getClass());
+		assertEquals(IllegalStateException.class,
+				DocuSignApiRetryHelper.convertApiException(new ApiException(500, "x")).getClass());
+		assertEquals(IllegalStateException.class,
+				DocuSignApiRetryHelper.convertApiException(new ApiException(429, "x")).getClass());
 	}
-
 }

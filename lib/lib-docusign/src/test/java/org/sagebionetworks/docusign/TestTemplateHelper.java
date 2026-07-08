@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.docusign.esign.model.DateSigned;
-import com.docusign.esign.model.Email;
+import com.docusign.esign.model.EmailAddress;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.FullName;
 import com.docusign.esign.model.Recipients;
@@ -41,9 +41,9 @@ class TestTemplateHelper {
 		Title title = new Title();
 		title.setTabLabel("signing_official_title");
 		tabs.setTitleTabs(List.of(title));
-		Email email = new Email();
+		EmailAddress email = new EmailAddress();
 		email.setTabLabel("signing_official_email");
-		tabs.setEmailTabs(List.of(email));
+		tabs.setEmailAddressTabs(List.of(email));
 		SignHere sig = new SignHere();
 		sig.setTabLabel("signing_official_signature");
 		tabs.setSignHereTabs(List.of(sig));
@@ -69,9 +69,9 @@ class TestTemplateHelper {
 		Title title = new Title();
 		title.setTabLabel("principal_investigator_title");
 		tabs.setTitleTabs(List.of(title));
-		Email email = new Email();
+		EmailAddress email = new EmailAddress();
 		email.setTabLabel("principal_investigator_email");
-		tabs.setEmailTabs(List.of(email));
+		tabs.setEmailAddressTabs(List.of(email));
 		SignHere sig = new SignHere();
 		sig.setTabLabel("principal_investigator_signature");
 		tabs.setSignHereTabs(List.of(sig));

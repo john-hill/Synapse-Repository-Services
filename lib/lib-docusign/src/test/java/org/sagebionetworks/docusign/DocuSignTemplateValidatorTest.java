@@ -1,6 +1,7 @@
 package org.sagebionetworks.docusign;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -153,5 +154,47 @@ public class DocuSignTemplateValidatorTest {
 
 		// call under test
 		assertDoesNotThrow(() -> DocuSignTemplateValidator.validate(template));
+	}
+
+	@Test
+	public void testTypeForRoleAndLabelWithSigningOfficial() {
+		assertEquals(TabType.FULL_NAME, DocuSignTemplateValidator.typeforRoleAndLabel("signing_official", "signing_official_name"));
+		assertEquals(TabType.TITLE, DocuSignTemplateValidator.typeforRoleAndLabel("signing_official", "signing_official_title"));
+		assertEquals(TabType.EMAIL_ADDRESS, DocuSignTemplateValidator.typeforRoleAndLabel("signing_official", "signing_official_email"));
+		assertEquals(TabType.SIGN_HERE, DocuSignTemplateValidator.typeforRoleAndLabel("signing_official", "signing_official_signature"));
+		assertEquals(TabType.DATE_SIGNED, DocuSignTemplateValidator.typeforRoleAndLabel("signing_official", "signing_official_date"));
+	}
+
+	@Test
+	public void testTypeForRoleAndLabelWithPrincipalInvestigator() {
+		assertEquals(TabType.TEXT, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_institution"));
+		assertEquals(TabType.FULL_NAME, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_name"));
+		assertEquals(TabType.TITLE, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_title"));
+		assertEquals(TabType.EMAIL_ADDRESS, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_email"));
+		assertEquals(TabType.TEXT, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_user_name"));
+		assertEquals(TabType.SIGN_HERE, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_signature"));
+		assertEquals(TabType.DATE_SIGNED, DocuSignTemplateValidator.typeforRoleAndLabel("principal_investigator", "principal_investigator_date"));
+	}
+
+	@Test
+	public void testTypeForRoleAndLabelWithCollaborator() {
+		assertEquals(TabType.TEXT, DocuSignTemplateValidator.typeforRoleAndLabel("collaborator_1", "collaborator_1_user_name"));
+		assertEquals(TabType.FULL_NAME, DocuSignTemplateValidator.typeforRoleAndLabel("collaborator_1", "collaborator_1_name"));
+		assertEquals(TabType.SIGN_HERE, DocuSignTemplateValidator.typeforRoleAndLabel("collaborator_1", "collaborator_1_signature"));
+		assertEquals(TabType.DATE_SIGNED, DocuSignTemplateValidator.typeforRoleAndLabel("collaborator_1", "collaborator_1_date"));
+	}
+
+	@Test
+	public void testTypeForRoleAndLabelWithUnknownRole() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> DocuSignTemplateValidator.typeforRoleAndLabel("unknown_role", "some_label"));
+	}
+
+	@Test
+	public void testTypeForRoleAndLabelWithUnknownLabel() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> DocuSignTemplateValidator.typeforRoleAndLabel("signing_official", "unknown_label"));
 	}
 }

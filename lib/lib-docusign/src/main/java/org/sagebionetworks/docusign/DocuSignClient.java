@@ -5,27 +5,18 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
-import org.sagebionetworks.docusign.DocuSignTemplateValidator.TabType;
-
-import com.docusign.esign.client.ApiException;
-import com.docusign.esign.model.Email;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
-import com.docusign.esign.model.FullName;
-import com.docusign.esign.model.Signer;
 import com.docusign.esign.model.Tabs;
 import com.docusign.esign.model.TemplateRole;
-import com.docusign.esign.model.Text;
-import com.docusign.esign.model.Title;
 
 /**
  * Client for the DocuSign REST API. Authenticates headlessly via the JWT Bearer
@@ -35,17 +26,12 @@ import com.docusign.esign.model.Title;
 @Service
 public class DocuSignClient {
 
-	private final DocuSignClientConfig config;
 	private final DocuSignTemplatesApi templatesApi;
 	private final DocuSignEnvelopesApi envelopesApi;
-	private final DocuSignAccessTokenProvider accessTokenProvider;
 
-	DocuSignClient(DocuSignClientConfig config, DocuSignTemplatesApi templatesApi,
-			DocuSignEnvelopesApi envelopesApi, DocuSignAccessTokenProvider accessTokenProvider) {
-		this.config = config;
+	DocuSignClient(DocuSignTemplatesApi templatesApi, DocuSignEnvelopesApi envelopesApi) {
 		this.templatesApi = templatesApi;
 		this.envelopesApi = envelopesApi;
-		this.accessTokenProvider = accessTokenProvider;
 	}
 
 	/**
@@ -57,7 +43,9 @@ public class DocuSignClient {
 	 *         (callers are responsible for assembling the Synapse-style token)
 	 */
 	public EDucTemplatePage listTemplates(int startPosition, int count) {
-		return executeWithRetry(token -> listTemplatesOnce(startPosition, count, token));
+		EnvelopeTemplateResults results = templatesApi.listTemplates(
+				String.valueOf(startPosition), String.valueOf(count));
+		return toEDucTemplatePage(results);
 	}
 
 	/**
@@ -66,10 +54,8 @@ public class DocuSignClient {
 	 */
 	public void validateTemplate(String templateId) {
 		ValidateArgument.required(templateId, "templateId");
-		executeWithRetry(token -> {
-			validateTemplateOnce(templateId, token);
-			return null;
-		});
+		EnvelopeTemplate template = templatesApi.getTemplate(templateId);
+		DocuSignTemplateValidator.validate(template);
 	}
 
 	/**
@@ -85,102 +71,22 @@ public class DocuSignClient {
 		ValidateArgument.required(templateId, "templateId");
 		ValidateArgument.required(roleEmails, "roleEmails");
 		ValidateArgument.required(tabValues, "tabValues");
-		return executeWithRetry(token -> createAndSendEnvelopeOnce(templateId, roleEmails, tabValues, token));
-	}
 
-	private <T> T executeWithRetry(Function<String, T> action) {
-		try {
-			return action.apply(accessTokenProvider.getAccessToken());
-		} catch (DocuSignUnauthorizedException e) {
-			accessTokenProvider.invalidateAccessToken();
-			return action.apply(accessTokenProvider.getAccessToken());
-		}
-	}
+		EnvelopeTemplate template = templatesApi.getTemplate(templateId);
+		DocuSignTemplateValidator.validate(template);
 
-	private void validateTemplateOnce(String templateId, String accessToken) {
-		try {
-			EnvelopeTemplate template = templatesApi.getTemplate(
-					config.getBasePath(), accessToken, config.getAccountId(), templateId);
-			DocuSignTemplateValidator.validate(template);
-		} catch (ApiException e) {
-			throw convertApiException(e);
-		}
-	}
+		List<TemplateRole> templateRoles = buildTemplateRoles(roleEmails, tabValues);
+		EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
+		envelopeDefinition.setTemplateId(templateId);
+		envelopeDefinition.setTemplateRoles(templateRoles);
+		envelopeDefinition.setStatus("sent");
 
-	private String createAndSendEnvelopeOnce(String templateId, Map<String, String> roleEmails,
-			Map<RoleTabKey, String> tabValues, String accessToken) {
-		try {
-			EnvelopeTemplate template = templatesApi.getTemplate(
-					config.getBasePath(), accessToken, config.getAccountId(), templateId);
-			DocuSignTemplateValidator.validate(template);
-
-			Map<RoleTabKey, TabType> tabTypeMap = buildTabTypeMap(template);
-			List<TemplateRole> templateRoles = buildTemplateRoles(roleEmails, tabValues, tabTypeMap);
-			EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
-			envelopeDefinition.setTemplateId(templateId);
-			envelopeDefinition.setTemplateRoles(templateRoles);
-			envelopeDefinition.setStatus("sent");
-
-			EnvelopeSummary summary = envelopesApi.createEnvelope(
-					config.getBasePath(), accessToken, config.getAccountId(), envelopeDefinition);
-			return summary.getEnvelopeId();
-		} catch (ApiException e) {
-			throw convertApiException(e);
-		}
-	}
-
-	static Map<RoleTabKey, TabType> buildTabTypeMap(EnvelopeTemplate template) {
-		Map<RoleTabKey, TabType> map = new java.util.HashMap<>();
-		if (template.getRecipients() == null || template.getRecipients().getSigners() == null) {
-			return map;
-		}
-		for (Signer signer : template.getRecipients().getSigners()) {
-			String roleName = signer.getRoleName();
-			Tabs tabs = signer.getTabs();
-			if (tabs == null) {
-				continue;
-			}
-			if (tabs.getTextTabs() != null) {
-				for (Text t : tabs.getTextTabs()) {
-					if (t.getTabLabel() != null) {
-						map.put(new RoleTabKey(roleName, t.getTabLabel()), TabType.TEXT);
-					}
-				}
-			}
-			if (tabs.getFullNameTabs() != null) {
-				for (FullName f : tabs.getFullNameTabs()) {
-					if (f.getTabLabel() != null) {
-						map.put(new RoleTabKey(roleName, f.getTabLabel()), TabType.FULL_NAME);
-					}
-				}
-			}
-			if (tabs.getTitleTabs() != null) {
-				for (Title t : tabs.getTitleTabs()) {
-					if (t.getTabLabel() != null) {
-						map.put(new RoleTabKey(roleName, t.getTabLabel()), TabType.TITLE);
-					}
-				}
-			}
-			if (tabs.getEmailTabs() != null) {
-				for (Email e : tabs.getEmailTabs()) {
-					if (e.getTabLabel() != null) {
-						map.put(new RoleTabKey(roleName, e.getTabLabel()), TabType.EMAIL);
-					}
-				}
-			}
-			if (tabs.getEmailAddressTabs() != null) {
-				for (com.docusign.esign.model.EmailAddress e : tabs.getEmailAddressTabs()) {
-					if (e.getTabLabel() != null) {
-						map.put(new RoleTabKey(roleName, e.getTabLabel()), TabType.EMAIL);
-					}
-				}
-			}
-		}
-		return map;
+		EnvelopeSummary summary = envelopesApi.createEnvelope(envelopeDefinition);
+		return summary.getEnvelopeId();
 	}
 
 	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
-			Map<RoleTabKey, String> tabValues, Map<RoleTabKey, TabType> tabTypeMap) {
+			Map<RoleTabKey, String> tabValues) {
 		List<TemplateRole> roles = new ArrayList<>();
 		for (Map.Entry<String, String> entry : roleEmails.entrySet()) {
 			String roleName = entry.getKey();
@@ -190,10 +96,8 @@ public class DocuSignClient {
 			role.setRoleName(roleName);
 			role.setEmail(email);
 
-			List<Text> textTabs = new ArrayList<>();
-			List<FullName> fullNameTabs = new ArrayList<>();
-			List<Title> titleTabs = new ArrayList<>();
-			List<Email> emailTabs = new ArrayList<>();
+			Tabs tabs = new Tabs();
+			role.setTabs(tabs);
 
 			for (Map.Entry<RoleTabKey, String> tabEntry : tabValues.entrySet()) {
 				if (!tabEntry.getKey().roleName().equals(roleName)) {
@@ -201,73 +105,16 @@ public class DocuSignClient {
 				}
 				String tabLabel = tabEntry.getKey().tabLabel();
 				String value = tabEntry.getValue();
-				TabType type = tabTypeMap.getOrDefault(tabEntry.getKey(), TabType.TEXT);
-
-				switch (type) {
-					case FULL_NAME -> {
-						FullName fn = new FullName();
-						fn.setTabLabel(tabLabel);
-						fn.setValue(value);
-						fullNameTabs.add(fn);
-						role.setName(value);
-					}
-					case TITLE -> {
-						Title t = new Title();
-						t.setTabLabel(tabLabel);
-						t.setValue(value);
-						titleTabs.add(t);
-					}
-					case EMAIL -> {
-						Email e = new Email();
-						e.setTabLabel(tabLabel);
-						e.setValue(value);
-						emailTabs.add(e);
-					}
-					default -> {
-						Text text = new Text();
-						text.setTabLabel(tabLabel);
-						text.setValue(value);
-						textTabs.add(text);
-					}
+				TabType type = DocuSignTemplateValidator.typeforRoleAndLabel(roleName, tabLabel);
+				type.fillInTabValue(tabs, tabLabel, value);
+				if (TabType.FULL_NAME.equals(type)) {
+					role.setName(value);
 				}
-			}
-
-			Tabs tabs = new Tabs();
-			boolean hasTabs = false;
-			if (!textTabs.isEmpty()) {
-				tabs.setTextTabs(textTabs);
-				hasTabs = true;
-			}
-			if (!fullNameTabs.isEmpty()) {
-				tabs.setFullNameTabs(fullNameTabs);
-				hasTabs = true;
-			}
-			if (!titleTabs.isEmpty()) {
-				tabs.setTitleTabs(titleTabs);
-				hasTabs = true;
-			}
-			if (!emailTabs.isEmpty()) {
-				tabs.setEmailTabs(emailTabs);
-				hasTabs = true;
-			}
-			if (hasTabs) {
-				role.setTabs(tabs);
 			}
 
 			roles.add(role);
 		}
 		return roles;
-	}
-
-	private EDucTemplatePage listTemplatesOnce(int startPosition, int count, String accessToken) {
-		try {
-			EnvelopeTemplateResults results = templatesApi.listTemplates(
-					config.getBasePath(), accessToken, config.getAccountId(),
-					String.valueOf(startPosition), String.valueOf(count));
-			return toEDucTemplatePage(results);
-		} catch (ApiException e) {
-			throw convertApiException(e);
-		}
 	}
 
 	static EDucTemplatePage toEDucTemplatePage(EnvelopeTemplateResults results) {
@@ -302,11 +149,4 @@ public class DocuSignClient {
 		return Date.from(Instant.parse(iso8601));
 	}
 
-	static RuntimeException convertApiException(ApiException e) {
-		int code = e.getCode();
-		if (code == 401) {
-			return new DocuSignUnauthorizedException("DocuSign rejected the access token.", e);
-		}
-		return new IllegalStateException("DocuSign API error " + code + ".", e);
-	}
 }

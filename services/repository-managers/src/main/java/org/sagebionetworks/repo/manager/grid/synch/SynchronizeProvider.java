@@ -5,96 +5,61 @@ import java.util.List;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
-import org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
+import org.sagebionetworks.repo.manager.grid.synch.handler.SourceWriter;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
-import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
-import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSource;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSourceReader;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSyncOutcomeHandler;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSyncRules;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSourceReader;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSyncOutcomeHandler;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSyncRules;
 
 /**
- * Factory interface for creating synchronization components (Copy, Source, and
- * Merge implementations) used during grid synchronization. This provider
- * abstracts the creation of concrete implementations, allowing for dependency
- * injection and testability.
+ * Factory for the per-run collaborators consumed by {@link SynchronizationLogic}:
+ * the read-only {@code SourceReader}, the {@code SyncRules}, and the
+ * {@code SyncOutcomeHandler} at both the schema (Phase 1) and row (Phase 2)
+ * granularities.
  */
 public interface SynchronizeProvider {
 
 	/**
-	 * Creates a Copy implementation for schema synchronization during Phase 1.
-	 *
-	 * @param intendedChangePublisher publisher for recording intended schema
-	 *                                changes to the copy
-	 * @param reader                  handler providing access to the copy's current
-	 *                                schema
-	 * @return a SchemaCopy instance for synchronizing schema columns
+	 * Creates the read-only view of the source schema for Phase 1.
 	 */
-	SchemaCopy getSchemaCopy(IntendedChangePublisher intendedChangePublisher, CopyHandler reader);
+	SchemaSourceReader getSchemaSourceReader(SourceHandler handler);
 
 	/**
-	 * Creates a Source implementation for schema synchronization during Phase 1.
-	 *
-	 * @param handler handler providing access to the source's current schema
-	 * @return a SchemaSource instance for synchronizing schema columns
+	 * Creates the Phase 1 schema keying/matching rules.
 	 */
-	SchemaSource getSchemaSource(SourceHandler handler);
+	SchemaSyncRules getSchemaSyncRules(SourceHandler handler);
 
 	/**
-	 * Creates a Copy implementation for row synchronization during Phase 2. The copy
-	 * applies grid CRDT changes (insert/delete) directly via the
-	 * {@code intendedChangePublisher}. It depends only on the copy (CRDT) side.
-	 *
-	 * @param intendedChangePublisher publisher for recording grid CRDT changes
-	 * @param finalSchema             the synchronized schema from Phase 1
-	 * @param reader                  handler providing access to the copy's current
-	 *                                rows
-	 * @return a RowCopy instance for synchronizing row data
+	 * Creates the Phase 1 schema outcome handler, which is responsible for
+	 * applying schema changes to the copy and the source, and tracks the
+	 * reconciled final schema.
 	 */
-	RowCopy getRowCopy(IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader);
+	SchemaSyncOutcomeHandler getSchemaSyncOutcomeHandler(IntendedChangePublisher intendedChangePublisher,
+			CopyHandler copyHandler, SourceWriter sourceWriter);
 
 	/**
-	 * Creates the row-phase {@link SyncOutcomeListener} that forwards surviving rows
-	 * (both retained and pulled) to the source handler so a pushed artifact can
-	 * capture the full final grid contents.
-	 *
-	 * @param handler the source handler receiving surviving rows
-	 * @return a listener over row items
+	 * Creates the read-only view of the source rows for Phase 2.
 	 */
-	SyncOutcomeListener<RowCopyItem, RowSourceItemReference> getRowSyncOutcomeListener(SourceHandler handler);
+	RowSourceReader getRowSourceReader(RowSourceItemReader sourceReader);
 
 	/**
-	 * Creates a Source implementation for row synchronization during Phase 2.
-	 *
-	 * @param sourceReader reader providing disk-based access to source rows (O(n)
-	 *                     memory usage)
-	 * @param handler      handler for applying changes to the source
-	 * @return a RowSource instance for synchronizing row data
+	 * Creates the Phase 2 row keying/matching rules.
 	 */
-	RowSource getRowSource(RowSourceItemReader sourceReader, SourceHandler handler);
+	RowSyncRules getRowSyncRules(SourceHandler handler);
 
 	/**
-	 * Creates a Merge implementation for resolving conflicts during row
-	 * synchronization in Phase 2. The merge writes user changes back to the source,
-	 * applies grid CRDT changes via the {@code intendedChangePublisher}, and reports
-	 * surviving rows to the source handler.
+	 * Creates the Phase 2 row outcome handler, which is responsible for resolving
+	 * row conflicts via a nested cell synchronization and applying changes to the copy
+	 * and the source.
 	 *
-	 * @param logic                   the synchronization logic for recursive
-	 *                                merging of cell-level changes
-	 * @param intendedChangePublisher publisher for recording grid CRDT changes
-	 * @param finalSchema             the synchronized schema from Phase 1
-	 * @param reader                  handler for reading copy CRDT metadata
-	 * @param handler                 the source handler for write-back and
-	 *                                surviving-row observation
 	 * @param preserveUserAttribution when true (PULL), user-changed cells are not
 	 *                                rewritten in the grid, preserving attribution
-	 * @return a RowMerge instance for resolving row conflicts
 	 */
-	RowMerge getRowMerge(SynchronizationLogic logic, IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler reader, SourceHandler handler,
-	                     boolean preserveUserAttribution);
+	RowSyncOutcomeHandler getRowSyncOutcomeHandler(SynchronizationLogic logic, IntendedChangePublisher intendedChangePublisher, List<Column> finalSchema, CopyHandler copyHandler, SourceWriter sourceWriter, boolean preserveUserAttribution);
 
 }

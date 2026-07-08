@@ -3,16 +3,19 @@ package org.sagebionetworks.repo.manager.grid.synch.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,415 +23,232 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class SynchronizationLogicTest {
 
 	@Mock
-	private Copy<TestCopyItem, TestSourceItem> mockCopy;
+	private SourceReader<TestSourceItem> mockSource;
 	@Mock
-	private Source<TestCopyItem, TestSourceItem> mockSource;
+	private SyncRules<TestCopyItem, TestSourceItem> mockRules;
 	@Mock
-	private Merge<TestCopyItem, TestSourceItem> mockMerge;
-	@Mock
-	private SyncOutcomeListener<TestCopyItem, TestSourceItem> mockListener;
+	private SyncOutcomeHandler<TestCopyItem, TestSourceItem> mockHandler;
 
 	private SynchronizationLogic logic = new SynchronizationLogic();
 
 	@Test
 	public void testSynchronizeWithEmptyCopyAndSource() {
-		List<TestCopyItem> copyItems = Collections.emptyList();
-		List<TestSourceItem> sourceItems = Collections.emptyList();
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
+		List<TestCopyItem> copyItems = List.of();
+		List<TestSourceItem> sourceItems = List.of();
 		when(mockSource.streamRemaining()).thenReturn(sourceItems.stream());
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
 	public void testSynchronizeWithNoChanges() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
-				// two
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
 				new TestCopyItem().setValue("b").setId("two").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// one
-				new TestSourceItem().setValue("a").setKey("one"),
-				// two
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("a").setKey("one"),
 				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.isExcludedFromMatching(any(), any())).thenReturn(false);
 		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
 		when(mockSource.consume("two")).thenReturn(Optional.of(sourceItems.get(1)));
-
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
-		when(mockSource.matches(copyItems.get(1), sourceItems.get(1))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
+		when(mockRules.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
+		when(mockRules.matches(copyItems.get(1), sourceItems.get(1))).thenReturn(true);
+		when(mockSource.streamRemaining()).thenReturn(List.<TestSourceItem>of().stream());
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		// both rows are unchanged and retained
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-		verify(mockListener).onRetainedInCopy(copyItems.get(1));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(0), sourceItems.get(0));
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(1));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithTwoDoesNotMatch() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
-				// two
+	public void testSynchronizeWithConflict() {
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
 				new TestCopyItem().setValue("b").setId("two").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// one
-				new TestSourceItem().setValue("a").setKey("one"),
-				// two
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("a").setKey("one"),
 				new TestSourceItem().setValue("c").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.isExcludedFromMatching(any(), any())).thenReturn(false);
 		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
 		when(mockSource.consume("two")).thenReturn(Optional.of(sourceItems.get(1)));
-
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
-		when(mockSource.matches(copyItems.get(1), sourceItems.get(1))).thenReturn(false);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
+		when(mockRules.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
+		when(mockRules.matches(copyItems.get(1), sourceItems.get(1))).thenReturn(false);
+		when(mockSource.streamRemaining()).thenReturn(List.<TestSourceItem>of().stream());
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockMerge).merge("two", copyItems.get(1), sourceItems.get(1));
-		// the matching row is retained
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockHandler).onCopyAndSourceConflict(copyItems.get(1), sourceItems.get(1));
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(0), sourceItems.get(0));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
 	public void testSynchronizeWithCopyItemExcludedFromMatching() {
-		List<TestCopyItem> copyItems = List.of(
-				// excluded from keyed matching but still surviving
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
-				// two
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
 				new TestCopyItem().setValue("b").setId("two").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// two
-				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(copyItems.get(0))).thenReturn(true);
-		when(mockSource.isExcludedFromMatching(copyItems.get(1))).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("two");
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("b").setKey("two"));
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.isExcludedFromMatching(copyItems.get(0), "one")).thenReturn(true);
+		when(mockRules.isExcludedFromMatching(copyItems.get(1), "two")).thenReturn(false);
 		when(mockSource.consume("two")).thenReturn(Optional.of(sourceItems.get(0)));
-		when(mockSource.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
+		when(mockRules.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
+		when(mockSource.streamRemaining()).thenReturn(List.<TestSourceItem>of().stream());
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		// the excluded row is never keyed, matched, or removed, but still survives
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-		verify(mockListener).onRetainedInCopy(copyItems.get(1));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		// the excluded item's key is still computed and passed to isExcludedFromMatching,
+		// but it is never consumed from the source
+		// `onCopyOnlyItemAddedByUser` is still invoked
+		verify(mockRules).getKey(copyItems.get(0));
+		verify(mockRules).isExcludedFromMatching(copyItems.get(0), "one");
+		verify(mockSource, never()).consume("one");
+		verify(mockHandler).onCopyOnlyItemAddedByUser(copyItems.get(0), "one");
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(0));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithDuplicateKey() {
-		List<TestCopyItem> copyItems = List.of(
-				// first occurrence of key "one" - kept and matched
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
-				// duplicate of key "one" - retained but excluded from the merge
-				new TestCopyItem().setValue("a2").setId("one").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// one
-				new TestSourceItem().setValue("a").setKey("one"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("one");
-		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
-
-		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
-
-		// the first occurrence is matched/retained; the duplicate is retained but not merged
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-		verify(mockListener).onRetainedInCopy(copyItems.get(1));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
-	}
-
-	@Test
-	public void testSynchronizeWithAddedToCopy() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(true),
-				// two
+	public void testSynchronizeWithCopyOnlyUserAdded() {
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(true),
 				new TestCopyItem().setValue("b").setId("two").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// two
-				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("two");
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("b").setKey("two"));
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.isExcludedFromMatching(any(), any())).thenReturn(false);
 		when(mockSource.consume("one")).thenReturn(Optional.empty());
 		when(mockSource.consume("two")).thenReturn(Optional.of(sourceItems.get(0)));
-		when(mockSource.isItemAdditionSupported()).thenReturn(true);
-
-		when(mockSource.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
+		when(mockRules.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
+		when(mockSource.streamRemaining()).thenReturn(List.<TestSourceItem>of().stream());
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockSource).addItem(copyItems.get(0));
-		verify(mockListener).onRetainedInCopy(copyItems.get(1));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockHandler).onCopyOnlyItemAddedByUser(copyItems.get(0), "one");
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(0));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithChangedInCopyButItemAdditionNotSupported() {
-		// When a row exists in the copy with user changes, but the source does not
-		// support row addition (e.g. entity views), the row should be removed from the
-		// copy rather than pushed to the source.
-		List<TestCopyItem> copyItems = List.of(
-				// one - changed by user but source no longer has it
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(true),
-				// two
+	public void testSynchronizeWithCopyOnlyMissingFromSource() {
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
 				new TestCopyItem().setValue("b").setId("two").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// two
-				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("two");
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("b").setKey("two"));
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(1))).thenReturn("two");
+		when(mockRules.isExcludedFromMatching(any(), any())).thenReturn(false);
 		when(mockSource.consume("one")).thenReturn(Optional.empty());
 		when(mockSource.consume("two")).thenReturn(Optional.of(sourceItems.get(0)));
-		when(mockSource.isItemAdditionSupported()).thenReturn(false);
-
-		when(mockSource.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
+		when(mockRules.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
+		when(mockSource.streamRemaining()).thenReturn(List.<TestSourceItem>of().stream());
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockCopy).removeItem(copyItems.get(0));
-		verify(mockListener).onRetainedInCopy(copyItems.get(1));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockHandler).onCopyOnlyItemDeletedFromSource(copyItems.get(0));
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(0));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithDeletedFromSource() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false),
-				// two
-				new TestCopyItem().setValue("b").setId("two").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// two
+	public void testSynchronizeWithSourceOnlyAdded() {
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("a").setKey("one"),
 				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.getKey(copyItems.get(1))).thenReturn("two");
-		when(mockSource.consume("one")).thenReturn(Optional.empty());
-		when(mockSource.consume("two")).thenReturn(Optional.of(sourceItems.get(0)));
-
-		when(mockSource.matches(copyItems.get(1), sourceItems.get(0))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
-
-		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
-
-		verify(mockCopy).removeItem(copyItems.get(0));
-		verify(mockListener).onRetainedInCopy(copyItems.get(1));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
-	}
-
-	@Test
-	public void testSynchronizeWithAddedToSource() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// one
-				new TestSourceItem().setValue("a").setKey("one"),
-				// two
-				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.isExcludedFromMatching(any(), any())).thenReturn(false);
 		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
-
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
+		when(mockRules.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
 		when(mockSource.streamRemaining()).thenReturn(List.of(sourceItems.get(1)).stream());
-		when(mockSource.wasDeletedByUser(sourceItems.get(1))).thenReturn(false);
+		when(mockRules.wasDeletedByUser(sourceItems.get(1))).thenReturn(false);
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockCopy).addItem(sourceItems.get(1));
-		verify(mockListener).onPulledFromSourceToCopy(sourceItems.get(1));
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockHandler).onSourceOnlyItemAddedSinceLastSync(sourceItems.get(1));
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(0), sourceItems.get(0));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithUserDeletedFromCopy() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// one
-				new TestSourceItem().setValue("a").setKey("one"),
-				// two
+	public void testSynchronizeWithSourceOnlyDeletedByUser() {
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
+		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("a").setKey("one"),
 				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.getKey(copyItems.get(0))).thenReturn("one");
+		when(mockRules.isExcludedFromMatching(any(), any())).thenReturn(false);
 		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
-
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
+		when(mockRules.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
 		when(mockSource.streamRemaining()).thenReturn(List.of(sourceItems.get(1)).stream());
-		when(mockSource.wasDeletedByUser(sourceItems.get(1))).thenReturn(true);
-		when(mockSource.isItemRemovalSupported()).thenReturn(true);
+		when(mockRules.wasDeletedByUser(sourceItems.get(1))).thenReturn(true);
 
 		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockSource).removeItem(sourceItems.get(1));
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockHandler).onSourceOnlyItemDeletedByUserFromCopy(sourceItems.get(1));
+		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(0), sourceItems.get(0));
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithUserDeletedFromCopyButItemRemovalNotSupported() {
-		// When a row exists in the source but the user deleted it from the copy,
-		// and the source does not support item removal (e.g. entity views), the
-		// row should be pulled back into the copy rather than removed from the source.
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(
-				// one
-				new TestSourceItem().setValue("a").setKey("one"),
-				// two - user deleted from copy, but source does not support removal
-				new TestSourceItem().setValue("b").setKey("two"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
-
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
-		when(mockSource.streamRemaining()).thenReturn(List.of(sourceItems.get(1)).stream());
-		when(mockSource.wasDeletedByUser(sourceItems.get(1))).thenReturn(true);
-		when(mockSource.isItemRemovalSupported()).thenReturn(false);
-
-		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
-
-		verify(mockCopy).addItem(sourceItems.get(1));
-		verify(mockListener).onPulledFromSourceToCopy(sourceItems.get(1));
-		verify(mockListener).onRetainedInCopy(copyItems.get(0));
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
-	}
-
-	@Test
-	public void testSynchronizeWithNullCopy() {
+	public void testSynchronizeWithNullCopyItems() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			logic.synchronize(null, mockSource, mockMerge, mockListener);
+			logic.synchronize(null, mockSource, mockRules, mockHandler);
 		}).getMessage();
-		assertEquals("copy is required.", message);
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		assertEquals("copyItems is required.", message);
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
 	public void testSynchronizeWithNullSource() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			logic.synchronize(mockCopy, null, mockMerge, mockListener);
+			logic.synchronize(List.<TestCopyItem>of().stream(), null, mockRules, mockHandler);
 		}).getMessage();
 		assertEquals("source is required.", message);
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithNullMerge() {
+	public void testSynchronizeWithNullRules() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			logic.synchronize(mockCopy, mockSource, null, mockListener);
+			logic.synchronize(List.<TestCopyItem>of().stream(), mockSource, null, mockHandler);
 		}).getMessage();
-		assertEquals("merge is required.", message);
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		assertEquals("rules is required.", message);
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
-	public void testSynchronizeWithNullListener() {
+	public void testSynchronizeWithNullHandler() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			logic.synchronize(mockCopy, mockSource, mockMerge, null);
+			logic.synchronize(List.<TestCopyItem>of().stream(), mockSource, mockRules, null);
 		}).getMessage();
-		assertEquals("listener is required.", message);
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
-	}
-
-	@Test
-	public void testSynchronizeWithDefaultListenerOverload() {
-		// The three-arg overload uses a no-op listener and must still run the algorithm.
-		List<TestCopyItem> copyItems = List.of(
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
-		List<TestSourceItem> sourceItems = List.of(new TestSourceItem().setValue("a").setKey("one"));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn("one");
-		when(mockSource.consume("one")).thenReturn(Optional.of(sourceItems.get(0)));
-		when(mockSource.matches(copyItems.get(0), sourceItems.get(0))).thenReturn(true);
-		List<TestSourceItem> emptyList = List.of();
-		when(mockSource.streamRemaining()).thenReturn(emptyList.stream());
-
-		// call under test
-		logic.synchronize(mockCopy, mockSource, mockMerge);
-
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		assertEquals("handler is required.", message);
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 	@Test
 	public void testSynchronizeWithNullKey() {
-		List<TestCopyItem> copyItems = List.of(
-				// one
-				new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
-		when(mockCopy.streamItems()).thenReturn(copyItems.stream());
-		when(mockSource.isExcludedFromMatching(any())).thenReturn(false);
-		when(mockSource.getKey(copyItems.get(0))).thenReturn(null);
+		List<TestCopyItem> copyItems = List.of(new TestCopyItem().setValue("a").setId("one").setWasChangedByUser(false));
+		when(mockRules.getKey(copyItems.get(0))).thenReturn(null);
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			logic.synchronize(mockCopy, mockSource, mockMerge, mockListener);
+			logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 		}).getMessage();
 		assertEquals("key is required.", message);
-		verifyNoMoreInteractions(mockCopy, mockSource, mockMerge, mockListener);
+		verify(mockRules, never()).isExcludedFromMatching(any(), any());
+		verifyNoMoreInteractions(mockHandler);
 	}
 
 }

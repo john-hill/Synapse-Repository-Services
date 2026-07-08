@@ -10,21 +10,19 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedCha
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
-import org.sagebionetworks.repo.manager.grid.synch.core.Merge;
-import org.sagebionetworks.repo.manager.grid.synch.core.SyncOutcomeListener;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandlerProvider;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandlerProvider;
+import org.sagebionetworks.repo.manager.grid.synch.handler.SourceWriter;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
-import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
-import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSource;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSourceReader;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSyncOutcomeHandler;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSyncRules;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSourceReader;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSyncOutcomeHandler;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSyncRules;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
@@ -75,6 +73,7 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		try (CopyHandler copyHandler = copyHandlerProvider.createCopyHandler(session);
 				SourceHandler sourceHandler = sourceHandlerProvdier.createNewProvider(callback, user, session,
 						copyHandler.getGridSource());
+				SourceWriter sourceWriter = sourceHandler.createSourceWriter();
 				RowSourceItemReader sourceReader = sourceHandler.getSourceRowReader();
 				IntendedChangePublisher icp = newIntendedChangePublisher(copyHandler)) {
 
@@ -83,10 +82,12 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 
 			// Phase one: synchronize the schema
 			List<Column> finalSchema;
-			try (SchemaCopy schemaCopy = synchronizeProvider.getSchemaCopy(icp, copyHandler)) {
-				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler);
-				logic.synchronize(schemaCopy, schemaSource, Merge.noOp());
-				finalSchema = schemaCopy.getFinalSchema();
+			try (SchemaSyncOutcomeHandler schemaHandler = synchronizeProvider.getSchemaSyncOutcomeHandler(icp,
+					copyHandler, sourceWriter)) {
+				SchemaSourceReader schemaReader = synchronizeProvider.getSchemaSourceReader(sourceHandler);
+				SchemaSyncRules schemaRules = synchronizeProvider.getSchemaSyncRules(sourceHandler);
+				logic.synchronize(schemaHandler.streamCopyItems(), schemaReader, schemaRules, schemaHandler);
+				finalSchema = schemaHandler.getFinalSchema();
 			}
 
 			// On a PULL (no write-back to source) the merge must not rewrite cells the user
@@ -94,19 +95,19 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			// lose their user-attribution, causing a subsequent PULL to revert the edit.
 			boolean preserveUserAttribution = SyncType.PULL.equals(syncType);
 
-			// Prepare any push artifact this source may build during the merge
-			sourceHandler.beginPush(callback, finalSchema, syncType);
+			// Prepare any push artifact the writer may build during the merge
+			sourceWriter.beginPush(callback, finalSchema, syncType);
 
-			// Phase two: run the row merge. The row copy/merge apply grid CRDT changes
-			// directly; the outcome listener reports every surviving row to the source
-			// handler so a pushed artifact can capture the full final grid contents.
-			RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, finalSchema, copyHandler);
-			RowSource rowSource = synchronizeProvider.getRowSource(sourceReader, sourceHandler);
-			RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, finalSchema, copyHandler, sourceHandler, preserveUserAttribution);
-			SyncOutcomeListener<RowCopyItem, RowSourceItemReference> outcomeListener = synchronizeProvider.getRowSyncOutcomeListener(sourceHandler);
-			logic.synchronize(rowCopy, rowSource, rowMerge, outcomeListener);
+			// Phase two: run the row merge. The row outcome handler applies grid CRDT
+			// changes directly and reports every surviving row to the writer so a pushed
+			// artifact can capture the full final grid contents.
+			RowSourceReader rowReader = synchronizeProvider.getRowSourceReader(sourceReader);
+			RowSyncRules rowRules = synchronizeProvider.getRowSyncRules(sourceHandler);
+			RowSyncOutcomeHandler rowHandler = synchronizeProvider.getRowSyncOutcomeHandler(logic, icp, finalSchema, copyHandler,
+					sourceWriter, preserveUserAttribution);
+			logic.synchronize(rowHandler.streamCopyItems(), rowReader, rowRules, rowHandler);
 
-			errorMessage = sourceHandler.getErrorMessages();
+			errorMessage = sourceWriter.getErrorMessages();
 			benefactorIds = sourceHandler.getBenefactorIds();
 
 			// Record the source revision the grid is now synchronized to (the new
@@ -119,10 +120,10 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			sourceHandler.getSourceSchema$Id()
 					.ifPresent(schemaId -> gridManager.updateSessionSchemaId(session.getSessionId(), schemaId));
 
-			// Flush the push if applicable. The source writes the artifact back as a new
+			// Flush the push if applicable. The writer writes the artifact back as a new
 			// version (RecordSet PULL_PUSH only; other cases are no-ops). The new source
 			// version supersedes the version recorded above.
-			sourceHandler.completePush()
+			sourceWriter.completePush()
 					.ifPresent(version -> gridManager.updateSourceEntityVersion(session.getSessionId(), version));
 		}
 		// Update benefactor IDs and evict any connections that no longer have access.

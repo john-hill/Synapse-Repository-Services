@@ -3,30 +3,37 @@ package org.sagebionetworks.repo.manager.grid.synch.handler;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
-import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.SyncType;
-import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
 /**
- * Handler for reading from and writing to the source of truth during grid
- * synchronization. Provides both read access to the current source state and
- * write operations for applying changes from the copy (CRDT replica).
+ * The read side of a synchronization source: it exposes the source's current
+ * rows and schema, the keying/matchability/deletion rules the engine needs, and
+ * per-run metadata (benefactor ids, source version, bound schema). It never
+ * mutates the source — that is the job of the paired {@link SourceWriter}
+ * obtained via {@link #createSourceWriter()}.
  *
  * <p>
- * This handler bridges the synchronization logic with the actual source
- * implementation, allowing the source to be any external source (EntityView,
- * Table, RecordSet, etc.) while maintaining a consistent interface for
- * synchronization.
+ * This bridges the synchronization logic with the actual source implementation,
+ * allowing the source to be any external source (EntityView, RecordSet, etc.)
+ * while presenting a consistent read/rules interface.
  */
 public interface SourceHandler extends AutoCloseable {
+
+	/**
+	 * Creates the {@link SourceWriter} strategy paired with this source. The writer
+	 * owns all mutation of the source (in-place cell writes, or a rebuilt export
+	 * artifact) and is used by the row/schema {@code SyncOutcomeHandler}s. The
+	 * returned writer is independently {@link AutoCloseable} and must be closed by
+	 * the caller.
+	 *
+	 * @return a new source writer for this source
+	 */
+	SourceWriter createSourceWriter();
 
 	/**
 	 * Gets a disk-based reader for streaming all rows from the source. Used during
@@ -48,107 +55,12 @@ public interface SourceHandler extends AutoCloseable {
 	String getRowKey(RowCopyItem rowView);
 
 	/**
-	 * Adds a new row to the source. Called during synchronization when a row exists
-	 * in the copy but not in the source, and the row was changed by the user
-	 * (pushing the user's addition to the source).
-	 *
-	 * @param copy the row to add to the source
-	 */
-	void addNewRowToSource(RowSourceItem copy);
-
-	/**
 	 * Gets the current schema (column names) from the source. Used during Phase 1
 	 * (schema synchronization) to compare source columns with copy columns.
 	 *
 	 * @return ordered list of column names defining the source schema
 	 */
 	List<String> getCurrentSourceSchema();
-
-	/**
-	 * Adds a new column to the source schema. Called during Phase 1 when a column
-	 * exists in the copy but not in the source, and the column was added by the
-	 * user (pushing the user's schema change to the source).
-	 *
-	 * @param name the name of the column to add
-	 */
-	void addColumnToSource(String name);
-
-	/**
-	 * Applies only the cells that changed in the copy to the source row. This
-	 * prevents data loss when external changes occur in the source between reading
-	 * and writing. By only updating cells that actually changed in the copy, any
-	 * source cells that were modified after we read the row will be preserved.
-	 *
-	 * <p>
-	 * Called during Phase 2 when merging cell-level conflicts between copy and
-	 * source rows.
-	 *
-	 * @param rowId        the identifier of the row to update
-	 * @param changedCells map of column names to new values (only cells that
-	 *                     changed in the copy)
-	 */
-	void applyCellChangesFromCopyToSource(String rowId, Map<String, ConValue> changedCells);
-
-	/**
-	 * Deletes a column from the source schema. Called during Phase 1 when a column
-	 * exists in the source but not in the copy, and the column was deleted by the
-	 * user (pushing the user's schema change to the source).
-	 *
-	 * @param columnName the name of the column to delete
-	 */
-	void removeColumn(String columnName);
-
-	/**
-	 * Removes a row from the source. Called during synchronization when a row
-	 * exists in the source but not in the copy, and the row was deleted by the user
-	 * (pushing the user's deletion to the source).
-	 *
-	 * @param fetchRow the row to remove from the source
-	 */
-	void removeRow(RowSourceItem fetchRow);
-
-	/**
-	 * Returns whether rows can be added to or removed from this source. When false,
-	 * rows that exist in the copy but not in the source will always be removed from
-	 * the copy during synchronization, even if they were changed by the user.
-	 *
-	 * <p>
-	 * Defaults to true. Override to return false for sources such as entity views,
-	 * where row membership is determined by the view scope and cannot be modified by
-	 * pushing rows from the copy.
-	 *
-	 * @return true if rows can be added to or removed from this source, false
-	 *         otherwise
-	 */
-	default boolean canAddRemoveRows() {
-		return true;
-	}
-
-	/**
-	 * Returns whether columns can be added to or removed from this source. When
-	 * false, columns that exist in the copy but not in the source will always be
-	 * removed from the copy during synchronization, even if they were changed by
-	 * the user.
-	 *
-	 * <p>
-	 * Defaults to true. Override to return false for sources such as entity views,
-	 * where the schema is determined by the view and cannot be modified by pushing
-	 * columns from the copy.
-	 *
-	 * @return true if columns can be added to or removed from this source, false
-	 *         otherwise
-	 */
-	default boolean canAddRemoveColumns() {
-		return true;
-	}
-
-	/**
-	 * Provide all error messages generated during the synchronization process to be
-	 * forwarded to the caller.
-	 *
-	 * @return
-	 */
-	List<String> getErrorMessages();
 
 	/**
 	 * Returns the set of benefactor IDs collected from the source rows during
@@ -214,8 +126,8 @@ public interface SourceHandler extends AutoCloseable {
 
 	/**
 	 * Returns whether the given copy (grid) row is unmatchable during
-	 * synchronization. If unmatchable, the row left entirely untouched in the copy,
-	 * and is excluded from the keyed Phase 1 traversal.
+	 * synchronization. If unmatchable (returns `true`), the row is excluded from
+	 * the keyed Phase 1 traversal.
 	 *
 	 * <p>
 	 * For a RecordSet source this is true for rows with an incomplete
@@ -228,9 +140,10 @@ public interface SourceHandler extends AutoCloseable {
 	 * keyed by row id) inherit the default and all rows are considered matchable.
 	 *
 	 * @param row the copy row to test
+	 * @param key the precomputed key for this row (see {@link #getRowKey})
 	 * @return true if the row should be left untouched by synchronization
 	 */
-	default boolean isUnmatchableCopyRow(RowCopyItem row) {
+	default boolean isUnmatchableCopyRow(RowCopyItem row, String key) {
 		return false;
 	}
 
@@ -299,57 +212,6 @@ public interface SourceHandler extends AutoCloseable {
 	 */
 	default boolean isColumnDeletedByUser(String columnName) {
 		return false;
-	}
-
-	/**
-	 * Prepares any push artifact this source builds during the merge. Called once,
-	 * after Phase 1 schema synchronization and before the row merge, so the source
-	 * can create a builder keyed to the final schema.
-	 *
-	 * <p>
-	 * Defaults to a no-op. Only sources that push a new artifact (RecordSet
-	 * PULL_PUSH) override it; all other sources/sync types inherit the no-op and
-	 * push nothing.
-	 *
-	 * @param callback    the async-job progress callback (used for job id)
-	 * @param finalSchema the synchronized schema produced by Phase 1
-	 * @param syncType    the resolved sync type for this run
-	 * @throws IOException if the push artifact cannot be opened
-	 */
-	default void beginPush(AsyncJobProgressCallback callback, List<Column> finalSchema, SyncType syncType)
-			throws IOException {
-		// no-op by default
-	}
-
-	/**
-	 * Notification that a single grid row survived the merge with the given final
-	 * cell values. The row merge feeds every surviving row here (merged, pulled in,
-	 * retained, or user-added) and never feeds removed rows, so a source
-	 * building a pushed artifact can capture the exact final grid contents.
-	 *
-	 * <p>
-	 * Defaults to a no-op. Only sources that push an artifact (RecordSet PULL_PUSH)
-	 * override it; all other sources/sync types inherit the no-op.
-	 *
-	 * @param finalCells the surviving row's final cell values, keyed by column name
-	 */
-	default void onSurvivingRow(Map<String, ConValue> finalCells) {
-		// no-op by default
-	}
-
-	/**
-	 * Flushes any push artifact accumulated during the merge to the source and
-	 * returns the new source version number. Called after the row merge finishes.
-	 *
-	 * <p>
-	 * Defaults to empty. Only sources that push an artifact (RecordSet PULL_PUSH)
-	 * override it; all others inherit the empty default.
-	 *
-	 * @return the new source version number, or empty if no push was performed
-	 * @throws Exception if the push fails
-	 */
-	default Optional<Long> completePush() throws Exception {
-		return Optional.empty();
 	}
 
 }

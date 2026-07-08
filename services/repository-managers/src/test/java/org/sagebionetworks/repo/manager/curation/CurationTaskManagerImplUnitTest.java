@@ -322,7 +322,7 @@ public class CurationTaskManagerImplUnitTest {
         List<Long> taskId = List.of(this.taskId);
         ListCurationTaskRequest request = new ListCurationTaskRequest()
                 .setProjectId(projectId)
-                .setTaskId(taskId);
+                .setTaskIds(taskId);
         CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = List.of(bundle1);

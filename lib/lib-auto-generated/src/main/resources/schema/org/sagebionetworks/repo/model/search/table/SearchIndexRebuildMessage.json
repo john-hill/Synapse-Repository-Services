@@ -1,0 +1,10 @@
+{
+	"description": "Hop-2 message of the source-availability rebuild fan-out. Fired per dependent SearchIndex after a source table/view emits a TABLE_STATUS_EVENT(AVAILABLE). The worker calls rebuildIfWaiting, which re-checks the index state under the per-entity write lock and runs a full rebuild only when it is still WAITING_FOR_SOURCE. The target SearchIndex id travels in objectId. Does not migrate between stacks.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.message.LocalStackMessage"
+		}
+	],
+	"properties": {
+	}
+}

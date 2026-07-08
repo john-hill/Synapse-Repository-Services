@@ -130,6 +130,36 @@ public class SearchIndexStatusDaoImplTest {
 		assertTrue(dao.getStatus(999L).isEmpty());
 	}
 
+	@Test
+	void testCreateOrUpdateWithSourceVersion() {
+		// call under test
+		dao.createOrUpdate(new SearchIndexStatus()
+				.setSearchIndexId("syn42")
+				.setState(SearchIndexState.ACTIVE)
+				.setSourceVersion(7L));
+
+		SearchIndexStatus result = dao.getStatus(42L).orElseThrow();
+		assertEquals(SearchIndexState.ACTIVE, result.getState());
+		assertEquals(7L, result.getSourceVersion());
+	}
+
+	@Test
+	void testCreateOrUpdateClearsSourceVersionWhenNotSet() {
+		dao.createOrUpdate(new SearchIndexStatus()
+				.setSearchIndexId("syn42")
+				.setState(SearchIndexState.ACTIVE)
+				.setSourceVersion(7L));
+
+		// call under test — a subsequent write without a sourceVersion resets it to null.
+		dao.createOrUpdate(new SearchIndexStatus()
+				.setSearchIndexId("syn42")
+				.setState(SearchIndexState.CREATING));
+
+		SearchIndexStatus result = dao.getStatus(42L).orElseThrow();
+		assertEquals(SearchIndexState.CREATING, result.getState());
+		assertNull(result.getSourceVersion());
+	}
+
 	@ParameterizedTest
 	@EnumSource(SearchIndexState.class)
 	void testCreateOrUpdateWithEachState(SearchIndexState state) {

@@ -40,16 +40,18 @@ public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 		ValidateArgument.required(status.getState(), "status.state");
 		template.update(
 				"INSERT INTO SEARCH_INDEX_STATUS"
-				+ "  (SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, CHANGED_ON)"
+				+ "  (SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, SOURCE_VERSION, CHANGED_ON)"
 				+ " VALUES"
-				+ "  (?, ?, ?, NOW(3)) AS new"
+				+ "  (?, ?, ?, ?, NOW(3)) AS new"
 				+ " ON DUPLICATE KEY UPDATE"
 				+ "  STATE = new.STATE,"
 				+ "  ERROR_MESSAGE = new.ERROR_MESSAGE,"
+				+ "  SOURCE_VERSION = new.SOURCE_VERSION,"
 				+ "  CHANGED_ON = NOW(3)",
 				KeyFactory.stringToKey(status.getSearchIndexId()),
 				status.getState().name(),
-				status.getErrorMessage());
+				status.getErrorMessage(),
+				status.getSourceVersion());
 	}
 
 	@Override
@@ -68,13 +70,17 @@ public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 	public Optional<SearchIndexStatus> getStatus(Long searchIndexId) {
 		try {
 			SearchIndexStatus status = template.queryForObject(
-					"SELECT SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, CHANGED_ON"
+					"SELECT SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, SOURCE_VERSION, CHANGED_ON"
 					+ " FROM SEARCH_INDEX_STATUS WHERE SEARCH_INDEX_ID = ?",
 					(ResultSet rs, int rowNum) -> {
 						SearchIndexStatus s = new SearchIndexStatus();
 						s.setSearchIndexId(KeyFactory.keyToString(rs.getLong("SEARCH_INDEX_ID")));
 						s.setState(SearchIndexState.valueOf(rs.getString("STATE")));
 						s.setErrorMessage(rs.getString("ERROR_MESSAGE"));
+						long sourceVersion = rs.getLong("SOURCE_VERSION");
+						if (!rs.wasNull()) {
+							s.setSourceVersion(sourceVersion);
+						}
 						Timestamp changedOn = rs.getTimestamp("CHANGED_ON");
 						if (changedOn != null) {
 							s.setChangedOn(new Date(changedOn.getTime()));

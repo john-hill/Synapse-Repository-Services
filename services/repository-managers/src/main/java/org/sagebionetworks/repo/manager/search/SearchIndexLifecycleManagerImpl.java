@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,12 +22,16 @@ import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.message.RepositoryMessagePublisher;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.dbo.search.SearchIndexSourceTableDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -35,6 +40,7 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.table.SearchIndexRebuildMessage;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
@@ -45,7 +51,6 @@ import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableStatus;
-import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.table.cluster.CachedQueryRequest;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
@@ -74,6 +79,12 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 	private static final Logger LOG = LogManager.getLogger(SearchIndexLifecycleManagerImpl.class);
 	private static final String INDEX_PREFIX = "search-index-";
+	// Blue-green physical slots. Queries target the alias getAliasName(entityId); each build streams
+	// into whichever of these two deterministic physical indices the alias is NOT currently serving,
+	// then atomically repoints the alias. Two fixed names bound the footprint to two indices per entity
+	// (the idle slot is overwritten by the next build), so no orphan sweeper is needed.
+	static final String SLOT_A = "a";
+	static final String SLOT_B = "b";
 	private static final String LOCK_KEY_PREFIX = "search-index-build:";
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
 	private static final int BATCH_SIZE = 1000;
@@ -145,6 +156,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final ColumnModelManager columnModelManager;
 	private final WriteReadSemaphore writeReadSemaphore;
 	private final StackConfiguration stackConfiguration;
+	private final SearchIndexSourceTableDao searchIndexSourceTableDao;
+	private final RepositoryMessagePublisher messagePublisher;
 
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
@@ -156,7 +169,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			TableManagerSupport tableManagerSupport,
 			ColumnModelManager columnModelManager,
 			WriteReadSemaphore writeReadSemaphore,
-			StackConfiguration stackConfiguration) {
+			StackConfiguration stackConfiguration,
+			SearchIndexSourceTableDao searchIndexSourceTableDao,
+			RepositoryMessagePublisher messagePublisher) {
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
@@ -169,6 +184,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.columnModelManager = columnModelManager;
 		this.writeReadSemaphore = writeReadSemaphore;
 		this.stackConfiguration = stackConfiguration;
+		this.searchIndexSourceTableDao = searchIndexSourceTableDao;
+		this.messagePublisher = messagePublisher;
 	}
 
 	@Override
@@ -198,6 +215,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				.map(c -> columnModelManager.createColumnModel(c).getId())
 				.collect(Collectors.toList());
 		columnModelManager.bindColumnsToVersionOfObject(schemaIds, searchIndexId);
+		// Record the source -> SearchIndex edge so a source table/view that becomes AVAILABLE can
+		// reverse-look-up which SearchIndex(es) depend on it and enqueue their rebuild.
+		searchIndexSourceTableDao.setSourceTable(searchIndexId, sourceId);
 		return schemaIds;
 	}
 
@@ -207,7 +227,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		ValidateArgument.required(userId, "userId");
 		try (WriteLock lock = writeReadSemaphore.getWriteLock(
 				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.buildIndex", LOCK_KEY_PREFIX + entityId))) {
-			buildIndex(progressCallback, entityId, userId, true);
+			buildIndex(progressCallback, entityId, userId);
 		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
 					"Search index " + entityId + " is already being built by another worker", e);
@@ -221,7 +241,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		try (WriteLock lock = writeReadSemaphore.getWriteLock(
 				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.buildIndex", LOCK_KEY_PREFIX + entityId))) {
 			// In the MVP updates are unconditionally replacing the index on all changes regardless of what the change is.
-			buildIndex(progressCallback, entityId, userId, true);
+			buildIndex(progressCallback, entityId, userId);
 		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
 					"Search index " + entityId + " is already being built by another worker", e);
@@ -249,19 +269,29 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 *                             (the rebuild path); when false, the build assumes no
 	 *                             existing index exists.
 	 */
-	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId,
-			boolean deleteExistingFirst)
+	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId)
 			throws Exception {
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
+		String aliasName = getAliasName(entityId);
+		// The physical index this build streams into; assigned once the target slot is known so the
+		// failure path can clean up the partial green index without touching the live one.
+		String physicalSlot = null;
 		try {
 			UserInfo user = userManager.getUserInfo(userId);
 			SearchIndex searchIndex = entityManager.getEntity(user, entityId, SearchIndex.class);
 
 			String definingSQL = searchIndex.getDefiningSQL();
 
-			statusDao.createOrUpdate(new SearchIndexStatus()
-					.setSearchIndexId(entityId)
-					.setState(SearchIndexState.CREATING));
+			// Blue-green: the alias resolves to the currently-live physical index, or is empty on the
+			// first build. A first build has nothing to serve yet, so it records CREATING and the query
+			// path throws until it finishes; a rebuild keeps the live index queryable and leaves the
+			// state ACTIVE untouched until the alias swap at the end.
+			Optional<String> oldTarget = openSearchManager.getAliasTarget(aliasName);
+			if (oldTarget.isEmpty()) {
+				statusDao.createOrUpdate(new SearchIndexStatus()
+						.setSearchIndexId(entityId)
+						.setState(SearchIndexState.CREATING));
+			}
 
 			Optional<SearchConfiguration> configOpt = searchConfigurationResolver.resolve(
 					user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
@@ -289,18 +319,30 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			IndexDescription sourceIndexDescription = tableManagerSupport.getIndexDescription(sourceId);
 			TableIndexDAO indexDao = connectionFactory.getConnection(sourceId);
 
-			// Require the source to be AVAILABLE first; a PROCESSING source throws
-			// TableUnavailableException (the worker re-queues as recoverable) and a failed source
-			// throws TableFailedException.
+			// Require the source to be AVAILABLE first. A PROCESSING source cannot be waited on by
+			// retrying the message — a source table can take far longer to become AVAILABLE than
+			// the SQS retention window, so retry-until-expiry sends the message to the dead-letter
+			// queue. Instead record WAITING_FOR_SOURCE and consume the message; the rebuild fires
+			// later, driven by the source's own TABLE_STATUS_EVENT(AVAILABLE) via
+			// refreshDependentSearchIndexes. A failed source is a permanent build failure.
 			TableStatus sourceStatus = tableManagerSupport.getTableStatusOrCreateIfNotExists(sourceId);
 			switch (sourceStatus.getState()) {
 			case AVAILABLE:
 				break;
 			case PROCESSING:
-				throw new TableUnavailableException(sourceStatus);
+				statusDao.createOrUpdate(new SearchIndexStatus()
+						.setSearchIndexId(entityId)
+						.setState(SearchIndexState.WAITING_FOR_SOURCE));
+				return;
 			default:
 				throw new TableFailedException(sourceStatus);
 			}
+
+			// Capture the source's content version BEFORE streaming rows. Recording it against the
+			// ACTIVE status lets rebuildIfStale skip a no-op rebuild when the source has not changed.
+			// Reading before the stream is conservative: a source change mid-build only advances the
+			// version we did NOT record, so the stale check re-fires next event rather than missing it.
+			Long sourceVersion = indexDao.getMaxCurrentCompleteVersionForTable(sourceId);
 
 			// Conservative whole-table ceiling: the defining SQL queries a single source table
 			// so it cannot expand the row count beyond the source's row count.
@@ -342,11 +384,12 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			int numberOfShards = computeShardCount(dataSizeBytes);
 			int numberOfReplicas = stackConfiguration.isProductionStack() ? 1 : 0;
 
-			String indexName = getIndexName(entityId);
-			if (deleteExistingFirst) {
-				openSearchManager.deleteIndex(indexName);
-			}
-			openSearchManager.createIndex(indexName, selectedColumns,
+			// Build into the physical slot the alias is NOT currently serving, so the live index keeps
+			// answering queries throughout. createIndex is delete-then-create on the fixed slot name, so
+			// any orphan left in the idle slot by a previously-failed build is overwritten here.
+			physicalSlot = getIdlePhysicalSlot(entityId, oldTarget);
+			openSearchManager.deleteIndex(physicalSlot);
+			openSearchManager.createIndex(physicalSlot, selectedColumns,
 					defaultAnalyzer,
 					overrides, resolvedAnalyzers,
 					benefactorCount, numberOfShards, numberOfReplicas);
@@ -354,7 +397,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// AOSS acknowledges createIndex and returns an already-queryable index before its
 			// shards are actually ready to accept writes. Block until a real sentinel write
 			// succeeds so the bulk stream below does not race against index_not_found_exception.
-			openSearchManager.waitForIndexWritable(indexName);
+			openSearchManager.waitForIndexWritable(physicalSlot);
 
 			// SqlContext.query (not build) emits the select against the source's materialized
 			// index table. userId only feeds CURRENT_USER() substitution.
@@ -371,18 +414,23 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// queryAsStream does not close the handler; the try-with-resources flushes the final
 			// partial batch.
 			try (SearchIndexRowHandler handler = new SearchIndexRowHandler(
-					indexName, selectColumns, openSearchManager)) {
+					physicalSlot, selectColumns, openSearchManager)) {
 				indexDao.queryAsStream(query, handler);
 			}
 
+			// Atomically repoint the alias to the freshly-built slot. Only now does the new data
+			// become visible to queries; the old index served every query up to this instant.
+			openSearchManager.swapAlias(aliasName, physicalSlot, oldTarget);
+
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
-					.setState(SearchIndexState.ACTIVE));
-		} catch (RecoverableMessageException | TableUnavailableException | TableFailedException | LockUnavilableException e) {
+					.setState(SearchIndexState.ACTIVE)
+					.setSourceVersion(sourceVersion));
+		} catch (RecoverableMessageException | TableFailedException | LockUnavilableException e) {
 			// Propagate transient/infrastructure exceptions to the worker so it can
-			// convert them into RecoverableMessageException (table unavailable / lock)
-			// or permanent failure (table failed). Do not record FAILED here — the
-			// failure is not in the search index's configuration.
+			// convert them into RecoverableMessageException (lock) or permanent failure
+			// (table failed). Do not record FAILED here — the failure is not in the search
+			// index's configuration.
 			throw e;
 		} catch (Throwable e) {
 			// Another worker is currently deleting this same AOSS index. Translate
@@ -415,11 +463,14 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					.setSearchIndexId(entityId)
 					.setState(SearchIndexState.FAILED)
 					.setErrorMessage(errorMessage));
-			// Best-effort cleanup of partial AOSS index
-			try {
-				openSearchManager.deleteIndex(getIndexName(entityId));
-			} catch (Exception deleteEx) {
-				LOG.error("Failed to clean up partial index for entity: " + entityId, deleteEx);
+			// Best-effort cleanup of the partial green index. Only the slot this build was streaming
+			// into is dropped — the live index (still referenced by the alias) is left untouched.
+			if (physicalSlot != null) {
+				try {
+					openSearchManager.deleteIndex(physicalSlot);
+				} catch (Exception deleteEx) {
+					LOG.error("Failed to clean up partial index for entity: " + entityId, deleteEx);
+				}
 			}
 		}
 	}
@@ -446,8 +497,15 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				return;
 			}
 			try {
-				openSearchManager.deleteIndex(getIndexName(entityId));
+				// Delete both physical slots. Deleting the concrete index that backs the query alias
+				// also removes its alias membership, so no separate alias removal is required; the
+				// other slot is an idempotent no-op when it does not exist.
+				openSearchManager.deleteIndex(getPhysicalSlotName(entityId, SLOT_A));
+				openSearchManager.deleteIndex(getPhysicalSlotName(entityId, SLOT_B));
 				statusDao.delete(searchIndexId);
+				// The node ON DELETE CASCADE normally clears the source edge; drop it explicitly
+				// too so a lifecycle delete that runs before the node delete leaves no stale edge.
+				searchIndexSourceTableDao.delete(IdAndVersion.parse(entityId));
 			} catch (Throwable e) {
 				LOG.error("Failed to delete search index for entity: " + entityId, e);
 			}
@@ -455,6 +513,95 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			throw new RecoverableMessageException(
 					"Search index " + entityId + " is locked by another worker", e);
 		}
+	}
+
+	@Override
+	public void refreshDependentSearchIndexes(IdAndVersion sourceTableId) {
+		ValidateArgument.required(sourceTableId, "sourceTableId");
+		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
+		// Indexed reverse lookup via the source -> SearchIndex edge table (mirrors the
+		// MaterializedView source-availability path: MATERIALIZED_VIEW_SOURCE_TABLES).
+		for (Long dependentId : searchIndexSourceTableDao.getDependentSearchIndexIds(sourceTableId)) {
+			Optional<SearchIndexState> stateOpt = statusDao.getState(dependentId);
+			if (stateOpt.isEmpty()) {
+				continue;
+			}
+			// Enqueue a rebuild for indexes that react to this source becoming available. WAITING_FOR_SOURCE
+			// is first-availability; ACTIVE is live-sync (the source's data changed); CREATING closes a
+			// lost-wakeup race where a build that read the source as unavailable had not recorded
+			// WAITING_FOR_SOURCE yet. The fan-out stays dumb — no version check here. The authoritative
+			// stale-or-not decision is made under the per-entity lock by rebuildIfStale, which no-ops an
+			// ACTIVE index whose source version has not moved. FAILED (terminal/manual) is left alone.
+			SearchIndexState state = stateOpt.get();
+			if (SearchIndexState.WAITING_FOR_SOURCE.equals(state) || SearchIndexState.CREATING.equals(state)
+					|| SearchIndexState.ACTIVE.equals(state)) {
+				messagePublisher.fireLocalStackMessage(new SearchIndexRebuildMessage()
+						.setObjectType(ObjectType.SEARCH_INDEX_REBUILD)
+						.setObjectId(KeyFactory.keyToString(dependentId)));
+			}
+		}
+	}
+
+	@Override
+	public void rebuildIfStale(ProgressCallback progressCallback, String entityId) throws Exception {
+		ValidateArgument.required(entityId, "entityId");
+		// The triggering TABLE_STATUS_EVENT carries no user; build as the admin principal. Read
+		// access is enforced at query time via per-row _benefactor_<i> filtering, so the build
+		// itself does not authorize rows.
+		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		try (WriteLock lock = writeReadSemaphore.getWriteLock(
+				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.rebuildIfStale",
+						LOCK_KEY_PREFIX + entityId))) {
+			// Authoritative gate under the lock: the lock linearizes this against any in-flight build.
+			//  - WAITING_FOR_SOURCE: first-availability build.
+			//  - ACTIVE: live-sync — rebuild only if the source's content version has moved since the
+			//    index was last built; otherwise this is a no-op source touch and we skip.
+			//  - CREATING / FAILED / absent: no-op (a CREATING index that has since finished is observed
+			//    as ACTIVE and handled by the version check; FAILED is terminal until a manual rebuild).
+			Optional<SearchIndexState> stateOpt = connectionFactory.getSearchIndexStatusDao()
+					.getState(KeyFactory.stringToKey(entityId));
+			if (stateOpt.isEmpty()) {
+				return;
+			}
+			SearchIndexState state = stateOpt.get();
+			if (SearchIndexState.WAITING_FOR_SOURCE.equals(state)) {
+				buildIndex(progressCallback, entityId, adminUserId);
+			} else if (SearchIndexState.ACTIVE.equals(state) && isSourceStale(entityId)) {
+				buildIndex(progressCallback, entityId, adminUserId);
+			}
+		} catch (LockUnavilableException e) {
+			// A build can hold the per-entity lock for minutes. Throwing RecoverableMessageException
+			// here would requeue with a short delay and DLQ before the build releases — reintroducing
+			// the very failure this feature removes. Instead consume this message and republish a
+			// fresh one (resets the SQS receive count). Strictly 1-in-1-out and idempotent under the
+			// lock, so the cycle converges once the lock frees.
+			LOG.info("Search index {} is locked; republishing rebuild request.", entityId);
+			messagePublisher.fireLocalStackMessage(new SearchIndexRebuildMessage()
+					.setObjectType(ObjectType.SEARCH_INDEX_REBUILD)
+					.setObjectId(entityId));
+		}
+	}
+
+	/**
+	 * True when the ACTIVE index's source has changed since the index was last built — i.e. the
+	 * source's current content version differs from the version recorded on {@code SearchIndexStatus}.
+	 * A missing stored version (never recorded, or a source with no index table) is treated as stale so
+	 * the rebuild proceeds — the safe direction, since skipping would leave the index permanently out
+	 * of date.
+	 */
+	private boolean isSourceStale(String entityId) {
+		Optional<IdAndVersion> sourceOpt = searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(entityId));
+		if (sourceOpt.isEmpty()) {
+			return true;
+		}
+		IdAndVersion sourceId = sourceOpt.get();
+		Long currentVersion = connectionFactory.getConnection(sourceId)
+				.getMaxCurrentCompleteVersionForTable(sourceId);
+		Long storedVersion = connectionFactory.getSearchIndexStatusDao()
+				.getStatus(KeyFactory.stringToKey(entityId))
+				.map(SearchIndexStatus::getSourceVersion)
+				.orElse(null);
+		return !Objects.equals(currentVersion, storedVersion);
 	}
 
 	/**
@@ -678,8 +825,27 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		return CachedQueryRequest.clone(base).setOutputSQL(outputSQL).setSelectColumns(headers);
 	}
 
-	private String getIndexName(String entityId) {
+	/** The stable alias queries target: {@code search-index-<entityId>}. */
+	private String getAliasName(String entityId) {
 		return INDEX_PREFIX + entityId;
+	}
+
+	/** A physical slot index: {@code search-index-<entityId>-<slot>}. */
+	private String getPhysicalSlotName(String entityId, String slot) {
+		return INDEX_PREFIX + entityId + "-" + slot;
+	}
+
+	/**
+	 * The physical slot to build into: the one the alias is NOT currently serving. On the first build
+	 * ({@code currentTarget} empty) this is slot A; otherwise it is whichever slot the alias does not
+	 * already point at, so the live index keeps serving queries while the new one is built.
+	 */
+	private String getIdlePhysicalSlot(String entityId, Optional<String> currentTarget) {
+		String slotA = getPhysicalSlotName(entityId, SLOT_A);
+		if (currentTarget.isPresent() && currentTarget.get().equals(slotA)) {
+			return getPhysicalSlotName(entityId, SLOT_B);
+		}
+		return slotA;
 	}
 
 	static class SearchIndexRowHandler implements RowHandler {

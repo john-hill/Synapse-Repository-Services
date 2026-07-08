@@ -1581,6 +1581,14 @@ public class SqlConstants {
 	public static final String COL_SCOB_CREATED_ON						= "CREATED_ON";
 	public static final String DDL_SEARCH_CONFIG_OBJECT_BINDING			= "schema/SearchConfigBinding-ddl.sql";
 
+	// Search Index Source Table (reverse lookup: source table -> dependent SearchIndex)
+	public static final String TABLE_SEARCH_INDEX_SOURCE_TABLE			= "SEARCH_INDEX_SOURCE_TABLE";
+	public static final String COL_SEARCH_INDEX_SOURCE_INDEX_ID			= "SEARCH_INDEX_ID";
+	public static final String COL_SEARCH_INDEX_SOURCE_ETAG				= "ETAG";
+	public static final String COL_SEARCH_INDEX_SOURCE_TABLE_ID			= "SOURCE_TABLE_ID";
+	public static final String COL_SEARCH_INDEX_SOURCE_TABLE_VERSION	= "SOURCE_TABLE_VERSION";
+	public static final String DDL_SEARCH_INDEX_SOURCE_TABLE			= "schema/SearchIndexSourceTable-ddl.sql";
+
 	/**
 	 * Function names:
 	 */

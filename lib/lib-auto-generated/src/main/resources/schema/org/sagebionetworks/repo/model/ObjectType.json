@@ -201,6 +201,10 @@
         {
             "name": "RECORDSET",
             "description": "A RecordSet entity whose CSV-backed data is indexed and queryable like a table."
+        },
+        {
+            "name": "SEARCH_INDEX_REBUILD",
+            "description": "An event fired per dependent SearchIndex when a source table/view becomes AVAILABLE, requesting a full rebuild of an index waiting on that source."
         }
     ]
 }

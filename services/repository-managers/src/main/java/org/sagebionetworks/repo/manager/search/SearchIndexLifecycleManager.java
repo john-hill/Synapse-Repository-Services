@@ -75,4 +75,30 @@ public interface SearchIndexLifecycleManager {
 	 *         at index-build time.
 	 */
 	List<String> registerSchema(IdAndVersion searchIndexId, String definingSql);
+
+	/**
+	 * Hop-1 of the source-availability / live-sync rebuild. A source table/view became AVAILABLE (it
+	 * emitted a {@code TABLE_STATUS_EVENT}). Reverse-look-up every SearchIndex that depends on the
+	 * source and enqueue a rebuild request ({@code SearchIndexRebuildMessage}) for each one whose state
+	 * is WAITING_FOR_SOURCE (first-availability), ACTIVE (live-sync), or CREATING. FAILED indexes are
+	 * left alone. No version check happens here — the authoritative stale-or-not decision is made under
+	 * the per-entity lock by {@link #rebuildIfStale}.
+	 *
+	 * @param sourceTableId The source table/view (with version) that became available.
+	 */
+	void refreshDependentSearchIndexes(IdAndVersion sourceTableId);
+
+	/**
+	 * Hop-2 of the source-availability / live-sync rebuild. Under the per-entity write lock, rebuild
+	 * the index when it is WAITING_FOR_SOURCE (first-availability) or when it is ACTIVE and its source's
+	 * content version has moved since the last build (live-sync); no-op otherwise (covers a CREATING
+	 * index, a FAILED index, and a no-op source touch of an up-to-date ACTIVE index). If the lock is
+	 * held by an in-flight build, the message is consumed and a fresh rebuild request is republished
+	 * (NOT a recoverable retry, which would DLQ before a minutes-long build releases the lock).
+	 *
+	 * @param progressCallback Refreshes the per-entity write lock while the rebuild runs.
+	 * @param entityId         The dependent SearchIndex entity id to rebuild.
+	 * @throws Exception transient failures propagate so the worker can re-queue.
+	 */
+	void rebuildIfStale(ProgressCallback progressCallback, String entityId) throws Exception;
 }

@@ -40,6 +40,7 @@ import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.indices.AnalyzeRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
+import org.opensearch.client.opensearch.indices.GetAliasResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHighlight;
@@ -480,6 +481,54 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					+ " (" + describeError(e.error()) + ")", e);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to delete search index: " + indexName, e);
+		}
+	}
+
+	@Override
+	public Optional<String> getAliasTarget(String aliasName) {
+		ValidateArgument.required(aliasName, "aliasName");
+		try {
+			GetAliasResponse response = openSearchClient.indices().getAlias(req -> req.name(aliasName));
+			// The response maps each concrete index carrying the alias to its alias definitions;
+			// the key set is therefore the set of physical indices the alias resolves to.
+			Set<String> targets = response.result().keySet();
+			if (targets.isEmpty()) {
+				return Optional.empty();
+			}
+			if (targets.size() > 1) {
+				throw new IllegalStateException("Alias " + aliasName
+						+ " resolves to multiple indices " + targets + "; expected exactly one.");
+			}
+			return Optional.of(targets.iterator().next());
+		} catch (OpenSearchException e) {
+			// A missing alias is reported as a 404; treat it as "no live index yet" (first build).
+			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type()) || Integer.valueOf(404).equals(e.status())) {
+				return Optional.empty();
+			}
+			throw new RuntimeException("Failed to resolve alias: " + aliasName
+					+ " (" + describeError(e.error()) + ")", e);
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to resolve alias: " + aliasName, e);
+		}
+	}
+
+	@Override
+	public void swapAlias(String aliasName, String newPhysicalIndex, Optional<String> oldPhysicalIndex) {
+		ValidateArgument.required(aliasName, "aliasName");
+		ValidateArgument.required(newPhysicalIndex, "newPhysicalIndex");
+		ValidateArgument.required(oldPhysicalIndex, "oldPhysicalIndex");
+		try {
+			openSearchClient.indices().updateAliases(req -> {
+				oldPhysicalIndex.ifPresent(old -> req.actions(a -> a
+						.remove(r -> r.index(old).alias(aliasName))));
+				req.actions(a -> a.add(add -> add.index(newPhysicalIndex).alias(aliasName)));
+				return req;
+			});
+		} catch (OpenSearchException e) {
+			throw new RuntimeException("Failed to swap alias " + aliasName + " to " + newPhysicalIndex
+					+ " (" + describeError(e.error()) + ")", e);
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to swap alias " + aliasName + " to " + newPhysicalIndex, e);
 		}
 	}
 

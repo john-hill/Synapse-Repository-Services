@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,21 +44,26 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.message.RepositoryMessagePublisher;
 import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManagerImpl.SearchIndexRowHandler;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.dbo.search.SearchIndexSourceTableDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.table.SearchIndexRebuildMessage;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
@@ -68,7 +75,6 @@ import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableState;
 import org.sagebionetworks.repo.model.table.TableStatus;
-import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.QueryTranslator;
 import org.sagebionetworks.table.cluster.SchemaProvider;
@@ -137,6 +143,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	private TableIndexDAO indexDao;
 	@Mock
 	private StackConfiguration stackConfiguration;
+	@Mock
+	private SearchIndexSourceTableDao searchIndexSourceTableDao;
+	@Mock
+	private RepositoryMessagePublisher messagePublisher;
 
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
@@ -174,11 +184,13 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
 				.thenReturn(Collections.singletonList(nameCol));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID)).thenReturn(Optional.empty());
 		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
 				.thenReturn(SOURCE_INDEX_DESCRIPTION);
 		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
 		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
 				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
 		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
 		// SchemaProvider stubs so "SELECT * FROM syn789" translates in QueryTranslator.
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
@@ -204,11 +216,13 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
 				.thenReturn(Collections.singletonList(nameCol));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID)).thenReturn(Optional.empty());
 		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
 				.thenReturn(SOURCE_INDEX_DESCRIPTION);
 		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
 		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
 				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
 		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
 	}
 
@@ -255,7 +269,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(SearchIndexState.FAILED, saved.get(1).getState());
 		assertEquals("bad SQL", saved.get(1).getErrorMessage());
 		// Best-effort cleanup after failure
-		verify(openSearchManager, times(2)).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager, times(2)).deleteIndex("search-index-" + ENTITY_ID + "-a");
 	}
 
 	@Test
@@ -309,7 +323,7 @@ public class SearchIndexLifecycleManagerImplTest {
 				.reason("Deletion failed for indices [search-index-syn456] due to concurrent deletes, please try again"));
 		OpenSearchException concurrentDelete = new OpenSearchException(
 				ErrorResponse.of(er -> er.error(cause).status(400)));
-		doThrow(concurrentDelete).when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		doThrow(concurrentDelete).when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 
 		// call under test
 		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
@@ -324,15 +338,16 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(statusDao).createOrUpdate(captor.capture());
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
 		// The pre-build deleteIndex was attempted (it threw); createIndex / row stream never ran.
-		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 		verify(indexDao, never()).queryAsStream(any(), any());
 	}
 
 	@Test
-	public void testHandleCreateOnTableUnavailablePropagates() throws Exception {
-		// Source table state is PROCESSING — buildIndex throws TableUnavailableException.
-		// It must propagate so the worker can retry.
+	public void testHandleCreateOnTableUnavailableRecordsWaitingForSource() throws Exception {
+		// Source table state is PROCESSING — instead of retrying until the SQS message DLQs,
+		// buildIndex records WAITING_FOR_SOURCE and consumes the message. The rebuild fires later,
+		// driven by the source's TABLE_STATUS_EVENT(AVAILABLE).
 		stubBuildLock();
 		UserInfo triggering = triggeringUser();
 		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
@@ -350,15 +365,16 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
 				.thenReturn(new TableStatus().setState(TableState.PROCESSING));
 
-		// call under test — TableUnavailableException must propagate so the worker can retry.
-		assertThrows(TableUnavailableException.class,
-				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+		// call under test — must consume the message (no exception).
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		// Only the CREATING status was written — no FAILED record, no cleanup.
+		// CREATING was written on entry, then WAITING_FOR_SOURCE; no FAILED record, no index built.
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
-		verify(statusDao).createOrUpdate(captor.capture());
-		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
-		verify(openSearchManager, never()).deleteIndex(any());
+		verify(statusDao, times(2)).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getAllValues().get(0).getState());
+		assertEquals(SearchIndexState.WAITING_FOR_SOURCE, captor.getAllValues().get(1).getState());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
+		verify(indexDao, never()).queryAsStream(any(), any());
 	}
 
 	@Test
@@ -415,7 +431,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
 		// The pre-build deleteIndex ran (deleteExistingFirst=true), but no second cleanup delete
 		// since LockUnavilableException propagates directly from the multi-catch without cleanup.
-		verify(openSearchManager, times(1)).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager, times(1)).deleteIndex("search-index-" + ENTITY_ID + "-a");
 	}
 
 	@Test
@@ -427,8 +443,10 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test
 		manager.handleDelete(progressCallback, ENTITY_ID);
 
-		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao).delete(456L);
+		verify(searchIndexSourceTableDao).delete(IdAndVersion.parse(ENTITY_ID));
 		verify(writeLock).close();
 	}
 
@@ -441,7 +459,8 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test
 		manager.handleDelete(progressCallback, ENTITY_ID);
 
-		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao).delete(456L);
 		verify(writeLock).close();
 	}
@@ -530,11 +549,13 @@ public class SearchIndexLifecycleManagerImplTest {
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager, indexDao);
-		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
-		order.verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID),
+		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		order.verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID + "-a"),
 				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
-		order.verify(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
+		order.verify(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID + "-a");
 		order.verify(indexDao).queryAsStream(any(), any());
+		order.verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-a"), eq(Optional.empty()));
 	}
 
 	@Test
@@ -547,7 +568,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		stubHappyPathThroughCreateIndex();
 		RecoverableMessageException probeFailed = new RecoverableMessageException(
 				"AOSS index search-index-" + ENTITY_ID + " did not accept writes within the retry budget");
-		doThrow(probeFailed).when(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
+		doThrow(probeFailed).when(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID + "-a");
 
 		// call under test
 		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
@@ -1432,7 +1453,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
 		doThrow(new RuntimeException("AOSS unavailable"))
-				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 
 		// call under test — must not throw
 		manager.handleDelete(progressCallback, ENTITY_ID);
@@ -1537,6 +1558,8 @@ public class SearchIndexLifecycleManagerImplTest {
 		manager.registerSchema(searchIndexId, "SELECT foo, COUNT(*) FROM syn789 GROUP BY foo");
 
 		verify(columnModelManager).bindColumnsToVersionOfObject(any(), eq(searchIndexId));
+		// The source -> SearchIndex edge is recorded so a later source-availability event finds it.
+		verify(searchIndexSourceTableDao).setSourceTable(searchIndexId, sourceId);
 	}
 
 	// -------- buildWithBenefactorColumns (package-private) --------
@@ -1662,6 +1685,325 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test
 		assertEquals(SearchIndexLifecycleManagerImpl.MAX_SHARDS,
 				SearchIndexLifecycleManagerImpl.computeShardCount(overMaxBytes));
+	}
+
+	// -------- refreshDependentSearchIndexes --------
+
+	@Test
+	public void testRefreshDependentSearchIndexesEnqueuesWaitingCreatingAndActiveNotFailed() {
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		// Four SearchIndexes depend on syn789 via the edge table, one in each lifecycle state.
+		when(searchIndexSourceTableDao.getDependentSearchIndexIds(sourceId))
+				.thenReturn(Arrays.asList(1L, 2L, 3L, 4L));
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.WAITING_FOR_SOURCE));
+		when(statusDao.getState(2L)).thenReturn(Optional.of(SearchIndexState.CREATING));
+		when(statusDao.getState(3L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(statusDao.getState(4L)).thenReturn(Optional.of(SearchIndexState.FAILED));
+
+		// call under test
+		manager.refreshDependentSearchIndexes(sourceId);
+
+		// WAITING_FOR_SOURCE (1), CREATING (2), and ACTIVE (3) are enqueued; only FAILED is left alone.
+		verify(messagePublisher).fireLocalStackMessage(new SearchIndexRebuildMessage()
+				.setObjectType(ObjectType.SEARCH_INDEX_REBUILD).setObjectId(KeyFactory.keyToString(1L)));
+		verify(messagePublisher).fireLocalStackMessage(new SearchIndexRebuildMessage()
+				.setObjectType(ObjectType.SEARCH_INDEX_REBUILD).setObjectId(KeyFactory.keyToString(2L)));
+		verify(messagePublisher).fireLocalStackMessage(new SearchIndexRebuildMessage()
+				.setObjectType(ObjectType.SEARCH_INDEX_REBUILD).setObjectId(KeyFactory.keyToString(3L)));
+		verify(messagePublisher, times(3)).fireLocalStackMessage(any());
+	}
+
+	@Test
+	public void testRefreshDependentSearchIndexesWithNoStatusRowSkips() {
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		when(searchIndexSourceTableDao.getDependentSearchIndexIds(sourceId))
+				.thenReturn(Collections.singletonList(1L));
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(1L)).thenReturn(Optional.empty());
+
+		// call under test
+		manager.refreshDependentSearchIndexes(sourceId);
+
+		verify(messagePublisher, never()).fireLocalStackMessage(any());
+	}
+
+	@Test
+	public void testRefreshDependentSearchIndexesWithNoDependentsSkips() {
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		when(searchIndexSourceTableDao.getDependentSearchIndexIds(sourceId))
+				.thenReturn(Collections.emptyList());
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+
+		// call under test
+		manager.refreshDependentSearchIndexes(sourceId);
+
+		verify(statusDao, never()).getState(any());
+		verify(messagePublisher, never()).fireLocalStackMessage(any());
+	}
+
+	// -------- rebuildIfStale --------
+
+	@Test
+	public void testRebuildIfStaleRebuildsWhenWaitingForSource() throws Exception {
+		// State is WAITING_FOR_SOURCE under the lock → a full rebuild runs, building as the admin
+		// principal (the triggering event carries no user).
+		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		stubBuildLock();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(SearchIndexState.WAITING_FOR_SOURCE));
+		when(userManager.getUserInfo(adminUserId)).thenReturn(new UserInfo(true, adminUserId, null));
+		when(entityManager.getEntity(any(), eq(ENTITY_ID), eq(SearchIndex.class))).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID)).thenReturn(Optional.empty());
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(nameCol);
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(indexDao).queryAsStream(any(), any());
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, times(2)).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getAllValues().get(0).getState());
+		assertEquals(SearchIndexState.ACTIVE, captor.getAllValues().get(1).getState());
+		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-a"), eq(Optional.empty()));
+	}
+
+	@Test
+	public void testRebuildIfStaleNoOpsWhenNoStatusRow() throws Exception {
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID))).thenReturn(Optional.empty());
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(entityManager, never()).getEntity(any(), any(), any());
+		verify(indexDao, never()).queryAsStream(any(), any());
+	}
+
+	@Test
+	public void testRebuildIfStaleWithCreatingStateNoOps() throws Exception {
+		// A CREATING index is mid-build elsewhere (or the lost-wakeup case) — no-op, no version check.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(SearchIndexState.CREATING));
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(entityManager, never()).getEntity(any(), any(), any());
+		verify(indexDao, never()).queryAsStream(any(), any());
+		verify(searchIndexSourceTableDao, never()).getSourceTable(any());
+	}
+
+	@Test
+	public void testRebuildIfStaleWithFailedStateNoOps() throws Exception {
+		// FAILED is terminal until a manual rebuild — no version check, no build.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(SearchIndexState.FAILED));
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(entityManager, never()).getEntity(any(), any(), any());
+		verify(indexDao, never()).queryAsStream(any(), any());
+		verify(searchIndexSourceTableDao, never()).getSourceTable(any());
+	}
+
+	@Test
+	public void testRebuildIfStaleWithActiveStaleSourceRebuilds() throws Exception {
+		// ACTIVE + source content version has moved since the last build → rebuild into the idle
+		// slot (the alias currently points at slot -a, so this build targets slot -b) and swap.
+		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		stubBuildLock();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Optional.of(IdAndVersion.parse("syn789")));
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789")))
+				.thenReturn(10L);
+		when(statusDao.getStatus(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(new SearchIndexStatus().setSourceVersion(5L)));
+		when(userManager.getUserInfo(adminUserId)).thenReturn(new UserInfo(true, adminUserId, null));
+		when(entityManager.getEntity(any(), eq(ENTITY_ID), eq(SearchIndex.class))).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
+				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(nameCol);
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID + "-b"),
+				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
+		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
+		// A rebuild does not write CREATING — the live index stays ACTIVE-visible until the swap.
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.ACTIVE, captor.getValue().getState());
+	}
+
+	@Test
+	public void testRebuildIfStaleWithActiveCurrentSourceSkips() throws Exception {
+		// ACTIVE + source content version unchanged since the last build → no-op.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Optional.of(IdAndVersion.parse("syn789")));
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789")))
+				.thenReturn(5L);
+		when(statusDao.getStatus(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(new SearchIndexStatus().setSourceVersion(5L)));
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(openSearchManager, never()).getAliasTarget(any());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
+		verify(openSearchManager, never()).swapAlias(any(), any(), any());
+		verify(entityManager, never()).getEntity(any(), any(), any());
+	}
+
+	@Test
+	public void testRebuildIfStaleWithActiveMissingSourceEdgeRebuilds() throws Exception {
+		// ACTIVE but the source -> SearchIndex edge is missing → treated as stale, rebuild runs.
+		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		stubBuildLock();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
+				.thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Optional.empty());
+		when(userManager.getUserInfo(adminUserId)).thenReturn(new UserInfo(true, adminUserId, null));
+		when(entityManager.getEntity(any(), eq(ENTITY_ID), eq(SearchIndex.class))).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
+				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(nameCol);
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID + "-b"),
+				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
+		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
+	}
+
+	@Test
+	public void testRebuildIfStaleOnLockContentionConsumesAndRepublishes() throws Exception {
+		// A build holds the per-entity lock. rebuildIfStale must NOT throw (which would DLQ);
+		// instead it consumes the message and republishes a fresh rebuild request.
+		stubLockUnavailable();
+
+		// call under test
+		manager.rebuildIfStale(progressCallback, ENTITY_ID);
+
+		verify(messagePublisher).fireLocalStackMessage(new SearchIndexRebuildMessage()
+				.setObjectType(ObjectType.SEARCH_INDEX_REBUILD).setObjectId(ENTITY_ID));
+		verify(indexDao, never()).queryAsStream(any(), any());
+	}
+
+	// -------- buildIndex — blue-green rebuild-path coverage --------
+
+	@Test
+	public void testHandleUpdateOnRebuildKeepsActiveStateAndSwapsToOtherSlot() throws Exception {
+		// getAliasTarget returns the alias's current physical target (slot -a) — this is a
+		// rebuild, not a first build. No CREATING write; the build streams into slot -b and
+		// swaps the alias to it on success, recording the source version on the ACTIVE write.
+		stubHappyPathThroughStream();
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
+				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
+
+		// call under test
+		manager.handleUpdate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
+		verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID + "-b"),
+				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
+		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		SearchIndexStatus active = captor.getValue();
+		assertEquals(SearchIndexState.ACTIVE, active.getState());
+		assertEquals(5L, active.getSourceVersion());
+		// No CREATING write on a rebuild.
+		verify(statusDao, never()).createOrUpdate(argThat(s -> s.getState() == SearchIndexState.CREATING));
+	}
+
+	@Test
+	public void testHandleCreateRebuildFailureLeavesFailedAndCleansSlot() throws Exception {
+		// A rebuild (getAliasTarget present) that fails after slot selection still writes FAILED
+		// uniformly, cleans up only the slot it was building into, and never swaps the alias.
+		stubHappyPathThroughCreateIndex();
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
+				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
+		doThrow(new RuntimeException("shard allocation failed"))
+				.when(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID + "-b");
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.FAILED, captor.getValue().getState());
+		// Cleanup only touches the idle slot being built — the live slot -a is untouched.
+		verify(openSearchManager, times(2)).deleteIndex("search-index-" + ENTITY_ID + "-b");
+		verify(openSearchManager, never()).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager, never()).swapAlias(any(), any(), any());
 	}
 
 }

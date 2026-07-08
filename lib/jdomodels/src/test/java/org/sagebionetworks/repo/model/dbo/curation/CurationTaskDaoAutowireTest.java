@@ -529,7 +529,7 @@ class CurationTaskDaoAutowireTest {
 
         // call under test
         List<TaskBundle> bundles = dao.getCurationTaskBundles(
-                Collections.emptyList(),
+                List.of(KeyFactory.stringToKey(project1.getId())),
                 null, null, List.of(created1.getTaskId(), created2.getTaskId()), 10, 0);
 
         assertEquals(2, bundles.size());
@@ -669,7 +669,7 @@ class CurationTaskDaoAutowireTest {
     public void testGetCurationTaskBundlesReturnsZeroResultsForNonExistentTaskId() {
         // call under test - filter by non-existent taskId
         List<TaskBundle> bundles = dao.getCurationTaskBundles(
-                Collections.emptyList(),
+                List.of(KeyFactory.stringToKey(project1.getId())),
                 null, null, List.of(999999999L), 10, 0);
 
         assertEquals(0, bundles.size());

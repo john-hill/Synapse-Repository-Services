@@ -88,6 +88,9 @@ public class SpringAiPrototypeIntegrationTest {
 
 	@Autowired
 	private CodeInterpreterTools codeInterpreterTools;
+	
+	@Autowired
+	private S3Presigner presigner;
 
 	private UserInfo admin;
 	private List<S3FileHandle> fileHandlesToDelete = new ArrayList<>();
@@ -239,12 +242,12 @@ public class SpringAiPrototypeIntegrationTest {
 
 		// Generate a pre-signed URL for the staging bucket copy
 		String presignedUrl;
-		try (S3Presigner presigner = S3Presigner.builder().build()) {
-			presignedUrl = presigner.presignGetObject(GetObjectPresignRequest.builder()
-					.getObjectRequest(r -> r.bucket(stagingBucket).key(stagingKey))
-					.signatureDuration(Duration.ofMinutes(15))
-					.build()).url().toString();
-		}
+
+		presignedUrl = presigner.presignGetObject(
+				GetObjectPresignRequest.builder().getObjectRequest(r -> r.bucket(stagingBucket).key(stagingKey))
+						.signatureDuration(Duration.ofMinutes(15)).build())
+				.url().toString();
+
 		assertNotNull(presignedUrl, "Should generate a pre-signed URL for the staging bucket");
 
 		// Start a code interpreter session and download the CSV via the pre-signed URL

@@ -379,6 +379,54 @@ public class SpringAiPrototypeIntegrationTest {
 		}
 	}
 
+	@Test
+	public void testRunPythonTool() throws Exception {
+		String sessionId = codeInterpreterClient.startSession("runPythonTest" + System.nanoTime());
+		try {
+			ToolContext toolContext = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionId));
+
+			// call under test
+			String result = codeInterpreterTools.runPython("print(sum(range(1, 101)))", toolContext);
+
+			assertNotNull(result);
+			assertTrue(result.contains("5050"), "Should contain the sum 1..100. Got: " + result);
+		} finally {
+			codeInterpreterClient.stopSession(sessionId);
+		}
+	}
+
+	@Test
+	public void testSessionIsolationCannotSeeOtherSessionFiles() throws Exception {
+		String sessionA = codeInterpreterClient.startSession("isolationA" + System.nanoTime());
+		String sessionB = codeInterpreterClient.startSession("isolationB" + System.nanoTime());
+		try {
+			ToolContext contextA = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionA));
+			ToolContext contextB = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionB));
+
+			// Create a file in session A
+			String createResult = codeInterpreterTools.runPython(String.join("\n",
+					"with open('secret_a.txt', 'w') as f:",
+					"    f.write('session A secret data')",
+					"print('created')"), contextA);
+			assertTrue(createResult.contains("created"), "File creation should succeed in session A. Got: " + createResult);
+
+			// Verify session A can read its own file
+			String readA = codeInterpreterTools.runPython(String.join("\n",
+					"with open('secret_a.txt', 'r') as f:",
+					"    print(f.read())"), contextA);
+			assertTrue(readA.contains("session A secret data"), "Session A should read its own file. Got: " + readA);
+
+			// Verify session B cannot see session A's file
+			String readB = codeInterpreterTools.runPython(String.join("\n",
+					"import os",
+					"print(os.path.exists('secret_a.txt'))"), contextB);
+			assertTrue(readB.contains("False"), "Session B should NOT see session A's file. Got: " + readB);
+		} finally {
+			codeInterpreterClient.stopSession(sessionA);
+			codeInterpreterClient.stopSession(sessionB);
+		}
+	}
+
 	/**
 	 * Tool class demonstrating ToolContext-based UserInfo propagation.
 	 */

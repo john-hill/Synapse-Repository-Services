@@ -38,6 +38,7 @@ public class CodeInterpreterTools {
 
 	static final String DOWNLOAD_TEMPLATE = "code-templates/code-interpreter-download.py.vtp";
 	static final String UPLOAD_TEMPLATE = "code-templates/code-interpreter-upload.py.vtp";
+	static final int MAX_RESPONSE_CHARS = 10_000;
 
 	private final FileHandleManager fileHandleManager;
 	private final S3Client s3Client;
@@ -107,7 +108,7 @@ public class CodeInterpreterTools {
 
 		CodeExecutionResult result = codeInterpreterClient.executeCode(sessionId, "python", downloadCode);
 		if (result.isError()) {
-			return "Error downloading file to session: " + result.textOutput();
+			return truncateOutput("Error downloading file to session: " + result.textOutput());
 		}
 		return "File '" + fileName + "' is now available at './" + fileName + "'";
 	}
@@ -142,7 +143,7 @@ public class CodeInterpreterTools {
 
 		CodeExecutionResult uploadResult = codeInterpreterClient.executeCode(sessionId, "python", uploadCode);
 		if (uploadResult.isError()) {
-			return "Error uploading file from session: " + uploadResult.textOutput();
+			return truncateOutput("Error uploading file from session: " + uploadResult.textOutput());
 		}
 
 		String output = uploadResult.textOutput().trim();
@@ -178,6 +179,31 @@ public class CodeInterpreterTools {
 
 		S3FileHandle created = (S3FileHandle) fileHandleDao.createFile(handle);
 		return created.getId();
+	}
+
+	@Tool(description = "Execute a Python script in the current code interpreter session. "
+			+ "Returns the script's stdout/stderr output.")
+	public String runPython(String script, ToolContext toolContext) {
+		String sessionId = (String) toolContext.getContext().get("sessionId");
+		if (sessionId == null) {
+			return "Error: No code interpreter session ID available";
+		}
+
+		CodeExecutionResult result = codeInterpreterClient.executeCode(sessionId, "python", script);
+		if (result.isError()) {
+			return truncateOutput("Error: " + result.textOutput());
+		}
+		return truncateOutput(result.textOutput());
+	}
+
+	String truncateOutput(String output) {
+		if (output == null) {
+			return "";
+		}
+		if (output.length() <= MAX_RESPONSE_CHARS) {
+			return output;
+		}
+		return output.substring(0, MAX_RESPONSE_CHARS) + "\n... [truncated at " + MAX_RESPONSE_CHARS + " chars]";
 	}
 
 	private String renderTemplate(String templateName, VelocityContext context) {

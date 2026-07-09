@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.dbo.dao.dataaccess;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collections;
 import java.util.Date;
@@ -21,7 +22,7 @@ import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DuplicateKeyException; // wrapped in IllegalArgumentException by DBOBasicDao
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -137,8 +138,9 @@ public class EDucQuotaDaoImplTest {
 		Long userId = Long.parseLong(user.getId());
 		eDucQuotaDao.create(userId, accessRequirementId, "env-dup");
 
-		// call under test
-		assertThrows(DuplicateKeyException.class,
+		// call under test — DBOBasicDao wraps DuplicateKeyException in IllegalArgumentException
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> eDucQuotaDao.create(userId, accessRequirementId, "env-dup"));
+		assertTrue(ex.getCause() instanceof DuplicateKeyException);
 	}
 }

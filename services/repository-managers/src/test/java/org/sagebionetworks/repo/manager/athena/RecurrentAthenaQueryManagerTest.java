@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.manager.athena;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -34,6 +33,7 @@ import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import software.amazon.awssdk.services.athena.model.QueryExecution;
 import software.amazon.awssdk.services.athena.model.QueryExecutionState;
 import software.amazon.awssdk.services.athena.model.QueryExecutionStatus;
+
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
@@ -181,7 +181,7 @@ public class RecurrentAthenaQueryManagerTest {
 		
 		int count = 0;
 		
-		for (QueryExecutionState state : QueryExecutionState.values()) {
+		for (QueryExecutionState state : QueryExecutionState.knownValues()) {
 			
 			if (state == QueryExecutionState.RUNNING || state == QueryExecutionState.QUEUED || state == QueryExecutionState.SUCCEEDED) {
 				continue;
@@ -201,6 +201,17 @@ public class RecurrentAthenaQueryManagerTest {
 			verify(mockAthenaSupport, times(++count)).getQueryExecutionStatus(mockQueryExecution.queryExecutionId());
 		}
 		
+	}
+
+	@Test
+	public void testProcessRecurrentAthenaQueryResultWithQueryExecStateUnknown() {
+		QueryExecutionState unknownState = QueryExecutionState.UNKNOWN_TO_SDK_VERSION;
+		mockQueryExecution = mockQueryExecution.toBuilder().status(QueryExecutionStatus.builder().state(unknownState).stateChangeReason("some reason").build()).build();
+
+		when(mockAthenaSupport.getQueryExecutionStatus(anyString())).thenReturn(new AthenaQueryExecutionAdapter(mockQueryExecution));
+
+		assertThrows(IllegalArgumentException.class, () -> { manager.processRecurrentAthenaQueryResult(mockRequest, queueUrl); });
+
 	}
 	
 	@Test

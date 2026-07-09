@@ -28,6 +28,7 @@ import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.repo.model.educ.SignatureQuota;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -436,16 +437,16 @@ public class DataAccessController {
 	}
 
 	/**
-	 * Route the eDUC associated with a data access request for DocuSign signature.
+	 * Route the eDUC associated with a data access request for electronic signature.
 	 *
 	 * @param userId    - The ID of the user who is making the request.
 	 * @param requestId - The ID of the data access request.
-	 * @return The updated RequestInterface with the DocuSign envelope ID populated.
+	 * @return The signature quota information including remaining routings.
 	 */
 	@RequiredScope({view, modify})
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_ID_SIGNATURE, method = RequestMethod.POST)
-	public @ResponseBody RequestInterface routeForSignature(
+	public @ResponseBody SignatureQuota routeForSignature(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String requestId) {
 		return serviceProvider.getEDucService().routeForSignature(userId, requestId);

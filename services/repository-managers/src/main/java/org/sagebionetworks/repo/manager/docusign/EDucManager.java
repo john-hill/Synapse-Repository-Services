@@ -1,6 +1,11 @@
 package org.sagebionetworks.repo.manager.docusign;
 
+import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -21,15 +26,20 @@ import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
 import org.sagebionetworks.repo.model.dataaccess.PrincipalInvestigator;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.EDucQuotaDao;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.repo.model.educ.SignatureQuota;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
+import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EDucManager {
+
+	static final int MAX_ENVELOPES_PER_MONTH = 10;
 
 	private final DocuSignClient docuSignClient;
 	private final RequestDAO requestDao;
@@ -37,16 +47,21 @@ public class EDucManager {
 	private final PrincipalAliasDAO principalAliasDao;
 	private final NotificationEmailDAO notificationEmailDao;
 	private final UserProfileDAO userProfileDao;
+	private final EDucQuotaDao eDucQuotaDao;
+	private final Clock clock;
 
 	public EDucManager(DocuSignClient docuSignClient, RequestDAO requestDao,
 			AccessRequirementDAO accessRequirementDao, PrincipalAliasDAO principalAliasDao,
-			NotificationEmailDAO notificationEmailDao, UserProfileDAO userProfileDao) {
+			NotificationEmailDAO notificationEmailDao, UserProfileDAO userProfileDao,
+			EDucQuotaDao eDucQuotaDao, Clock clock) {
 		this.docuSignClient = docuSignClient;
 		this.requestDao = requestDao;
 		this.accessRequirementDao = accessRequirementDao;
 		this.principalAliasDao = principalAliasDao;
 		this.notificationEmailDao = notificationEmailDao;
 		this.userProfileDao = userProfileDao;
+		this.eDucQuotaDao = eDucQuotaDao;
+		this.clock = clock;
 	}
 
 	public EDucTemplatePage listTemplates(UserInfo userInfo, EDucTemplateListRequest request) throws Exception {
@@ -63,7 +78,7 @@ public class EDucManager {
 		return page;
 	}
 
-	public RequestInterface routeForSignature(UserInfo userInfo, String requestId) {
+	public SignatureQuota routeForSignature(UserInfo userInfo, String requestId) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(requestId, "requestId");
 
@@ -91,44 +106,82 @@ public class EDucManager {
 			throw new IllegalArgumentException("The access requirement does not have an eDUC template ID configured.");
 		}
 
-		Map<String, String> roleEmails = buildRoleEmails(request);
-		Map<RoleLabelKey, String> tabValues = buildTabValues(request);
+		Long userId = userInfo.getId();
+		Long arId = Long.parseLong(request.getAccessRequirementId());
+
+		Instant now = Instant.ofEpochMilli(clock.currentTimeMillis());
+		YearMonth currentMonth = YearMonth.from(now.atZone(ZoneOffset.UTC));
+		long monthStartMs = currentMonth.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+		long nextMonthStartMs = currentMonth.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+
+		long count = eDucQuotaDao.getCount(userId, arId, monthStartMs, nextMonthStartMs);
+		if (count >= MAX_ENVELOPES_PER_MONTH) {
+			throw new IllegalArgumentException(
+					"User has exceeded their eDUC routing quota for the requested access requirement.");
+		}
+
+		List<String> collaboratorUserIds = buildCollaboratorUserIds(request);
+		Map<String, String> roleEmails = buildRoleEmails(request, collaboratorUserIds);
+		Map<RoleLabelKey, String> tabValues = buildTabValues(request, collaboratorUserIds);
 
 		String envelopeId = docuSignClient.createAndSendEnvelope(templateId, roleEmails, tabValues);
 
 		request.setEDucSignatureEnvelopeId(envelopeId);
-		return requestDao.update(request);
+		requestDao.update(request);
+
+		eDucQuotaDao.create(userId, arId, envelopeId);
+
+		SignatureQuota result = new SignatureQuota();
+		result.setQuota((long) MAX_ENVELOPES_PER_MONTH);
+		result.setRemaining((long) (MAX_ENVELOPES_PER_MONTH - count - 1));
+		return result;
 	}
 
-	private Map<String, String> buildRoleEmails(RequestInterface request) {
+	List<String> buildCollaboratorUserIds(RequestInterface request) {
+		PrincipalInvestigator pi = request.getPrincipalInvestigator();
+		ValidateArgument.required(pi, "principalInvestigator");
+		String piUserId = pi.getUserId();
+
+		LinkedHashSet<String> collaboratorIds = new LinkedHashSet<>();
+
+		collaboratorIds.add(request.getCreatedBy());
+
+		List<AccessorChange> accessorChanges = request.getAccessorChanges();
+		if (accessorChanges != null) {
+			for (AccessorChange change : accessorChanges) {
+				if (AccessType.GAIN_ACCESS.equals(change.getType())
+						|| AccessType.RENEW_ACCESS.equals(change.getType())) {
+					collaboratorIds.add(change.getUserId());
+				}
+			}
+		}
+
+		collaboratorIds.remove(piUserId);
+
+		return new ArrayList<>(collaboratorIds);
+	}
+
+	private Map<String, String> buildRoleEmails(RequestInterface request, List<String> collaboratorUserIds) {
 		Map<String, String> roleEmails = new LinkedHashMap<>();
 
 		PrincipalInvestigator pi = request.getPrincipalInvestigator();
-		ValidateArgument.required(pi, "principalInvestigator");
-		roleEmails.put("principal_investigator", pi.getInstitutionalEmail());
+		roleEmails.put("principal_investigator",
+				notificationEmailDao.getNotificationEmailForPrincipal(Long.parseLong(pi.getUserId())));
 
 		SigningOfficial so = request.getSigningOfficial();
 		ValidateArgument.required(so, "signingOfficial");
 		roleEmails.put("signing_official", so.getInstitutionalEmail());
 
-		List<AccessorChange> accessorChanges = request.getAccessorChanges();
-		if (accessorChanges != null) {
-			int collaboratorIndex = 1;
-			for (AccessorChange change : accessorChanges) {
-				if (AccessType.GAIN_ACCESS.equals(change.getType())
-						|| AccessType.RENEW_ACCESS.equals(change.getType())) {
-					String email = notificationEmailDao.getNotificationEmailForPrincipal(
-							Long.parseLong(change.getUserId()));
-					roleEmails.put("collaborator_" + collaboratorIndex, email);
-					collaboratorIndex++;
-				}
-			}
+		for (int i = 0; i < collaboratorUserIds.size(); i++) {
+			String email = notificationEmailDao.getNotificationEmailForPrincipal(
+					Long.parseLong(collaboratorUserIds.get(i)));
+			roleEmails.put("collaborator_" + (i + 1), email);
 		}
 
 		return roleEmails;
 	}
 
-	private Map<RoleLabelKey, String> buildTabValues(RequestInterface request) {
+	private Map<RoleLabelKey, String> buildTabValues(RequestInterface request, List<String> collaboratorUserIds) {
 		Map<RoleLabelKey, String> tabValues = new LinkedHashMap<>();
 
 		SigningOfficial so = request.getSigningOfficial();
@@ -145,25 +198,16 @@ public class EDucManager {
 		String piUserName = principalAliasDao.getUserName(Long.parseLong(pi.getUserId()));
 		addIfPresent(tabValues, "principal_investigator", "principal_investigator_user_name", piUserName);
 
-		List<AccessorChange> accessorChanges = request.getAccessorChanges();
-		if (accessorChanges != null) {
-			int collaboratorIndex = 1;
-			for (AccessorChange change : accessorChanges) {
-				if (AccessType.GAIN_ACCESS.equals(change.getType())
-						|| AccessType.RENEW_ACCESS.equals(change.getType())) {
-					String role = "collaborator_" + collaboratorIndex;
-					String userId = change.getUserId();
+		for (int i = 0; i < collaboratorUserIds.size(); i++) {
+			String role = "collaborator_" + (i + 1);
+			String collabUserId = collaboratorUserIds.get(i);
 
-					String userName = principalAliasDao.getUserName(Long.parseLong(userId));
-					addIfPresent(tabValues, role, role + "_user_name", userName);
+			String userName = principalAliasDao.getUserName(Long.parseLong(collabUserId));
+			addIfPresent(tabValues, role, role + "_user_name", userName);
 
-					UserProfile profile = userProfileDao.get(userId);
-					String fullName = buildFullName(profile.getFirstName(), profile.getLastName());
-					addIfPresent(tabValues, role, role + "_name", fullName);
-
-					collaboratorIndex++;
-				}
-			}
+			UserProfile profile = userProfileDao.get(collabUserId);
+			String fullName = buildFullName(profile.getFirstName(), profile.getLastName());
+			addIfPresent(tabValues, role, role + "_name", fullName);
 		}
 
 		return tabValues;

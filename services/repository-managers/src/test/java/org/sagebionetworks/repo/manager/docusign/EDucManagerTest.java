@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -40,13 +41,15 @@ import org.sagebionetworks.repo.model.dataaccess.AccessType;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
 import org.sagebionetworks.repo.model.dataaccess.PrincipalInvestigator;
 import org.sagebionetworks.repo.model.dataaccess.Request;
-import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.EDucQuotaDao;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.repo.model.educ.SignatureQuota;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
+import org.sagebionetworks.util.Clock;
 
 @ExtendWith(MockitoExtension.class)
 public class EDucManagerTest {
@@ -63,6 +66,10 @@ public class EDucManagerTest {
 	private NotificationEmailDAO mockNotificationEmailDao;
 	@Mock
 	private UserProfileDAO mockUserProfileDao;
+	@Mock
+	private EDucQuotaDao mockEDucQuotaDao;
+	@Mock
+	private Clock mockClock;
 
 	private EDucManager manager;
 
@@ -70,10 +77,14 @@ public class EDucManagerTest {
 	private UserInfo actUser;
 	private UserInfo regularUser;
 
+	// Mid-July 2026 in epoch ms
+	private static final long JULY_15_2026_MS = 1784188800000L;
+
 	@BeforeEach
 	public void before() {
 		manager = new EDucManager(mockDocuSignClient, mockRequestDao, mockAccessRequirementDao,
-				mockPrincipalAliasDao, mockNotificationEmailDao, mockUserProfileDao);
+				mockPrincipalAliasDao, mockNotificationEmailDao, mockUserProfileDao,
+				mockEDucQuotaDao, mockClock);
 
 		adminUser = new UserInfo(true, 1L, DEFAULT_REALM_ID);
 
@@ -209,7 +220,7 @@ public class EDucManagerTest {
 		Request request = new Request();
 		request.setId("req-1");
 		request.setCreatedBy("100");
-		request.setAccessRequirementId("ar-1");
+		request.setAccessRequirementId("456");
 		request.setInstitution("MIT");
 		request.setPrincipalInvestigator(pi);
 		request.setSigningOfficial(so);
@@ -230,12 +241,21 @@ public class EDucManagerTest {
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		Request request = buildValidRequest();
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("ar-1")).thenReturn(buildValidAccessRequirement());
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(200L)).thenReturn("drjones");
+		when(mockPrincipalAliasDao.getUserName(100L)).thenReturn("creatoruser");
 		when(mockPrincipalAliasDao.getUserName(301L)).thenReturn("collab1user");
 		when(mockPrincipalAliasDao.getUserName(302L)).thenReturn("collab2user");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(200L)).thenReturn("pi@synapse.org");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(100L)).thenReturn("creator@example.com");
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(301L)).thenReturn("c1@example.com");
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(302L)).thenReturn("c2@example.com");
+		UserProfile creatorProfile = new UserProfile();
+		creatorProfile.setFirstName("Creator");
+		creatorProfile.setLastName("User");
+		when(mockUserProfileDao.get("100")).thenReturn(creatorProfile);
 		UserProfile profile1 = new UserProfile();
 		profile1.setFirstName("Alice");
 		profile1.setLastName("Smith");
@@ -248,9 +268,12 @@ public class EDucManagerTest {
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		RequestInterface result = manager.routeForSignature(user, "req-1");
+		SignatureQuota result = manager.routeForSignature(user, "req-1");
 
-		assertEquals("env-xyz", result.getEDucSignatureEnvelopeId());
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(9), result.getRemaining());
+
+		verify(mockEDucQuotaDao).create(eq(100L), anyLong(), eq("env-xyz"));
 
 		@SuppressWarnings("unchecked")
 		ArgumentCaptor<Map<String, String>> emailsCaptor = ArgumentCaptor.forClass(Map.class);
@@ -258,12 +281,14 @@ public class EDucManagerTest {
 		ArgumentCaptor<Map<RoleLabelKey, String>> tabsCaptor = ArgumentCaptor.forClass(Map.class);
 		verify(mockDocuSignClient).createAndSendEnvelope(eq("tpl-abc"), emailsCaptor.capture(), tabsCaptor.capture());
 
+		// Collaborators: createdBy=100 first, then 301, 302 from accessorChanges (PI 200 excluded)
 		Map<String, String> roleEmails = emailsCaptor.getValue();
-		assertEquals("pi@university.edu", roleEmails.get("principal_investigator"));
+		assertEquals("pi@synapse.org", roleEmails.get("principal_investigator"));
 		assertEquals("so@university.edu", roleEmails.get("signing_official"));
-		assertEquals("c1@example.com", roleEmails.get("collaborator_1"));
-		assertEquals("c2@example.com", roleEmails.get("collaborator_2"));
-		assertEquals(4, roleEmails.size());
+		assertEquals("creator@example.com", roleEmails.get("collaborator_1"));
+		assertEquals("c1@example.com", roleEmails.get("collaborator_2"));
+		assertEquals("c2@example.com", roleEmails.get("collaborator_3"));
+		assertEquals(5, roleEmails.size());
 
 		Map<RoleLabelKey, String> tabValues = tabsCaptor.getValue();
 		assertEquals("Dr. Jones", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_name")));
@@ -274,10 +299,12 @@ public class EDucManagerTest {
 		assertEquals("Jane Admin", tabValues.get(new RoleLabelKey("signing_official", "signing_official_name")));
 		assertEquals("VP Research", tabValues.get(new RoleLabelKey("signing_official", "signing_official_title")));
 		assertEquals("so@university.edu", tabValues.get(new RoleLabelKey("signing_official", "signing_official_email")));
-		assertEquals("collab1user", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_user_name")));
-		assertEquals("Alice Smith", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_name")));
-		assertEquals("collab2user", tabValues.get(new RoleLabelKey("collaborator_2", "collaborator_2_user_name")));
-		assertEquals("Bob Brown", tabValues.get(new RoleLabelKey("collaborator_2", "collaborator_2_name")));
+		assertEquals("creatoruser", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_user_name")));
+		assertEquals("Creator User", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_name")));
+		assertEquals("collab1user", tabValues.get(new RoleLabelKey("collaborator_2", "collaborator_2_user_name")));
+		assertEquals("Alice Smith", tabValues.get(new RoleLabelKey("collaborator_2", "collaborator_2_name")));
+		assertEquals("collab2user", tabValues.get(new RoleLabelKey("collaborator_3", "collaborator_3_user_name")));
+		assertEquals("Bob Brown", tabValues.get(new RoleLabelKey("collaborator_3", "collaborator_3_name")));
 	}
 
 	@Test
@@ -295,7 +322,9 @@ public class EDucManagerTest {
 	public void testRouteForSignatureWithAdminUser() {
 		Request request = buildValidRequest();
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("ar-1")).thenReturn(buildValidAccessRequirement());
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(1L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(any(Long.class))).thenReturn("someuser");
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(any(Long.class))).thenReturn("x@y.com");
 		UserProfile profile = new UserProfile();
@@ -306,9 +335,10 @@ public class EDucManagerTest {
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		RequestInterface result = manager.routeForSignature(adminUser, "req-1");
+		SignatureQuota result = manager.routeForSignature(adminUser, "req-1");
 
-		assertEquals("env-1", result.getEDucSignatureEnvelopeId());
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(9), result.getRemaining());
 	}
 
 	@Test
@@ -329,7 +359,7 @@ public class EDucManagerTest {
 		Request request = buildValidRequest();
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("ar-1")).thenReturn(new TermsOfUseAccessRequirement());
+		when(mockAccessRequirementDao.get("456")).thenReturn(new TermsOfUseAccessRequirement());
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
@@ -344,7 +374,7 @@ public class EDucManagerTest {
 		ManagedACTAccessRequirement ar = buildValidAccessRequirement();
 		ar.setIsDUCRequired(false);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("ar-1")).thenReturn(ar);
+		when(mockAccessRequirementDao.get("456")).thenReturn(ar);
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
@@ -359,7 +389,7 @@ public class EDucManagerTest {
 		ManagedACTAccessRequirement ar = buildValidAccessRequirement();
 		ar.setEDucTemplateId(null);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("ar-1")).thenReturn(ar);
+		when(mockAccessRequirementDao.get("456")).thenReturn(ar);
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
@@ -368,25 +398,132 @@ public class EDucManagerTest {
 	}
 
 	@Test
-	public void testRouteForSignatureWithNoCollaborators() {
+	public void testRouteForSignatureWithNoAccessorChanges() {
 		Request request = buildValidRequest();
 		request.setAccessorChanges(Collections.emptyList());
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("ar-1")).thenReturn(buildValidAccessRequirement());
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(200L)).thenReturn("drjones");
+		when(mockPrincipalAliasDao.getUserName(100L)).thenReturn("creatoruser");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(200L)).thenReturn("pi@synapse.org");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(100L)).thenReturn("creator@example.com");
+		UserProfile creatorProfile = new UserProfile();
+		creatorProfile.setFirstName("Creator");
+		creatorProfile.setLastName("User");
+		when(mockUserProfileDao.get("100")).thenReturn(creatorProfile);
 		when(mockDocuSignClient.createAndSendEnvelope(eq("tpl-abc"), any(), any())).thenReturn("env-no-collabs");
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		RequestInterface result = manager.routeForSignature(user, "req-1");
+		SignatureQuota result = manager.routeForSignature(user, "req-1");
 
-		assertEquals("env-no-collabs", result.getEDucSignatureEnvelopeId());
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(9), result.getRemaining());
 
 		@SuppressWarnings("unchecked")
 		ArgumentCaptor<Map<String, String>> emailsCaptor = ArgumentCaptor.forClass(Map.class);
 		verify(mockDocuSignClient).createAndSendEnvelope(eq("tpl-abc"), emailsCaptor.capture(), any());
-		assertEquals(2, emailsCaptor.getValue().size());
+		// PI + SO + createdBy as collaborator_1
+		assertEquals(3, emailsCaptor.getValue().size());
+		assertEquals("creator@example.com", emailsCaptor.getValue().get("collaborator_1"));
+	}
+
+	@Test
+	public void testRouteForSignatureWithQuotaExceeded() {
+		Request request = buildValidRequest();
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(10L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.routeForSignature(user, "req-1"));
+
+		assertEquals("User has exceeded their eDUC routing quota for the requested access requirement.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testRouteForSignatureWithQuotaReturnsCorrectRemaining() {
+		Request request = buildValidRequest();
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(5L);
+		when(mockPrincipalAliasDao.getUserName(any(Long.class))).thenReturn("someuser");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(any(Long.class))).thenReturn("x@y.com");
+		UserProfile profile = new UserProfile();
+		profile.setFirstName("A");
+		profile.setLastName("B");
+		when(mockUserProfileDao.get(any(String.class))).thenReturn(profile);
+		when(mockDocuSignClient.createAndSendEnvelope(any(), any(), any())).thenReturn("env-partial");
+		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
+
+		// call under test
+		SignatureQuota result = manager.routeForSignature(user, "req-1");
+
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(4), result.getRemaining());
+		verify(mockEDucQuotaDao).create(eq(100L), anyLong(), eq("env-partial"));
+	}
+
+	@Test
+	public void testBuildCollaboratorUserIdsWithPIExcluded() {
+		Request request = buildValidRequest();
+		// Add PI (userId=200) as an accessor — should be excluded
+		AccessorChange piChange = new AccessorChange();
+		piChange.setUserId("200");
+		piChange.setType(AccessType.GAIN_ACCESS);
+		request.setAccessorChanges(List.of(piChange));
+
+		// call under test
+		List<String> result = manager.buildCollaboratorUserIds(request);
+
+		// createdBy=100 is included, PI=200 is excluded
+		assertEquals(List.of("100"), result);
+	}
+
+	@Test
+	public void testBuildCollaboratorUserIdsWithCreatedByInAccessorChanges() {
+		Request request = buildValidRequest();
+		// createdBy=100 also appears in accessorChanges — should not be duplicated
+		AccessorChange creatorChange = new AccessorChange();
+		creatorChange.setUserId("100");
+		creatorChange.setType(AccessType.GAIN_ACCESS);
+		AccessorChange otherChange = new AccessorChange();
+		otherChange.setUserId("301");
+		otherChange.setType(AccessType.GAIN_ACCESS);
+		request.setAccessorChanges(List.of(creatorChange, otherChange));
+
+		// call under test
+		List<String> result = manager.buildCollaboratorUserIds(request);
+
+		// 100 appears only once (from createdBy, deduplicated), then 301
+		assertEquals(List.of("100", "301"), result);
+	}
+
+	@Test
+	public void testBuildCollaboratorUserIdsWithDuplicateAccessors() {
+		Request request = buildValidRequest();
+		AccessorChange change1 = new AccessorChange();
+		change1.setUserId("301");
+		change1.setType(AccessType.GAIN_ACCESS);
+		AccessorChange change2 = new AccessorChange();
+		change2.setUserId("301");
+		change2.setType(AccessType.RENEW_ACCESS);
+		request.setAccessorChanges(List.of(change1, change2));
+
+		// call under test
+		List<String> result = manager.buildCollaboratorUserIds(request);
+
+		// createdBy=100, then 301 (deduplicated)
+		assertEquals(List.of("100", "301"), result);
 	}
 
 	@Test

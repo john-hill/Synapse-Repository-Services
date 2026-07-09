@@ -77,7 +77,7 @@
 		},
 		"eDucSignatureEnvelopeId": {
 			"type": "string",
-			"description": "The DocuSign envelope ID for the routed eDUC signature document."
+			"description": "The envelope ID for the routed eDUC signature document."
 		}
 	}
 }

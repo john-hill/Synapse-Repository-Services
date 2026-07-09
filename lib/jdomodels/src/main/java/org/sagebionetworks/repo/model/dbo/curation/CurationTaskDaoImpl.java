@@ -217,23 +217,6 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     @Override
     @WriteTransaction
     public TaskStatus updateTaskStatus(Long userId, Long taskId, TaskStatus statusUpdate) {
-        return updateTaskStatusInternal(userId, taskId, statusUpdate, false, false);
-    }
-
-    @Override
-    @WriteTransaction
-    public TaskStatus updateTaskStatusAndClearDueDate(Long userId, Long taskId, TaskStatus statusUpdate) {
-        return updateTaskStatusInternal(userId, taskId, statusUpdate, true, false);
-    }
-
-    /**
-     * Internal helper for updating task status with control over dueDate handling.
-     *
-     * @param clearDueDate if true, dueDate is set to null
-     * @param preserveOmittedDueDate if true, preserve current dueDate when statusUpdate has null dueDate
-     */
-    private TaskStatus updateTaskStatusInternal(Long userId, Long taskId, TaskStatus statusUpdate,
-            boolean clearDueDate, boolean preserveOmittedDueDate) {
         String currentEtag = getEtagForCurationTaskForUpdate(taskId);
 
         if (!currentEtag.equals(statusUpdate.getEtag())) {
@@ -245,22 +228,9 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 ? JDOSecondaryPropertyUtils.createJSONFromObject(statusUpdate.getExecutionDetails())
                 : null;
 
-        // Determine dueDate value to set:
-        // - If clearDueDate is true, set to null (explicit clear)
-        // - If statusUpdate has a dueDate, use it (explicit update)
-        // - Otherwise, preserve the current value (field was omitted)
-        java.sql.Date dueDate;
-        if (clearDueDate) {
-            dueDate = null;
-        } else if (statusUpdate.getDueDate() != null) {
-            dueDate = new java.sql.Date(statusUpdate.getDueDate().getTime());
-        } else if (!preserveOmittedDueDate) {
-            // Preserve current dueDate when omitted from update
-            TaskStatus current = getTaskStatus(taskId);
-            dueDate = current.getDueDate() != null ? new java.sql.Date(current.getDueDate().getTime()) : null;
-        } else {
-            dueDate = null;
-        }
+        java.sql.Date dueDate = statusUpdate.getDueDate() != null
+                ? new java.sql.Date(statusUpdate.getDueDate().getTime())
+                : null;
 
         jdbcTemplate.update(
                 "UPDATE CURATION_TASK SET STATE = ?, EXECUTION_DETAILS = ?, DUE_DATE = ?,"

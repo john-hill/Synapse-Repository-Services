@@ -462,56 +462,19 @@ class CurationTaskDaoAutowireTest {
         TaskStatus withDueDateResult = dao.updateTaskStatus(userId, created.getTaskId(), withDueDate);
         assertEquals(dueDate, withDueDateResult.getDueDate());
 
-        // Now clear it using the explicit clear method
+        // Now clear it by omitting dueDate from the update (standard PUT semantics)
         TaskStatus cleared = dao.getTaskStatus(created.getTaskId());
         assertNotNull(cleared.getDueDate());
         TaskStatus clearUpdate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
                 .setEtag(cleared.getEtag());
-        // Note: dueDate is NOT set in clearUpdate
+        // Note: dueDate is NOT set in clearUpdate, so it will be cleared
 
-        // call under test - use explicit clear method
-        TaskStatus result = dao.updateTaskStatusAndClearDueDate(userId, created.getTaskId(), clearUpdate);
+        // call under test
+        TaskStatus result = dao.updateTaskStatus(userId, created.getTaskId(), clearUpdate);
 
         assertNull(result.getDueDate());
         assertNull(dao.getTaskStatus(created.getTaskId()).getDueDate());
-
-        dao.deleteCurationTask(created.getTaskId());
-    }
-
-    @Test
-    public void testUpdateTaskStatusOmittedDueDatePreservesExisting() {
-        CurationTask created = dao.createCurationTask(userId, new CurationTask()
-                .setProjectId(project1.getId())
-                .setDataType("fastq")
-                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
-
-        TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
-        assertNull(initialStatus.getDueDate());
-
-        // Set a due date
-        Date dueDate = new Date(java.sql.Date.valueOf(LocalDate.of(2026, 8, 15)).getTime());
-        TaskStatus withDueDate = new TaskStatus()
-                .setState(TaskState.IN_PROGRESS)
-                .setEtag(initialStatus.getEtag())
-                .setDueDate(dueDate);
-
-        TaskStatus withDueDateResult = dao.updateTaskStatus(userId, created.getTaskId(), withDueDate);
-        assertEquals(dueDate, withDueDateResult.getDueDate());
-
-        // Update status without including dueDate field (omitted, not null)
-        // The existing due date should be preserved
-        TaskStatus statusWithoutDueDate = dao.getTaskStatus(created.getTaskId());
-        TaskStatus updateWithoutDueDate = new TaskStatus()
-                .setState(TaskState.COMPLETED)
-                .setEtag(statusWithoutDueDate.getEtag());
-        // Note: dueDate is NOT set (remains null in the object)
-
-        // call under test - should preserve existing due date
-        TaskStatus result = dao.updateTaskStatus(userId, created.getTaskId(), updateWithoutDueDate);
-
-        assertEquals(dueDate, result.getDueDate());
-        assertEquals(dueDate, dao.getTaskStatus(created.getTaskId()).getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }

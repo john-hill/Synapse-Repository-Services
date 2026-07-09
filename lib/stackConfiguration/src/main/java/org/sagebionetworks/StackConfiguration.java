@@ -970,4 +970,24 @@ public interface StackConfiguration {
 	 * @return The default project storage limit for the synapse bucket
 	 */
 	Long getDefaultProjectStorageLimit();
+
+	/**
+	 * @return The AWS region for Bedrock Converse API calls.
+	 */
+	String getBedrockConverseRegion();
+	
+	/**
+	 * @return The Claude Haiku model ID.
+	 */
+	String getModelIdClaudeHaiku();
+
+	/**
+	 * @return The Claude Sonnet model ID.
+	 */
+	String getModelIdClaudeSonnet();
+
+	/**
+	 * @return The Claude Opus model ID.
+	 */
+	String getModelIdClaudeOpus();
 }

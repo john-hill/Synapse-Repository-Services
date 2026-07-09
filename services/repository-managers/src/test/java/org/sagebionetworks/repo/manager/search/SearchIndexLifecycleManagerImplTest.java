@@ -7,10 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,9 +45,10 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManagerImpl.SearchIndexRowHandler;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.manager.table.TableQueryManager;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.repo.model.dao.table.TableType;
+import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
@@ -59,13 +63,26 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableState;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
+import org.sagebionetworks.table.cluster.QueryTranslator;
+import org.sagebionetworks.table.cluster.SchemaProvider;
+import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.TranslatedQuery;
+import org.sagebionetworks.table.cluster.description.BenefactorDescription;
+import org.sagebionetworks.table.cluster.description.IndexDescription;
+import org.sagebionetworks.table.cluster.description.IndexDescriptionLookup;
+import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
+import org.sagebionetworks.table.cluster.description.TableIndexDescription;
+import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
+import org.sagebionetworks.table.query.ParseException;
+import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
@@ -78,8 +95,14 @@ import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 public class SearchIndexLifecycleManagerImplTest {
 
 	private static final String ENTITY_ID = "syn456";
+	// A benefactor-less source (a table) for the row-handler tests that do not exercise
+	// benefactor handling.
+	private static final IndexDescription TABLE_INDEX_DESCRIPTION =
+			new TableIndexDescription(IdAndVersion.parse("syn123"));
+	// Source index description for the source table used in DEFINING_SQL ("SELECT * FROM syn789").
+	private static final IndexDescription SOURCE_INDEX_DESCRIPTION =
+			new TableIndexDescription(IdAndVersion.parse("syn789"));
 	private static final Long USER_ID = 123L;
-	private static final Long ANON_ID = 273950L;
 	private static final String DEFINING_SQL = "SELECT * FROM syn789";
 
 	@Mock
@@ -88,8 +111,6 @@ public class SearchIndexLifecycleManagerImplTest {
 	private OpenSearchManager openSearchManager;
 	@Mock
 	private SearchConfigurationResolver searchConfigurationResolver;
-	@Mock
-	private TableQueryManager tableQueryManager;
 	@Mock
 	private UserManager userManager;
 	@Mock
@@ -113,9 +134,9 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Mock
 	private WriteLock writeLock;
 	@Mock
-	private StackConfiguration stackConfiguration;
+	private TableIndexDAO indexDao;
 	@Mock
-	private TableIndexDAO tableIndexDao;
+	private StackConfiguration stackConfiguration;
 
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
@@ -134,72 +155,95 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	private UserInfo triggeringUser() {
-		UserInfo user = new UserInfo(false, USER_ID, null);
-		user.setRealmAnonymousUserId(ANON_ID);
-		return user;
+		return new UserInfo(false, USER_ID, null);
 	}
 
-	private UserInfo anonymousUser() {
-		UserInfo user = new UserInfo(false, ANON_ID, null);
-		user.setRealmAnonymousUserId(ANON_ID);
-		return user;
+	/**
+	 * Stubs the full chain so buildIndex reaches indexDao.queryAsStream successfully.
+	 * Use only for tests that must reach the streaming phase.
+	 */
+	private void stubHappyPathThroughStream() throws Exception {
+		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
+		// SchemaProvider stubs so "SELECT * FROM syn789" translates in QueryTranslator.
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(nameCol);
+	}
+
+	/**
+	 * Stubs up through getRowCountForTable (source is AVAILABLE, row count = 0) but does NOT
+	 * include the SchemaProvider stubs needed by QueryTranslator. Use for tests that bail before
+	 * the translator is built (e.g., the row-count guard, table-unavailable, config error paths
+	 * that still reach createIndex but not queryAsStream).
+	 */
+	private void stubHappyPathThroughCreateIndex() throws Exception {
+		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
+	}
+
+	/**
+	 * Stubs the source index description resolved by buildIndex once it proceeds past the
+	 * row-count check. Used in addition to stubHappyPathThroughCreateIndex for tests that
+	 * reach the index-creation phase and need the SchemaProvider stubs for QueryTranslator.
+	 */
+	private void stubSchemaProviderForTranslator() {
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
+				.thenReturn(Collections.singletonList(nameCol));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(nameCol);
 	}
 
 	@Test
-	public void testHandleCreatePassesAnonymousUserToQueryManager() throws Exception {
-		UserInfo triggering = triggeringUser();
-		UserInfo anon = anonymousUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anon);
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(eq(triggering), any(), eq("syn100")))
-				.thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(eq(progressCallback), any(UserInfo.class), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-
+	public void testHandleCreateStreamsViaIndexDao() throws Exception {
+		// The happy path completes buildIndex and streams rows via indexDao.queryAsStream,
+		// writing ACTIVE status at the end.
 		// call under test
+		stubHappyPathThroughStream();
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		// Verify the anonymous user — not the triggering user — was passed to both query calls.
-		ArgumentCaptor<UserInfo> countUser = ArgumentCaptor.forClass(UserInfo.class);
-		verify(tableQueryManager).querySinglePage(eq(progressCallback), countUser.capture(), any(), any());
-		assertSame(anon, countUser.getValue());
-
-		ArgumentCaptor<UserInfo> streamUser = ArgumentCaptor.forClass(UserInfo.class);
-		verify(tableQueryManager).runQueryAsStream(eq(progressCallback), streamUser.capture(), any(), any(), any());
-		assertSame(anon, streamUser.getValue());
+		verify(indexDao).queryAsStream(any(), any());
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, times(2)).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getAllValues().get(0).getState());
+		assertEquals(SearchIndexState.ACTIVE, captor.getAllValues().get(1).getState());
 	}
 
 	@Test
 	public void testHandleCreateOnExceptionRecordsFailedWithErrorMessage() throws Exception {
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenThrow(new RuntimeException("bad SQL"));
+		stubHappyPathThroughStream();
+		doThrow(new RuntimeException("bad SQL")).when(indexDao).queryAsStream(any(), any());
 
 		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
@@ -211,7 +255,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(SearchIndexState.FAILED, saved.get(1).getState());
 		assertEquals("bad SQL", saved.get(1).getErrorMessage());
 		// Best-effort cleanup after failure
-		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager, times(2)).deleteIndex("search-index-" + ENTITY_ID);
 	}
 
 	@Test
@@ -219,24 +263,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		// A malformed defining-SQL error message can be arbitrarily long (stack-trace-like
 		// messages from the table query layer), but the status table column caps at 3000
 		// chars. Verify the manager truncates before persisting so the write succeeds.
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
 		String longMessage = "x".repeat(5000);
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenThrow(new RuntimeException(longMessage));
+		stubHappyPathThroughStream();
+		doThrow(new RuntimeException(longMessage)).when(indexDao).queryAsStream(any(), any());
 
 		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
@@ -251,22 +280,10 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateExceedsMaxRowsRecordsFailed() throws Exception {
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(500_001L));
+		// Row count above MAX_ROWS — IllegalStateException is caught by outer handler and
+		// the index is marked FAILED with the row-count message.
+		stubHappyPathThroughCreateIndex();
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(1_000_000L);
 
 		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
@@ -275,8 +292,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(statusDao, times(2)).createOrUpdate(captor.capture());
 		assertEquals(SearchIndexState.FAILED, captor.getAllValues().get(1).getState());
 		assertNotNull(captor.getAllValues().get(1).getErrorMessage());
-		// Stream query never runs past the row-count gate
-		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
+		assertTrue(captor.getAllValues().get(1).getErrorMessage().contains("exceed maximum"));
+		// Stream never runs past the row-count gate
+		verify(indexDao, never()).queryAsStream(any(), any());
 	}
 
 	@Test
@@ -285,33 +303,13 @@ public class SearchIndexLifecycleManagerImplTest {
 		// The lifecycle manager must translate that into RecoverableMessageException so
 		// SQS retries the message — by then the winning delete is done and the retry
 		// either no-ops the delete (index_not_found) or proceeds normally.
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
+		stubHappyPathThroughCreateIndex();
 		ErrorCause cause = ErrorCause.of(b -> b
 				.type("status_exception")
 				.reason("Deletion failed for indices [search-index-syn456] due to concurrent deletes, please try again"));
 		OpenSearchException concurrentDelete = new OpenSearchException(
 				ErrorResponse.of(er -> er.error(cause).status(400)));
-
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-		doThrow(concurrentDelete)
-				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		doThrow(concurrentDelete).when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
 
 		// call under test
 		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
@@ -327,28 +325,30 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
 		// The pre-build deleteIndex was attempted (it threw); createIndex / row stream never ran.
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt());
-		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
+		verify(indexDao, never()).queryAsStream(any(), any());
 	}
 
 	@Test
 	public void testHandleCreateOnTableUnavailablePropagates() throws Exception {
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
+		// Source table state is PROCESSING — buildIndex throws TableUnavailableException.
+		// It must propagate so the worker can retry.
 		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+				.thenReturn(Collections.singletonList(nameCol));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenThrow(new TableUnavailableException(new TableStatus()));
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.PROCESSING));
 
 		// call under test — TableUnavailableException must propagate so the worker can retry.
 		assertThrows(TableUnavailableException.class,
@@ -362,28 +362,45 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testHandleCreateOnSourceTableLockUnavailablePropagates() throws Exception {
-		// The source table's read lock is unavailable (a writer holds it — e.g. BuildTableIndex
-		// is running). LockUnavilableException is thrown bare from querySinglePage with no cause
-		// chain. It must propagate out of buildIndex without recording FAILED so the worker can
-		// translate it to RecoverableMessageException and SQS retries.
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
+	public void testHandleCreateOnSourceTableFailedPropagates() throws Exception {
+		// Source table state is PROCESSING_FAILED — buildIndex throws TableFailedException.
+		// It must propagate so the worker can retry.
 		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(eq(triggering), any(), eq("syn100"))).thenReturn(Optional.empty());
+				.thenReturn(Collections.singletonList(nameCol));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
+				.thenReturn(SOURCE_INDEX_DESCRIPTION);
+		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
+		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
+				.thenReturn(new TableStatus().setState(TableState.PROCESSING_FAILED));
+
+		// call under test
+		assertThrows(TableFailedException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+
+		// Only the CREATING status was written — no FAILED record, no cleanup.
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
+		verify(openSearchManager, never()).deleteIndex(any());
+	}
+
+	@Test
+	public void testHandleCreateOnSourceTableLockUnavailablePropagates() throws Exception {
+		// LockUnavilableException thrown bare from indexDao.queryAsStream with no cause chain.
+		// It must propagate out of buildIndex without recording FAILED so the worker can
+		// translate it to RecoverableMessageException and SQS retries.
 		LockUnavilableException lockEx = new LockUnavilableException(LockType.Write, "TABLE-LOCK-789", "BuildTableIndex,syn789");
-		when(tableQueryManager.querySinglePage(eq(progressCallback), any(UserInfo.class), any(), any()))
-				.thenThrow(lockEx);
+		stubHappyPathThroughStream();
+		doThrow(lockEx).when(indexDao).queryAsStream(any(), any());
 
 		// call under test — LockUnavilableException from buildIndex propagates out of the
 		// inner multi-catch and is then wrapped by handleCreate's outer catch into
@@ -392,11 +409,13 @@ public class SearchIndexLifecycleManagerImplTest {
 				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
 
 		assertSame(lockEx, thrown.getCause());
-		// Only CREATING was written — no FAILED, no cleanup
+		// Only CREATING was written — no FAILED
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
 		verify(statusDao).createOrUpdate(captor.capture());
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
-		verify(openSearchManager, never()).deleteIndex(any());
+		// The pre-build deleteIndex ran (deleteExistingFirst=true), but no second cleanup delete
+		// since LockUnavilableException propagates directly from the multi-catch without cleanup.
+		verify(openSearchManager, times(1)).deleteIndex("search-index-" + ENTITY_ID);
 	}
 
 	@Test
@@ -472,32 +491,13 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(statusDao, never()).createOrUpdate(any());
 		verify(openSearchManager, never()).deleteIndex(any());
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 	}
 
 	@Test
 	public void testHandleCreateReleasesLockOnSuccess() throws Exception {
-		stubBuildLock();
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-
 		// call under test
+		stubHappyPathThroughStream();
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		verify(writeLock).close();
@@ -508,20 +508,8 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateReleasesLockOnFailure() throws Exception {
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggeringUser());
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-		when(entityManager.getEntity(triggeringUser(), ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenThrow(new RuntimeException("unexpected failure"));
+		stubHappyPathThroughStream();
+		doThrow(new RuntimeException("unexpected failure")).when(indexDao).queryAsStream(any(), any());
 
 		// call under test — exception is swallowed by the FAILED handler, lock must still be released
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
@@ -535,38 +523,18 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Test
 	public void testHandleCreateCallsWaitForIndexWritableBetweenCreateAndRunQuery() throws Exception {
 		// AOSS acknowledges createIndex while shards are still not writable; the readiness probe
-		// must run before runQueryAsStream so the bulk stream does not race against
+		// must run before queryAsStream so the bulk stream does not race against
 		// index_not_found_exception.
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-
 		// call under test
+		stubHappyPathThroughStream();
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager, tableQueryManager);
+		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager, indexDao);
 		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
 		order.verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID),
-				any(), any(), any(), any(), anyInt(), anyInt());
+				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 		order.verify(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
-		order.verify(tableQueryManager).runQueryAsStream(eq(progressCallback), any(UserInfo.class),
-				any(), any(), any());
+		order.verify(indexDao).queryAsStream(any(), any());
 	}
 
 	@Test
@@ -574,25 +542,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		// waitForIndexWritable exhausts its retry budget and throws RecoverableMessageException.
 		// That must propagate out of buildIndex unchanged and NOT flip the SearchIndex to FAILED —
 		// the build will succeed on a later SQS retry.
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setDefiningSQL(DEFINING_SQL);
-		searchIndex.setParentId("syn100");
-
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+		// waitForIndexWritable runs before the translator is built, so SchemaProvider stubs are
+		// not needed.
+		stubHappyPathThroughCreateIndex();
 		RecoverableMessageException probeFailed = new RecoverableMessageException(
 				"AOSS index search-index-" + ENTITY_ID + " did not accept writes within the retry budget");
 		doThrow(probeFailed).when(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
@@ -607,7 +559,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(statusDao).createOrUpdate(captor.capture());
 		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
 		// Streaming must not have started — the probe runs first.
-		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
+		verify(indexDao, never()).queryAsStream(any(), any());
 	}
 
 	// -------- SearchIndexRowHandler tests --------
@@ -756,6 +708,58 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test — closing flushes the trailing partial batch.
 		handler.close();
 		verify(openSearchManager, times(2)).bulkIndex(eq("search-index-syn1"), any());
+	}
+
+	@Test
+	public void testRowHandlerNextRowWithViewSourceWritesBenefactorFromRow() throws IOException {
+		SelectColumn col = new SelectColumn().setId("100").setName("title").setColumnType(ColumnType.STRING);
+		// A view exposes its single benefactor through Row.getBenefactorId() and keys the
+		// document by ROW_ID (it appends no positional benefactor columns).
+		SearchIndexRowHandler handler = new SearchIndexRowHandler(
+				"test-index", Collections.singletonList(col), openSearchManager);
+
+		Row row = new Row().setRowId(42L).setVersionNumber(1L).setBenefactorId(99L)
+				.setValues(Collections.singletonList("hello"));
+		// call under test
+		handler.nextRow(row);
+		handler.close();
+
+		ArgumentCaptor<List<BulkOperation>> captor = ArgumentCaptor.forClass(List.class);
+		verify(openSearchManager).bulkIndex(eq("test-index"), captor.capture());
+		BulkOperation op = captor.getValue().get(0);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> doc = (Map<String, Object>) op.index().document();
+		assertEquals("hello", doc.get("100"));
+		assertEquals(99L, doc.get("_benefactor_0"));
+		// View document id is the stable ROW_ID.
+		assertEquals("42", op.index().id());
+	}
+
+	@Test
+	public void testRowHandlerNextRowWithMaterializedViewSourceReadsTrailingBenefactors() throws IOException {
+		SelectColumn col = new SelectColumn().setId("100").setName("title").setColumnType(ColumnType.STRING);
+		// A materialized view with two dependencies appends two benefactor columns to the
+		// trailing positional values; the handler is told how many via its positional count
+		// (the value QueryTranslator reports). The document is keyed by ROW_ID.
+		SearchIndexRowHandler handler = new SearchIndexRowHandler(
+				"test-index", Collections.singletonList(col), openSearchManager);
+
+		// values = [ title, benefactor_0, benefactor_1 ]
+		Row row = new Row().setRowId(7L).setVersionNumber(1L)
+				.setValues(Arrays.asList("hello", "11", "22"));
+		// call under test
+		handler.nextRow(row);
+		handler.close();
+
+		ArgumentCaptor<List<BulkOperation>> captor = ArgumentCaptor.forClass(List.class);
+		verify(openSearchManager).bulkIndex(eq("test-index"), captor.capture());
+		BulkOperation op = captor.getValue().get(0);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> doc = (Map<String, Object>) op.index().document();
+		assertEquals("hello", doc.get("100"));
+		assertEquals(11L, doc.get("_benefactor_0"));
+		assertEquals(22L, doc.get("_benefactor_1"));
+		assertEquals("7", op.index().id());
 	}
 
 	// -------- resolveAnalyzers --------
@@ -953,43 +957,17 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertTrue(captor.getValue().contains("biomed-CUSTOM"));
 	}
 
-	@SuppressWarnings("unchecked")
-	private static List<String> anyList() {
-		return org.mockito.ArgumentMatchers.anyList();
-	}
-
-	/** Stub the minimum chain through the row-count gate. Does NOT stub shard-sizing; call
-	 * {@link #stubShardSizing()} additionally for tests that proceed past the count check. */
-	private void stubHappyPathThroughCreateIndex() throws Exception {
-		stubBuildLock();
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-	}
-
-	/** Stub the shard-sizing lookups. Must be called for any test that proceeds past the
-	 * row-count check so the connectionFactory.getConnection and stackConfiguration calls do not
-	 * raise UnnecessaryStubbingException on tests that throw before reaching this code. */
-	private void stubShardSizing() {
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
+	/** Stub the minimum chain that lets buildIndex reach the row-stream phase. */
+	private void stubHappyPathThroughCreateIndexWithConfig() throws Exception {
+		stubHappyPathThroughCreateIndex();
+		stubSchemaProviderForTranslator();
 	}
 
 	// -------- buildIndex — additional branch coverage --------
 
 	@Test
 	public void testHandleCreateThrowsWhenSchemaIsNull() throws Exception {
-		// L235: getTableSchema returns null — buildIndex throws "no bound schema", caught
+		// getTableSchema returns null — buildIndex throws "no bound schema", caught
 		// by the outer Throwable handler and recorded as FAILED.
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
@@ -998,6 +976,7 @@ public class SearchIndexLifecycleManagerImplTest {
 				.thenReturn(new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100"));
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID))).thenReturn(null);
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
@@ -1010,7 +989,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateThrowsWhenSchemaIsEmpty() throws Exception {
-		// L235: empty schema also flows to FAILED via the outer Throwable handler.
+		// Empty schema also flows to FAILED via the outer Throwable handler.
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggeringUser());
@@ -1019,6 +998,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
 				.thenReturn(Collections.emptyList());
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
@@ -1029,12 +1009,12 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateRejectsRowCountAboveMax() throws Exception {
-		// L257: rowCount > MAX_ROWS — IllegalStateException is caught by outer handler and
+		// rowCount > MAX_ROWS — IllegalStateException is caught by outer handler and
 		// the index is marked FAILED with the row-count message.
 		stubHappyPathThroughCreateIndex();
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(1_000_000L));
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(1_000_000L);
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
@@ -1047,22 +1027,22 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateAcceptsNullRowCount() throws Exception {
-		// L257: rowCount == null — short-circuits the > MAX_ROWS guard and proceeds.
+		// rowCount == null — short-circuits the > MAX_ROWS guard and proceeds.
 		stubHappyPathThroughCreateIndex();
-		stubShardSizing();
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle()); // no queryCount set
+		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
+		stubSchemaProviderForTranslator();
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		verify(openSearchManager).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt());
+		verify(openSearchManager).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 	}
 
 	@Test
 	public void testHandleCreateWithConfigSetsDefaultAnalyzer() throws Exception {
-		// L265: config != null branch — readRef extracts the qname and forwards it to createIndex.
+		// config != null branch — readRef extracts the qname and forwards it to createIndex.
 		stubHappyPathThroughCreateIndex();
-		stubShardSizing();
+		stubSchemaProviderForTranslator();
 		String defaultQname = "org.sagebionetworks-SCIENTIFIC";
 		SearchConfiguration config = new SearchConfiguration()
 				.setDefaultAnalyzer(new org.json.JSONObject().put("$ref", defaultQname));
@@ -1075,20 +1055,20 @@ public class SearchIndexLifecycleManagerImplTest {
 												new org.json.JSONObject().put("type", "custom")
 														.put("tokenizer", "standard"))))));
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
-		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any(), anyInt(), anyInt());
+		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any(), anyInt(), anyInt(), anyInt());
 	}
 
 	@Test
 	public void testHandleCreateWithIOExceptionWithoutRecoverableCauseMarksFailed() throws Exception {
 		// An IOException from the stream is a genuine build failure — falls through to
 		// the FAILED-marking path. The IOException itself is swallowed.
-		stubHappyPathThroughCreateIndex();
-		stubShardSizing();
-		doThrow(new IOException("disk full"))
-				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+		stubHappyPathThroughStream();
+		doThrow(new RuntimeException(new IOException("disk full"))).when(indexDao).queryAsStream(any(), any());
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
@@ -1099,10 +1079,9 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateWithOpenSearchExceptionNotConcurrentDeleteMarksFailed() throws Exception {
-		// L319: OpenSearchException that ISN'T a concurrent-delete falls through to the
+		// OpenSearchException that ISN'T a concurrent-delete falls through to the
 		// FAILED-marking path.
-		stubHappyPathThroughCreateIndex();
-		stubShardSizing();
+		stubHappyPathThroughStream();
 		org.opensearch.client.opensearch._types.OpenSearchException opensearchEx =
 				new org.opensearch.client.opensearch._types.OpenSearchException(
 						new org.opensearch.client.opensearch._types.ErrorResponse.Builder()
@@ -1112,9 +1091,9 @@ public class SearchIndexLifecycleManagerImplTest {
 										.reason("not a concurrent delete")
 										.build())
 								.build());
-		doThrow(opensearchEx)
-				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+		doThrow(opensearchEx).when(indexDao).queryAsStream(any(), any());
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
@@ -1125,13 +1104,12 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testHandleCreateWithNullErrorMessageStillMarksFailed() throws Exception {
-		// L335: e.getMessage() == null — truncate guard short-circuits cleanly and the
+		// e.getMessage() == null — truncate guard short-circuits cleanly and the
 		// FAILED status carries a null errorMessage.
-		stubHappyPathThroughCreateIndex();
-		stubShardSizing();
-		doThrow(new RuntimeException((String) null))
-				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+		stubHappyPathThroughStream();
+		doThrow(new RuntimeException((String) null)).when(indexDao).queryAsStream(any(), any());
 
+		// call under test
 		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
 
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
@@ -1151,6 +1129,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		ColumnModel intCol = new ColumnModel().setId("c").setName("c").setColumnType(ColumnType.INTEGER);
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
+		// call under test
 		manager.collectAndLoadAnalyzers(null, null, Collections.singletonList(intCol));
 
 		verify(textAnalyzerDao).getByQualifiedNames(anyList());
@@ -1165,6 +1144,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		// override.getOverrides() == null
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
+		// call under test
 		manager.collectAndLoadAnalyzers(null, Collections.singletonList(override),
 				Collections.singletonList(stringCol));
 
@@ -1182,6 +1162,7 @@ public class SearchIndexLifecycleManagerImplTest {
 						.setAnalyzer(null))); // null analyzer — readRef returns null
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
+		// call under test
 		manager.collectAndLoadAnalyzers(null, Collections.singletonList(override),
 				Collections.singletonList(stringCol));
 
@@ -1199,6 +1180,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		SearchConfiguration config = new SearchConfiguration(); // defaultAnalyzer is null
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
+		// call under test
 		manager.collectAndLoadAnalyzers(config, null, Collections.singletonList(stringCol));
 
 		verify(textAnalyzerDao).getByQualifiedNames(anyList());
@@ -1469,6 +1451,7 @@ public class SearchIndexLifecycleManagerImplTest {
 				.thenReturn(Optional.of(SearchIndexState.ACTIVE)) // precheck
 				.thenReturn(Optional.empty()); // recheck under lock
 
+		// call under test
 		manager.handleDelete(progressCallback, ENTITY_ID);
 
 		verify(openSearchManager, never()).deleteIndex(any());
@@ -1478,33 +1461,15 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	// -------- buildIndex error-unwrap branches --------
 
-
 	@Test
 	public void testHandleCreateUnwrapsLockUnavailableNestedInsideAnotherException() throws Exception {
 		// LockUnavilableException wrapped inside another exception is still a transient
 		// writer-contention signal — surface the wrapped lock exception so the worker re-queues.
-		stubBuildLock();
-		UserInfo triggering = triggeringUser();
-		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
-
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(tableIndexDao);
-		when(tableIndexDao.getDataSizeBytesForTable(IdAndVersion.parse("syn789"))).thenReturn(null);
-		when(stackConfiguration.isProductionStack()).thenReturn(false);
-		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
-		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
-		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(
-						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
-				.thenReturn(new QueryResultBundle().setQueryCount(0L));
-
 		LockUnavilableException nestedLock = new LockUnavilableException(
-				org.sagebionetworks.workers.util.semaphore.LockType.Write, "k", "other-worker");
+				LockType.Write, "k", "other-worker");
 		RuntimeException wrapper = new RuntimeException("wrapped", nestedLock);
-		doThrow(wrapper).when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+		stubHappyPathThroughStream();
+		doThrow(wrapper).when(indexDao).queryAsStream(any(), any());
 
 		// buildIndex's inner cause-cause unwrap surfaces the LockUnavilableException; the
 		// outer handleCreate wrapper then converts it to RecoverableMessageException. The
@@ -1521,6 +1486,127 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertTrue(nestedLockCaptor.getAllValues().stream()
 				.noneMatch(s -> s.getState() == SearchIndexState.FAILED),
 				"nested lock-unavailable must not mark the index FAILED");
+	}
+
+	// --- registerSchema: aggregation-over-benefactor-source guard ---
+
+	@Test
+	public void testRegisterSchemaWithAggregateOverBenefactorSourceThrows() {
+		IdAndVersion searchIndexId = IdAndVersion.parse("syn456");
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		// A materialized-view source with a benefactor-bearing dependency. An aggregating
+		// defining SQL would collapse rows spanning different benefactors into one output
+		// row, for which there is no correct per-row benefactor — so it must be rejected.
+		IndexDescription mvSource = mock(IndexDescription.class);
+		when(mvSource.getTableHash()).thenReturn("hash");
+		when(mvSource.getTableType()).thenReturn(TableType.materializedview);
+		when(mvSource.getColumnNamesToAddToSelect(any(SqlContext.class), anyBoolean(), anyBoolean()))
+				.thenReturn(Collections.emptyList());
+		when(mvSource.getBenefactors()).thenReturn(Collections.singletonList(
+				new BenefactorDescription("ROW_BENEFACTOR_A0", ObjectType.ENTITY)));
+		ColumnModel fooColumn = new ColumnModel().setId("100").setName("foo")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(tableManagerSupport.getIndexDescription(sourceId)).thenReturn(mvSource);
+		when(tableManagerSupport.getTableSchema(sourceId)).thenReturn(Collections.singletonList(fooColumn));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(fooColumn);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.registerSchema(searchIndexId, "SELECT foo, COUNT(*) FROM syn789 GROUP BY foo"));
+		assertTrue(ex.getMessage().contains("cannot include a group by clause"),
+				"expected the aggregation guard message, got: " + ex.getMessage());
+		// Guard fires before any schema is bound.
+		verify(columnModelManager, never()).bindColumnsToVersionOfObject(any(), any());
+	}
+
+	@Test
+	public void testRegisterSchemaWithAggregateOverBenefactorlessSourceSucceeds() {
+		IdAndVersion searchIndexId = IdAndVersion.parse("syn456");
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		// A plain table source has no benefactors, so an aggregating defining SQL is allowed —
+		// row-level ACL is moot and the guard must not fire.
+		ColumnModel fooColumn = new ColumnModel().setId("100").setName("foo")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(tableManagerSupport.getIndexDescription(sourceId)).thenReturn(new TableIndexDescription(sourceId));
+		when(tableManagerSupport.getTableSchema(sourceId)).thenReturn(Collections.singletonList(fooColumn));
+		when(tableManagerSupport.getColumnModel("100")).thenReturn(fooColumn);
+		when(columnModelManager.createColumnModel(any()))
+				.thenReturn(new ColumnModel().setId("200").setName("foo").setColumnType(ColumnType.STRING).setMaximumSize(50L));
+
+		// call under test — must not throw.
+		manager.registerSchema(searchIndexId, "SELECT foo, COUNT(*) FROM syn789 GROUP BY foo");
+
+		verify(columnModelManager).bindColumnsToVersionOfObject(any(), eq(searchIndexId));
+	}
+
+	// -------- buildWithBenefactorColumns (package-private) --------
+
+	@Test
+	public void testBuildWithBenefactorColumnsWithMaterializedViewOverTwoViews() throws ParseException {
+		// Two entity views joined on a shared "studyId" column, and a materialized view over them. Ids
+		// and column ids match the lib-table-cluster TwoViewMaterializedView fixture so the translated
+		// names are stable (T801/T802/T803, _C701_/_C702_/_C703_, ROW_BENEFACTOR__A0/__A1).
+		IdAndVersion leftViewId = IdAndVersion.parse("syn801");
+		IdAndVersion rightViewId = IdAndVersion.parse("syn802");
+		IdAndVersion mvId = IdAndVersion.parse("syn803");
+		IndexDescription leftView = new ViewIndexDescription(leftViewId, TableType.entityview, -1L);
+		IndexDescription rightView = new ViewIndexDescription(rightViewId, TableType.entityview, -1L);
+		ColumnModel leftStudy = TableModelTestUtils.createColumn(701L, "studyId", ColumnType.INTEGER);
+		ColumnModel rightStudy = TableModelTestUtils.createColumn(702L, "studyId", ColumnType.INTEGER);
+		ColumnModel mvStudy = TableModelTestUtils.createColumn(703L, "studyId", ColumnType.INTEGER);
+		String mvDefiningSql = "select " + leftViewId + ".studyId from " + leftViewId + " join " + rightViewId
+				+ " on (" + leftViewId + ".studyId = " + rightViewId + ".studyId) order by " + leftViewId + ".studyId";
+
+		SchemaProvider schemaProvider = new SchemaProvider() {
+			@Override
+			public TableType getTableType(IdAndVersion id) {
+				return TableType.entityview;
+			}
+
+			@Override
+			public List<ColumnModel> getTableSchema(IdAndVersion id) {
+				if (leftViewId.equals(id)) {
+					return List.of(leftStudy);
+				}
+				if (rightViewId.equals(id)) {
+					return List.of(rightStudy);
+				}
+				return List.of(mvStudy);
+			}
+
+			@Override
+			public ColumnModel getColumnModel(String id) {
+				if (leftStudy.getId().equals(id)) {
+					return leftStudy;
+				}
+				if (rightStudy.getId().equals(id)) {
+					return rightStudy;
+				}
+				return mvStudy;
+			}
+		};
+
+		IndexDescriptionLookup lookup = id -> leftViewId.equals(id) ? leftView : rightView;
+		MaterializedViewIndexDescription mvIndex = new MaterializedViewIndexDescription(mvId, mvDefiningSql, lookup);
+
+		QueryTranslator base = QueryTranslator.builder().sql("select * from " + mvId).schemaProvider(schemaProvider)
+				.sqlContext(SqlContext.query).indexDescription(mvIndex).userId(1L).build();
+
+		// call under test
+		TranslatedQuery query = SearchIndexLifecycleManagerImpl.buildWithBenefactorColumns(base, mvIndex);
+
+		// The two physical benefactor columns are spliced in after the document column and ahead of the
+		// by-name ROW_ID/ROW_VERSION metadata.
+		assertEquals("SELECT _C703_, ROW_BENEFACTOR__A0, ROW_BENEFACTOR__A1, ROW_ID, ROW_VERSION FROM T803",
+				query.getOutputSQL());
+		// The benefactor columns are mirrored into the result headers as INTEGER columns, in
+		// getBenefactors() order, after the document column. ROW_ID/ROW_VERSION are read by name and are
+		// not select headers.
+		assertEquals(List.of(
+				new SelectColumn().setName("studyId").setColumnType(ColumnType.INTEGER).setId("703"),
+				new SelectColumn().setName("ROW_BENEFACTOR__A0").setColumnType(ColumnType.INTEGER),
+				new SelectColumn().setName("ROW_BENEFACTOR__A1").setColumnType(ColumnType.INTEGER)),
+				query.getSelectColumns());
 	}
 
 	// -------- computeShardCount boundary tests --------

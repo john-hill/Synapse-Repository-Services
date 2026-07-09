@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -44,6 +45,10 @@ public interface OpenSearchManager {
 	 *                                 {@link SearchAnalyzerJsonUtil#resolveRefs}. Each value is the
 	 *                                 {@code settings.analysis} block for one TextAnalyzer with all
 	 *                                 {@code $ref} entries already substituted.
+	 * @param benefactorCount          The number of per-dependency row-level access-control fields
+	 *                                 ({@code _benefactor_0 .. _benefactor_(N-1)}) to map as
+	 *                                 non-analyzed {@code long} fields for the row-level search ACL
+	 *                                 filter. A benefactor-less source (e.g. a table) maps zero.
 	 * @param numberOfShards           The number of primary shards for the index, computed at build
 	 *                                 time from the source table's data size.
 	 * @param numberOfReplicas         The number of replica shards for the index (1 on prod, 0 on the
@@ -54,7 +59,7 @@ public interface OpenSearchManager {
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
-			int numberOfShards, int numberOfReplicas);
+			int benefactorCount, int numberOfShards, int numberOfReplicas);
 
 	/**
 	 * Delete an OpenSearch index. No-op if the index does not exist.
@@ -109,29 +114,39 @@ public interface OpenSearchManager {
 	 * AOSS index at build time, so this method does not take analyzer arguments — AOSS
 	 * routes each field through its own configured search analyzer automatically.</p>
 	 *
+	 * <p>Each query in {@code accessFilters} is AND-ed (as a {@code bool.filter} clause) with
+	 * the caller's query, so a document is returned only if it satisfies every filter. This
+	 * enforces row-level benefactor access control; a benefactor-less source passes an empty
+	 * list, applying no row filter.</p>
+	 *
 	 * @param indexName  The OpenSearch index name.
 	 * @param body       The typed {@link SearchQuery} envelope; each slot's contents are the
 	 *                   opaque OpenSearch DSL.
 	 * @param columns    The column models for field routing (user-facing names).
 	 * @param options    The response options requested; must be non-null and non-empty.
+	 * @param accessFilters Pre-built OpenSearch filter queries (e.g. one benefactor
+	 *                      {@code terms} clause per source dependency). Must not be null.
 	 * @return The search results — only fields corresponding to requested options are populated.
 	 */
 	SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options);
+			Set<SearchQueryPart> options, List<Query> accessFilters);
 
 	/**
 	 * Execute an autocomplete query against the OpenSearch index. The body's allowlist is
 	 * narrowed to the autocomplete subset (prefix-flavored {@code query} plus optional
-	 * {@code _source}); page size is capped at the autocomplete server-side limit.
+	 * {@code _source}); page size is capped at the autocomplete server-side limit. The
+	 * {@code accessFilters} are AND-ed with the caller's query exactly as in
+	 * {@link #search(String, SearchQuery, List, Set, List)}.
 	 *
 	 * @param indexName  The OpenSearch index name.
 	 * @param body       The typed {@link SearchAutocompleteBody} envelope.
 	 * @param columns    The column models for field routing (user-facing names).
 	 * @param options    The response options requested; must be non-null and non-empty.
+	 * @param accessFilters Pre-built OpenSearch filter queries; must not be null.
 	 * @return The autocomplete results.
 	 */
 	SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options);
+			Set<SearchQueryPart> options, List<Query> accessFilters);
 
 	/**
 	 * Validate a TextAnalyzer's settings by sending each declared analyzer entry's chain

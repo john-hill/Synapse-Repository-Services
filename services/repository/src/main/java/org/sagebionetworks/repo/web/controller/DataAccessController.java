@@ -435,4 +435,20 @@ public class DataAccessController {
 		return serviceProvider.getDataAccessService().getSubmissionForThread(userId, threadId);
 	}
 
+	/**
+	 * Route the eDUC associated with a data access request for DocuSign signature.
+	 *
+	 * @param userId    - The ID of the user who is making the request.
+	 * @param requestId - The ID of the data access request.
+	 * @return The updated RequestInterface with the DocuSign envelope ID populated.
+	 */
+	@RequiredScope({view, modify})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_ID_SIGNATURE, method = RequestMethod.POST)
+	public @ResponseBody RequestInterface routeForSignature(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String requestId) {
+		return serviceProvider.getEDucService().routeForSignature(userId, requestId);
+	}
+
 }

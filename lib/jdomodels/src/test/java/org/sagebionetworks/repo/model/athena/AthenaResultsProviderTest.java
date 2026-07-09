@@ -12,6 +12,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -257,13 +259,15 @@ public class AthenaResultsProviderTest {
 
 	private ResultSet getResultSet(int numberOfRows, int startIndex, boolean includeHeader) {
 		ResultSet.Builder resultSetBuilder = ResultSet.builder();
+		List<Row> rows = new ArrayList<>(numberOfRows+1);
 		if (includeHeader) {
 			// Athena always include the header row
-			resultSetBuilder.rows(getHeaderRow());
+			rows.add(getHeaderRow());
 		}
 		for (int i = startIndex; i < numberOfRows + startIndex; i++) {
-			resultSetBuilder.rows(getRow(String.valueOf(i)));
+			rows.add(getRow(String.valueOf(i)));
 		}
+		resultSetBuilder.rows(rows);
 		return resultSetBuilder.build();
 	}
 

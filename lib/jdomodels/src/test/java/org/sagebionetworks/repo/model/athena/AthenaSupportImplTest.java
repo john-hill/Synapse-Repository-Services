@@ -12,10 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -668,11 +665,10 @@ public class AthenaSupportImplTest {
 
 	private ResultSet getResultSet(String... values) {
 		ResultSet.Builder resultSetBuilder = ResultSet.builder();
-
-		for (String value : values) {
-			resultSetBuilder.rows(getRow(value));
-		}
-
+		List<Row> rows = Arrays.stream(values)
+				.map(this::getRow)
+				.toList();
+		resultSetBuilder.rows(rows);
 		return resultSetBuilder.build();
 	}
 

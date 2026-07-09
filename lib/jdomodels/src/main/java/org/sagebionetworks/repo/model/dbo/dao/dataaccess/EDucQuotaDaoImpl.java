@@ -62,6 +62,16 @@ public class EDucQuotaDaoImpl implements EDucQuotaDao {
 				userId, accessRequirementId, fromEpochMs, toEpochMs);
 	}
 
+	@Override
+	public long getGlobalCount(long fromEpochMs, long toEpochMs) {
+		return jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM " + TABLE_EDUC_QUOTA
+						+ " WHERE " + COL_EDUC_QUOTA_CREATED_ON + " >= ?"
+						+ " AND " + COL_EDUC_QUOTA_CREATED_ON + " < ?",
+				Long.class,
+				fromEpochMs, toEpochMs);
+	}
+
 	@WriteTransaction
 	@Override
 	public void delete(Long id) {

@@ -1,8 +1,5 @@
 package org.sagebionetworks.repo.manager.docusign;
 
-import java.time.Instant;
-import java.time.YearMonth;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -40,6 +37,9 @@ import org.springframework.stereotype.Service;
 public class EDucManager {
 
 	static final int MAX_ENVELOPES_PER_MONTH = 10;
+	static final long THIRTY_DAYS_IN_MS = 30L * 24 * 60 * 60 * 1000;
+	static final int MAX_GLOBAL_ENVELOPES_PER_DAY = 100;
+	static final long ONE_DAY_IN_MS = 24L * 60 * 60 * 1000;
 
 	private final DocuSignClient docuSignClient;
 	private final RequestDAO requestDao;
@@ -109,15 +109,20 @@ public class EDucManager {
 		Long userId = userInfo.getId();
 		Long arId = Long.parseLong(request.getAccessRequirementId());
 
-		Instant now = Instant.ofEpochMilli(clock.currentTimeMillis());
-		YearMonth currentMonth = YearMonth.from(now.atZone(ZoneOffset.UTC));
-		long monthStartMs = currentMonth.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
-		long nextMonthStartMs = currentMonth.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+		long nowMs = clock.currentTimeMillis();
+		long thirtyDaysAgoMs = nowMs - THIRTY_DAYS_IN_MS;
 
-		long count = eDucQuotaDao.getCount(userId, arId, monthStartMs, nextMonthStartMs);
+		long count = eDucQuotaDao.getCount(userId, arId, thirtyDaysAgoMs, nowMs);
 		if (count >= MAX_ENVELOPES_PER_MONTH) {
 			throw new IllegalArgumentException(
 					"User has exceeded their eDUC routing quota for the requested access requirement.");
+		}
+
+		long oneDayAgoMs = nowMs - ONE_DAY_IN_MS;
+		long globalCount = eDucQuotaDao.getGlobalCount(oneDayAgoMs, nowMs);
+		if (globalCount >= MAX_GLOBAL_ENVELOPES_PER_DAY) {
+			throw new IllegalArgumentException(
+					"The global daily eDUC routing limit has been reached. Please try again later.");
 		}
 
 		List<String> collaboratorUserIds = buildCollaboratorUserIds(request);

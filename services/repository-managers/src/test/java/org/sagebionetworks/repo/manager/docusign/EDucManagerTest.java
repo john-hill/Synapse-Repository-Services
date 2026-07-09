@@ -244,6 +244,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
 		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
 		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(200L)).thenReturn("drjones");
 		when(mockPrincipalAliasDao.getUserName(100L)).thenReturn("creatoruser");
 		when(mockPrincipalAliasDao.getUserName(301L)).thenReturn("collab1user");
@@ -325,6 +326,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
 		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
 		when(mockEDucQuotaDao.getCount(eq(1L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(any(Long.class))).thenReturn("someuser");
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(any(Long.class))).thenReturn("x@y.com");
 		UserProfile profile = new UserProfile();
@@ -406,6 +408,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
 		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
 		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(200L)).thenReturn("drjones");
 		when(mockPrincipalAliasDao.getUserName(100L)).thenReturn("creatoruser");
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(200L)).thenReturn("pi@synapse.org");
@@ -449,6 +452,24 @@ public class EDucManagerTest {
 	}
 
 	@Test
+	public void testRouteForSignatureWithGlobalLimitExceeded() {
+		Request request = buildValidRequest();
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(100L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.routeForSignature(user, "req-1"));
+
+		assertEquals("The global daily eDUC routing limit has been reached. Please try again later.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
 	public void testRouteForSignatureWithQuotaReturnsCorrectRemaining() {
 		Request request = buildValidRequest();
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
@@ -456,6 +477,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
 		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
 		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(5L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(0L);
 		when(mockPrincipalAliasDao.getUserName(any(Long.class))).thenReturn("someuser");
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(any(Long.class))).thenReturn("x@y.com");
 		UserProfile profile = new UserProfile();

@@ -6,6 +6,8 @@ public interface EDucQuotaDao {
 
 	long getCount(Long userId, Long accessRequirementId, long fromEpochMs, long toEpochMs);
 
+	long getGlobalCount(long fromEpochMs, long toEpochMs);
+
 	void delete(Long id);
 
 	void truncateAll();

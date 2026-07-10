@@ -134,6 +134,23 @@ public class EDucQuotaDaoImplTest {
 	}
 
 	@Test
+	public void testGetGlobalCount() {
+		Long userId = Long.parseLong(user.getId());
+		eDucQuotaDao.create(userId, accessRequirementId, "env-g1");
+		eDucQuotaDao.create(userId, accessRequirementId, "env-g2");
+
+		long now = System.currentTimeMillis();
+
+		// call under test — range includes all records
+		long count = eDucQuotaDao.getGlobalCount(0L, now + 60000);
+		assertEquals(2L, count);
+
+		// call under test — range in the future excludes all records
+		count = eDucQuotaDao.getGlobalCount(now + 60000, now + 120000);
+		assertEquals(0L, count);
+	}
+
+	@Test
 	public void testCreateWithDuplicateEnvelopeId() {
 		Long userId = Long.parseLong(user.getId());
 		eDucQuotaDao.create(userId, accessRequirementId, "env-dup");

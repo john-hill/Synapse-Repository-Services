@@ -186,6 +186,21 @@ These entity types share a common pattern. Follow it whenever introducing a new 
 
 Failing the parse synchronously in the metadata provider means malformed `definingSql` is rejected with `IllegalArgumentException` (HTTP 400) at create/update time, instead of silently FAILED'ing during the async build.
 
+`SearchIndex` adds a managed-OpenSearch-domain build path and row-level benefactor ACL on top of this pattern — see `manager/search/CLAUDE.md` for the domain/shard/ACL specifics and DSL validation.
+
+`RecordSet` is also queryable but **not** defining-SQL driven: `RecordSetManagerImpl`/`RecordSetIndexManagerImpl` require a bound JSON Schema and derive columns from it (via `RecordSetSchemaResolver`), not from CSV inference — a RecordSet with no bound schema is not indexed.
+
+## Plugin-Registry Pattern
+
+Several subsystems resolve behavior by a `Map` keyed on an enum, built from an autowired `List` of `@Service` beans (one bean per key) in `ManagerConfiguration`. When adding a new variant, add a `@Service` bean — do not edit a central switch. Instances:
+
+- **Entity metadata providers** (`repo/service/metadata/`) — keyed by `EntityType`; strict `{DTO}MetadataProvider` naming. Missing/misnamed → the new entity type is silently unwired. See `service/metadata/CLAUDE.md`.
+- **OIDC claim providers** (`repo/manager/oauth/claimprovider/`) — keyed by `OIDCClaimName`. See `manager/oauth/CLAUDE.md`.
+- **File handle association providers** (`repo/manager/file/`) — keyed by `FileHandleAssociateType`.
+- **Agent return-control handlers** (`repo/manager/agent/`) — `ReturnControlHandlerProvider` keyed by actionGroup+function; `CodeInterpreterTools` exposes Spring AI `@Tool` methods with a staging-bucket copy-then-presign flow.
+
+Sub-packages with their own deep conventions have their own files: `manager/search/` (OpenSearch domain build + DSL validation), `manager/oauth/` (OIDC/claim providers), `service/metadata/` (entity provider registry), `manager/file/scanner/` (auto-SQL file-handle scanners), `manager/dataaccess/` (access-request submission state machine), and `grid/internal/replica/` (CRDT internals).
+
 ## Curation Grid (Curator)
 
 A spreadsheet-style collaborative editing feature that allows data curators to annotate files (FileEntity annotations) and manage record-based metadata (RecordSet entities). Unlike the standard Controller → Manager → DAO pattern, the grid uses a **CRDT (Conflict-free Replicated Data Type)** architecture based on the [JSON-Joy](https://jsonjoy.com/) specification, enabling real-time multi-user and AI-assisted editing.
@@ -222,7 +237,7 @@ The AI Grid Assistant binds to a grid session via `GridAgentSessionContext` (con
 
 ### Validation Worker
 
-A dedicated worker listens to grid changes via an SQS queue, validates each changed row against the bound **JSON Schema**, and writes validation results back as CRDT patches to `rows[*].metadata.rowValidation`.
+A dedicated worker listens to grid changes via an SQS queue, validates each changed row against the bound **JSON Schema** (`GridRowValidator` + `ValidationSummaryAccumulator` in `grid/internal/replica/validation/`), and writes validation results back as CRDT patches to `rows[*].metadata.rowValidation`. For the replica/patch/validation internals, see `grid/internal/replica/CLAUDE.md`.
 
 ### Key REST APIs
 

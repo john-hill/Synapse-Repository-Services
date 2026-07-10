@@ -10,7 +10,8 @@ Backend platform for Sage Bionetworks' Synapse — a collaborative research data
 - **MySQL 8.x** via Spring JdbcTemplate (no ORM, no Spring Data)
 - **Tomcat 10x** (WAR deployment)
 - **Jackson 2.20.0**, Log4j 2, Guava 30.1.1
-- **AWS SDK v1** (1.12.x) + **AWS SDK v2** (2.29.x), Google Cloud Storage
+- **AWS SDK v1** (1.12.x) + **AWS SDK v2** (2.40.x), Google Cloud Storage — v1 is being phased out client-by-client for v2 (see `lib/stackConfiguration` `AwsClientFactory` → `AwsClientFactoryV2`)
+- **Spring AI** (`spring-ai-bom`, `spring-ai-agentcore-bom`) — Bedrock Converse `ChatModel` + AgentCore code-interpreter for the AI agent feature (wired in `SpringAiConfiguration`)
 - **No Lombok**
 
 ## Build Commands
@@ -45,6 +46,8 @@ platform (root)
 │   ├── lib-worker/               # Worker framework
 │   ├── lib-grid/                 # JSON-Joy CRDT model objects (CBOR encoding)
 │   ├── lib-grid-db/              # Grid CRDT relational database persistence
+│   ├── lib-database-configuration/ # DataSource/JdbcTemplate beans + @WriteTransaction annotations
+│   ├── lib-docusign/             # DocuSign e-signature integration
 │   └── ...                       # id-generator, database-semaphore, lib-upload, etc.
 ├── services/
 │   ├── repository-managers/      # Business logic (Manager interfaces + impls)
@@ -67,7 +70,7 @@ platform (root)
 - Package: `org.sagebionetworks.repo.manager`
 - Interface + Impl pattern (e.g., `EntityManager` / `EntityManagerImpl`)
 - `@Service` on implementations, constructor injection preferred
-- `@WriteTransaction` for write operations (from `org.sagebionetworks.repo.transactions`)
+- `@WriteTransaction` for write operations (`org.sagebionetworks.repo.transactions`, defined in the `lib-database-configuration` module)
 - Also: `@MandatoryWriteTransaction`, `@NewWriteTransaction`
 - Input validation: `ValidateArgument.required(value, "fieldName")`
 
@@ -86,7 +89,7 @@ platform (root)
 
 ## Testing
 
-- Unit tests: `*Test.java` — JUnit 5 + Mockito 2.27
+- Unit tests: `*Test.java` — JUnit 5 + Mockito 5.x
   - `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`
 - Integration tests: `IT*.java` (in integration-test module)
 - **Mockito 5.x** — strict stubbing is enabled by default
@@ -140,7 +143,8 @@ Key classes:
 When creating new database tables, the DBO must implement `MigratableDatabaseObject<D, B>`:
 - Provide a `MigrationType` (order matters — must come after dependencies)
 - Provide a `MigratableTableTranslation` for backup/restore conversion
-- Register primary types in `lib/jdomodels/src/main/resources/dbo-beans.spb.xml` (order matters)
+- Register primary types by placing the DBO in a package scanned by `DboAutoDiscovery` (`lib/jdomodels/.../repo/model/config/`) and annotating the DAO `@Repository` — the old `dbo-beans.spb.xml` was removed. If the package is not in `DboAutoDiscovery.DBO_PACKAGES`, the type is silently never discovered or migrated.
+- DDL creation order is derived automatically by `DboDependencyAnalyzer` (parses `FOREIGN KEY ... REFERENCES` from each DDL) — no manual ordering
 - Secondary types are discovered automatically via `getSecondaryTypes()`
 - Primary tables need an etag column (NOT NULL) for change detection; secondary tables need a foreign key to their owner's backup ID
 - Key test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` (`lib/jdomodels/src/test/java/org/sagebionetworks/repo/model/dbo/migration/MigratableTableDAOImplAutowireTest.java`) — validates all `MigrationType` values have registered DBOs
@@ -194,8 +198,8 @@ See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for th
 1. **Java 21 LTS** — Java 21 language features are now available (records, text blocks, pattern matching, sealed classes, virtual threads)
 2. **jakarta namespace** — migrated from javax.* for Spring 6 compatibility
 3. **Spring 6.1** — no Spring Boot APIs
-4. **Mockito 2.27** — no mockStatic, no Mockito 4/5 features
+4. **Mockito 5.x** — strict stubbing enabled by default (no lenient stubbing; fix argument matchers instead)
 5. **No Lombok**
 6. **No Spring Data** — all DB via JdbcTemplate
 7. **WAR packaging** — not executable JARs
-8. **Migration-safe schema changes** — new DBO tables must implement `MigratableDatabaseObject` and be registered in `dbo-beans.spb.xml`; data moves between tables require a two-stack mirroring/backfill rollout
+8. **Migration-safe schema changes** — new DBO tables must implement `MigratableDatabaseObject` and live in a package scanned by `DboAutoDiscovery`; data moves between tables require a two-stack mirroring/backfill rollout

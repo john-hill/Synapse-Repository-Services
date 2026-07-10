@@ -42,10 +42,10 @@ public class SearchIndexRebuildWorker implements TypedMessageDrivenRunner<Search
 		try {
 			searchIndexLifecycleManager.rebuildIfStale(progressCallback, entityId);
 		} catch (RecoverableMessageException e) {
-			LOG.warn("Recoverable exception rebuilding search index {}: {}", entityId, e.getMessage());
+			LOG.warn("Recoverable exception rebuilding search index {}", entityId, e);
 			throw e;
 		} catch (TableFailedException e) {
-			LOG.error("Source table failed rebuilding search index {}: {}", entityId, e.getMessage());
+			LOG.error("Source table failed rebuilding search index {}", entityId, e);
 		}
 	}
 

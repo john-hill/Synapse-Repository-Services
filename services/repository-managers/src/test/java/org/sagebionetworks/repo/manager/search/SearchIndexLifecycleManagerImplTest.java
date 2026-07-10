@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -1445,10 +1446,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	// -------- handleDelete: deleteIndex throws but status row is also cleared --------
 
 	@Test
-	public void testHandleDeleteWhenDeleteIndexThrowsLogsAndContinues() throws Exception {
-		// deleteIndex failure under the lock must not leak — handleDelete swallows the
-		// throwable, logs, and the status row is left in place (since the delete failed,
-		// statusDao.delete is never called).
+	public void testHandleDeleteWhenSlotADeleteThrowsStillAttemptsSlotBAndSkipsStatusCleanup() throws Exception {
+		// A failure deleting slot A must not skip slot B's delete — each slot is isolated —
+		// and since not every slot was confirmed deleted, the status/source-edge rows are
+		// left in place so a retry can find and finish the cleanup.
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
@@ -1458,8 +1459,59 @@ public class SearchIndexLifecycleManagerImplTest {
 		// call under test — must not throw
 		manager.handleDelete(progressCallback, ENTITY_ID);
 
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao, never()).delete(any());
+		verify(searchIndexSourceTableDao, never()).delete(any());
 		verify(writeLock).close();
+	}
+
+	@Test
+	public void testHandleDeleteWhenSlotBDeleteThrowsStillAttemptsSlotAAndSkipsStatusCleanup() throws Exception {
+		// Same isolation guarantee for the opposite slot: slot A's delete already ran before
+		// slot B throws, and the status/source-edge rows are still left in place.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		doThrow(new RuntimeException("AOSS unavailable"))
+				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
+
+		// call under test — must not throw
+		manager.handleDelete(progressCallback, ENTITY_ID);
+
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
+		verify(statusDao, never()).delete(any());
+		verify(searchIndexSourceTableDao, never()).delete(any());
+		verify(writeLock).close();
+	}
+
+	@Test
+	public void testHandleDeleteOnConcurrentDeleteThrowsRecoverableAndStillAttemptsOtherSlot() throws Exception {
+		// AOSS rejects deleteIndex when another worker is mid-delete on the same index; this
+		// must translate into a RecoverableMessageException so the caller retries. Slot A is
+		// attempted (and succeeds) before slot B's concurrent-delete failure aborts the rest.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		ErrorCause cause = ErrorCause.of(b -> b
+				.type("status_exception")
+				.reason("Deletion failed for indices [search-index-syn456] due to concurrent deletes, please try again"));
+		OpenSearchException concurrentDelete = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(cause).status(400)));
+		doThrow(concurrentDelete).when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
+
+		// call under test
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
+				() -> manager.handleDelete(progressCallback, ENTITY_ID));
+
+		assertSame(concurrentDelete, thrown.getCause());
+		assertEquals("Concurrent delete in progress while deleting search index for entity "
+				+ ENTITY_ID, thrown.getMessage());
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
+		verify(statusDao, never()).delete(any());
+		verify(searchIndexSourceTableDao, never()).delete(any());
 	}
 
 	@Test
@@ -1963,6 +2015,8 @@ public class SearchIndexLifecycleManagerImplTest {
 		// getAliasTarget returns the alias's current physical target (slot -a) — this is a
 		// rebuild, not a first build. No CREATING write; the build streams into slot -b and
 		// swaps the alias to it on success, recording the source version on the ACTIVE write.
+		// The demoted slot -a is deleted right after the swap so it does not sit around
+		// consuming space until the next rebuild.
 		stubHappyPathThroughStream();
 		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
 				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
@@ -1975,6 +2029,10 @@ public class SearchIndexLifecycleManagerImplTest {
 				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
 		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
 				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
+		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager);
+		order.verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
+		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
 		verify(statusDao).createOrUpdate(captor.capture());
 		SearchIndexStatus active = captor.getValue();
@@ -1982,6 +2040,46 @@ public class SearchIndexLifecycleManagerImplTest {
 		assertEquals(5L, active.getSourceVersion());
 		// No CREATING write on a rebuild.
 		verify(statusDao, never()).createOrUpdate(argThat(s -> s.getState() == SearchIndexState.CREATING));
+	}
+
+	@Test
+	public void testHandleCreateOnFirstBuildDoesNotDeleteOldTarget() throws Exception {
+		// First build: getAliasTarget is empty, so there is no demoted index to delete after
+		// the swap — only the pre-build idle-slot delete (a no-op, slot -a never existed) runs.
+		stubHappyPathThroughStream();
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-a"), eq(Optional.empty()));
+		verify(openSearchManager, times(1)).deleteIndex("search-index-" + ENTITY_ID + "-a");
+		verify(openSearchManager, never()).deleteIndex("search-index-" + ENTITY_ID + "-b");
+	}
+
+	@Test
+	public void testHandleUpdateOnRebuildSwallowsPostSwapDeleteFailure() throws Exception {
+		// The post-swap delete of the demoted slot is best-effort: if it throws, the build must
+		// still complete and record ACTIVE — the swap already succeeded and the new index is
+		// live and correct, only the old index's cleanup failed. The next rebuild's pre-build
+		// idle-slot delete retries it.
+		stubHappyPathThroughStream();
+		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
+				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
+		// Explicit no-op stub for the pre-build idle-slot delete on -b, since the -a stub below
+		// makes strict stubbing require every deleteIndex argument to be stubbed individually.
+		doNothing().when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
+		doThrow(new RuntimeException("delete failed"))
+				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
+
+		// call under test
+		manager.handleUpdate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
+				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.ACTIVE, captor.getValue().getState());
 	}
 
 	@Test

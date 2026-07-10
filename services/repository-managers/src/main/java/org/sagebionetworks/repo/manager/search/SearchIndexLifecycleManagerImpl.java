@@ -81,8 +81,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final String INDEX_PREFIX = "search-index-";
 	// Blue-green physical slots. Queries target the alias getAliasName(entityId); each build streams
 	// into whichever of these two deterministic physical indices the alias is NOT currently serving,
-	// then atomically repoints the alias. Two fixed names bound the footprint to two indices per entity
-	// (the idle slot is overwritten by the next build), so no orphan sweeper is needed.
+	// then atomically repoints the alias and deletes the just-demoted slot. Two fixed names bound the
+	// footprint to two indices per entity; the pre-build idle-slot delete is a defensive backstop for
+	// the rare case where the post-swap delete failed, not the primary cleanup mechanism.
 	static final String SLOT_A = "a";
 	static final String SLOT_B = "b";
 	private static final String LOCK_KEY_PREFIX = "search-index-build:";
@@ -419,6 +420,18 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// become visible to queries; the old index served every query up to this instant.
 			openSearchManager.swapAlias(aliasName, physicalSlot, oldTarget);
 
+			// The old index is no longer reachable via the alias; delete it now rather than waiting
+			// for the next rebuild's idle-slot cleanup, so an entity that is never rebuilt again does
+			// not leave an orphaned index behind. Best-effort — a failure here does not affect the
+			// just-completed build; the next rebuild's pre-build idle-slot delete retries it.
+			oldTarget.ifPresent(old -> {
+				try {
+					openSearchManager.deleteIndex(old);
+				} catch (Exception e) {
+					LOG.error("Failed to delete demoted search index " + old + " for entity: " + entityId, e);
+				}
+			});
+
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
 					.setState(SearchIndexState.ACTIVE)
@@ -493,18 +506,19 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			if (stateOpt.isEmpty()) {
 				return;
 			}
-			try {
-				// Delete both physical slots. Deleting the concrete index that backs the query alias
-				// also removes its alias membership, so no separate alias removal is required; the
-				// other slot is an idempotent no-op when it does not exist.
-				openSearchManager.deleteIndex(getPhysicalSlotName(entityId, SLOT_A));
-				openSearchManager.deleteIndex(getPhysicalSlotName(entityId, SLOT_B));
+			// Delete both physical slots independently so a failure on one does not skip the
+			// other. Deleting the concrete index that backs the query alias also removes its
+			// alias membership, so no separate alias removal is required; a slot that does not
+			// exist is an idempotent no-op.
+			boolean slotADeleted = tryDeleteSlot(getPhysicalSlotName(entityId, SLOT_A), entityId);
+			boolean slotBDeleted = tryDeleteSlot(getPhysicalSlotName(entityId, SLOT_B), entityId);
+			// Only drop the DB rows once both slots are confirmed gone, so a slot left behind by
+			// a failed delete can still be found and retried on the next lifecycle message.
+			if (slotADeleted && slotBDeleted) {
 				statusDao.delete(searchIndexId);
 				// The node ON DELETE CASCADE normally clears the source edge; drop it explicitly
 				// too so a lifecycle delete that runs before the node delete leaves no stale edge.
 				searchIndexSourceTableDao.delete(IdAndVersion.parse(entityId));
-			} catch (Throwable e) {
-				LOG.error("Failed to delete search index for entity: " + entityId, e);
 			}
 		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
@@ -843,6 +857,29 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			return getPhysicalSlotName(entityId, SLOT_B);
 		}
 		return slotA;
+	}
+
+	/**
+	 * Attempts to delete a single physical slot, isolated from any sibling slot delete.
+	 * A concurrent-delete race is translated into a {@link RecoverableMessageException} so the
+	 * caller retries; any other failure is logged and swallowed, returning {@code false} so the
+	 * caller knows this slot was not confirmed deleted.
+	 */
+	private boolean tryDeleteSlot(String physicalSlot, String entityId) {
+		try {
+			openSearchManager.deleteIndex(physicalSlot);
+			return true;
+		} catch (OpenSearchException e) {
+			if (OpenSearchManagerImpl.isConcurrentDeleteError(e)) {
+				throw new RecoverableMessageException(
+						"Concurrent delete in progress while deleting search index for entity " + entityId, e);
+			}
+			LOG.error("Failed to delete search index slot " + physicalSlot + " for entity: " + entityId, e);
+			return false;
+		} catch (Exception e) {
+			LOG.error("Failed to delete search index slot " + physicalSlot + " for entity: " + entityId, e);
+			return false;
+		}
 	}
 
 	static class SearchIndexRowHandler implements RowHandler {

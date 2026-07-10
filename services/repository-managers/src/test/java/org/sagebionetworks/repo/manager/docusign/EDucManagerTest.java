@@ -71,7 +71,7 @@ public class EDucManagerTest {
 	@Mock
 	private Clock mockClock;
 
-	private EDucManager manager;
+	private EDucManager eDucManager;
 
 	private UserInfo adminUser;
 	private UserInfo actUser;
@@ -82,7 +82,7 @@ public class EDucManagerTest {
 
 	@BeforeEach
 	public void before() {
-		manager = new EDucManager(mockDocuSignClient, mockRequestDao, mockAccessRequirementDao,
+		eDucManager = new EDucManager(mockDocuSignClient, mockRequestDao, mockAccessRequirementDao,
 				mockPrincipalAliasDao, mockNotificationEmailDao, mockUserProfileDao,
 				mockEDucQuotaDao, mockClock);
 
@@ -108,7 +108,7 @@ public class EDucManagerTest {
 	public void testListTemplatesWithNullUserInfo() {
 		// call under test
 		assertThrows(IllegalArgumentException.class,
-				() -> manager.listTemplates(null, new EDucTemplateListRequest()));
+				() -> eDucManager.listTemplates(null, new EDucTemplateListRequest()));
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -116,7 +116,7 @@ public class EDucManagerTest {
 	public void testListTemplatesWithNullRequest() {
 		// call under test
 		assertThrows(IllegalArgumentException.class,
-				() -> manager.listTemplates(adminUser, null));
+				() -> eDucManager.listTemplates(adminUser, null));
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -124,7 +124,7 @@ public class EDucManagerTest {
 	public void testListTemplatesWithUnauthorizedUser() {
 		// call under test
 		assertThrows(UnauthorizedException.class,
-				() -> manager.listTemplates(regularUser, new EDucTemplateListRequest()));
+				() -> eDucManager.listTemplates(regularUser, new EDucTemplateListRequest()));
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -135,7 +135,7 @@ public class EDucManagerTest {
 		when(mockDocuSignClient.listTemplates(0, 51)).thenReturn(clientPage);
 
 		// call under test
-		EDucTemplatePage page = manager.listTemplates(adminUser, new EDucTemplateListRequest());
+		EDucTemplatePage page = eDucManager.listTemplates(adminUser, new EDucTemplateListRequest());
 
 		assertNotNull(page);
 		assertEquals(2, page.getResults().size());
@@ -154,7 +154,7 @@ public class EDucManagerTest {
 		when(mockDocuSignClient.listTemplates(0, 51)).thenReturn(clientPage);
 
 		// call under test
-		EDucTemplatePage page = manager.listTemplates(actUser, new EDucTemplateListRequest());
+		EDucTemplatePage page = eDucManager.listTemplates(actUser, new EDucTemplateListRequest());
 
 		assertNotNull(page);
 		assertEquals(50, page.getResults().size());
@@ -171,7 +171,7 @@ public class EDucManagerTest {
 		request.setNextPageToken("50a50");
 
 		// call under test
-		EDucTemplatePage page = manager.listTemplates(adminUser, request);
+		EDucTemplatePage page = eDucManager.listTemplates(adminUser, request);
 
 		assertEquals(1, page.getResults().size());
 		assertNull(page.getNextPageToken());
@@ -185,7 +185,7 @@ public class EDucManagerTest {
 		when(mockDocuSignClient.listTemplates(anyInt(), anyInt())).thenReturn(clientPage);
 
 		// call under test
-		EDucTemplatePage page = manager.listTemplates(adminUser, new EDucTemplateListRequest());
+		EDucTemplatePage page = eDucManager.listTemplates(adminUser, new EDucTemplateListRequest());
 
 		assertEquals(0, page.getResults().size());
 		assertNull(page.getNextPageToken());
@@ -269,7 +269,7 @@ public class EDucManagerTest {
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		SignatureQuota result = manager.routeForSignature(user, "req-1");
+		SignatureQuota result = eDucManager.routeForSignature(user, "req-1");
 
 		assertEquals(Long.valueOf(10), result.getQuota());
 		assertEquals(Long.valueOf(9), result.getRemaining());
@@ -314,7 +314,7 @@ public class EDucManagerTest {
 		when(mockRequestDao.get("req-1")).thenReturn(request);
 
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.routeForSignature(regularUser, "req-1"));
+		assertThrows(UnauthorizedException.class, () -> eDucManager.routeForSignature(regularUser, "req-1"));
 
 		verifyNoInteractions(mockDocuSignClient);
 	}
@@ -337,7 +337,7 @@ public class EDucManagerTest {
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		SignatureQuota result = manager.routeForSignature(adminUser, "req-1");
+		SignatureQuota result = eDucManager.routeForSignature(adminUser, "req-1");
 
 		assertEquals(Long.valueOf(10), result.getQuota());
 		assertEquals(Long.valueOf(9), result.getRemaining());
@@ -351,7 +351,7 @@ public class EDucManagerTest {
 		when(mockRequestDao.get("req-1")).thenReturn(request);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
+		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
 
 		verifyNoInteractions(mockDocuSignClient);
 	}
@@ -364,7 +364,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(new TermsOfUseAccessRequirement());
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
+		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
 
 		verifyNoInteractions(mockDocuSignClient);
 	}
@@ -379,7 +379,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(ar);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
+		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
 
 		verifyNoInteractions(mockDocuSignClient);
 	}
@@ -394,7 +394,7 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(ar);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.routeForSignature(user, "req-1"));
+		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
 
 		verifyNoInteractions(mockDocuSignClient);
 	}
@@ -421,7 +421,7 @@ public class EDucManagerTest {
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		SignatureQuota result = manager.routeForSignature(user, "req-1");
+		SignatureQuota result = eDucManager.routeForSignature(user, "req-1");
 
 		assertEquals(Long.valueOf(10), result.getQuota());
 		assertEquals(Long.valueOf(9), result.getRemaining());
@@ -445,7 +445,7 @@ public class EDucManagerTest {
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> manager.routeForSignature(user, "req-1"));
+				() -> eDucManager.routeForSignature(user, "req-1"));
 
 		assertEquals("User has exceeded their eDUC routing quota for the requested access requirement.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
@@ -463,7 +463,7 @@ public class EDucManagerTest {
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> manager.routeForSignature(user, "req-1"));
+				() -> eDucManager.routeForSignature(user, "req-1"));
 
 		assertEquals("The global daily eDUC routing limit has been reached. Please try again later.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
@@ -488,7 +488,7 @@ public class EDucManagerTest {
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
-		SignatureQuota result = manager.routeForSignature(user, "req-1");
+		SignatureQuota result = eDucManager.routeForSignature(user, "req-1");
 
 		assertEquals(Long.valueOf(10), result.getQuota());
 		assertEquals(Long.valueOf(4), result.getRemaining());
@@ -505,7 +505,7 @@ public class EDucManagerTest {
 		request.setAccessorChanges(List.of(piChange));
 
 		// call under test
-		List<String> result = manager.buildCollaboratorUserIds(request);
+		List<String> result = eDucManager.buildCollaboratorUserIds(request);
 
 		// createdBy=100 is included, PI=200 is excluded
 		assertEquals(List.of("100"), result);
@@ -524,7 +524,7 @@ public class EDucManagerTest {
 		request.setAccessorChanges(List.of(creatorChange, otherChange));
 
 		// call under test
-		List<String> result = manager.buildCollaboratorUserIds(request);
+		List<String> result = eDucManager.buildCollaboratorUserIds(request);
 
 		// 100 appears only once (from createdBy, deduplicated), then 301
 		assertEquals(List.of("100", "301"), result);
@@ -542,7 +542,7 @@ public class EDucManagerTest {
 		request.setAccessorChanges(List.of(change1, change2));
 
 		// call under test
-		List<String> result = manager.buildCollaboratorUserIds(request);
+		List<String> result = eDucManager.buildCollaboratorUserIds(request);
 
 		// createdBy=100, then 301 (deduplicated)
 		assertEquals(List.of("100", "301"), result);

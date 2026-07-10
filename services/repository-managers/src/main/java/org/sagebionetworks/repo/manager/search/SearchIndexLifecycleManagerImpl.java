@@ -265,9 +265,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 *                             entity and resolve its configuration; it only feeds
 	 *                             CURRENT_USER() substitution in the row stream, which is not
 	 *                             authorized.
-	 * @param deleteExistingFirst  When true, the AOSS index is dropped before the build
-	 *                             (the rebuild path); when false, the build assumes no
-	 *                             existing index exists.
 	 */
 	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId)
 			throws Exception {

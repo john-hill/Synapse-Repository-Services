@@ -61,7 +61,7 @@ public class SynchronizationLogic {
 			String key = rules.getKey(copyItem);
 			ValidateArgument.required(key, "key");
 			if (rules.isExcludedFromMatching(copyItem, key)) {
-				handler.onCopyOnlyItemAddedByUser(copyItem, key);
+				handler.onNewCopyItem(copyItem, key);
 				// Excluded items are never looked up against the source
 				return;
 			}
@@ -75,18 +75,18 @@ public class SynchronizationLogic {
 					handler.onCopyAndSourceConflict(copyItem, sourceItem);
 				}
 			} else if (copyItem.wasChangedByUser()) {
-				handler.onCopyOnlyItemAddedByUser(copyItem, key);
+				handler.onNewCopyItem(copyItem, key);
 			} else {
-				handler.onCopyOnlyItemDeletedFromSource(copyItem);
+				handler.onDeletedFromSource(copyItem);
 			}
 		});
 
 		// Phase 2: Process remaining items in source (items not in copy)
 		source.streamRemaining().forEach(sourceItem -> {
 			if (rules.wasDeletedByUser(sourceItem)) {
-				handler.onSourceOnlyItemDeletedByUserFromCopy(sourceItem);
+				handler.onDeletedFromCopy(sourceItem);
 			} else {
-				handler.onSourceOnlyItemAddedSinceLastSync(sourceItem);
+				handler.onNewSourceItem(sourceItem);
 			}
 		});
 	}

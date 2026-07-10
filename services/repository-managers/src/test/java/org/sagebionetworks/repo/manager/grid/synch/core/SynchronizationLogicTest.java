@@ -3,9 +3,7 @@ package org.sagebionetworks.repo.manager.grid.synch.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -15,7 +13,6 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -111,7 +108,7 @@ public class SynchronizationLogicTest {
 		verify(mockRules).getKey(copyItems.get(0));
 		verify(mockRules).isExcludedFromMatching(copyItems.get(0), "one");
 		verify(mockSource, never()).consume("one");
-		verify(mockHandler).onCopyOnlyItemAddedByUser(copyItems.get(0), "one");
+		verify(mockHandler).onNewCopyItem(copyItems.get(0), "one");
 		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(0));
 		verifyNoMoreInteractions(mockHandler);
 	}
@@ -132,7 +129,7 @@ public class SynchronizationLogicTest {
 		// call under test
 		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockHandler).onCopyOnlyItemAddedByUser(copyItems.get(0), "one");
+		verify(mockHandler).onNewCopyItem(copyItems.get(0), "one");
 		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(0));
 		verifyNoMoreInteractions(mockHandler);
 	}
@@ -153,7 +150,7 @@ public class SynchronizationLogicTest {
 		// call under test
 		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockHandler).onCopyOnlyItemDeletedFromSource(copyItems.get(0));
+		verify(mockHandler).onDeletedFromSource(copyItems.get(0));
 		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(1), sourceItems.get(0));
 		verifyNoMoreInteractions(mockHandler);
 	}
@@ -173,7 +170,7 @@ public class SynchronizationLogicTest {
 		// call under test
 		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockHandler).onSourceOnlyItemAddedSinceLastSync(sourceItems.get(1));
+		verify(mockHandler).onNewSourceItem(sourceItems.get(1));
 		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(0), sourceItems.get(0));
 		verifyNoMoreInteractions(mockHandler);
 	}
@@ -193,7 +190,7 @@ public class SynchronizationLogicTest {
 		// call under test
 		logic.synchronize(copyItems.stream(), mockSource, mockRules, mockHandler);
 
-		verify(mockHandler).onSourceOnlyItemDeletedByUserFromCopy(sourceItems.get(1));
+		verify(mockHandler).onDeletedFromCopy(sourceItems.get(1));
 		verify(mockHandler).onCopyAndSourceMatch(copyItems.get(0), sourceItems.get(0));
 		verifyNoMoreInteractions(mockHandler);
 	}

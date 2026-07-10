@@ -118,7 +118,7 @@ public class RowSyncOutcomeHandler implements SyncOutcomeHandler<RowCopyItem, Ro
 	}
 
 	@Override
-	public void onCopyOnlyItemAddedByUser(RowCopyItem copyItem, String key) {
+	public void onNewCopyItem(RowCopyItem copyItem, String key) {
 		if (sourceWriter.canAddRemoveRows()) {
 			RowSourceItem synchRow = RowSyncRules.createSynchRow(copyItem, key);
 			sourceWriter.addNewRowToSource(synchRow);
@@ -130,13 +130,13 @@ public class RowSyncOutcomeHandler implements SyncOutcomeHandler<RowCopyItem, Ro
 	}
 
 	@Override
-	public void onCopyOnlyItemDeletedFromSource(RowCopyItem copyItem) {
+	public void onDeletedFromSource(RowCopyItem copyItem) {
 		// Row was deleted from the source - remove it from the grid.
 		intendedChangePublisher.publish(new DeleteArrayNodeChange(rowsArrayId, copyItem.getRgaNodeId()));
 	}
 
 	@Override
-	public void onSourceOnlyItemDeletedByUserFromCopy(RowSourceItemReference sourceItemRef) {
+	public void onDeletedFromCopy(RowSourceItemReference sourceItemRef) {
 		if (sourceWriter.canAddRemoveRows()) {
 			// Push the user's row deletion to the source; do not re-import it.
 			sourceWriter.removeRow(sourceItemRef.fetchRow());
@@ -149,7 +149,7 @@ public class RowSyncOutcomeHandler implements SyncOutcomeHandler<RowCopyItem, Ro
 	}
 
 	@Override
-	public void onSourceOnlyItemAddedSinceLastSync(RowSourceItemReference sourceItemRef) {
+	public void onNewSourceItem(RowSourceItemReference sourceItemRef) {
 		// Row was added to the source - pull it into the grid.
 		RowSourceItem sourceItem = sourceItemRef.fetchRow();
 		addRowToCopy(sourceItem);

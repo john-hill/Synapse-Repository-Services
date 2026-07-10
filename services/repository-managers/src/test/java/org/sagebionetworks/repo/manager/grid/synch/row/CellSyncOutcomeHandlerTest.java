@@ -81,36 +81,36 @@ public class CellSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemAddedByUser() {
+	public void testOnNewCopyItem() {
 		ConValue value = new ConValue(ConType.STRING, "x");
 		CellCopyItem copy = copyCell("a", value, true);
 		CellSyncOutcomeHandler handler = new CellSyncOutcomeHandler(List.of(copy));
 
 		// call under test — a user-added cell is pushed and stays in the merged result.
-		handler.onCopyOnlyItemAddedByUser(copy, "a");
+		handler.onNewCopyItem(copy, "a");
 
 		assertEquals(Map.of("a", value), handler.getMergedCells());
 		assertEquals(Map.of("a", value), handler.getUserChangedCells());
 	}
 
 	@Test
-	public void testOnCopyOnlyItemDeletedFromSource() {
+	public void testOnDeletedFromSource() {
 		ConValue value = new ConValue(ConType.STRING, "x");
 		CellCopyItem copy = copyCell("a", value, false);
 		CellSyncOutcomeHandler handler = new CellSyncOutcomeHandler(List.of(copy));
 
 		// call under test — a cell removed from the source is dropped from the merged result.
-		handler.onCopyOnlyItemDeletedFromSource(copy);
+		handler.onDeletedFromSource(copy);
 
 		assertEquals(Map.of(), handler.getMergedCells());
 	}
 
 	@Test
-	public void testOnSourceOnlyItemDeletedByUserFromCopy() {
+	public void testOnDeletedFromCopy() {
 		CellSyncOutcomeHandler handler = new CellSyncOutcomeHandler(List.of());
 
 		// call under test — the user cleared the cell, so a null is pushed to clear the source.
-		handler.onSourceOnlyItemDeletedByUserFromCopy(sourceCell("a", new ConValue(ConType.STRING, "source")));
+		handler.onDeletedFromCopy(sourceCell("a", new ConValue(ConType.STRING, "source")));
 
 		assertEquals(Map.of(), handler.getMergedCells());
 		java.util.Map<String, ConValue> expected = new java.util.HashMap<>();
@@ -119,12 +119,12 @@ public class CellSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnSourceOnlyItemAddedSinceLastSync() {
+	public void testOnNewSourceItem() {
 		ConValue sourceValue = new ConValue(ConType.STRING, "source");
 		CellSyncOutcomeHandler handler = new CellSyncOutcomeHandler(List.of());
 
 		// call under test — a cell added in the source is pulled into the merged result.
-		handler.onSourceOnlyItemAddedSinceLastSync(sourceCell("a", sourceValue));
+		handler.onNewSourceItem(sourceCell("a", sourceValue));
 
 		assertEquals(Map.of("a", sourceValue), handler.getMergedCells());
 	}

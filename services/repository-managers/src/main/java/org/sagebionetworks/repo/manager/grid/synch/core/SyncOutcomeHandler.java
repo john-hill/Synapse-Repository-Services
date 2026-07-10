@@ -50,7 +50,7 @@ public interface SyncOutcomeHandler<C extends CopyItem, S extends SourceItem> {
 	 * @param key      the precomputed key for this copy item (see
 	 *                 {@link SyncRules#getKey})
 	 */
-	void onCopyOnlyItemAddedByUser(C copyItem, String key);
+	void onNewCopyItem(C copyItem, String key);
 
 	/**
 	 * The item exists only in the copy and was not changed by the user, meaning it
@@ -58,7 +58,7 @@ public interface SyncOutcomeHandler<C extends CopyItem, S extends SourceItem> {
 	 *
 	 * @param copyItem the copy item to remove
 	 */
-	void onCopyOnlyItemDeletedFromSource(C copyItem);
+	void onDeletedFromSource(C copyItem);
 
 	/**
 	 * The item exists only in the source and was deleted by the user in the copy.
@@ -67,7 +67,7 @@ public interface SyncOutcomeHandler<C extends CopyItem, S extends SourceItem> {
 	 *
 	 * @param sourceItem the source item the user deleted from the copy
 	 */
-	void onSourceOnlyItemDeletedByUserFromCopy(S sourceItem);
+	void onDeletedFromCopy(S sourceItem);
 
 	/**
 	 * The item exists only in the source and was not deleted by the user, meaning
@@ -76,6 +76,6 @@ public interface SyncOutcomeHandler<C extends CopyItem, S extends SourceItem> {
 	 *
 	 * @param sourceItem the source item to pull into the copy
 	 */
-	void onSourceOnlyItemAddedSinceLastSync(S sourceItem);
+	void onNewSourceItem(S sourceItem);
 
 }

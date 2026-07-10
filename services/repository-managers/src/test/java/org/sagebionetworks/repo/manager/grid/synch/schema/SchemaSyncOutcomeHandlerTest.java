@@ -107,14 +107,14 @@ public class SchemaSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemDeletedFromSource() throws Exception {
+	public void testOnDeletedFromSource() throws Exception {
 		setupHandler(startingSchema);
 		LogicalTimestamp columnOrderNodeId = new LogicalTimestamp().setReplicaId(internalReplicaId)
 				.setSequenceNumber(3L);
 		ColumnCopyItem toRemove = new ColumnCopyItem().setColumnName("three").setColumnOrderNodeId(columnOrderNodeId);
 
 		// call under test — a column deleted from the source is dropped from the grid.
-		handler.onCopyOnlyItemDeletedFromSource(toRemove);
+		handler.onDeletedFromSource(toRemove);
 
 		assertEquals(List.of(startingSchema.get(0), startingSchema.get(1)), handler.getFinalSchema());
 		verify(mockIntendedChangePublisher).publish(new DeleteArrayNodeChange(columnOrderArrId, columnOrderNodeId));
@@ -127,14 +127,14 @@ public class SchemaSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemAddedByUserWhenSourceAcceptsColumns() {
+	public void testOnNewCopyItemWhenSourceAcceptsColumns() {
 		setupHandler(startingSchema);
 		when(mockSourceWriter.canAddRemoveColumns()).thenReturn(true);
 		ColumnCopyItem userAdded = new ColumnCopyItem().setColumnName("two")
 				.setColumnOrderNodeId(new LogicalTimestamp().setReplicaId(userReplicaId).setSequenceNumber(2L));
 
 		// call under test — push the addition to the source; it stays in the grid.
-		handler.onCopyOnlyItemAddedByUser(userAdded, "two");
+		handler.onNewCopyItem(userAdded, "two");
 
 		assertEquals(new ArrayList<>(startingSchema), handler.getFinalSchema());
 		verify(mockSourceWriter).canAddRemoveColumns();
@@ -143,7 +143,7 @@ public class SchemaSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemAddedByUserWhenSourceCannotAddColumns() {
+	public void testOnNewCopyItemWhenSourceCannotAddColumns() {
 		setupHandler(startingSchema);
 		when(mockSourceWriter.canAddRemoveColumns()).thenReturn(false);
 		LogicalTimestamp columnOrderNodeId = new LogicalTimestamp().setReplicaId(userReplicaId).setSequenceNumber(2L);
@@ -151,7 +151,7 @@ public class SchemaSyncOutcomeHandlerTest {
 				.setColumnOrderNodeId(columnOrderNodeId);
 
 		// call under test — source cannot accept the column, so drop it from the grid.
-		handler.onCopyOnlyItemAddedByUser(userAdded, "two");
+		handler.onNewCopyItem(userAdded, "two");
 
 		assertEquals(List.of(startingSchema.get(0), startingSchema.get(2)), handler.getFinalSchema());
 		verify(mockSourceWriter).canAddRemoveColumns();
@@ -160,12 +160,12 @@ public class SchemaSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnSourceOnlyItemDeletedByUserFromCopy() {
+	public void testOnDeletedFromCopy() {
 		setupHandler(startingSchema);
 		when(mockSourceWriter.canAddRemoveColumns()).thenReturn(true);
 
 		// call under test — push the user's column deletion; do not re-import it.
-		handler.onSourceOnlyItemDeletedByUserFromCopy(new ColumnSourceItem().setColumnName("gone"));
+		handler.onDeletedFromCopy(new ColumnSourceItem().setColumnName("gone"));
 
 		assertEquals(new ArrayList<>(startingSchema), handler.getFinalSchema());
 		verify(mockSourceWriter).canAddRemoveColumns();
@@ -174,12 +174,12 @@ public class SchemaSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnSourceOnlyItemAddedSinceLastSync() throws Exception {
+	public void testOnNewSourceItem() throws Exception {
 		setupHandler(startingSchema);
 
 		// call under test — columns added to the source are pulled into the grid.
-		handler.onSourceOnlyItemAddedSinceLastSync(new ColumnSourceItem().setColumnName("four"));
-		handler.onSourceOnlyItemAddedSinceLastSync(new ColumnSourceItem().setColumnName("five"));
+		handler.onNewSourceItem(new ColumnSourceItem().setColumnName("four"));
+		handler.onNewSourceItem(new ColumnSourceItem().setColumnName("five"));
 
 		List<Column> expectedFinal = new ArrayList<>(startingSchema);
 		expectedFinal.add(new Column().setName("four").setVectorIndex(3));
@@ -197,12 +197,12 @@ public class SchemaSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnSourceOnlyItemAddedSinceLastSyncWithEmptyStart() throws Exception {
+	public void testOnNewSourceItemWithEmptyStart() throws Exception {
 		setupHandler(Collections.emptyList());
 
 		// call under test
-		handler.onSourceOnlyItemAddedSinceLastSync(new ColumnSourceItem().setColumnName("four"));
-		handler.onSourceOnlyItemAddedSinceLastSync(new ColumnSourceItem().setColumnName("five"));
+		handler.onNewSourceItem(new ColumnSourceItem().setColumnName("four"));
+		handler.onNewSourceItem(new ColumnSourceItem().setColumnName("five"));
 
 		List<Column> expectedFinal = new ArrayList<>();
 		expectedFinal.add(new Column().setName("four").setVectorIndex(0));

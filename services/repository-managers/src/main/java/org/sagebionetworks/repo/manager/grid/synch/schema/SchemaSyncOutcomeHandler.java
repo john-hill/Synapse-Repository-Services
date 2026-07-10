@@ -80,7 +80,7 @@ public class SchemaSyncOutcomeHandler implements SyncOutcomeHandler<ColumnCopyIt
 	}
 
 	@Override
-	public void onCopyOnlyItemAddedByUser(ColumnCopyItem copyItem, String key) {
+	public void onNewCopyItem(ColumnCopyItem copyItem, String key) {
 		if (sourceWriter.canAddRemoveColumns()) {
 			// Push the addition to the source; the column stays in the grid.
 			sourceWriter.addColumnToSource(key);
@@ -91,13 +91,13 @@ public class SchemaSyncOutcomeHandler implements SyncOutcomeHandler<ColumnCopyIt
 	}
 
 	@Override
-	public void onCopyOnlyItemDeletedFromSource(ColumnCopyItem copyItem) {
+	public void onDeletedFromSource(ColumnCopyItem copyItem) {
 		// Column was deleted from the source - remove it from the grid.
 		removeColumnFromCopy(copyItem);
 	}
 
 	@Override
-	public void onSourceOnlyItemDeletedByUserFromCopy(ColumnSourceItem sourceItem) {
+	public void onDeletedFromCopy(ColumnSourceItem sourceItem) {
 		if (sourceWriter.canAddRemoveColumns()) {
 			// Push the user's column deletion to the source; do not re-import it.
 			sourceWriter.removeColumn(sourceItem.getColumnName());
@@ -108,7 +108,7 @@ public class SchemaSyncOutcomeHandler implements SyncOutcomeHandler<ColumnCopyIt
 	}
 
 	@Override
-	public void onSourceOnlyItemAddedSinceLastSync(ColumnSourceItem sourceItem) {
+	public void onNewSourceItem(ColumnSourceItem sourceItem) {
 		// Column was added to the source - pull it into the grid.
 		addColumnToCopy(sourceItem);
 	}

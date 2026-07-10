@@ -130,25 +130,25 @@ public class RowSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemDeletedFromSource() {
+	public void testOnDeletedFromSource() {
 		RowSyncOutcomeHandler handler = setupHandler();
 		RowCopyItemImpl item = new RowCopyItemImpl().setRgaNodeId(rgaNodeId);
 
 		// call under test — a row deleted from the source is removed from the grid.
-		handler.onCopyOnlyItemDeletedFromSource(item);
+		handler.onDeletedFromSource(item);
 
 		verify(mockPublisher).publish(new DeleteArrayNodeChange(rowsArrayId, rgaNodeId));
 	}
 
 	@Test
-	public void testOnSourceOnlyItemAddedSinceLastSync() {
+	public void testOnNewSourceItem() {
 		RowSyncOutcomeHandler handler = setupHandler();
 		TreeMap<String, ConValue> data = new TreeMap<>(Map.of("a", c1, "b", c2));
 		RowSourceItem sourceItem = new RowSourceItem(data, rowKey, synRow);
 		when(mockRowHeader.fetchRow()).thenReturn(sourceItem);
 
 		// call under test — a source-only row is inserted into the grid and reported.
-		handler.onSourceOnlyItemAddedSinceLastSync(mockRowHeader);
+		handler.onNewSourceItem(mockRowHeader);
 
 		verify(mockPublisher).publish(new InsertRowChange(rowsArrayId, lastRowId, List.of(c1, c2),
 				new Integer[] { 1, 0 }, synRow.toConValue()));
@@ -156,14 +156,14 @@ public class RowSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemAddedByUserWhenSourceAcceptsRows() {
+	public void testOnNewCopyItemWhenSourceAcceptsRows() {
 		RowSyncOutcomeHandler handler = setupHandler();
 		RowCopyItemImpl item = copyItem(List.of(new CellCopyItem().setName("a").setValue(c1),
 				new CellCopyItem().setName("b").setValue(c2)));
 		when(mockSourceWriter.canAddRemoveRows()).thenReturn(true);
 
 		// call under test — an added item is pushed to the source
-		handler.onCopyOnlyItemAddedByUser(item, rowKey);
+		handler.onNewCopyItem(item, rowKey);
 
 		RowSourceItem expectedSynchRow = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2)), rowKey, synRow);
 		verify(mockSourceWriter).addNewRowToSource(expectedSynchRow);
@@ -171,13 +171,13 @@ public class RowSyncOutcomeHandlerTest {
 	}
 
 	@Test
-	public void testOnCopyOnlyItemAddedByUserWhenSourceCannotAddRows() {
+	public void testOnNewCopyItemWhenSourceCannotAddRows() {
 		RowSyncOutcomeHandler handler = setupHandler();
 		RowCopyItemImpl item = copyItem(List.of(new CellCopyItem().setName("a").setValue(c1)));
 		when(mockSourceWriter.canAddRemoveRows()).thenReturn(false);
 
 		// call under test — source cannot accept the row, so it is dropped from the grid.
-		handler.onCopyOnlyItemAddedByUser(item, rowKey);
+		handler.onNewCopyItem(item, rowKey);
 
 		verify(mockPublisher).publish(new DeleteArrayNodeChange(rowsArrayId, rgaNodeId));
 		verify(mockSourceWriter, never()).addNewRowToSource(any());
@@ -192,7 +192,7 @@ public class RowSyncOutcomeHandlerTest {
 		when(mockSourceWriter.canAddRemoveRows()).thenReturn(true);
 
 		// call under test — the user's deletion is pushed to the source; nothing pulled.
-		handler.onSourceOnlyItemDeletedByUserFromCopy(mockRowHeader);
+		handler.onDeletedFromCopy(mockRowHeader);
 
 		verify(mockSourceWriter).removeRow(sourceItem);
 		verify(mockPublisher, never()).publish(any());
@@ -208,7 +208,7 @@ public class RowSyncOutcomeHandlerTest {
 		when(mockSourceWriter.canAddRemoveRows()).thenReturn(false);
 
 		// call under test — source cannot remove, so the row is pulled back into the grid.
-		handler.onSourceOnlyItemDeletedByUserFromCopy(mockRowHeader);
+		handler.onDeletedFromCopy(mockRowHeader);
 
 		verify(mockPublisher).publish(new InsertRowChange(rowsArrayId, lastRowId, List.of(c1, c2),
 				new Integer[] { 1, 0 }, synRow.toConValue()));

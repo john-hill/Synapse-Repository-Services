@@ -53,7 +53,7 @@ public class CellSyncOutcomeHandler implements SyncOutcomeHandler<CellCopyItem, 
 	}
 
 	@Override
-	public void onCopyOnlyItemAddedByUser(CellCopyItem copyItem, String key) {
+	public void onNewCopyItem(CellCopyItem copyItem, String key) {
 		// Cell the user added is pushed to the source; it already sits in mergedCells.
 		// Cells are never excluded from matching, so this only ever fires for a
 		// genuine user addition.
@@ -61,19 +61,19 @@ public class CellSyncOutcomeHandler implements SyncOutcomeHandler<CellCopyItem, 
 	}
 
 	@Override
-	public void onCopyOnlyItemDeletedFromSource(CellCopyItem copyItem) {
+	public void onDeletedFromSource(CellCopyItem copyItem) {
 		// Cell was removed from the source - drop it from the merged result.
 		mergedCells.remove(copyItem.getName());
 	}
 
 	@Override
-	public void onSourceOnlyItemDeletedByUserFromCopy(CellSourceItem sourceItem) {
+	public void onDeletedFromCopy(CellSourceItem sourceItem) {
 		// User cleared the cell - push a null to the source to clear it there too.
 		userChangedCells.put(sourceItem.getColumnName(), null);
 	}
 
 	@Override
-	public void onSourceOnlyItemAddedSinceLastSync(CellSourceItem sourceItem) {
+	public void onNewSourceItem(CellSourceItem sourceItem) {
 		// Cell was added in the source - pull it into the merged result.
 		mergedCells.put(sourceItem.getColumnName(), sourceItem.getValue());
 	}

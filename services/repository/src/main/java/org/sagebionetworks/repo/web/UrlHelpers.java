@@ -1323,7 +1323,10 @@ public class UrlHelpers {
     public static final String CURATION_TASK_ID = CURATION_TASK + "/{taskId}";
     public static final String CURATION_TASK_LIST = CURATION_TASK + LIST;
     public static final String CURATION_TASK_STATUS = CURATION_TASK_ID + "/status";
-	
+    public static final String CURATION_TASK_EXECUTE = CURATION_TASK_ID + "/execute";
+    public static final String CURATION_TASK_EXECUTE_ASYNC_START = CURATION_TASK_EXECUTE + ASYNC_START_REQUEST;
+    public static final String CURATION_TASK_EXECUTE_ASYNC_GET = CURATION_TASK_EXECUTE + ASYNC_GET_REQUEST;
+
 	/**
 	 * API for creating integration test users
 	 */

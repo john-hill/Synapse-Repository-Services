@@ -44,12 +44,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import com.amazonaws.services.glue.model.Database;
-import com.amazonaws.services.glue.model.Table;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
+import software.amazon.awssdk.services.glue.model.Database;
+import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sfn.model.DescribeExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.ExecutionStatus;
@@ -222,14 +222,14 @@ public class FileHandleUnlinkedQueryIntegrationTest {
 		
 		Table fileHandleDataTable = athenaSupport.getTable(dataBase, tableName);
 		
-		String query = "SELECT COUNT(*) FROM " + fileHandleDataTable.getName() + " WHERE " + idColumn + " IN (" + String.join(",", ids.stream().map(id -> id.toString()).collect(Collectors.toList())) + ")";
+		String query = "SELECT COUNT(*) FROM " + fileHandleDataTable.name() + " WHERE " + idColumn + " IN (" + String.join(",", ids.stream().map(id -> id.toString()).collect(Collectors.toList())) + ")";
 		
 		LOG.info("Executing query {}...", query);
 		
 		TimeUtils.waitFor(TIMEOUT, 5000L, () -> {
 			
 			AthenaQueryResult<Long> q = athenaSupport.executeQuery(dataBase, query, (row) -> {
-				return Long.valueOf(row.getData().get(0).getVarCharValue());
+				return Long.valueOf(row.data().get(0).varCharValue());
 			});
 			
 			Iterator<Long> it = q.getQueryResultsIterator();

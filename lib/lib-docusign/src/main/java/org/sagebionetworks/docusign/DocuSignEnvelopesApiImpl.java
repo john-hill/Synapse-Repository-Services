@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 
 import com.docusign.esign.api.EnvelopesApi;
 import com.docusign.esign.client.ApiClient;
+import com.docusign.esign.model.Envelope;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 
@@ -25,6 +26,18 @@ class DocuSignEnvelopesApiImpl implements DocuSignEnvelopesApi {
 			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
 			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
 			return envelopesApi.createEnvelope(config.getAccountId(), envelopeDefinition);
+		});
+	}
+
+	@Override
+	public Envelope getEnvelope(String envelopeId) {
+		return retryHelper.executeWithRetry(accessToken -> {
+			ApiClient apiClient = new ApiClient(config.getBasePath());
+			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
+			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
+			EnvelopesApi.GetEnvelopeOptions options = envelopesApi.new GetEnvelopeOptions();
+			options.setInclude("recipients");
+			return envelopesApi.getEnvelope(config.getAccountId(), envelopeId, options);
 		});
 	}
 }

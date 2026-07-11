@@ -10,6 +10,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.model.AccessRequirement;
+import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
+import org.sagebionetworks.repo.model.duc.DucStatusEnum;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
@@ -33,6 +37,9 @@ import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
+
+import com.docusign.esign.model.Envelope;
+import com.docusign.esign.model.Signer;
 
 @Service
 public class EDucManager {
@@ -141,6 +148,83 @@ public class EDucManager {
 		result.setQuota((long) MAX_ENVELOPES_PER_MONTH);
 		result.setRemaining((long) (MAX_ENVELOPES_PER_MONTH - count - 1));
 		return result;
+	}
+
+	public DucSignatureStatus getSignatureStatus(UserInfo userInfo, String requestId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(requestId, "requestId");
+
+		RequestInterface request = requestDao.get(requestId);
+
+		if (!AuthorizationUtils.isUserCreatorOrAdmin(userInfo, request.getCreatedBy())) {
+			throw new UnauthorizedException("Only the request creator or an administrator can view signature status.");
+		}
+
+		String envelopeId = request.getEDucSignatureEnvelopeId();
+		if (envelopeId == null) {
+			throw new IllegalArgumentException("This request does not have a signature envelope.");
+		}
+
+		Envelope envelope = docuSignClient.getEnvelope(envelopeId);
+
+		DucSignatureStatus status = new DucSignatureStatus();
+		status.setDataAccessRequestId(requestId);
+		status.setCreatedOn(DocuSignClient.parseDate(envelope.getCreatedDateTime()));
+		status.setModifiedOn(DocuSignClient.parseDate(envelope.getLastModifiedDateTime()));
+		status.setDucStatus(toDucStatusEnum(envelope.getStatus()));
+		status.setIncludesRequestChanges(true);
+
+		List<DucSignerStatus> signerStatuses = new ArrayList<>();
+		if (envelope.getRecipients() != null && envelope.getRecipients().getSigners() != null) {
+			for (Signer signer : envelope.getRecipients().getSigners()) {
+				DucSignerStatus signerStatus = new DucSignerStatus();
+				signerStatus.setName(signer.getName());
+				signerStatus.setEmail(signer.getEmail());
+				signerStatus.setStatus(toDucSignerStatusEnum(signer.getStatus()));
+				signerStatuses.add(signerStatus);
+			}
+		}
+		status.setSignerStatus(signerStatuses);
+
+		return status;
+	}
+
+	static DucStatusEnum toDucStatusEnum(String docuSignStatus) {
+		if (docuSignStatus == null) {
+			return null;
+		}
+		switch (docuSignStatus.toLowerCase()) {
+			case "sent":
+				return DucStatusEnum.sent;
+			case "delivered":
+				return DucStatusEnum.delivered;
+			case "completed":
+			case "signed":
+				return DucStatusEnum.completed;
+			case "declined":
+				return DucStatusEnum.declined;
+			case "voided":
+				return DucStatusEnum.voided;
+			default:
+				return DucStatusEnum.sent;
+		}
+	}
+
+	static DucSignerStatusEnum toDucSignerStatusEnum(String docuSignStatus) {
+		if (docuSignStatus == null) {
+			return DucSignerStatusEnum.pending;
+		}
+		switch (docuSignStatus.toLowerCase()) {
+			case "completed":
+			case "signed":
+				return DucSignerStatusEnum.done;
+			case "declined":
+				return DucSignerStatusEnum.declined;
+			case "autoresponded":
+				return DucSignerStatusEnum.bounced;
+			default:
+				return DucSignerStatusEnum.pending;
+		}
 	}
 
 	List<String> buildCollaboratorUserIds(RequestInterface request) {

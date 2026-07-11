@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
+import com.docusign.esign.model.Envelope;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
@@ -117,6 +118,11 @@ public class DocuSignClient {
 		return roles;
 	}
 
+	public Envelope getEnvelope(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		return envelopesApi.getEnvelope(envelopeId);
+	}
+
 	static EDucTemplatePage toEDucTemplatePage(EnvelopeTemplateResults results) {
 		EDucTemplatePage page = new EDucTemplatePage();
 		List<EnvelopeTemplate> templates = results == null ? null : results.getEnvelopeTemplates();
@@ -142,7 +148,7 @@ public class DocuSignClient {
 		return out;
 	}
 
-	static Date parseDate(String iso8601) {
+	public static Date parseDate(String iso8601) {
 		if (iso8601 == null || iso8601.isEmpty()) {
 			return null;
 		}

@@ -1,0 +1,23 @@
+{
+    "description": "Status of a signer within a DUC",
+    "name": "DucSignerStatusEnum",
+    "type": "string",
+    "enum": [
+        {
+            "name": "pending",
+            "description": "Signature is pending"
+        },
+        {
+            "name": "done",
+            "description": "Signer has signed the document"
+        },
+        {
+            "name": "declined",
+            "description": "Signer has declined to sign the document"
+        },
+        {
+            "name": "bounced",
+            "description": "Signing request email bounced"
+        }
+    ]
+}

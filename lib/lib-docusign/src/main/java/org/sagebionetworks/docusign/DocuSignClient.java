@@ -67,7 +67,7 @@ public class DocuSignClient {
 	 * @return the envelope ID of the created envelope
 	 */
 	public String createAndSendEnvelope(String templateId, Map<String, String> roleEmails,
-			Map<RoleTabKey, String> tabValues) {
+			Map<RoleLabelKey, String> tabValues) {
 		ValidateArgument.required(templateId, "templateId");
 		ValidateArgument.required(roleEmails, "roleEmails");
 		ValidateArgument.required(tabValues, "tabValues");
@@ -86,7 +86,7 @@ public class DocuSignClient {
 	}
 
 	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
-			Map<RoleTabKey, String> tabValues) {
+			Map<RoleLabelKey, String> tabValues) {
 		List<TemplateRole> roles = new ArrayList<>();
 		for (Map.Entry<String, String> entry : roleEmails.entrySet()) {
 			String roleName = entry.getKey();
@@ -99,7 +99,7 @@ public class DocuSignClient {
 			Tabs tabs = new Tabs();
 			role.setTabs(tabs);
 
-			for (Map.Entry<RoleTabKey, String> tabEntry : tabValues.entrySet()) {
+			for (Map.Entry<RoleLabelKey, String> tabEntry : tabValues.entrySet()) {
 				if (!tabEntry.getKey().roleName().equals(roleName)) {
 					continue;
 				}

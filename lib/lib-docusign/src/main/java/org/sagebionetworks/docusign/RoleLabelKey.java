@@ -1,8 +1,8 @@
 package org.sagebionetworks.docusign;
 
-public record RoleTabKey(String roleName, String tabLabel) {
+public record RoleLabelKey(String roleName, String tabLabel) {
 
-	public RoleTabKey {
+	public RoleLabelKey {
 		if (roleName == null) {
 			throw new IllegalArgumentException("roleName is required.");
 		}

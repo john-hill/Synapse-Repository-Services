@@ -132,9 +132,9 @@ public class DocuSignClientTest {
 				"signing_official", "so@example.com",
 				"principal_investigator", "pi@example.com"
 		);
-		Map<RoleTabKey, String> tabValues = Map.of(
-				new RoleTabKey("signing_official", "signing_official_name"), "Dr. Smith",
-				new RoleTabKey("principal_investigator", "principal_investigator_name"), "Dr. Jones"
+		Map<RoleLabelKey, String> tabValues = Map.of(
+				new RoleLabelKey("signing_official", "signing_official_name"), "Dr. Smith",
+				new RoleLabelKey("principal_investigator", "principal_investigator_name"), "Dr. Jones"
 		);
 
 		// call under test
@@ -156,7 +156,7 @@ public class DocuSignClientTest {
 		when(mockDocuSignTemplatesApi.getTemplate("tpl-1")).thenReturn(template);
 
 		Map<String, String> roleEmails = Map.of("signing_official", "so@example.com");
-		Map<RoleTabKey, String> tabValues = Map.of();
+		Map<RoleLabelKey, String> tabValues = Map.of();
 
 		// call under test
 		assertThrows(IllegalArgumentException.class,
@@ -171,11 +171,11 @@ public class DocuSignClientTest {
 				"signing_official", "so@example.com",
 				"principal_investigator", "pi@example.com"
 		);
-		Map<RoleTabKey, String> tabValues = Map.of(
-				new RoleTabKey("signing_official", "signing_official_name"), "Dr. Smith",
-				new RoleTabKey("signing_official", "signing_official_title"), "Director",
-				new RoleTabKey("signing_official", "signing_official_email"), "so@example.com",
-				new RoleTabKey("principal_investigator", "principal_investigator_institution"), "MIT"
+		Map<RoleLabelKey, String> tabValues = Map.of(
+				new RoleLabelKey("signing_official", "signing_official_name"), "Dr. Smith",
+				new RoleLabelKey("signing_official", "signing_official_title"), "Director",
+				new RoleLabelKey("signing_official", "signing_official_email"), "so@example.com",
+				new RoleLabelKey("principal_investigator", "principal_investigator_institution"), "MIT"
 		);
 
 		// call under test

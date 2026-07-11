@@ -17,7 +17,6 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 			new FieldColumn("id", SqlConstants.COL_EDUC_QUOTA_ID, true).withIsBackupId(true),
-			new FieldColumn("etag", SqlConstants.COL_EDUC_QUOTA_ETAG).withIsEtag(true),
 			new FieldColumn("userId", SqlConstants.COL_EDUC_QUOTA_USER_ID),
 			new FieldColumn("accessRequirementId", SqlConstants.COL_EDUC_QUOTA_ACCESS_REQUIREMENT_ID),
 			new FieldColumn("createdOn", SqlConstants.COL_EDUC_QUOTA_CREATED_ON),
@@ -30,7 +29,6 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 		public DBOEDucQuota mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOEDucQuota dbo = new DBOEDucQuota();
 			dbo.setId(rs.getLong(SqlConstants.COL_EDUC_QUOTA_ID));
-			dbo.setEtag(rs.getString(SqlConstants.COL_EDUC_QUOTA_ETAG));
 			dbo.setUserId(rs.getLong(SqlConstants.COL_EDUC_QUOTA_USER_ID));
 			dbo.setAccessRequirementId(rs.getLong(SqlConstants.COL_EDUC_QUOTA_ACCESS_REQUIREMENT_ID));
 			dbo.setCreatedOn(rs.getLong(SqlConstants.COL_EDUC_QUOTA_CREATED_ON));
@@ -62,7 +60,6 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 	private static final MigratableTableTranslation<DBOEDucQuota, DBOEDucQuota> MIGRATION_TRANSLATOR = new BasicMigratableTableTranslation<>();
 
 	private Long id;
-	private String etag;
 	private Long userId;
 	private Long accessRequirementId;
 	private Long createdOn;
@@ -74,14 +71,6 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 
 	public void setId(Long id) {
 		this.id = id;
-	}
-
-	public String getEtag() {
-		return etag;
-	}
-
-	public void setEtag(String etag) {
-		this.etag = etag;
 	}
 
 	public Long getUserId() {
@@ -148,7 +137,7 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id, etag, userId, accessRequirementId, createdOn, envelopeId);
+		return Objects.hash(id, userId, accessRequirementId, createdOn, envelopeId);
 	}
 
 	@Override
@@ -163,7 +152,7 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 			return false;
 		}
 		DBOEDucQuota other = (DBOEDucQuota) obj;
-		return Objects.equals(id, other.id) && Objects.equals(etag, other.etag)
+		return Objects.equals(id, other.id)
 				&& Objects.equals(userId, other.userId)
 				&& Objects.equals(accessRequirementId, other.accessRequirementId)
 				&& Objects.equals(createdOn, other.createdOn)
@@ -172,7 +161,7 @@ public class DBOEDucQuota implements MigratableDatabaseObject<DBOEDucQuota, DBOE
 
 	@Override
 	public String toString() {
-		return "DBOEDucQuota [id=" + id + ", etag=" + etag + ", userId=" + userId
+		return "DBOEDucQuota [id=" + id + ", userId=" + userId
 				+ ", accessRequirementId=" + accessRequirementId + ", createdOn=" + createdOn
 				+ ", envelopeId=" + envelopeId + "]";
 	}

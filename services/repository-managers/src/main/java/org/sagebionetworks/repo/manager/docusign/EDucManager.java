@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.model.AccessRequirement;
@@ -102,7 +103,7 @@ public class EDucManager {
 		}
 
 		String templateId = managedAr.getEDucTemplateId();
-		if (templateId == null || templateId.isBlank()) {
+		if (StringUtils.isBlank(templateId)) {
 			throw new IllegalArgumentException("The access requirement does not have an eDUC template ID configured.");
 		}
 
@@ -220,7 +221,7 @@ public class EDucManager {
 
 	private static void addIfPresent(Map<RoleLabelKey, String> tabValues, String roleName,
 			String tabLabel, String value) {
-		if (value != null && !value.isEmpty()) {
+		if (StringUtils.isNotEmpty(value)) {
 			tabValues.put(new RoleLabelKey(roleName, tabLabel), value);
 		}
 	}

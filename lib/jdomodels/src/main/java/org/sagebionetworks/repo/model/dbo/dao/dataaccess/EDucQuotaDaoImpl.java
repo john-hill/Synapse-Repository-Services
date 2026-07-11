@@ -6,8 +6,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_EDUC_QUO
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_EDUC_QUOTA_USER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_EDUC_QUOTA;
 
-import java.util.UUID;
-
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -38,7 +36,6 @@ public class EDucQuotaDaoImpl implements EDucQuotaDao {
 
 		DBOEDucQuota dbo = new DBOEDucQuota();
 		dbo.setId(idGenerator.generateNewId(IdType.EDUC_QUOTA_ID));
-		dbo.setEtag(UUID.randomUUID().toString());
 		dbo.setUserId(userId);
 		dbo.setAccessRequirementId(accessRequirementId);
 		dbo.setCreatedOn(System.currentTimeMillis());

@@ -1584,7 +1584,6 @@ public class SqlConstants {
 	// EDUC_QUOTA
 	public static final String TABLE_EDUC_QUOTA							= "EDUC_QUOTA";
 	public static final String COL_EDUC_QUOTA_ID						= "ID";
-	public static final String COL_EDUC_QUOTA_ETAG						= "ETAG";
 	public static final String COL_EDUC_QUOTA_USER_ID					= "USER_ID";
 	public static final String COL_EDUC_QUOTA_ACCESS_REQUIREMENT_ID		= "ACCESS_REQUIREMENT_ID";
 	public static final String COL_EDUC_QUOTA_CREATED_ON				= "CREATED_ON";

@@ -314,8 +314,10 @@ public class EDucManagerTest {
 		when(mockRequestDao.get("req-1")).thenReturn(request);
 
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> eDucManager.routeForSignature(regularUser, "req-1"));
+		UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+				() -> eDucManager.routeForSignature(regularUser, "req-1"));
 
+		assertEquals("Only the request creator or an administrator can route for signature.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -351,8 +353,10 @@ public class EDucManagerTest {
 		when(mockRequestDao.get("req-1")).thenReturn(request);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
 
+		assertEquals("This request already has a signature envelope: existing-env", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -364,8 +368,10 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(new TermsOfUseAccessRequirement());
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
 
+		assertEquals("The access requirement is not a ManagedACTAccessRequirement.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -379,8 +385,10 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(ar);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
 
+		assertEquals("The access requirement does not require a DUC.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -394,8 +402,10 @@ public class EDucManagerTest {
 		when(mockAccessRequirementDao.get("456")).thenReturn(ar);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> eDucManager.routeForSignature(user, "req-1"));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
 
+		assertEquals("The access requirement does not have an eDUC template ID configured.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
 	}
 

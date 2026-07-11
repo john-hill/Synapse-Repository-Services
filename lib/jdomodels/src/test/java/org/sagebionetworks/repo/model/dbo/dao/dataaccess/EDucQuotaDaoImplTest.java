@@ -82,7 +82,6 @@ public class EDucQuotaDaoImplTest {
 		DBOEDucQuota result = eDucQuotaDao.create(userId, accessRequirementId, "env-001");
 
 		assertNotNull(result.getId());
-		assertNotNull(result.getEtag());
 		assertEquals(userId, result.getUserId());
 		assertEquals(accessRequirementId, result.getAccessRequirementId());
 		assertEquals("env-001", result.getEnvelopeId());

@@ -71,9 +71,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.amazonaws.services.simpleemail.AmazonSimpleEmailService;
-import com.amazonaws.services.simpleemail.model.SendEmailRequest;
-import com.amazonaws.services.simpleemail.model.SendRawEmailRequest;
+import software.amazon.awssdk.services.ses.SesClient;
+import software.amazon.awssdk.services.ses.model.SendEmailRequest;
+import software.amazon.awssdk.services.ses.model.SendRawEmailRequest;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
@@ -118,7 +119,7 @@ public class MessageManagerImplTest {
 	private PrincipalAliasDAO principalAliasDAO;
 	
 	@Autowired
-	private AmazonSimpleEmailService amazonSESClient;
+	private SesClient amazonSESClient;
 	
 	@Autowired
 	private MessageDAO messageDAO;
@@ -421,7 +422,7 @@ public class MessageManagerImplTest {
 		// the message subject tells the stubbed client to create a failure
 		final String testUserId = testUser.getId().toString();
 		final String otherTestUserId = otherTestUser.getId().toString();
-		MessageToUser aMessage = createMessage(testUser, StubAmazonSimpleEmailServiceClient.MESSAGE_SUBJECT_FOR_FAILURE, 
+		MessageToUser aMessage = createMessage(testUser, StubSesClient.MESSAGE_SUBJECT_FOR_FAILURE,
 				ImmutableSet.of(testUserId, otherTestUserId), null);
 		
 		List<MessageBundle> inbox = null;
@@ -438,7 +439,7 @@ public class MessageManagerImplTest {
 		// check that the stubbed client -- 2 failures for the two recipients
 		assertEquals(2, errors.size());
 		for (String message : errors) {
-			assertTrue(message.indexOf(StubAmazonSimpleEmailServiceClient.TRANSMISSION_FAILURE)>=0);
+			assertTrue(message.indexOf(StubSesClient.TRANSMISSION_FAILURE)>=0);
 		}
 		
 		// even though the message is not sent by email, it does appear in the in-box

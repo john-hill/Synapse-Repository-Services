@@ -176,7 +176,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		return updated;
 	}
 	
-	final class ValidationSummaryBuilder implements RowViewCallbackHandler {
+	static final class ValidationSummaryBuilder implements RowViewCallbackHandler {
 
 		private final String recordSetId;
 		private final ValidationSummaryAccumulator accumulator;

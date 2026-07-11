@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.manager.grid;
 
-import static org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManagerImpl.gridRowToJsonObject;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,6 +21,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRow
 import org.sagebionetworks.repo.manager.grid.internal.replica.validation.JsonObjectSubject;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
+import org.sagebionetworks.repo.manager.grid.util.GridJsonUtils;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
@@ -351,7 +350,7 @@ public class SnapshotRowHandler implements RowHandler {
                 .collect(Collectors.toList());
 
         // Build JSON from constants
-        JSONObject rowJson = gridRowToJsonObject(columnNames, orderedNodes);
+        JSONObject rowJson = GridJsonUtils.gridRowToJsonObject(columnNames, orderedNodes);
 
         // Create JsonSubject for validation
         JsonSubject subject = new JsonObjectSubject(rowJson);

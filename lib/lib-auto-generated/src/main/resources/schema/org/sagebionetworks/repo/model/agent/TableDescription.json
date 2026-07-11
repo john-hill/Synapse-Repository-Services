@@ -1,0 +1,20 @@
+{
+	"description": "Describes a Synapse table or view including its ID, type, and full column schema.",
+	"properties": {
+		"tableId": {
+			"type": "string",
+			"description": "The string representation of the table's IdAndVersion, e.g. 'syn123' or 'syn123.5'."
+		},
+		"tableType": {
+			"type": "string",
+			"description": "The type of table such as 'table', 'entityview', 'dataset', 'materializedview', or 'virtualtable'."
+		},
+		"columnModels": {
+			"type": "array",
+			"description": "The full list of column models that define the table's schema.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.table.ColumnModel"
+			}
+		}
+	}
+}

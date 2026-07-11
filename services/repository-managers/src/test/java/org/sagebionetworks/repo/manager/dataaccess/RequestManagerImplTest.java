@@ -32,9 +32,11 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dataaccess.AccessType;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
+import org.sagebionetworks.repo.model.dataaccess.PrincipalInvestigator;
 import org.sagebionetworks.repo.model.dataaccess.Renewal;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
+import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
@@ -490,12 +492,12 @@ public class RequestManagerImplTest {
 
 	@Test
 	public void testCreateOrUpdateWithId() {
-		
+
 		when(mockUser.getId()).thenReturn(1L);
 		when(mockRequestDao.getForUpdate(requestId)).thenReturn(request);
 		when(mockRequestDao.update(any(RequestInterface.class))).thenReturn(request);
 		when(mockSubmissionDao.hasSubmissionWithState(userId, accessRequirementId, SubmissionState.SUBMITTED)).thenReturn(false);
-		
+
 		Request toUpdate = createNewRequest();
 		toUpdate.setDucFileHandleId("777");
 		assertEquals(request, manager.createOrUpdate(mockUser, toUpdate));
@@ -506,5 +508,55 @@ public class RequestManagerImplTest {
 		assertEquals(userId, updated.getCreatedBy());
 		assertEquals(userId, updated.getModifiedBy());
 		assertEquals("777", updated.getDucFileHandleId());
+	}
+
+	@Test
+	public void testValidateRequestWithInvalidPIEmail() {
+		Request toValidate = createNewRequest();
+		PrincipalInvestigator pi = new PrincipalInvestigator();
+		pi.setInstitutionalEmail("not-an-email");
+		toValidate.setPrincipalInvestigator(pi);
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.validateRequest(toValidate));
+	}
+
+	@Test
+	public void testValidateRequestWithInvalidSOEmail() {
+		Request toValidate = createNewRequest();
+		SigningOfficial so = new SigningOfficial();
+		so.setInstitutionalEmail("also not valid");
+		toValidate.setSigningOfficial(so);
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.validateRequest(toValidate));
+	}
+
+	@Test
+	public void testValidateRequestWithValidEmails() {
+		Request toValidate = createNewRequest();
+		PrincipalInvestigator pi = new PrincipalInvestigator();
+		pi.setInstitutionalEmail("pi@university.edu");
+		toValidate.setPrincipalInvestigator(pi);
+		SigningOfficial so = new SigningOfficial();
+		so.setInstitutionalEmail("so@institution.org");
+		toValidate.setSigningOfficial(so);
+
+		// call under test — should not throw
+		manager.validateRequest(toValidate);
+	}
+
+	@Test
+	public void testValidateRequestWithNullEmails() {
+		Request toValidate = createNewRequest();
+		PrincipalInvestigator pi = new PrincipalInvestigator();
+		pi.setInstitutionalEmail(null);
+		toValidate.setPrincipalInvestigator(pi);
+		SigningOfficial so = new SigningOfficial();
+		so.setInstitutionalEmail(null);
+		toValidate.setSigningOfficial(so);
+
+		// call under test — null emails should be allowed
+		manager.validateRequest(toValidate);
 	}
 }

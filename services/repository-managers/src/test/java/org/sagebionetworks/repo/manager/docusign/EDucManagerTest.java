@@ -51,6 +51,8 @@ import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.educ.SignatureQuota;
+import org.sagebionetworks.repo.model.principal.AliasType;
+import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.util.Clock;
 
@@ -593,6 +595,11 @@ public class EDucManagerTest {
 		envelope.setRecipients(recipients);
 		when(mockDocuSignClient.getEnvelope("env-123")).thenReturn(envelope);
 
+		PrincipalAlias alias1 = new PrincipalAlias();
+		alias1.setPrincipalId(200L);
+		when(mockPrincipalAliasDao.findPrincipalWithAlias("pi@university.edu", AliasType.USER_EMAIL)).thenReturn(alias1);
+		when(mockPrincipalAliasDao.findPrincipalWithAlias("so@university.edu", AliasType.USER_EMAIL)).thenReturn(null);
+
 		// call under test
 		DucSignatureStatus result = eDucManager.getSignatureStatus(user, "req-1");
 
@@ -603,8 +610,10 @@ public class EDucManagerTest {
 		assertEquals(2, result.getSignerStatus().size());
 		assertEquals("Dr. Jones", result.getSignerStatus().get(0).getName());
 		assertEquals(DucSignerStatusEnum.done, result.getSignerStatus().get(0).getStatus());
+		assertEquals("200", result.getSignerStatus().get(0).getUserId());
 		assertEquals("Jane Admin", result.getSignerStatus().get(1).getName());
 		assertEquals(DucSignerStatusEnum.pending, result.getSignerStatus().get(1).getStatus());
+		assertNull(result.getSignerStatus().get(1).getUserId());
 	}
 
 	@Test
@@ -632,7 +641,7 @@ public class EDucManagerTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> eDucManager.getSignatureStatus(user, "req-1"));
 
-		assertEquals("This request does not have a signature envelope.", ex.getMessage());
+		assertEquals("This request does not have a routed DUC.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
 	}
 
@@ -644,18 +653,21 @@ public class EDucManagerTest {
 		assertEquals(DucStatusEnum.completed, EDucManager.toDucStatusEnum("signed"));
 		assertEquals(DucStatusEnum.declined, EDucManager.toDucStatusEnum("declined"));
 		assertEquals(DucStatusEnum.voided, EDucManager.toDucStatusEnum("voided"));
-		assertEquals(DucStatusEnum.sent, EDucManager.toDucStatusEnum("created"));
 		assertNull(EDucManager.toDucStatusEnum(null));
+		assertThrows(IllegalArgumentException.class, () -> EDucManager.toDucStatusEnum("created"));
 	}
 
 	@Test
 	public void testToDucSignerStatusEnum() {
 		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum("sent"));
+		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum("delivered"));
+		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum("created"));
+		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum(null));
 		assertEquals(DucSignerStatusEnum.done, EDucManager.toDucSignerStatusEnum("completed"));
 		assertEquals(DucSignerStatusEnum.done, EDucManager.toDucSignerStatusEnum("signed"));
 		assertEquals(DucSignerStatusEnum.declined, EDucManager.toDucSignerStatusEnum("declined"));
 		assertEquals(DucSignerStatusEnum.bounced, EDucManager.toDucSignerStatusEnum("autoresponded"));
-		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum(null));
+		assertThrows(IllegalArgumentException.class, () -> EDucManager.toDucSignerStatusEnum("bogus"));
 	}
 
 	@Test

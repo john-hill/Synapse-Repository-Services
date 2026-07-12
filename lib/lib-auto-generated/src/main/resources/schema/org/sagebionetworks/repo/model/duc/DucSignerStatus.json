@@ -9,10 +9,6 @@
             "type": "string",
             "description": "Synapse user id of the signer, if any"
         },
-        "email": {
-            "type": "string",
-            "description": "email of the signer"
-        },
         "status": {
             "$ref": "org.sagebionetworks.repo.model.duc.DucSignerStatusEnum",
             "description": "status of the signer"

@@ -10,10 +10,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.model.AccessRequirement;
-import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
-import org.sagebionetworks.repo.model.duc.DucSignerStatus;
-import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
-import org.sagebionetworks.repo.model.duc.DucStatusEnum;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
@@ -30,9 +26,15 @@ import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.EDucQuotaDao;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
+import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
+import org.sagebionetworks.repo.model.duc.DucStatusEnum;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.educ.SignatureQuota;
+import org.sagebionetworks.repo.model.principal.AliasType;
+import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.ValidateArgument;
@@ -162,7 +164,7 @@ public class EDucManager {
 
 		String envelopeId = request.getEDucSignatureEnvelopeId();
 		if (envelopeId == null) {
-			throw new IllegalArgumentException("This request does not have a signature envelope.");
+			throw new IllegalArgumentException("This request does not have a routed DUC.");
 		}
 
 		Envelope envelope = docuSignClient.getEnvelope(envelopeId);
@@ -172,6 +174,8 @@ public class EDucManager {
 		status.setCreatedOn(DocuSignClient.parseDate(envelope.getCreatedDateTime()));
 		status.setModifiedOn(DocuSignClient.parseDate(envelope.getLastModifiedDateTime()));
 		status.setDucStatus(toDucStatusEnum(envelope.getStatus()));
+		// TODO PLFM-9657 will set the following to show whether 
+		// changes to the request have been applied to the routed document
 		status.setIncludesRequestChanges(true);
 
 		List<DucSignerStatus> signerStatuses = new ArrayList<>();
@@ -179,8 +183,12 @@ public class EDucManager {
 			for (Signer signer : envelope.getRecipients().getSigners()) {
 				DucSignerStatus signerStatus = new DucSignerStatus();
 				signerStatus.setName(signer.getName());
-				signerStatus.setEmail(signer.getEmail());
 				signerStatus.setStatus(toDucSignerStatusEnum(signer.getStatus()));
+				// look up the email as a Synapse alias and, if found, fill in here.
+				PrincipalAlias principalAlias = principalAliasDao.findPrincipalWithAlias(signer.getEmail(), AliasType.USER_EMAIL);
+				if (principalAlias!=null) {
+					signerStatus.setUserId(principalAlias.getPrincipalId().toString());
+				}
 				signerStatuses.add(signerStatus);
 			}
 		}
@@ -206,7 +214,7 @@ public class EDucManager {
 			case "voided":
 				return DucStatusEnum.voided;
 			default:
-				return DucStatusEnum.sent;
+				throw new IllegalArgumentException("Unexpected status "+docuSignStatus);
 		}
 	}
 
@@ -215,6 +223,10 @@ public class EDucManager {
 			return DucSignerStatusEnum.pending;
 		}
 		switch (docuSignStatus.toLowerCase()) {
+			case "sent":
+			case "delivered":
+			case "created":
+				return DucSignerStatusEnum.pending;
 			case "completed":
 			case "signed":
 				return DucSignerStatusEnum.done;
@@ -223,7 +235,7 @@ public class EDucManager {
 			case "autoresponded":
 				return DucSignerStatusEnum.bounced;
 			default:
-				return DucSignerStatusEnum.pending;
+				throw new IllegalArgumentException("Unexpected status "+docuSignStatus);
 		}
 	}
 

@@ -1401,4 +1401,24 @@ public class StackConfigurationImpl implements StackConfiguration {
 	public Long getDefaultProjectStorageLimit() {
 		return Long.valueOf(configuration.getProperty("org.sagebionetworks.project.storage.default.limit"));
 	}
+
+	@Override
+	public String getModelIdClaudeHaiku() {
+		return configuration.getProperty("org.sagebionetworks.agent.model.claude.haiku");
+	}
+
+	@Override
+	public String getModelIdClaudeSonnet() {
+		return configuration.getProperty("org.sagebionetworks.agent.model.claude.sonnet");
+	}
+
+	@Override
+	public String getModelIdClaudeOpus() {
+		return configuration.getProperty("org.sagebionetworks.agent.model.claude.opus");
+	}
+
+	@Override
+	public String getBedrockConverseRegion() {
+		return configuration.getProperty("org.sagebionetworks.bedrock.converse.region");
+	}
 }

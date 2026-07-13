@@ -7,6 +7,7 @@ import java.util.Map;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.AwsClientFactory;
 import org.sagebionetworks.aws.SynapseS3Client;
+import org.sagebionetworks.aws.v2.AwsClientFactoryV2;
 import org.sagebionetworks.database.semaphore.SemaphoreConfig;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdGeneratorConfig;
@@ -52,9 +53,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
-import com.amazonaws.services.athena.AmazonAthena;
-import com.amazonaws.services.glue.AWSGlue;
 import com.amazonaws.services.s3.transfer.TransferManager;
+import software.amazon.awssdk.services.athena.AthenaClient;
+import software.amazon.awssdk.services.glue.GlueClient;
 
 @Configuration
 @EnableAspectJAutoProxy
@@ -235,13 +236,13 @@ public class JdoModelsConfig {
 	}
 
 	@Bean
-	public AmazonAthena amazonAthenaClient() {
-		return AwsClientFactory.createAmazonAthenaClient();
+	public AthenaClient amazonAthenaClient() {
+		return AwsClientFactoryV2.createAthenaClient();
 	}
 
 	@Bean
-	public AWSGlue amazonGlueClient() {
-		return AwsClientFactory.createAmazonGlueClient();
+	public GlueClient amazonGlueClient() {
+		return AwsClientFactoryV2.createGlueClient();
 	}
 
 	@Bean

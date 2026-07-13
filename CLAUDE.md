@@ -143,7 +143,7 @@ Key classes:
 When creating new database tables, the DBO must implement `MigratableDatabaseObject<D, B>`:
 - Provide a `MigrationType` (order matters — must come after dependencies)
 - Provide a `MigratableTableTranslation` for backup/restore conversion
-- Register primary types by placing the DBO in a package scanned by `DboAutoDiscovery` (`lib/jdomodels/.../repo/model/config/`) and annotating the DAO `@Repository` — the old `dbo-beans.spb.xml` was removed. If the package is not in `DboAutoDiscovery.DBO_PACKAGES`, the type is silently never discovered or migrated.
+- Primary types are discovered by `DboAutoDiscovery` classpath scan — place the DBO under an existing `org.sagebionetworks.repo.model.dbo.*` persistence package (follow the standard package pattern rather than inventing a new package name) and annotate the DAO `@Repository`. Only packages listed in `DboAutoDiscovery.DBO_PACKAGES` are scanned, so a DBO in a new/creative package is silently never discovered or migrated.
 - DDL creation order is derived automatically by `DboDependencyAnalyzer` (parses `FOREIGN KEY ... REFERENCES` from each DDL) — no manual ordering
 - Secondary types are discovered automatically via `getSecondaryTypes()`
 - Primary tables need an etag column (NOT NULL) for change detection; secondary tables need a foreign key to their owner's backup ID

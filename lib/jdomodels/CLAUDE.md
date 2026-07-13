@@ -102,7 +102,7 @@ Naming: `TABLE_` prefix for table names, `COL_` for columns, `DDL_` for DDL path
 
 ## Spring Configuration
 
-DBO registration is **classpath auto-discovery** via Java config in `src/main/java/org/sagebionetworks/repo/model/config/` — there are no `*-spb.xml` files in this module anymore.
+DBO registration is **classpath auto-discovery** via Java config in `src/main/java/org/sagebionetworks/repo/model/config/`.
 
 - **`JdoModelsConfig`** — `@Configuration`/`@ComponentScan` entry point; also bootstraps principal IDs (**do not change those IDs** — they are real production objects).
 - **`DboAutoDiscovery`** — classpath-scans the fixed `DBO_PACKAGES` array for `DatabaseObject` implementations and auto-classifies primary vs secondary via `getSecondaryTypes()`. A new DBO in a package **not** in `DBO_PACKAGES` is silently never registered or migrated (no startup error).

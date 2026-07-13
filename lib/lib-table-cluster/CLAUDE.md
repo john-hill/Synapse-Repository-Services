@@ -8,15 +8,6 @@ Operations against the **index database** — the derived/computed MySQL instanc
 - `SQLUtils` (~2000 lines) — the SQL-string builder for index tables (CREATE/ALTER/INSERT/SELECT generation from column models). **Reuse it; do not hand-build index SQL** — it encodes column-type→SQL mapping, list-column `JSON_TABLE` unnesting, and naming rules you would otherwise get subtly wrong.
 - `description/IndexDescription` — describes a queryable object (table, view, materialized view, search index) and its dependencies.
 
-## IndexDescription: don't override the hash defaults
-
-`IndexDescription` provides `default` methods that compute a table's identity hash by walking its dependency graph:
-
-- `recursiveAppendIdAndChangeNumber(StringBuilder)` — appends this object's id + change number, then recurses into each dependency.
-- `getTableHash()` — the cache/staleness key, built from that recursive walk.
-
-Implementors supply the leaf data (id, change number, dependencies) but **must not override these default methods** — a view's hash must be derived identically to every other object's, or cache invalidation and rebuild detection break.
-
 ## Database split
 
 This module targets the **index database** only. The main (transactional) DB is handled by `lib/jdomodels`. The two use separate `DataSource`/`JdbcTemplate` beans (see `lib/lib-database-configuration`).

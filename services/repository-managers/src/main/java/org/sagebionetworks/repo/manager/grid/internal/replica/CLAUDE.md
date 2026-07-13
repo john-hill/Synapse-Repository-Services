@@ -13,4 +13,3 @@ Replica changes are dispatched through a `ChangeHandler<T>` registry keyed by `I
 ## Anti-Patterns — Do NOT
 
 - **Do NOT skip re-applying validation results when they are unchanged.** `GridReplicaValidationManagerImpl` re-applies results unconditionally so the client can use the timestamp to detect staleness, and to avoid an infinite snapshot-triggered revalidation loop (evidence: `validation/GridReplicaValidationManagerImpl.java:196`, PLFM-9342). "Optimizing" this to skip no-op writes reintroduces both bugs.
-- **Do NOT re-enable constant caching in `ChangePatchBuilder`.** It is deliberately disabled (evidence: `change/GridReplicaPatchBuilderManagerImpl.java:70`, "disable constant caching due to PLFM-9192").

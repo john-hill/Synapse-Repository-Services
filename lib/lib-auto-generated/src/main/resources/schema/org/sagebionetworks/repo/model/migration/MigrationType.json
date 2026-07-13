@@ -554,10 +554,10 @@
 			"name": "EDUC_QUOTA",
 			"description": "Table that tracks eDUC envelope routing quotas"
 		},
-    {
+		{
 			"name": "SEARCH_INDEX_SOURCE_TABLE",
 			"description": "Reverse-lookup table mapping a source table/view to the SearchIndex that depends on it"
-    },
+		},
 		{
 			"name": "CHANGE",
 			"description": "A record of a change event in the system, used for migration tracking."

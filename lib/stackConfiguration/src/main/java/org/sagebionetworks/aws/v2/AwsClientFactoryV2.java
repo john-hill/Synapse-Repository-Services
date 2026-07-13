@@ -3,7 +3,9 @@ package org.sagebionetworks.aws.v2;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigatewayv2.ApiGatewayV2Client;
 import software.amazon.awssdk.services.appconfigdata.AppConfigDataClient;
+import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.firehose.FirehoseClient;
+import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sns.SnsClient;
@@ -74,6 +76,20 @@ public class AwsClientFactoryV2 {
 
 	public static ApiGatewayV2Client createApiGatewayV2Client() {
 		return ApiGatewayV2Client.builder()
+				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
+				.region(Region.US_EAST_1)
+				.build();
+	}
+
+	public static AthenaClient createAthenaClient() {
+		return AthenaClient.builder()
+				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
+				.region(Region.US_EAST_1)
+				.build();
+	}
+
+	public static GlueClient createGlueClient() {
+		return GlueClient.builder()
 				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
 				.region(Region.US_EAST_1)
 				.build();

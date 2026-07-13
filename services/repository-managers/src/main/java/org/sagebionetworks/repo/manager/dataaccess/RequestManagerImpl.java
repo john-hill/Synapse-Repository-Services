@@ -12,12 +12,15 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dataaccess.AccessType;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
+import org.sagebionetworks.repo.model.dataaccess.PrincipalInvestigator;
 import org.sagebionetworks.repo.model.dataaccess.Renewal;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
+import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
+import org.sagebionetworks.repo.model.principal.AliasEnum;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -73,6 +76,14 @@ public class RequestManagerImpl implements RequestManager{
 				|| toUpdate.getAccessorChanges().isEmpty()
 				|| toUpdate.getAccessorChanges().size() <= MAX_ACCESSORS,
 				"A request cannot have more than "+MAX_ACCESSORS+" changes.");
+		PrincipalInvestigator pi = toUpdate.getPrincipalInvestigator();
+		if (pi != null && pi.getInstitutionalEmail() != null) {
+			AliasEnum.USER_EMAIL.validateAlias(pi.getInstitutionalEmail());
+		}
+		SigningOfficial so = toUpdate.getSigningOfficial();
+		if (so != null && so.getInstitutionalEmail() != null) {
+			AliasEnum.USER_EMAIL.validateAlias(so.getInstitutionalEmail());
+		}
 	}
 
 

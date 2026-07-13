@@ -143,6 +143,7 @@ import org.sagebionetworks.repo.model.auth.TwoFactorAuthResetRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthStatus;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.auth.Username;
+import org.sagebionetworks.repo.model.curation.ComputeTaskExecutionResponse;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
@@ -6724,6 +6725,18 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     @Override
     public TaskStatus updateTaskStatus(Long taskId, TaskStatus statusUpdate) throws SynapseException {
         return putJSONEntity(getRepoEndpoint(), "/curation/task/" + taskId + "/status", statusUpdate, TaskStatus.class);
+    }
+
+    @Override
+    public String startComputeTaskExecution(Long taskId) throws SynapseException {
+        AsyncJobId jobId = postJSONEntity(getRepoEndpoint(), "/curation/task/" + taskId + "/execute/async/start", null, AsyncJobId.class);
+        return jobId.getToken();
+    }
+
+    @Override
+    public ComputeTaskExecutionResponse getComputeTaskExecutionResult(Long taskId, String asyncToken) throws SynapseException, SynapseResultNotReadyException {
+        String url = "/curation/task/" + taskId + "/execute/async/get/" + asyncToken;
+        return (ComputeTaskExecutionResponse) getAsynchJobResponse(url, ComputeTaskExecutionResponse.class, getRepoEndpoint());
     }
 
 	@Override

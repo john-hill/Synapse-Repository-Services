@@ -43,6 +43,7 @@
     <context:component-scan base-package="org.sagebionetworks.tos.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.limits.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.grid.workers" annotation-config="false"/>
+    <context:component-scan base-package="org.sagebionetworks.curation.worker" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.principal.worker" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.search.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.recordset.worker" annotation-config="false"/>
@@ -194,6 +195,9 @@
 		<ref bean="searchIndexLifecycleWorkerTrigger"/>
 		<ref bean="searchIndexSourceUpdateWorkerTrigger"/>
 		<ref bean="searchIndexRebuildWorkerTrigger"/>
+
+		<!-- Curation compute task execution -->
+		<ref bean="computeTaskExecutionTrigger"/>
 
 	</util:list>
 

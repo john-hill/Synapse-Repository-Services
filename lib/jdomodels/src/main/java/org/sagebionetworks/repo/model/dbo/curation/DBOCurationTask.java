@@ -56,7 +56,7 @@ public class DBOCurationTask implements MigratableDatabaseObject<DBOCurationTask
                     .setExecutionDetailsJson(rs.getString(SqlConstants.COL_CURATION_TASK_EXECUTION_DETAILS))
                     .setStateUpdatedBy(rs.getLong(SqlConstants.COL_CURATION_TASK_STATE_UPDATED_BY))
                     .setStateUpdatedOn(rs.getTimestamp(SqlConstants.COL_CURATION_TASK_STATE_UPDATED_ON))
-                    .setDueDate(rs.getDate(SqlConstants.COL_CURATION_TASK_DUE_DATE));
+                    .setDueDate(rs.getTimestamp(SqlConstants.COL_CURATION_TASK_DUE_DATE));
         }
 
         @Override
@@ -95,7 +95,7 @@ public class DBOCurationTask implements MigratableDatabaseObject<DBOCurationTask
     private String executionDetailsJson;
     private Long stateUpdatedBy;
     private Timestamp stateUpdatedOn;
-    private java.sql.Date dueDate;
+    private Timestamp dueDate;
 
     public DBOCurationTask() {
     }
@@ -239,7 +239,7 @@ public class DBOCurationTask implements MigratableDatabaseObject<DBOCurationTask
         return dueDate;
     }
 
-    public DBOCurationTask setDueDate(java.sql.Date dueDate) {
+    public DBOCurationTask setDueDate(Timestamp dueDate) {
         this.dueDate = dueDate;
         return this;
     }

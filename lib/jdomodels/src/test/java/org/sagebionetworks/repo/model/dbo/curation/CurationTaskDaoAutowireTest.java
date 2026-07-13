@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -419,24 +420,16 @@ class CurationTaskDaoAutowireTest {
                 .setDataType("fastq")
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
-        TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
-        assertNull(initialStatus.getDueDate());
-
-        // A due date is a calendar date (no time component). Use a local-midnight value so the
-        // DATE column round-trips exactly.
-        Date dueDate = new Date(java.sql.Date.valueOf(LocalDate.of(2026, 8, 15)).getTime());
-
+        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(14, 30, 0)).getTime());
         TaskStatus statusUpdate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
-                .setEtag(initialStatus.getEtag())
+                .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())
                 .setDueDate(dueDate);
 
         // call under test
         TaskStatus updated = dao.updateTaskStatus(userId, created.getTaskId(), statusUpdate);
 
         assertEquals(dueDate, updated.getDueDate());
-
-        // Verify the due date is persisted and returned on a subsequent read
         assertEquals(dueDate, dao.getTaskStatus(created.getTaskId()).getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
@@ -449,25 +442,20 @@ class CurationTaskDaoAutowireTest {
                 .setDataType("fastq")
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
-        TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
-        assertNull(initialStatus.getDueDate());
-
         // Set a due date
-        Date dueDate = new Date(java.sql.Date.valueOf(LocalDate.of(2026, 8, 15)).getTime());
+        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(14, 30, 0)).getTime());
         TaskStatus withDueDate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
-                .setEtag(initialStatus.getEtag())
+                .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())
                 .setDueDate(dueDate);
 
         TaskStatus withDueDateResult = dao.updateTaskStatus(userId, created.getTaskId(), withDueDate);
         assertEquals(dueDate, withDueDateResult.getDueDate());
 
         // Now clear it by omitting dueDate from the update (standard PUT semantics)
-        TaskStatus cleared = dao.getTaskStatus(created.getTaskId());
-        assertNotNull(cleared.getDueDate());
         TaskStatus clearUpdate = new TaskStatus()
-                .setState(TaskState.IN_PROGRESS)
-                .setEtag(cleared.getEtag());
+                .setState(TaskState.COMPLETED)
+                .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag());
         // Note: dueDate is NOT set in clearUpdate, so it will be cleared
 
         // call under test

@@ -84,8 +84,6 @@ public class MigratableObjectSerializationTest {
 					value = RANDOM.nextBoolean();
 				} else if (Timestamp.class.equals(fieldType)) {
 					value = new Timestamp(RANDOM.nextLong());
-				} else if (java.sql.Date.class.equals(fieldType)) {
-					value = new java.sql.Date(RANDOM.nextLong());
 				} else if (Date.class.equals(fieldType)) {
 					value = new Date(RANDOM.nextLong());
 				} else if (fieldType.isEnum()) {

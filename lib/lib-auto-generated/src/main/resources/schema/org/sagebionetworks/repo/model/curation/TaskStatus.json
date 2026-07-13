@@ -24,8 +24,8 @@
     },
     "dueDate": {
       "type": "string",
-      "format": "date",
-      "description": "The date by which the task should be completed. Null if no due date has been set."
+      "format": "date-time",
+      "description": "The date and time by which the task should be completed. Null if no due date has been set."
     },
     "etag": {
       "type": "string",

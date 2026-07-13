@@ -228,8 +228,8 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 ? JDOSecondaryPropertyUtils.createJSONFromObject(statusUpdate.getExecutionDetails())
                 : null;
 
-        java.sql.Date dueDate = statusUpdate.getDueDate() != null
-                ? new java.sql.Date(statusUpdate.getDueDate().getTime())
+        Timestamp dueDate = statusUpdate.getDueDate() != null
+                ? new Timestamp(statusUpdate.getDueDate().getTime())
                 : null;
 
         jdbcTemplate.update(

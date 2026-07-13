@@ -59,8 +59,6 @@ public class DBOTestUtils {
 			return new Double(Math.PI * index);
 		} else if (Date.class.equals(field.getType())) {
 			return new Date(1000 * index);
-		} else if (java.sql.Date.class.equals(field.getType())) {
-			return new java.sql.Date(1000 * index);
 		} else if (Timestamp.class.equals(field.getType())) {
 			return new Timestamp(1000 * index);
 		} else if (field.getType().isEnum()) {

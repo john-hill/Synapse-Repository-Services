@@ -27,8 +27,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.docusign.DocuSignClient;
+import org.sagebionetworks.docusign.EnvelopeStatusResult;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatus;
 import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
 import org.sagebionetworks.repo.model.duc.DucStatusEnum;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
@@ -56,9 +58,6 @@ import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.util.Clock;
 
-import com.docusign.esign.model.Envelope;
-import com.docusign.esign.model.Recipients;
-import com.docusign.esign.model.Signer;
 
 @ExtendWith(MockitoExtension.class)
 public class EDucManagerTest {
@@ -576,24 +575,22 @@ public class EDucManagerTest {
 		request.setEDucSignatureEnvelopeId("env-123");
 		when(mockRequestDao.get("req-1")).thenReturn(request);
 
-		Signer signer1 = new Signer();
-		signer1.setName("Dr. Jones");
-		signer1.setEmail("pi@university.edu");
-		signer1.setStatus("completed");
-		Signer signer2 = new Signer();
-		signer2.setName("Jane Admin");
-		signer2.setEmail("so@university.edu");
-		signer2.setStatus("sent");
+		DucSignerStatus signer1Status = new DucSignerStatus();
+		signer1Status.setName("Dr. Jones");
+		signer1Status.setStatus(DucSignerStatusEnum.done);
+		DucSignerStatus signer2Status = new DucSignerStatus();
+		signer2Status.setName("Jane Admin");
+		signer2Status.setStatus(DucSignerStatusEnum.pending);
 
-		Recipients recipients = new Recipients();
-		recipients.setSigners(List.of(signer1, signer2));
+		DucSignatureStatus envelopeStatus = new DucSignatureStatus();
+		envelopeStatus.setDucStatus(DucStatusEnum.sent);
+		envelopeStatus.setCreatedOn(new java.util.Date());
+		envelopeStatus.setModifiedOn(new java.util.Date());
+		envelopeStatus.setSignerStatus(List.of(signer1Status, signer2Status));
 
-		Envelope envelope = new Envelope();
-		envelope.setStatus("sent");
-		envelope.setCreatedDateTime("2026-07-01T10:00:00Z");
-		envelope.setLastModifiedDateTime("2026-07-02T15:30:00Z");
-		envelope.setRecipients(recipients);
-		when(mockDocuSignClient.getEnvelope("env-123")).thenReturn(envelope);
+		EnvelopeStatusResult envelopeResult = new EnvelopeStatusResult(envelopeStatus,
+				List.of("pi@university.edu", "so@university.edu"));
+		when(mockDocuSignClient.getEnvelopeStatus("env-123")).thenReturn(envelopeResult);
 
 		PrincipalAlias alias1 = new PrincipalAlias();
 		alias1.setPrincipalId(200L);
@@ -643,31 +640,6 @@ public class EDucManagerTest {
 
 		assertEquals("This request does not have a routed DUC.", ex.getMessage());
 		verifyNoInteractions(mockDocuSignClient);
-	}
-
-	@Test
-	public void testToDucStatusEnum() {
-		assertEquals(DucStatusEnum.sent, EDucManager.toDucStatusEnum("sent"));
-		assertEquals(DucStatusEnum.delivered, EDucManager.toDucStatusEnum("delivered"));
-		assertEquals(DucStatusEnum.completed, EDucManager.toDucStatusEnum("completed"));
-		assertEquals(DucStatusEnum.completed, EDucManager.toDucStatusEnum("signed"));
-		assertEquals(DucStatusEnum.declined, EDucManager.toDucStatusEnum("declined"));
-		assertEquals(DucStatusEnum.voided, EDucManager.toDucStatusEnum("voided"));
-		assertNull(EDucManager.toDucStatusEnum(null));
-		assertThrows(IllegalArgumentException.class, () -> EDucManager.toDucStatusEnum("created"));
-	}
-
-	@Test
-	public void testToDucSignerStatusEnum() {
-		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum("sent"));
-		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum("delivered"));
-		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum("created"));
-		assertEquals(DucSignerStatusEnum.pending, EDucManager.toDucSignerStatusEnum(null));
-		assertEquals(DucSignerStatusEnum.done, EDucManager.toDucSignerStatusEnum("completed"));
-		assertEquals(DucSignerStatusEnum.done, EDucManager.toDucSignerStatusEnum("signed"));
-		assertEquals(DucSignerStatusEnum.declined, EDucManager.toDucSignerStatusEnum("declined"));
-		assertEquals(DucSignerStatusEnum.bounced, EDucManager.toDucSignerStatusEnum("autoresponded"));
-		assertThrows(IllegalArgumentException.class, () -> EDucManager.toDucSignerStatusEnum("bogus"));
 	}
 
 	@Test

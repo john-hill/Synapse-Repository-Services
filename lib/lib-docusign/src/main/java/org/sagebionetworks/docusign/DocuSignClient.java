@@ -6,6 +6,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
+import org.sagebionetworks.repo.model.duc.DucStatusEnum;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.util.ValidateArgument;
@@ -16,6 +20,7 @@ import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
+import com.docusign.esign.model.Signer;
 import com.docusign.esign.model.Tabs;
 import com.docusign.esign.model.TemplateRole;
 
@@ -118,9 +123,71 @@ public class DocuSignClient {
 		return roles;
 	}
 
-	public Envelope getEnvelope(String envelopeId) {
+	public EnvelopeStatusResult getEnvelopeStatus(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
-		return envelopesApi.getEnvelope(envelopeId);
+		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
+
+		DucSignatureStatus status = new DucSignatureStatus();
+		status.setCreatedOn(parseDate(envelope.getCreatedDateTime()));
+		status.setModifiedOn(parseDate(envelope.getLastModifiedDateTime()));
+		status.setDucStatus(toDucStatusEnum(envelope.getStatus()));
+
+		List<DucSignerStatus> signerStatuses = new ArrayList<>();
+		List<String> signerEmails = new ArrayList<>();
+		if (envelope.getRecipients() != null && envelope.getRecipients().getSigners() != null) {
+			for (Signer signer : envelope.getRecipients().getSigners()) {
+				DucSignerStatus signerStatus = new DucSignerStatus();
+				signerStatus.setName(signer.getName());
+				signerStatus.setStatus(toDucSignerStatusEnum(signer.getStatus()));
+				signerStatuses.add(signerStatus);
+				signerEmails.add(signer.getEmail());
+			}
+		}
+		status.setSignerStatus(signerStatuses);
+
+		return new EnvelopeStatusResult(status, signerEmails);
+	}
+
+	static DucStatusEnum toDucStatusEnum(String docuSignStatus) {
+		if (docuSignStatus == null) {
+			return null;
+		}
+		switch (docuSignStatus.toLowerCase()) {
+			case "sent":
+				return DucStatusEnum.sent;
+			case "delivered":
+				return DucStatusEnum.delivered;
+			case "completed":
+			case "signed":
+				return DucStatusEnum.completed;
+			case "declined":
+				return DucStatusEnum.declined;
+			case "voided":
+				return DucStatusEnum.voided;
+			default:
+				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
+		}
+	}
+
+	static DucSignerStatusEnum toDucSignerStatusEnum(String docuSignStatus) {
+		if (docuSignStatus == null) {
+			return DucSignerStatusEnum.pending;
+		}
+		switch (docuSignStatus.toLowerCase()) {
+			case "sent":
+			case "delivered":
+			case "created":
+				return DucSignerStatusEnum.pending;
+			case "completed":
+			case "signed":
+				return DucSignerStatusEnum.done;
+			case "declined":
+				return DucSignerStatusEnum.declined;
+			case "autoresponded":
+				return DucSignerStatusEnum.bounced;
+			default:
+				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
+		}
 	}
 
 	static EDucTemplatePage toEDucTemplatePage(EnvelopeTemplateResults results) {
@@ -143,8 +210,8 @@ public class DocuSignClient {
 		out.setTemplateId(t.getTemplateId());
 		out.setName(t.getName());
 		out.setDescription(t.getDescription());
-		out.setCreatedOn(parseDate(t.getCreatedDateTime()));
-		out.setModifiedOn(parseDate(t.getLastModifiedDateTime()));
+		out.setCreatedOn(parseDate(t.getCreated()));
+		out.setModifiedOn(parseDate(t.getLastModified()));
 		return out;
 	}
 

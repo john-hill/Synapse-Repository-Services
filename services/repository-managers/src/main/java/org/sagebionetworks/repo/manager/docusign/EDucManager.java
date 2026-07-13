@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.docusign.DocuSignClient;
+import org.sagebionetworks.docusign.EnvelopeStatusResult;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
@@ -28,8 +29,6 @@ import org.sagebionetworks.repo.model.dbo.dao.dataaccess.EDucQuotaDao;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
 import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
 import org.sagebionetworks.repo.model.duc.DucSignerStatus;
-import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
-import org.sagebionetworks.repo.model.duc.DucStatusEnum;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.educ.SignatureQuota;
@@ -39,9 +38,6 @@ import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
-
-import com.docusign.esign.model.Envelope;
-import com.docusign.esign.model.Signer;
 
 @Service
 public class EDucManager {
@@ -167,76 +163,27 @@ public class EDucManager {
 			throw new IllegalArgumentException("This request does not have a routed DUC.");
 		}
 
-		Envelope envelope = docuSignClient.getEnvelope(envelopeId);
+		EnvelopeStatusResult result = docuSignClient.getEnvelopeStatus(envelopeId);
+		DucSignatureStatus status = result.status();
+		List<String> signerEmails = result.signerEmails();
 
-		DucSignatureStatus status = new DucSignatureStatus();
 		status.setDataAccessRequestId(requestId);
-		status.setCreatedOn(DocuSignClient.parseDate(envelope.getCreatedDateTime()));
-		status.setModifiedOn(DocuSignClient.parseDate(envelope.getLastModifiedDateTime()));
-		status.setDucStatus(toDucStatusEnum(envelope.getStatus()));
-		// TODO PLFM-9657 will set the following to show whether 
+		// TODO PLFM-9657 will set the following to show whether
 		// changes to the request have been applied to the routed document
 		status.setIncludesRequestChanges(true);
 
-		List<DucSignerStatus> signerStatuses = new ArrayList<>();
-		if (envelope.getRecipients() != null && envelope.getRecipients().getSigners() != null) {
-			for (Signer signer : envelope.getRecipients().getSigners()) {
-				DucSignerStatus signerStatus = new DucSignerStatus();
-				signerStatus.setName(signer.getName());
-				signerStatus.setStatus(toDucSignerStatusEnum(signer.getStatus()));
-				// look up the email as a Synapse alias and, if found, fill in here.
-				PrincipalAlias principalAlias = principalAliasDao.findPrincipalWithAlias(signer.getEmail(), AliasType.USER_EMAIL);
-				if (principalAlias!=null) {
+		if (status.getSignerStatus() != null) {
+			for (int i = 0; i < status.getSignerStatus().size(); i++) {
+				DucSignerStatus signerStatus = status.getSignerStatus().get(i);
+				String email = signerEmails.get(i);
+				PrincipalAlias principalAlias = principalAliasDao.findPrincipalWithAlias(email, AliasType.USER_EMAIL);
+				if (principalAlias != null) {
 					signerStatus.setUserId(principalAlias.getPrincipalId().toString());
 				}
-				signerStatuses.add(signerStatus);
 			}
 		}
-		status.setSignerStatus(signerStatuses);
 
 		return status;
-	}
-
-	static DucStatusEnum toDucStatusEnum(String docuSignStatus) {
-		if (docuSignStatus == null) {
-			return null;
-		}
-		switch (docuSignStatus.toLowerCase()) {
-			case "sent":
-				return DucStatusEnum.sent;
-			case "delivered":
-				return DucStatusEnum.delivered;
-			case "completed":
-			case "signed":
-				return DucStatusEnum.completed;
-			case "declined":
-				return DucStatusEnum.declined;
-			case "voided":
-				return DucStatusEnum.voided;
-			default:
-				throw new IllegalArgumentException("Unexpected status "+docuSignStatus);
-		}
-	}
-
-	static DucSignerStatusEnum toDucSignerStatusEnum(String docuSignStatus) {
-		if (docuSignStatus == null) {
-			return DucSignerStatusEnum.pending;
-		}
-		switch (docuSignStatus.toLowerCase()) {
-			case "sent":
-			case "delivered":
-			case "created":
-				return DucSignerStatusEnum.pending;
-			case "completed":
-			case "signed":
-				return DucSignerStatusEnum.done;
-			case "declined":
-				return DucSignerStatusEnum.declined;
-			case "autoresponded":
-				return DucSignerStatusEnum.bounced;
-			default:
-				throw new IllegalArgumentException("Unexpected status "+docuSignStatus);
-		}
 	}
 
 	List<String> buildCollaboratorUserIds(RequestInterface request) {

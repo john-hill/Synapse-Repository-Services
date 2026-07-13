@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.model.ModelOptionsUtils;
 import org.springframework.ai.util.json.JsonParser;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -14,16 +15,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Verifies that {@link SpringAiConfiguration#configureToolArgumentJsonParsing()} makes Spring AI's
- * shared tool-argument parser tolerant of unescaped control characters. This is the exact parse
- * (Spring AI's {@link JsonParser#getObjectMapper()}) that {@code MethodToolCallback} uses to turn an
- * LLM tool-call's arguments into a Java map before invoking the tool method. Bedrock/Claude emit
- * multi-line code (e.g. the runPython {@code script}) with raw newlines, which the strict parser
- * rejects with "Illegal unquoted character (CTRL-CHAR, code 10)".
+ * two shared tool-argument parsers tolerant of unescaped control characters. Bedrock/Claude emit
+ * multi-line text (e.g. the runPython {@code script}, or a multi-line SQL query delegated to a
+ * specialist) with raw newlines, which the strict parsers reject with "Illegal unquoted character
+ * (CTRL-CHAR, code 10)". The two parsers are exercised on different turns:
+ * <ul>
+ * <li>{@link JsonParser#getObjectMapper()} — used by {@code MethodToolCallback} when invoking a tool.</li>
+ * <li>{@link ModelOptionsUtils#OBJECT_MAPPER} — used by {@code BedrockProxyChatModel.createRequest}
+ * (via {@code ModelOptionsUtils.jsonToMap}) when re-serializing a prior tool-call's arguments into the
+ * next request.</li>
+ * </ul>
  */
 public class SpringAiConfigurationTest {
 
 	// A tool-call arguments payload with a raw (unescaped) newline inside the string value,
-	// exactly as the model emits multi-line Python.
+	// exactly as the model emits multi-line text (Python script, SQL query, etc.).
 	private static final String MULTILINE_TOOL_ARGS = "{\"script\": \"import os\nprint(os.getcwd())\"}";
 
 	@Test
@@ -40,10 +46,23 @@ public class SpringAiConfigurationTest {
 		// call under test
 		new SpringAiConfiguration().configureToolArgumentJsonParsing();
 
-		// After configuration, Spring AI's shared parser (the one MethodToolCallback uses) parses the
+		// After configuration, the tool-invocation parser (the one MethodToolCallback uses) parses the
 		// multi-line script without throwing, and preserves the newline in the value.
 		Map<String, Object> parsed = JsonParser.getObjectMapper()
 				.readValue(MULTILINE_TOOL_ARGS, new TypeReference<Map<String, Object>>() {});
+
+		assertEquals("import os\nprint(os.getcwd())", parsed.get("script"));
+	}
+
+	@Test
+	public void testConfigureToolArgumentJsonParsingAllowsMultilineInModelOptionsUtils() {
+		// call under test
+		new SpringAiConfiguration().configureToolArgumentJsonParsing();
+
+		// After configuration, the request-building parser (ModelOptionsUtils.jsonToMap, used by
+		// BedrockProxyChatModel.createRequest when re-serializing a prior tool-call's arguments) parses
+		// the multi-line payload without throwing, and preserves the newline in the value.
+		Map<String, Object> parsed = ModelOptionsUtils.jsonToMap(MULTILINE_TOOL_ARGS);
 
 		assertEquals("import os\nprint(os.getcwd())", parsed.get("script"));
 	}

@@ -420,7 +420,7 @@ class CurationTaskDaoAutowireTest {
                 .setDataType("fastq")
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
-        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(14, 30, 0)).getTime());
+        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(0, 0, 0)).getTime());
         TaskStatus statusUpdate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
                 .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())
@@ -443,7 +443,7 @@ class CurationTaskDaoAutowireTest {
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
         // Set a due date
-        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(14, 30, 0)).getTime());
+        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(0, 0, 0)).getTime());
         TaskStatus withDueDate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
                 .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())

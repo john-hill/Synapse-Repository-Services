@@ -2,30 +2,61 @@ package org.sagebionetworks.markdown;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.http.ContentStreamProvider;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
+import software.amazon.awssdk.http.auth.spi.signer.SignRequest;
+import software.amazon.awssdk.http.auth.spi.signer.SignedRequest;
 
+@ExtendWith(MockitoExtension.class)
 public class AwsV4RequestSignerTest {
+	@Mock
+	private AwsV4HttpSigner mockHttpSigner;
+
 	private AwsV4RequestSigner signer;
 
 	@BeforeEach
 	public void before() {
 		signer = new AwsV4RequestSigner(
 			StaticCredentialsProvider.create(AwsBasicCredentials.create("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")),
-			AwsV4HttpSigner.create()
+			mockHttpSigner
 		);
+	}
+
+	/**
+	 * AwsV4HttpSigner returns headers via SdkHttpRequest.forEachHeader(), so a fake SignedRequest
+	 * carrying the given headers is enough to stand in for a real signature.
+	 */
+	private static SignedRequest fakeSignedRequest(Map<String, String> headers) {
+		SdkHttpRequest.Builder requestBuilder = SdkHttpRequest.builder()
+			.method(SdkHttpMethod.POST)
+			.uri(URI.create("https://example.com"));
+		headers.forEach(requestBuilder::putHeader);
+		return SignedRequest.builder().request(requestBuilder.build()).build();
 	}
 
 	@Test
@@ -33,6 +64,11 @@ public class AwsV4RequestSignerTest {
 		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
 		String payload = "{\"markdown\":\"## a heading\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
+
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20240101/us-east-1/execute-api/aws4_request, SignedHeaders=host;x-amz-date, Signature=abcdef0123456789");
+		canned.put("X-Amz-Date", "20240101T000000Z");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
 
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
@@ -47,14 +83,15 @@ public class AwsV4RequestSignerTest {
 		String payload = "{\"markdown\":\"## a heading\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20240101/us-east-1/execute-api/aws4_request, SignedHeaders=host;x-amz-date, Signature=abcdef0123456789");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
+
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
 
-		String authHeader = signedHeaders.get("Authorization");
-		assertNotNull(authHeader);
-		assertTrue(authHeader.startsWith("AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/"));
-		assertTrue(authHeader.contains("SignedHeaders="));
-		assertTrue(authHeader.contains("Signature="));
+		// Verify the header returned by the signer is passed through unmodified
+		assertEquals(canned.get("Authorization"), signedHeaders.get("Authorization"));
 	}
 
 	@Test
@@ -63,12 +100,15 @@ public class AwsV4RequestSignerTest {
 		String payload = "{\"markdown\":\"## a heading\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
+		Map<String, String> canned = new HashMap<>();
+		canned.put("X-Amz-Date", "20240101T000000Z");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
+
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
 
-		String amzDate = signedHeaders.get("X-Amz-Date");
-		assertNotNull(amzDate);
-		assertTrue(amzDate.matches("\\d{8}T\\d{6}Z"));
+		// Verify the header returned by the signer is passed through unmodified
+		assertEquals(canned.get("X-Amz-Date"), signedHeaders.get("X-Amz-Date"));
 	}
 
 	@Test
@@ -77,11 +117,20 @@ public class AwsV4RequestSignerTest {
 		String payload = "{\"markdown\":\"## a heading\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Host", "abc123.execute-api.us-east-1.amazonaws.com");
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/...");
+		canned.put("X-Amz-Date", "20240101T000000Z");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
+
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
 
 		assertFalse(signedHeaders.containsKey("Host"));
 		assertFalse(signedHeaders.containsKey("host"));
+		// Sanity check the other headers weren't dropped along with Host
+		assertTrue(signedHeaders.containsKey("Authorization"));
+		assertTrue(signedHeaders.containsKey("X-Amz-Date"));
 	}
 
 	@Test
@@ -89,6 +138,10 @@ public class AwsV4RequestSignerTest {
 		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
 		String payload = "{\"markdown\":\"## a heading\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
+
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/...");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
 
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
@@ -102,12 +155,22 @@ public class AwsV4RequestSignerTest {
 		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
 		byte[] payloadBytes = new byte[0];
 
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/...");
+		canned.put("X-Amz-Date", "20240101T000000Z");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
+
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
 
-		assertNotNull(signedHeaders);
 		assertNotNull(signedHeaders.get("Authorization"));
 		assertNotNull(signedHeaders.get("X-Amz-Date"));
+
+		// Verify the empty payload was still passed through to the signer rather than skipped
+		ArgumentCaptor<SignRequest> requestCaptor = ArgumentCaptor.forClass(SignRequest.class);
+		verify(mockHttpSigner).sign(requestCaptor.capture());
+		ContentStreamProvider capturedPayload = (ContentStreamProvider) requestCaptor.getValue().payload().get();
+		assertEquals(0, capturedPayload.newStream().readAllBytes().length);
 	}
 
 	@Test
@@ -117,13 +180,26 @@ public class AwsV4RequestSignerTest {
 		String payload = "{\"markdown\":\"test\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
-		// call under test - both should produce valid signatures
+		Map<String, String> canned1 = new HashMap<>();
+		canned1.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/.../service1");
+		Map<String, String> canned2 = new HashMap<>();
+		canned2.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/.../service2");
+		when(mockHttpSigner.sign(any(SignRequest.class)))
+			.thenReturn(fakeSignedRequest(canned1))
+			.thenReturn(fakeSignedRequest(canned2));
+
+		// call under test - each endpoint is signed independently
 		Map<String, String> headers1 = signer.sign(URI.create(endpoint1), payloadBytes);
 		Map<String, String> headers2 = signer.sign(URI.create(endpoint2), payloadBytes);
 
 		assertNotNull(headers1.get("Authorization"));
 		assertNotNull(headers2.get("Authorization"));
-		// Signatures should be different because endpoints are different
-		assertFalse(headers1.get("Authorization").equals(headers2.get("Authorization")));
+		assertNotEquals(headers1.get("Authorization"), headers2.get("Authorization"));
+
+		// Verify each call was signed with its own endpoint rather than a cached/shared one
+		ArgumentCaptor<SignRequest> requestCaptor = ArgumentCaptor.forClass(SignRequest.class);
+		verify(mockHttpSigner, times(2)).sign(requestCaptor.capture());
+		assertEquals(URI.create(endpoint1), requestCaptor.getAllValues().get(0).request().getUri());
+		assertEquals(URI.create(endpoint2), requestCaptor.getAllValues().get(1).request().getUri());
 	}
 }

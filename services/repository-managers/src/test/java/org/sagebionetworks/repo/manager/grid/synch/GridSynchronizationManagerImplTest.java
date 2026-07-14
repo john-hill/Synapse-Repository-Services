@@ -119,9 +119,9 @@ public class GridSynchronizationManagerImplTest {
 		when(mockGridManager.getGridSession(mockUser, gridSessionId)).thenReturn(gridSession);
 		when(mockCopyHandlerProvider.createCopyHandler(gridSession)).thenReturn(mockCopyHandler);
 		when(mockCopyHandler.getGridSource()).thenReturn(source);
-		when(mockSourceHandlerProvdier.createNewProvider(mockCallback, mockUser, gridSession, source))
+		when(mockSourceHandlerProvdier.createNewHandler(mockCallback, mockUser, gridSession, source))
 				.thenReturn(mockSourceHandler);
-		when(mockSourceHandler.createSourceWriter()).thenReturn(mockSourceWriter);
+		when(mockSourceHandler.createSourceWriter(any(SyncType.class))).thenReturn(mockSourceWriter);
 		when(mockSourceHandler.getSourceRowReader()).thenReturn(mockSourceReader);
 
 		when(mockSynchronizeProvider.getSchemaSyncOutcomeHandler(mockIntendedChangePublisher, mockCopyHandler,
@@ -159,7 +159,7 @@ public class GridSynchronizationManagerImplTest {
 		// null syncType defaults to PULL_PUSH and is validated against the source
 		verify(mockSourceHandler).validateSyncType(SyncType.PULL_PUSH);
 		// the writer prepares any push artifact keyed to the final schema
-		verify(mockSourceWriter).beginPush(mockCallback, finalSchema, SyncType.PULL_PUSH);
+		verify(mockSourceWriter).beginPush(mockCallback, finalSchema);
 		verify(mockLogic).synchronize(any(), eq(mockSchemaReader), eq(mockSchemaRules), eq(mockSchemaHandler));
 		verify(mockLogic).synchronize(any(), eq(mockRowReader), eq(mockRowRules), eq(mockRowHandler));
 		verify(mockGridManager).updateSessionBenefactorIds(gridSessionId, benefactorIds);
@@ -181,9 +181,9 @@ public class GridSynchronizationManagerImplTest {
 		when(mockGridManager.getGridSession(mockUser, gridSessionId)).thenReturn(gridSession);
 		when(mockCopyHandlerProvider.createCopyHandler(gridSession)).thenReturn(mockCopyHandler);
 		when(mockCopyHandler.getGridSource()).thenReturn(gridSource);
-		when(mockSourceHandlerProvdier.createNewProvider(mockCallback, mockUser, gridSession, gridSource))
+		when(mockSourceHandlerProvdier.createNewHandler(mockCallback, mockUser, gridSession, gridSource))
 				.thenReturn(mockSourceHandler);
-		when(mockSourceHandler.createSourceWriter()).thenReturn(mockSourceWriter);
+		when(mockSourceHandler.createSourceWriter(SyncType.PULL)).thenReturn(mockSourceWriter);
 		when(mockSourceHandler.getSourceRowReader()).thenReturn(mockSourceReader);
 		doThrow(new IllegalArgumentException(expectedError)).when(mockSourceHandler).validateSyncType(SyncType.PULL);
 		doReturn(mockIntendedChangePublisher).when(manager).newIntendedChangePublisher(mockCopyHandler);
@@ -215,7 +215,7 @@ public class GridSynchronizationManagerImplTest {
 		manager.synchronizeCopyWithSource(mockCallback, mockUser, request);
 
 		// the writer prepares the push artifact, then flushes it to a new version
-		verify(mockSourceWriter).beginPush(mockCallback, finalSchema, SyncType.PULL_PUSH);
+		verify(mockSourceWriter).beginPush(mockCallback, finalSchema);
 		verify(mockSourceWriter).completePush();
 		// the new pushed version becomes the synced baseline (overrides the 7L from getSourceVersion)
 		verify(mockGridManager).updateSourceEntityVersion(gridSessionId, 8L);

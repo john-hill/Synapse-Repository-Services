@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +35,7 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.util.ValidateArgument;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
 import com.google.common.collect.Iterators;
@@ -62,9 +64,8 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
 
-		Optional<GridSession> gridSession = gridDao.getGridSession(sessionId);
-		if (!hasValidSession(gridSession)) {
-			log.info("No valid grid session found for sessionId: {}, skipping validation", sessionId);
+		Optional<GridSession> gridSession = resolveValidSession(sessionId, "validation");
+		if (gridSession.isEmpty()) {
 			return;
 		}
 
@@ -81,27 +82,104 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 			return;
 		}
 
+		// For each row in the replica, validate only if the data is newer than the validation result.
+		validateRowsInBatches(gridSession.get(), header.get(), validationConnectionOpt.get(),
+				this::isDataNewerThanValidationResult);
+	}
 
-		// For each row in the replica, validate if the data is newer than the validation result.
-		// But we should batch the rowViews!
-		Iterator<RowView> rowViewIterator = gridReplicaViewManager.getQueryIterator(header.get(), List.of());
+	/**
+	 * Force a full revalidation of every row in the session, because the
+	 * session's bound JSON schema changed — unlike {@link #validateAllRows},
+	 * this validates every row unconditionally, since the schema (not the data)
+	 * is what changed.
+	 * <p>
+	 * Throws {@link RecoverableMessageException} if the connection to the
+	 * VALIDATION replica is not yet available
+	 *
+	 * @param sessionId
+	 */
+	@GridTransaction(readOnly = true)
+	@Override
+	public void validateAfterSchemaChange(String sessionId) {
+		ValidateArgument.required(sessionId, "sessionId");
+
+		Optional<GridSession> gridSession = resolveValidSession(sessionId, "schema-change validation");
+		if (gridSession.isEmpty()) {
+			return;
+		}
+
+		Optional<GridConnectionInfo> internalConnectionOpt = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL);
+		if (internalConnectionOpt.isEmpty()) {
+			log.info("No internal connection found for sessionId: {}, skipping schema-change validation", sessionId);
+			return;
+		}
+
+		Optional<GridConnectionInfo> validationConnectionOpt = gridDao.getSingletonConnection(sessionId,
+				EventSource.VALIDATION);
+		if (validationConnectionOpt.isEmpty()) {
+			throw new RecoverableMessageException(
+					"A VALIDATION replica connection is being established for sessionId: " + sessionId
+							+ ", retrying once it has connected.");
+		}
+
+		Optional<GridHeader> header = gridReplicaViewManager.readHeader(sessionId,
+				internalConnectionOpt.get().getReplicaId());
+		if (header.isEmpty()) {
+			log.info("No grid header found for sessionId: {}, skipping schema-change validation", sessionId);
+			return;
+		}
+
+		validateRowsInBatches(gridSession.get(), header.get(), validationConnectionOpt.get(), row -> true);
+	}
+
+	/**
+	 * Load the session and verify it is valid for validation (present and bound
+	 * to a JSON schema). Logs and returns {@link Optional#empty()} when the
+	 * session cannot be validated.
+	 *
+	 * @param sessionId
+	 * @param action    included in the skip log message for context
+	 * @return the valid session, or empty if validation should be skipped
+	 */
+	Optional<GridSession> resolveValidSession(String sessionId, String action) {
+		Optional<GridSession> gridSession = gridDao.getGridSession(sessionId);
+		if (!hasValidSession(gridSession)) {
+			log.info("No valid grid session found for sessionId: {}, skipping {}", sessionId, action);
+			return Optional.empty();
+		}
+		return gridSession;
+	}
+
+	/**
+	 * Iterate every row in the header in batches, validate the rows that pass the
+	 * {@code shouldValidate} predicate, and publish the resulting changes via the
+	 * given (VALIDATION) connection.
+	 *
+	 * @param gridSession
+	 * @param header
+	 * @param validationConnection
+	 * @param shouldValidate       a row is validated only when this predicate is
+	 *                             true for it; pass {@code row -> true} to
+	 *                             validate every row unconditionally.
+	 */
+	void validateRowsInBatches(GridSession gridSession, GridHeader header, GridConnectionInfo validationConnection,
+			Predicate<RowView> shouldValidate) {
+		Iterator<RowView> rowViewIterator = gridReplicaViewManager.getQueryIterator(header, List.of());
 
 		try (IntendedChangePublisher publisher = new IntendedChangePublisher(
-				validationConnectionOpt.get(),
-				header.get().getClockSequenceMaximum(),
+				validationConnection,
+				header.getClockSequenceMaximum(),
 				patchBuilderPublisher,
 				PatchUtils.MAX_CHANGE_SET_SIZE)) {
 
 			Iterators.partition(rowViewIterator, 1000).forEachRemaining(batch -> {
-				List<RowView> changedRows = batch.stream()
-						.filter(this::isDataNewerThanValidationResult)
-						.collect(Collectors.toList());
-				if (changedRows.isEmpty()) {
+				List<RowView> rowsToValidate = batch.stream().filter(shouldValidate).collect(Collectors.toList());
+				if (rowsToValidate.isEmpty()) {
 					return;
 				}
 
-				List<IntendedChange> intendedChanges = validateRows(header.get(),
-						gridSession.get().getGridJsonSchema$Id(), changedRows);
+				List<IntendedChange> intendedChanges = validateRows(header, gridSession.getGridJsonSchema$Id(),
+						rowsToValidate);
 
 				for (IntendedChange change : intendedChanges) {
 					publisher.publish(change);
@@ -124,9 +202,8 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 			return;
 		}
 
-		Optional<GridSession> gridSession = gridDao.getGridSession(sessionId);
-		if (!hasValidSession(gridSession)) {
-			log.info("No valid grid session found for sessionId: {}, skipping validation", sessionId);
+		Optional<GridSession> gridSession = resolveValidSession(sessionId, "validation");
+		if (gridSession.isEmpty()) {
 			return;
 		}
 

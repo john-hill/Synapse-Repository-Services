@@ -15,7 +15,7 @@ import org.sagebionetworks.repo.model.grid.SyncType;
  * rows and schema, the keying/matchability/deletion rules the engine needs, and
  * per-run metadata (benefactor ids, source version, bound schema). It never
  * mutates the source — that is the job of the paired {@link SourceWriter}
- * obtained via {@link #createSourceWriter()}.
+ * obtained via {@link #createSourceWriter(SyncType)}.
  *
  * <p>
  * This bridges the synchronization logic with the actual source implementation,
@@ -31,9 +31,10 @@ public interface SourceHandler extends AutoCloseable {
 	 * returned writer is independently {@link AutoCloseable} and must be closed by
 	 * the caller.
 	 *
+	 * @param syncType the resolved sync type for this run
 	 * @return a new source writer for this source
 	 */
-	SourceWriter createSourceWriter();
+	SourceWriter createSourceWriter(SyncType syncType);
 
 	/**
 	 * Gets a disk-based reader for streaming all rows from the source. Used during

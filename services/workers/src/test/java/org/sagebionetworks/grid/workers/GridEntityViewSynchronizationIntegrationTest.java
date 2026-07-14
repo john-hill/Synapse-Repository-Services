@@ -69,7 +69,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
-public class GridSynchronizationIntegrationTest {
+public class GridEntityViewSynchronizationIntegrationTest {
 
 	public static final long MAX_WAIT_MS = 120_000;
 

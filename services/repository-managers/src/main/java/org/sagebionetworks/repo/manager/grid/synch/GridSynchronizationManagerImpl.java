@@ -38,19 +38,19 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 
 	private final GridManager gridManager;
 	private final PatchBuilderPublisher patchBuilderPublisher;
-	private final SourceHandlerProvider sourceHandlerProvdier;
+	private final SourceHandlerProvider sourceHandlerProvider;
 	private final CopyHandlerProvider copyHandlerProvider;
 	private final SynchronizationLogic logic;
 	private final SynchronizeProvider synchronizeProvider;
 
-	public GridSynchronizationManagerImpl(SourceHandlerProvider sourceHandlerProvdier,
+	public GridSynchronizationManagerImpl(SourceHandlerProvider sourceHandlerProvider,
 			CopyHandlerProvider copyHandlerProvider, SynchronizationLogic logic,
 			SynchronizeProvider synchronizeProvider, PatchBuilderPublisher patchBuilderPublisher,
 			GridManager gridManager) {
 		super();
 		this.gridManager = gridManager;
 		this.patchBuilderPublisher = patchBuilderPublisher;
-		this.sourceHandlerProvdier = sourceHandlerProvdier;
+		this.sourceHandlerProvider = sourceHandlerProvider;
 		this.copyHandlerProvider = copyHandlerProvider;
 		this.logic = logic;
 		this.synchronizeProvider = synchronizeProvider;
@@ -71,9 +71,9 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		List<String> errorMessage;
 		Set<Long> benefactorIds;
 		try (CopyHandler copyHandler = copyHandlerProvider.createCopyHandler(session);
-				SourceHandler sourceHandler = sourceHandlerProvdier.createNewProvider(callback, user, session,
+				SourceHandler sourceHandler = sourceHandlerProvider.createNewHandler(callback, user, session,
 						copyHandler.getGridSource());
-				SourceWriter sourceWriter = sourceHandler.createSourceWriter();
+				SourceWriter sourceWriter = sourceHandler.createSourceWriter(syncType);
 				RowSourceItemReader sourceReader = sourceHandler.getSourceRowReader();
 				IntendedChangePublisher icp = newIntendedChangePublisher(copyHandler)) {
 
@@ -96,7 +96,7 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			boolean preserveUserAttribution = SyncType.PULL.equals(syncType);
 
 			// Prepare any push artifact the writer may build during the merge
-			sourceWriter.beginPush(callback, finalSchema, syncType);
+			sourceWriter.beginPush(callback, finalSchema);
 
 			// Phase two: run the row merge. The row outcome handler applies grid CRDT
 			// changes directly and reports every surviving row to the writer so a pushed

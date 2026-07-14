@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Date;
@@ -198,9 +199,8 @@ public class ITCurationTaskControllerTest {
             assertEquals(TaskState.NOT_STARTED, bundle.getStatus().getState());
             assertEquals(task.getEtag(), bundle.getStatus().getEtag());
 
-            // A due date is a calendar date (no time component); use a local-midnight value so it
-            // round-trips exactly over the wire and through the DATE column.
-            Date dueDate = new Date(java.sql.Date.valueOf(LocalDate.of(2026, 8, 15)).getTime());
+            // A due date is a timestamp; use a local-midnight value for consistency across timezones
+            Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(0, 0, 0)).getTime());
 
             // Update status to IN_PROGRESS
             TaskStatus statusUpdate = new TaskStatus()

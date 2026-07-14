@@ -85,7 +85,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 : null;
         Long stateUpdatedBy = rs.getObject(COL_CURATION_TASK_STATE_UPDATED_BY, Long.class);
         Timestamp stateUpdatedOn = rs.getTimestamp(COL_CURATION_TASK_STATE_UPDATED_ON);
-        java.sql.Date dueDate = rs.getDate(COL_CURATION_TASK_DUE_DATE);
+        Timestamp dueDate = rs.getTimestamp(COL_CURATION_TASK_DUE_DATE);
         return new TaskStatus()
                 .setTaskId(rs.getLong(COL_CURATION_TASK_ID))
                 .setState(TaskState.valueOf(rs.getString(COL_CURATION_TASK_STATE)))

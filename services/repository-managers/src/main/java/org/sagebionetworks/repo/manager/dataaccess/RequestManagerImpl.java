@@ -56,6 +56,7 @@ public class RequestManagerImpl implements RequestManager{
 	Request create(UserInfo userInfo, Request toCreate) {
 		ValidateArgument.required(userInfo, "userInfo");
 		validateRequest(toCreate);
+		validateEnvelopeCompletion(toCreate);
 		validateFileHandleAccess(userInfo, toCreate);
 		AccessRequirement ar = accessRequirementDao.get(toCreate.getAccessRequirementId());
 		ValidateArgument.requirement(ar instanceof ManagedACTAccessRequirement,
@@ -97,13 +98,16 @@ public class RequestManagerImpl implements RequestManager{
 	}
 
 
+	void validateEnvelopeCompletion(RequestInterface request) {
+		if (request.getDucFileHandleId() != null && request.getEDucSignatureEnvelopeId() != null) {
+			EnvelopeStatusResult envelopeResult = docuSignClient.getEnvelopeStatus(request.getEDucSignatureEnvelopeId());
+			ValidateArgument.requirement(EDucStatusEnum.completed.equals(envelopeResult.status().getDucStatus()),
+					"Cannot set ducFileHandleId: the eDUC envelope has not been completed.");
+		}
+	}
+
 	void validateFileHandleAccess(UserInfo userInfo, RequestInterface request) {
 		if (request.getDucFileHandleId() != null) {
-			if (request.getEDucSignatureEnvelopeId() != null) {
-				EnvelopeStatusResult envelopeResult = docuSignClient.getEnvelopeStatus(request.getEDucSignatureEnvelopeId());
-				ValidateArgument.requirement(EDucStatusEnum.completed.equals(envelopeResult.status().getDucStatus()),
-						"Cannot set ducFileHandleId: the eDUC envelope has not been completed.");
-			}
 			fileHandleAuthorizationManager.canAccessRawFileHandleById(userInfo, request.getDucFileHandleId())
 					.checkAuthorizationOrElseThrow();
 		}
@@ -177,6 +181,7 @@ public class RequestManagerImpl implements RequestManager{
 			throws NotFoundException, UnauthorizedException {
 		ValidateArgument.required(userInfo, "userInfo");
 		validateRequest(toUpdate);
+		validateEnvelopeCompletion(toUpdate);
 		validateFileHandleAccess(userInfo, toUpdate);
 
 		RequestInterface original = requestDao.getForUpdate(toUpdate.getId());

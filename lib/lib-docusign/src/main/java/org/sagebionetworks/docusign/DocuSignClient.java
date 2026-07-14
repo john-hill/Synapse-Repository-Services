@@ -40,18 +40,38 @@ public class DocuSignClient {
 		this.envelopesApi = envelopesApi;
 	}
 
+	/**
+	 * List a page of templates from the configured DocuSign account.
+	 *
+	 * @param startPosition 0-based offset into the DocuSign template set
+	 * @param count page size to request from DocuSign
+	 * @return a page of templates; the {@code nextPageToken} field is left null
+	 *         (callers are responsible for assembling the Synapse-style token)
+	 */
 	public EDucTemplatePage listTemplates(int startPosition, int count) {
 		EnvelopeTemplateResults results = templatesApi.listTemplates(
 				String.valueOf(startPosition), String.valueOf(count));
 		return toEDucTemplatePage(results);
 	}
 
+	/**
+	 * Validates that the given template has the required signer roles and tabs.
+	 * Throws IllegalArgumentException if the template does not meet requirements.
+	 */
 	public void validateTemplate(String templateId) {
 		ValidateArgument.required(templateId, "templateId");
 		EnvelopeTemplate template = templatesApi.getTemplate(templateId);
 		DocuSignTemplateValidator.validate(template);
 	}
 
+	/**
+	 * Creates and immediately sends an envelope from the specified template.
+	 *
+	 * @param templateId the DocuSign template ID
+	 * @param roleEmails map from role name to the signer's email address
+	 * @param tabValues map from (roleName, tabLabel) to the text value to pre-fill
+	 * @return the envelope ID of the created envelope
+	 */
 	public String createAndSendEnvelope(String templateId, Map<String, String> roleEmails,
 			Map<RoleLabelKey, String> tabValues) {
 		ValidateArgument.required(templateId, "templateId");

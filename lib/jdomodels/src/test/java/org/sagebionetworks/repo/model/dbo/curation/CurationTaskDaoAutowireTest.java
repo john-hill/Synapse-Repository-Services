@@ -452,7 +452,7 @@ class CurationTaskDaoAutowireTest {
         TaskStatus withDueDateResult = dao.updateTaskStatus(userId, created.getTaskId(), withDueDate);
         assertEquals(dueDate, withDueDateResult.getDueDate());
 
-        // Now clear it by omitting dueDate from the update (standard PUT semantics)
+        // Now clear it by omitting dueDate from the update
         TaskStatus clearUpdate = new TaskStatus()
                 .setState(TaskState.COMPLETED)
                 .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag());

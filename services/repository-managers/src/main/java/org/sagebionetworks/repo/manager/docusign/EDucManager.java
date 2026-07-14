@@ -1,14 +1,18 @@
 package org.sagebionetworks.repo.manager.docusign;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.entity.ContentType;
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.RoleLabelKey;
+import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
@@ -26,6 +30,8 @@ import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.EDucQuotaDao;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
+import org.sagebionetworks.repo.model.duc.DucFileHandleId;
+import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.educ.SignatureQuota;
@@ -50,11 +56,12 @@ public class EDucManager {
 	private final UserProfileDAO userProfileDao;
 	private final EDucQuotaDao eDucQuotaDao;
 	private final Clock clock;
+	private final FileHandleManager fileHandleManager;
 
 	public EDucManager(DocuSignClient docuSignClient, RequestDAO requestDao,
 			AccessRequirementDAO accessRequirementDao, PrincipalAliasDAO principalAliasDao,
 			NotificationEmailDAO notificationEmailDao, UserProfileDAO userProfileDao,
-			EDucQuotaDao eDucQuotaDao, Clock clock) {
+			EDucQuotaDao eDucQuotaDao, Clock clock, FileHandleManager fileHandleManager) {
 		this.docuSignClient = docuSignClient;
 		this.requestDao = requestDao;
 		this.accessRequirementDao = accessRequirementDao;
@@ -63,6 +70,7 @@ public class EDucManager {
 		this.userProfileDao = userProfileDao;
 		this.eDucQuotaDao = eDucQuotaDao;
 		this.clock = clock;
+		this.fileHandleManager = fileHandleManager;
 	}
 
 	public EDucTemplatePage listTemplates(UserInfo userInfo, EDucTemplateListRequest request) throws Exception {
@@ -141,6 +149,55 @@ public class EDucManager {
 		result.setQuota((long) MAX_ENVELOPES_PER_MONTH);
 		result.setRemaining((long) (MAX_ENVELOPES_PER_MONTH - count - 1));
 		return result;
+	}
+
+	public void cancelSignature(UserInfo userInfo, String requestId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(requestId, "requestId");
+
+		RequestInterface request = requestDao.get(requestId);
+
+		if (!AuthorizationUtils.isUserCreatorOrAdmin(userInfo, request.getCreatedBy())) {
+			throw new UnauthorizedException("Only the request creator or an administrator can cancel a signature.");
+		}
+
+		String envelopeId = request.getEDucSignatureEnvelopeId();
+		if (envelopeId == null) {
+			throw new IllegalArgumentException("This request does not have a routed DUC.");
+		}
+
+		docuSignClient.voidEnvelope(envelopeId, "Cancelled by user.");
+		request.setEDucSignatureEnvelopeId(null);
+		requestDao.update(request);
+	}
+
+	public DucFileHandleId getSignedDocumentFileHandle(UserInfo userInfo, String requestId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(requestId, "requestId");
+
+		RequestInterface request = requestDao.get(requestId);
+
+		if (!AuthorizationUtils.isUserCreatorOrAdmin(userInfo, request.getCreatedBy())) {
+			throw new UnauthorizedException("Only the request creator or an administrator can retrieve the signed document.");
+		}
+
+		String envelopeId = request.getEDucSignatureEnvelopeId();
+		if (envelopeId == null) {
+			throw new IllegalArgumentException("This request does not have a routed DUC.");
+		}
+
+		byte[] pdfBytes = docuSignClient.getSignedDocument(envelopeId);
+
+		try {
+			S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(
+					userInfo.getId().toString(), new Date(), pdfBytes,
+					"eDUC_" + requestId + ".pdf", ContentType.create("application/pdf"), null);
+			DucFileHandleId result = new DucFileHandleId();
+			result.setFileHandleId(fileHandle.getId());
+			return result;
+		} catch (IOException e) {
+			throw new IllegalStateException("Failed to upload signed document.", e);
+		}
 	}
 
 	List<String> buildCollaboratorUserIds(RequestInterface request) {

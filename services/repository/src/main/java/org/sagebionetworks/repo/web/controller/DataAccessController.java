@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
+import org.sagebionetworks.repo.model.duc.DucFileHandleId;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.educ.SignatureQuota;
@@ -450,6 +451,37 @@ public class DataAccessController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String requestId) {
 		return serviceProvider.getEDucService().routeForSignature(userId, requestId);
+	}
+
+	/**
+	 * Cancel a routed eDUC envelope.
+	 *
+	 * @param userId    - The ID of the user who is making the request.
+	 * @param requestId - The ID of the data access request.
+	 */
+	@RequiredScope({view, modify})
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_ID_SIGNATURE, method = RequestMethod.DELETE)
+	public void cancelSignature(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String requestId) {
+		serviceProvider.getEDucService().cancelSignature(userId, requestId);
+	}
+
+	/**
+	 * Get the file handle ID of the signed eDUC document.
+	 *
+	 * @param userId    - The ID of the user who is making the request.
+	 * @param requestId - The ID of the data access request.
+	 * @return The file handle ID for the signed PDF.
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_ID_SIGNATURE_FILE_HANDLE, method = RequestMethod.GET)
+	public @ResponseBody DucFileHandleId getSignedDocumentFileHandle(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String requestId) {
+		return serviceProvider.getEDucService().getSignedDocumentFileHandle(userId, requestId);
 	}
 
 }

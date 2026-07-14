@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.service.docusign;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.docusign.EDucManager;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.duc.DucFileHandleId;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.repo.model.educ.SignatureQuota;
@@ -27,5 +28,15 @@ public class EDucService {
 	public SignatureQuota routeForSignature(Long userId, String requestId) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return eDucManager.routeForSignature(userInfo, requestId);
+	}
+
+	public void cancelSignature(Long userId, String requestId) {
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		eDucManager.cancelSignature(userInfo, requestId);
+	}
+
+	public DucFileHandleId getSignedDocumentFileHandle(Long userId, String requestId) {
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		return eDucManager.getSignedDocumentFileHandle(userInfo, requestId);
 	}
 }

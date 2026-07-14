@@ -4,6 +4,8 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.sagebionetworks.docusign.DocuSignClient;
+import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationManager;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
@@ -34,19 +36,25 @@ public class RequestManagerImpl implements RequestManager{
 	private final AccessRequirementDAO accessRequirementDao;
 	private final RequestDAO requestDao;
 	private final SubmissionDAO submissionDao;
-	
+	private final FileHandleAuthorizationManager fileHandleAuthorizationManager;
+	private final DocuSignClient docuSignClient;
+
 	@Autowired
 	public RequestManagerImpl(AccessRequirementDAO accessRequirementDao, RequestDAO requestDao,
-			SubmissionDAO submissionDao) {
+			SubmissionDAO submissionDao, FileHandleAuthorizationManager fileHandleAuthorizationManager,
+			DocuSignClient docuSignClient) {
 		super();
 		this.accessRequirementDao = accessRequirementDao;
 		this.requestDao = requestDao;
 		this.submissionDao = submissionDao;
+		this.fileHandleAuthorizationManager = fileHandleAuthorizationManager;
+		this.docuSignClient = docuSignClient;
 	}
 
 	Request create(UserInfo userInfo, Request toCreate) {
 		ValidateArgument.required(userInfo, "userInfo");
 		validateRequest(toCreate);
+		validateFileHandleAccess(userInfo, toCreate);
 		AccessRequirement ar = accessRequirementDao.get(toCreate.getAccessRequirementId());
 		ValidateArgument.requirement(ar instanceof ManagedACTAccessRequirement,
 				"A Request can only associate with an ManagedACTAccessRequirement.");
@@ -86,6 +94,22 @@ public class RequestManagerImpl implements RequestManager{
 		}
 	}
 
+
+	void validateFileHandleAccess(UserInfo userInfo, RequestInterface request) {
+		if (request.getDucFileHandleId() != null) {
+			if (request.getEDucSignatureEnvelopeId() != null) {
+				String envelopeStatus = docuSignClient.getEnvelopeStatus(request.getEDucSignatureEnvelopeId());
+				ValidateArgument.requirement("completed".equalsIgnoreCase(envelopeStatus),
+						"Cannot set ducFileHandleId: the eDUC envelope has not been completed.");
+			}
+			fileHandleAuthorizationManager.canAccessRawFileHandleById(userInfo, request.getDucFileHandleId())
+					.checkAuthorizationOrElseThrow();
+		}
+		if (request.getIrbFileHandleId() != null) {
+			fileHandleAuthorizationManager.canAccessRawFileHandleById(userInfo, request.getIrbFileHandleId())
+					.checkAuthorizationOrElseThrow();
+		}
+	}
 
 	@Override
 	public RequestInterface getRequestForUpdate(UserInfo userInfo, String accessRequirementId)
@@ -151,6 +175,7 @@ public class RequestManagerImpl implements RequestManager{
 			throws NotFoundException, UnauthorizedException {
 		ValidateArgument.required(userInfo, "userInfo");
 		validateRequest(toUpdate);
+		validateFileHandleAccess(userInfo, toUpdate);
 
 		RequestInterface original = requestDao.getForUpdate(toUpdate.getId());
 

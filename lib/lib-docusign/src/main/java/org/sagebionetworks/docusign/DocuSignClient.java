@@ -117,6 +117,26 @@ public class DocuSignClient {
 		return roles;
 	}
 
+	public void voidEnvelope(String envelopeId, String reason) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		ValidateArgument.required(reason, "reason");
+		envelopesApi.voidEnvelope(envelopeId, reason);
+	}
+
+	public String getEnvelopeStatus(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		return envelopesApi.getEnvelopeStatus(envelopeId);
+	}
+
+	public byte[] getSignedDocument(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		String status = envelopesApi.getEnvelopeStatus(envelopeId);
+		if (!"completed".equalsIgnoreCase(status)) {
+			throw new IllegalArgumentException("Cannot retrieve signed document: envelope status is " + status + ".");
+		}
+		return envelopesApi.getDocument(envelopeId, "combined");
+	}
+
 	static EDucTemplatePage toEDucTemplatePage(EnvelopeTemplateResults results) {
 		EDucTemplatePage page = new EDucTemplatePage();
 		List<EnvelopeTemplate> templates = results == null ? null : results.getEnvelopeTemplates();
@@ -142,7 +162,7 @@ public class DocuSignClient {
 		return out;
 	}
 
-	static Date parseDate(String iso8601) {
+	private static Date parseDate(String iso8601) {
 		if (iso8601 == null || iso8601.isEmpty()) {
 			return null;
 		}

@@ -25,12 +25,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
+import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
+import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
+import org.sagebionetworks.repo.model.duc.DucStatusEnum;
+
 import com.docusign.esign.client.ApiException;
 
+import com.docusign.esign.model.Envelope;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
+import com.docusign.esign.model.Recipients;
+import com.docusign.esign.model.Signer;
 import com.docusign.esign.model.TemplateRole;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,8 +59,8 @@ public class DocuSignClientTest {
 		t1.setTemplateId("tpl-1");
 		t1.setName("Consent Form");
 		t1.setDescription("Standard consent form");
-		t1.setCreatedDateTime(createdIso);
-		t1.setLastModifiedDateTime(modifiedIso);
+		t1.setCreated(createdIso);
+		t1.setLastModified(modifiedIso);
 		EnvelopeTemplate t2 = new EnvelopeTemplate();
 		t2.setTemplateId("tpl-2");
 		t2.setName("Data Sharing Agreement");
@@ -211,5 +218,73 @@ public class DocuSignClientTest {
 				DocuSignApiRetryHelper.convertApiException(new ApiException(500, "x")).getClass());
 		assertEquals(IllegalStateException.class,
 				DocuSignApiRetryHelper.convertApiException(new ApiException(429, "x")).getClass());
+	}
+
+	@Test
+	public void testGetEnvelopeStatusSuccess() {
+		Signer signer1 = new Signer();
+		signer1.setName("Dr. Jones");
+		signer1.setEmail("pi@university.edu");
+		signer1.setStatus("completed");
+		Signer signer2 = new Signer();
+		signer2.setName("Jane Admin");
+		signer2.setEmail("so@university.edu");
+		signer2.setStatus("sent");
+
+		Recipients recipients = new Recipients();
+		recipients.setSigners(List.of(signer1, signer2));
+
+		Envelope envelope = new Envelope();
+		envelope.setStatus("sent");
+		envelope.setCreatedDateTime("2026-07-01T10:00:00Z");
+		envelope.setLastModifiedDateTime("2026-07-02T15:30:00Z");
+		envelope.setRecipients(recipients);
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-123")).thenReturn(envelope);
+
+		// call under test
+		EnvelopeStatusResult result = client.getEnvelopeStatus("env-123");
+
+		DucSignatureStatus status = result.status();
+		assertEquals(DucStatusEnum.sent, status.getDucStatus());
+		assertNotNull(status.getCreatedOn());
+		assertNotNull(status.getModifiedOn());
+		assertEquals(2, status.getSignerStatus().size());
+		assertEquals("Dr. Jones", status.getSignerStatus().get(0).getName());
+		assertEquals(DucSignerStatusEnum.done, status.getSignerStatus().get(0).getStatus());
+		assertEquals("Jane Admin", status.getSignerStatus().get(1).getName());
+		assertEquals(DucSignerStatusEnum.pending, status.getSignerStatus().get(1).getStatus());
+
+		assertEquals(List.of("pi@university.edu", "so@university.edu"), result.signerEmails());
+	}
+
+	@Test
+	public void testToDucStatusEnum() {
+		assertEquals(DucStatusEnum.sent, DocuSignClient.toDucStatusEnum("sent"));
+		assertEquals(DucStatusEnum.delivered, DocuSignClient.toDucStatusEnum("delivered"));
+		assertEquals(DucStatusEnum.completed, DocuSignClient.toDucStatusEnum("completed"));
+		assertEquals(DucStatusEnum.completed, DocuSignClient.toDucStatusEnum("signed"));
+		assertEquals(DucStatusEnum.declined, DocuSignClient.toDucStatusEnum("declined"));
+		assertEquals(DucStatusEnum.voided, DocuSignClient.toDucStatusEnum("voided"));
+		assertEquals(DucStatusEnum.correct, DocuSignClient.toDucStatusEnum("correct"));
+		assertNull(DocuSignClient.toDucStatusEnum(null));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> DocuSignClient.toDucStatusEnum("created"));
+		assertEquals("Unexpected status created", ex.getMessage());
+	}
+
+	@Test
+	public void testToDucSignerStatusEnum() {
+		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("sent"));
+		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("delivered"));
+		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("created"));
+		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("faxpending"));
+		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum(null));
+		assertEquals(DucSignerStatusEnum.done, DocuSignClient.toDucSignerStatusEnum("completed"));
+		assertEquals(DucSignerStatusEnum.done, DocuSignClient.toDucSignerStatusEnum("signed"));
+		assertEquals(DucSignerStatusEnum.declined, DocuSignClient.toDucSignerStatusEnum("declined"));
+		assertEquals(DucSignerStatusEnum.bounced, DocuSignClient.toDucSignerStatusEnum("autoresponded"));
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> DocuSignClient.toDucSignerStatusEnum("bogus"));
+		assertEquals("Unexpected status bogus", ex.getMessage());
 	}
 }

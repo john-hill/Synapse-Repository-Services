@@ -22,6 +22,10 @@
         {
             "name": "voided",
             "description": "the sender has voided the DUC or it has expired"
+        },
+        {
+            "name": "correct",
+            "description": "the sender has opened the envelope for correction; the signing process is paused"
         }
     ]
 }

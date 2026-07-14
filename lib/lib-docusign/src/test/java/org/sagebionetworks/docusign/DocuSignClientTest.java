@@ -265,6 +265,7 @@ public class DocuSignClientTest {
 		assertEquals(DucStatusEnum.completed, DocuSignClient.toDucStatusEnum("signed"));
 		assertEquals(DucStatusEnum.declined, DocuSignClient.toDucStatusEnum("declined"));
 		assertEquals(DucStatusEnum.voided, DocuSignClient.toDucStatusEnum("voided"));
+		assertEquals(DucStatusEnum.correct, DocuSignClient.toDucStatusEnum("correct"));
 		assertNull(DocuSignClient.toDucStatusEnum(null));
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> DocuSignClient.toDucStatusEnum("created"));
@@ -276,6 +277,7 @@ public class DocuSignClientTest {
 		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("sent"));
 		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("delivered"));
 		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("created"));
+		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("faxpending"));
 		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum(null));
 		assertEquals(DucSignerStatusEnum.done, DocuSignClient.toDucSignerStatusEnum("completed"));
 		assertEquals(DucSignerStatusEnum.done, DocuSignClient.toDucSignerStatusEnum("signed"));

@@ -123,6 +123,13 @@ public class DocuSignClient {
 		return roles;
 	}
 
+	/*
+	 * Return the status for the given envelope.
+	 * Note, email addresses are omitted from the DucSignatureStatus DTO though
+	 * they are needed by the caller to determine which (if any) Synapse
+	 * user the signer is, so this method returns the list of email 
+	 * addresses alongside the DucSignatureStatus object.
+	 */
 	public EnvelopeStatusResult getEnvelopeStatus(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
 		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
@@ -164,6 +171,8 @@ public class DocuSignClient {
 				return DucStatusEnum.declined;
 			case "voided":
 				return DucStatusEnum.voided;
+			case "correct":
+				return DucStatusEnum.correct;
 			default:
 				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
 		}
@@ -177,6 +186,7 @@ public class DocuSignClient {
 			case "sent":
 			case "delivered":
 			case "created":
+			case "faxpending":
 				return DucSignerStatusEnum.pending;
 			case "completed":
 			case "signed":

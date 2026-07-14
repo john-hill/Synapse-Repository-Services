@@ -49,7 +49,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2TestUtils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
-import org.sagebionetworks.repo.model.dbo.dao.table.MaterializedViewDao;
+import org.sagebionetworks.repo.model.dbo.dao.table.DefiningSqlDependencyDao;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.download.AddToDownloadListRequest;
 import org.sagebionetworks.repo.model.download.AddToDownloadListResponse;
@@ -127,7 +127,7 @@ public class MaterializedViewUpdateWorkerIntegrationTest {
 	private TrashManager trashManager;
 
 	@Autowired
-	private MaterializedViewDao materializedViewDao;
+	private DefiningSqlDependencyDao definingSqlDependencyDao;
 
 	@Autowired
 	private RepositoryMessagePublisher repositoryMessagePublisher;

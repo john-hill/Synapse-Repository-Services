@@ -14,9 +14,8 @@ import org.sagebionetworks.grid.workers.GridReplicaWorker;
 import org.sagebionetworks.limits.workers.ProjectStorageDataRefreshWorker;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.search.workers.SearchIndexRebuildWorker;
-import org.sagebionetworks.search.workers.SearchIndexSourceUpdateWorker;
 import org.sagebionetworks.ses.workers.SESNotificationWorker;
-import org.sagebionetworks.table.worker.MaterializedViewSourceUpdateWorker;
+import org.sagebionetworks.table.worker.DefiningSqlSourceUpdateWorker;
 import org.sagebionetworks.table.worker.ReplicatedToViewWorker;
 import org.sagebionetworks.table.worker.TableSnapshotWorker;
 import org.sagebionetworks.table.worker.UpdateQueryCacheWorker;
@@ -58,14 +57,14 @@ public class MessageDrivenWorkersConfig {
 	}
 
 	@Bean
-	public SimpleTriggerFactoryBean materializedViewSourceUpdateWorkerTrigger(MaterializedViewSourceUpdateWorker materializedViewSourceUpdateWorker) {
-		
-		String queueName = stackConfig.getQueueName("MATERIALIZED_VIEW_SOURCE_UPDATE");
-		MessageDrivenRunner worker = new JsonEntityDrivenRunnerAdapter<>(materializedViewSourceUpdateWorker);
-		
+	public SimpleTriggerFactoryBean definingSqlSourceUpdateWorkerTrigger(DefiningSqlSourceUpdateWorker definingSqlSourceUpdateWorker) {
+
+		String queueName = stackConfig.getQueueName("DEFINING_SQL_SOURCE_UPDATE");
+		MessageDrivenRunner worker = new JsonEntityDrivenRunnerAdapter<>(definingSqlSourceUpdateWorker);
+
 		return new WorkerTriggerBuilder()
 			.withStack(ConcurrentWorkerStack.builder()
-			.withSemaphoreLockKey("materializedViewSourceUpdateWorker")
+			.withSemaphoreLockKey("definingSqlSourceUpdateWorker")
 			.withSemaphoreMaxLockCount(10)
 			.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
 			.withMaxThreadsPerMachine(2)
@@ -374,29 +373,6 @@ public class MessageDrivenWorkersConfig {
 				)
 				.withRepeatInterval(971)
 				.withStartDelay(3063)
-				.build();
-	}
-
-	@Bean
-	public SimpleTriggerFactoryBean searchIndexSourceUpdateWorkerTrigger(SearchIndexSourceUpdateWorker inWorker) {
-
-		String queueName = stackConfig.getQueueName("SEARCH_INDEX_SOURCE_UPDATE");
-		MessageDrivenRunner worker = new JsonEntityDrivenRunnerAdapter<>(inWorker);
-
-		return new WorkerTriggerBuilder()
-				.withStack(ConcurrentWorkerStack.builder()
-						.withSemaphoreLockKey("searchIndexSourceUpdateWorker")
-						.withSemaphoreMaxLockCount(4)
-						.withSemaphoreLockAndMessageVisibilityTimeoutSec(60)
-						.withMaxThreadsPerMachine(2)
-						.withSingleton(concurrentStackManager)
-						.withCanRunInReadOnly(false)
-						.withQueueName(queueName)
-						.withWorker(worker)
-						.build()
-				)
-				.withRepeatInterval(2371)
-				.withStartDelay(1187)
 				.build();
 	}
 

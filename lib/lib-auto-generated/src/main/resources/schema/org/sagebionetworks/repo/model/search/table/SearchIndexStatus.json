@@ -17,10 +17,6 @@
 		"errorMessage": {
 			"type": "string",
 			"description": "Set when state is FAILED. Captures the diagnostic from the failed build — pre-flight validation errors (e.g. 'TextAnalyzer X does not resolve'), AOSS rejection messages from index creation, or sample per-document failures from bulk indexing. Capped at 3000 characters; the most-recent failure replaces any earlier message."
-		},
-		"sourceVersion": {
-			"type": "integer",
-			"description": "The source table's content version this index was last built from, captured when the index reached ACTIVE. Used to skip a rebuild when the source's data has not changed. Null until the first successful build."
 		}
 	}
 }

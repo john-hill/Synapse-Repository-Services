@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -55,7 +56,8 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SearchIndexSourceTableDao;
+import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.dbo.dao.table.DefiningSqlDependencyDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -145,7 +147,7 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Mock
 	private StackConfiguration stackConfiguration;
 	@Mock
-	private SearchIndexSourceTableDao searchIndexSourceTableDao;
+	private DefiningSqlDependencyDao definingSqlDependencyDao;
 	@Mock
 	private RepositoryMessagePublisher messagePublisher;
 
@@ -191,7 +193,6 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
 		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
 				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
-		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
 		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
 		// SchemaProvider stubs so "SELECT * FROM syn789" translates in QueryTranslator.
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
@@ -223,7 +224,6 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
 		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
 				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
-		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
 		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
 	}
 
@@ -447,7 +447,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao).delete(456L);
-		verify(searchIndexSourceTableDao).delete(IdAndVersion.parse(ENTITY_ID));
+		verify(definingSqlDependencyDao).deleteObject(IdAndVersion.parse(ENTITY_ID));
 		verify(writeLock).close();
 	}
 
@@ -1462,7 +1462,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao, never()).delete(any());
-		verify(searchIndexSourceTableDao, never()).delete(any());
+		verify(definingSqlDependencyDao, never()).deleteObject(any());
 		verify(writeLock).close();
 	}
 
@@ -1482,7 +1482,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao, never()).delete(any());
-		verify(searchIndexSourceTableDao, never()).delete(any());
+		verify(definingSqlDependencyDao, never()).deleteObject(any());
 		verify(writeLock).close();
 	}
 
@@ -1511,7 +1511,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-a");
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID + "-b");
 		verify(statusDao, never()).delete(any());
-		verify(searchIndexSourceTableDao, never()).delete(any());
+		verify(definingSqlDependencyDao, never()).deleteObject(any());
 	}
 
 	@Test
@@ -1611,7 +1611,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(columnModelManager).bindColumnsToVersionOfObject(any(), eq(searchIndexId));
 		// The source -> SearchIndex edge is recorded so a later source-availability event finds it.
-		verify(searchIndexSourceTableDao).setSourceTable(searchIndexId, sourceId);
+		verify(definingSqlDependencyDao).setSourceTable(searchIndexId, EntityType.searchindex.name(), sourceId);
 	}
 
 	// -------- buildWithBenefactorColumns (package-private) --------
@@ -1744,9 +1744,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Test
 	public void testRefreshDependentSearchIndexesEnqueuesWaitingCreatingAndActiveNotFailed() {
 		IdAndVersion sourceId = IdAndVersion.parse("syn789");
-		// Four SearchIndexes depend on syn789 via the edge table, one in each lifecycle state.
-		when(searchIndexSourceTableDao.getDependentSearchIndexIds(sourceId))
-				.thenReturn(Arrays.asList(1L, 2L, 3L, 4L));
+		// Four SearchIndexes depend on syn789 via the shared dependency table, one in each lifecycle state.
+		when(definingSqlDependencyDao.getDependentObjectIdsPage(eq(EntityType.searchindex.name()), eq(sourceId), anyLong(), anyLong()))
+				.thenReturn(Arrays.asList(IdAndVersion.parse("1"), IdAndVersion.parse("2"), IdAndVersion.parse("3"),
+						IdAndVersion.parse("4")), Collections.emptyList());
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.WAITING_FOR_SOURCE));
 		when(statusDao.getState(2L)).thenReturn(Optional.of(SearchIndexState.CREATING));
@@ -1769,8 +1770,8 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Test
 	public void testRefreshDependentSearchIndexesWithNoStatusRowSkips() {
 		IdAndVersion sourceId = IdAndVersion.parse("syn789");
-		when(searchIndexSourceTableDao.getDependentSearchIndexIds(sourceId))
-				.thenReturn(Collections.singletonList(1L));
+		when(definingSqlDependencyDao.getDependentObjectIdsPage(eq(EntityType.searchindex.name()), eq(sourceId), anyLong(), anyLong()))
+				.thenReturn(Collections.singletonList(IdAndVersion.parse("1")), Collections.emptyList());
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(1L)).thenReturn(Optional.empty());
 
@@ -1783,7 +1784,7 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Test
 	public void testRefreshDependentSearchIndexesWithNoDependentsSkips() {
 		IdAndVersion sourceId = IdAndVersion.parse("syn789");
-		when(searchIndexSourceTableDao.getDependentSearchIndexIds(sourceId))
+		when(definingSqlDependencyDao.getDependentObjectIdsPage(eq(EntityType.searchindex.name()), eq(sourceId), anyLong(), anyLong()))
 				.thenReturn(Collections.emptyList());
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 
@@ -1819,7 +1820,6 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
 		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
 				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
-		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
 		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
 				.thenReturn(Collections.singletonList(nameCol));
@@ -1852,7 +1852,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 	@Test
 	public void testRebuildIfStaleWithCreatingStateNoOps() throws Exception {
-		// A CREATING index is mid-build elsewhere (or the lost-wakeup case) — no-op, no version check.
+		// A CREATING index is mid-build elsewhere (or the lost-wakeup case) — no-op.
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
@@ -1863,12 +1863,11 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(entityManager, never()).getEntity(any(), any(), any());
 		verify(indexDao, never()).queryAsStream(any(), any());
-		verify(searchIndexSourceTableDao, never()).getSourceTable(any());
 	}
 
 	@Test
 	public void testRebuildIfStaleWithFailedStateNoOps() throws Exception {
-		// FAILED is terminal until a manual rebuild — no version check, no build.
+		// FAILED is terminal until a manual rebuild — no build.
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
@@ -1879,13 +1878,14 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(entityManager, never()).getEntity(any(), any(), any());
 		verify(indexDao, never()).queryAsStream(any(), any());
-		verify(searchIndexSourceTableDao, never()).getSourceTable(any());
 	}
 
 	@Test
-	public void testRebuildIfStaleWithActiveStaleSourceRebuilds() throws Exception {
-		// ACTIVE + source content version has moved since the last build → rebuild into the idle
-		// slot (the alias currently points at slot -a, so this build targets slot -b) and swap.
+	public void testRebuildIfStaleWithActiveRebuilds() throws Exception {
+		// ACTIVE always rebuilds — a source's status version is not a reliable content fingerprint
+		// for a view/materialized-view source, so there is no version-compare skip. The rebuild
+		// streams into the idle slot (the alias points at slot -a, so this build targets slot -b)
+		// and swaps.
 		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		stubBuildLock();
 		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
@@ -1894,13 +1894,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
 				.thenReturn(Optional.of(SearchIndexState.ACTIVE));
-		when(searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Optional.of(IdAndVersion.parse("syn789")));
 		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
-		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789")))
-				.thenReturn(10L);
-		when(statusDao.getStatus(KeyFactory.stringToKey(ENTITY_ID)))
-				.thenReturn(Optional.of(new SearchIndexStatus().setSourceVersion(5L)));
 		when(userManager.getUserInfo(adminUserId)).thenReturn(new UserInfo(true, adminUserId, null));
 		when(entityManager.getEntity(any(), eq(ENTITY_ID), eq(SearchIndex.class))).thenReturn(searchIndex);
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
@@ -1931,70 +1925,6 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testRebuildIfStaleWithActiveCurrentSourceSkips() throws Exception {
-		// ACTIVE + source content version unchanged since the last build → no-op.
-		stubBuildLock();
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
-				.thenReturn(Optional.of(SearchIndexState.ACTIVE));
-		when(searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Optional.of(IdAndVersion.parse("syn789")));
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
-		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789")))
-				.thenReturn(5L);
-		when(statusDao.getStatus(KeyFactory.stringToKey(ENTITY_ID)))
-				.thenReturn(Optional.of(new SearchIndexStatus().setSourceVersion(5L)));
-
-		// call under test
-		manager.rebuildIfStale(progressCallback, ENTITY_ID);
-
-		verify(openSearchManager, never()).getAliasTarget(any());
-		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
-		verify(openSearchManager, never()).swapAlias(any(), any(), any());
-		verify(entityManager, never()).getEntity(any(), any(), any());
-	}
-
-	@Test
-	public void testRebuildIfStaleWithActiveMissingSourceEdgeRebuilds() throws Exception {
-		// ACTIVE but the source -> SearchIndex edge is missing → treated as stale, rebuild runs.
-		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		stubBuildLock();
-		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
-		ColumnModel nameCol = new ColumnModel().setId("100").setName("name")
-				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(KeyFactory.stringToKey(ENTITY_ID)))
-				.thenReturn(Optional.of(SearchIndexState.ACTIVE));
-		when(searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Optional.empty());
-		when(userManager.getUserInfo(adminUserId)).thenReturn(new UserInfo(true, adminUserId, null));
-		when(entityManager.getEntity(any(), eq(ENTITY_ID), eq(SearchIndex.class))).thenReturn(searchIndex);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
-				.thenReturn(Collections.singletonList(nameCol));
-		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
-		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
-				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
-		when(tableManagerSupport.getIndexDescription(IdAndVersion.parse("syn789")))
-				.thenReturn(SOURCE_INDEX_DESCRIPTION);
-		when(connectionFactory.getConnection(IdAndVersion.parse("syn789"))).thenReturn(indexDao);
-		when(tableManagerSupport.getTableStatusOrCreateIfNotExists(IdAndVersion.parse("syn789")))
-				.thenReturn(new TableStatus().setState(TableState.AVAILABLE));
-		when(indexDao.getMaxCurrentCompleteVersionForTable(IdAndVersion.parse("syn789"))).thenReturn(5L);
-		when(indexDao.getRowCountForTable(IdAndVersion.parse("syn789"))).thenReturn(0L);
-		when(tableManagerSupport.getTableSchema(IdAndVersion.parse("syn789")))
-				.thenReturn(Collections.singletonList(nameCol));
-		when(tableManagerSupport.getColumnModel("100")).thenReturn(nameCol);
-
-		// call under test
-		manager.rebuildIfStale(progressCallback, ENTITY_ID);
-
-		verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID + "-b"),
-				any(), any(), any(), any(), anyInt(), anyInt(), anyInt());
-		verify(openSearchManager).swapAlias(eq("search-index-" + ENTITY_ID),
-				eq("search-index-" + ENTITY_ID + "-b"), eq(Optional.of("search-index-" + ENTITY_ID + "-a")));
-	}
-
-	@Test
 	public void testRebuildIfStaleOnLockContentionConsumesAndRepublishes() throws Exception {
 		// A build holds the per-entity lock. rebuildIfStale must NOT throw (which would DLQ);
 		// instead it consumes the message and republishes a fresh rebuild request.
@@ -2014,9 +1944,8 @@ public class SearchIndexLifecycleManagerImplTest {
 	public void testHandleUpdateOnRebuildKeepsActiveStateAndSwapsToOtherSlot() throws Exception {
 		// getAliasTarget returns the alias's current physical target (slot -a) — this is a
 		// rebuild, not a first build. No CREATING write; the build streams into slot -b and
-		// swaps the alias to it on success, recording the source version on the ACTIVE write.
-		// The demoted slot -a is deleted right after the swap so it does not sit around
-		// consuming space until the next rebuild.
+		// swaps the alias to it on success. The demoted slot -a is deleted right after the swap
+		// so it does not sit around consuming space until the next rebuild.
 		stubHappyPathThroughStream();
 		when(openSearchManager.getAliasTarget("search-index-" + ENTITY_ID))
 				.thenReturn(Optional.of("search-index-" + ENTITY_ID + "-a"));
@@ -2037,7 +1966,6 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(statusDao).createOrUpdate(captor.capture());
 		SearchIndexStatus active = captor.getValue();
 		assertEquals(SearchIndexState.ACTIVE, active.getState());
-		assertEquals(5L, active.getSourceVersion());
 		// No CREATING write on a rebuild.
 		verify(statusDao, never()).createOrUpdate(argThat(s -> s.getState() == SearchIndexState.CREATING));
 	}

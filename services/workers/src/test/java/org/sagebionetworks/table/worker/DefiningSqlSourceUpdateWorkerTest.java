@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManager;
 import org.sagebionetworks.repo.manager.table.MaterializedViewManager;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -21,20 +22,23 @@ import org.sagebionetworks.util.progress.ProgressCallback;
 import com.amazonaws.services.sqs.model.Message;
 
 @ExtendWith(MockitoExtension.class)
-public class MaterializedViewSourceUpdateWorkerTest {
-	
+public class DefiningSqlSourceUpdateWorkerTest {
+
 	@Mock
-	private MaterializedViewManager mockManager;
-	
+	private MaterializedViewManager mockMaterializedViewManager;
+
+	@Mock
+	private SearchIndexLifecycleManager mockSearchIndexLifecycleManager;
+
 	@InjectMocks
-	private MaterializedViewSourceUpdateWorker worker;
-	
+	private DefiningSqlSourceUpdateWorker worker;
+
 	@Mock
 	private ProgressCallback mockCallBack;
-	
+
 	@Mock
 	private TableStatusChangeEvent mockEvent;
-	
+
 	@Mock
 	private Message mockMessage;
 
@@ -44,69 +48,69 @@ public class MaterializedViewSourceUpdateWorkerTest {
 		when(mockEvent.getObjectId()).thenReturn("syn123");
 		when(mockEvent.getObjectVersion()).thenReturn(null);
 		when(mockEvent.getState()).thenReturn(TableState.AVAILABLE);
-		
+
 		IdAndVersion expectedIdAndVersion = IdAndVersion.parse("123");
-		
+
 		// Call under test
 		worker.run(mockCallBack, mockMessage, mockEvent);
-		
-		verify(mockManager).refreshDependentMaterializedViews(expectedIdAndVersion);
-		
+
+		verify(mockMaterializedViewManager).refreshDependentMaterializedViews(expectedIdAndVersion);
+		verify(mockSearchIndexLifecycleManager).refreshDependentSearchIndexes(expectedIdAndVersion);
 	}
-	
+
 	@Test
 	public void testRunWithVersion() throws Exception {
 		when(mockEvent.getObjectType()).thenReturn(ObjectType.TABLE_STATUS_EVENT);
 		when(mockEvent.getObjectId()).thenReturn("syn123");
 		when(mockEvent.getObjectVersion()).thenReturn(2L);
 		when(mockEvent.getState()).thenReturn(TableState.AVAILABLE);
-		
+
 		IdAndVersion expectedIdAndVersion = IdAndVersion.parse("123.2");
-		
+
 		// Call under test
 		worker.run(mockCallBack, mockMessage, mockEvent);
-		
-		verify(mockManager).refreshDependentMaterializedViews(expectedIdAndVersion);
-		
+
+		verify(mockMaterializedViewManager).refreshDependentMaterializedViews(expectedIdAndVersion);
+		verify(mockSearchIndexLifecycleManager).refreshDependentSearchIndexes(expectedIdAndVersion);
 	}
-	
+
 	@Test
 	public void testRunWithProcessingState() throws Exception {
 		when(mockEvent.getObjectType()).thenReturn(ObjectType.TABLE_STATUS_EVENT);
 		when(mockEvent.getState()).thenReturn(TableState.PROCESSING);
-		
+
 		// Call under test
 		worker.run(mockCallBack, mockMessage, mockEvent);
-		
-		verifyNoMoreInteractions(mockManager);
-		
+
+		verifyNoMoreInteractions(mockMaterializedViewManager);
+		verifyNoMoreInteractions(mockSearchIndexLifecycleManager);
 	}
-	
+
 	@Test
 	public void testRunWithFailedState() throws Exception {
 		when(mockEvent.getObjectType()).thenReturn(ObjectType.TABLE_STATUS_EVENT);
 		when(mockEvent.getState()).thenReturn(TableState.PROCESSING_FAILED);
-		
+
 		// Call under test
 		worker.run(mockCallBack, mockMessage, mockEvent);
-		
-		verifyNoMoreInteractions(mockManager);
-		
+
+		verifyNoMoreInteractions(mockMaterializedViewManager);
+		verifyNoMoreInteractions(mockSearchIndexLifecycleManager);
 	}
-	
+
 	@Test
 	public void testRunWithWrongObjectType() throws Exception {
 		when(mockEvent.getObjectType()).thenReturn(ObjectType.ENTITY);
-		
-		String message = assertThrows(IllegalStateException.class, () -> {			
+
+		String message = assertThrows(IllegalStateException.class, () -> {
 			// Call under test
 			worker.run(mockCallBack, mockMessage, mockEvent);
 		}).getMessage();
-		
+
 		assertEquals("Unsupported object type: expected TABLE_STATUS_EVENT, got ENTITY", message);
 
-		verifyNoMoreInteractions(mockManager);
-		
+		verifyNoMoreInteractions(mockMaterializedViewManager);
+		verifyNoMoreInteractions(mockSearchIndexLifecycleManager);
 	}
 
 }

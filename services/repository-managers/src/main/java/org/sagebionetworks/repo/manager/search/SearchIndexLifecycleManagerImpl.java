@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,11 +26,12 @@ import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dao.table.TableType;
+import org.sagebionetworks.repo.model.dbo.dao.table.DefiningSqlDependencyDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SearchIndexSourceTableDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -65,6 +65,7 @@ import org.sagebionetworks.table.query.model.DerivedColumn;
 import org.sagebionetworks.table.query.model.SelectList;
 import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.table.query.util.SqlElementUtils;
+import org.sagebionetworks.util.PaginationIterator;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -79,6 +80,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 	private static final Logger LOG = LogManager.getLogger(SearchIndexLifecycleManagerImpl.class);
 	private static final String INDEX_PREFIX = "search-index-";
+	private static final String OBJECT_TYPE = EntityType.searchindex.name();
 	// Blue-green physical slots. Queries target the alias getAliasName(entityId); each build streams
 	// into whichever of these two deterministic physical indices the alias is NOT currently serving,
 	// then atomically repoints the alias and deletes the just-demoted slot. Two fixed names bound the
@@ -90,6 +92,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
 	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
+	private static final long PAGE_SIZE_LIMIT = 1000;
 	private static final ObjectMapper SEARCH_DOC_MAPPER = new ObjectMapper();
 
 	// Build-time dynamic shard sizing for the managed OpenSearch domain. The source table's
@@ -157,7 +160,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final ColumnModelManager columnModelManager;
 	private final WriteReadSemaphore writeReadSemaphore;
 	private final StackConfiguration stackConfiguration;
-	private final SearchIndexSourceTableDao searchIndexSourceTableDao;
+	private final DefiningSqlDependencyDao definingSqlDependencyDao;
 	private final RepositoryMessagePublisher messagePublisher;
 
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
@@ -171,7 +174,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			ColumnModelManager columnModelManager,
 			WriteReadSemaphore writeReadSemaphore,
 			StackConfiguration stackConfiguration,
-			SearchIndexSourceTableDao searchIndexSourceTableDao,
+			DefiningSqlDependencyDao definingSqlDependencyDao,
 			RepositoryMessagePublisher messagePublisher) {
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
@@ -185,7 +188,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.columnModelManager = columnModelManager;
 		this.writeReadSemaphore = writeReadSemaphore;
 		this.stackConfiguration = stackConfiguration;
-		this.searchIndexSourceTableDao = searchIndexSourceTableDao;
+		this.definingSqlDependencyDao = definingSqlDependencyDao;
 		this.messagePublisher = messagePublisher;
 	}
 
@@ -218,7 +221,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		columnModelManager.bindColumnsToVersionOfObject(schemaIds, searchIndexId);
 		// Record the source -> SearchIndex edge so a source table/view that becomes AVAILABLE can
 		// reverse-look-up which SearchIndex(es) depend on it and enqueue their rebuild.
-		searchIndexSourceTableDao.setSourceTable(searchIndexId, sourceId);
+		definingSqlDependencyDao.setSourceTable(searchIndexId, OBJECT_TYPE, sourceId);
 		return schemaIds;
 	}
 
@@ -336,12 +339,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				throw new TableFailedException(sourceStatus);
 			}
 
-			// Capture the source's content version BEFORE streaming rows. Recording it against the
-			// ACTIVE status lets rebuildIfStale skip a no-op rebuild when the source has not changed.
-			// Reading before the stream is conservative: a source change mid-build only advances the
-			// version we did NOT record, so the stale check re-fires next event rather than missing it.
-			Long sourceVersion = indexDao.getMaxCurrentCompleteVersionForTable(sourceId);
-
 			// Conservative whole-table ceiling: the defining SQL queries a single source table
 			// so it cannot expand the row count beyond the source's row count.
 			// The handler's mid-stream MAX_ROWS guard remains
@@ -434,8 +431,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
-					.setState(SearchIndexState.ACTIVE)
-					.setSourceVersion(sourceVersion));
+					.setState(SearchIndexState.ACTIVE));
 		} catch (RecoverableMessageException | TableFailedException | LockUnavilableException e) {
 			// Propagate transient/infrastructure exceptions to the worker so it can
 			// convert them into RecoverableMessageException (lock) or permanent failure
@@ -518,7 +514,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				statusDao.delete(searchIndexId);
 				// The node ON DELETE CASCADE normally clears the source edge; drop it explicitly
 				// too so a lifecycle delete that runs before the node delete leaves no stale edge.
-				searchIndexSourceTableDao.delete(IdAndVersion.parse(entityId));
+				definingSqlDependencyDao.deleteObject(IdAndVersion.parse(entityId));
 			}
 		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
@@ -530,9 +526,14 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	public void refreshDependentSearchIndexes(IdAndVersion sourceTableId) {
 		ValidateArgument.required(sourceTableId, "sourceTableId");
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
-		// Indexed reverse lookup via the source -> SearchIndex edge table (mirrors the
-		// MaterializedView source-availability path: MATERIALIZED_VIEW_SOURCE_TABLES).
-		for (Long dependentId : searchIndexSourceTableDao.getDependentSearchIndexIds(sourceTableId)) {
+		// Indexed reverse lookup via the shared source dependency table (DEFINING_SQL_DEPENDENCY),
+		// filtered to searchindex objects. The lookup matches on the source's id and version, so a
+		// dependency on a specific source version only fires for events on that version.
+		PaginationIterator<IdAndVersion> dependentIds = new PaginationIterator<>(
+				(limit, offset) -> definingSqlDependencyDao.getDependentObjectIdsPage(OBJECT_TYPE, sourceTableId, limit, offset),
+				PAGE_SIZE_LIMIT);
+		while (dependentIds.hasNext()) {
+			Long dependentId = dependentIds.next().getId();
 			Optional<SearchIndexState> stateOpt = statusDao.getState(dependentId);
 			if (stateOpt.isEmpty()) {
 				continue;
@@ -565,19 +566,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 						LOCK_KEY_PREFIX + entityId))) {
 			// Authoritative gate under the lock: the lock linearizes this against any in-flight build.
 			//  - WAITING_FOR_SOURCE: first-availability build.
-			//  - ACTIVE: live-sync — rebuild only if the source's content version has moved since the
-			//    index was last built; otherwise this is a no-op source touch and we skip.
+			//  - ACTIVE: live-sync — always rebuild.
 			//  - CREATING / FAILED / absent: no-op (a CREATING index that has since finished is observed
-			//    as ACTIVE and handled by the version check; FAILED is terminal until a manual rebuild).
+			//    as ACTIVE and rebuilt; FAILED is terminal until a manual rebuild).
 			Optional<SearchIndexState> stateOpt = connectionFactory.getSearchIndexStatusDao()
 					.getState(KeyFactory.stringToKey(entityId));
 			if (stateOpt.isEmpty()) {
 				return;
 			}
 			SearchIndexState state = stateOpt.get();
-			if (SearchIndexState.WAITING_FOR_SOURCE.equals(state)) {
-				buildIndex(progressCallback, entityId, adminUserId);
-			} else if (SearchIndexState.ACTIVE.equals(state) && isSourceStale(entityId)) {
+			if (SearchIndexState.WAITING_FOR_SOURCE.equals(state) || SearchIndexState.ACTIVE.equals(state)) {
 				buildIndex(progressCallback, entityId, adminUserId);
 			}
 		} catch (LockUnavilableException e) {
@@ -591,28 +589,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					.setObjectType(ObjectType.SEARCH_INDEX_REBUILD)
 					.setObjectId(entityId));
 		}
-	}
-
-	/**
-	 * True when the ACTIVE index's source has changed since the index was last built — i.e. the
-	 * source's current content version differs from the version recorded on {@code SearchIndexStatus}.
-	 * A missing stored version (never recorded, or a source with no index table) is treated as stale so
-	 * the rebuild proceeds — the safe direction, since skipping would leave the index permanently out
-	 * of date.
-	 */
-	private boolean isSourceStale(String entityId) {
-		Optional<IdAndVersion> sourceOpt = searchIndexSourceTableDao.getSourceTable(IdAndVersion.parse(entityId));
-		if (sourceOpt.isEmpty()) {
-			return true;
-		}
-		IdAndVersion sourceId = sourceOpt.get();
-		Long currentVersion = connectionFactory.getConnection(sourceId)
-				.getMaxCurrentCompleteVersionForTable(sourceId);
-		Long storedVersion = connectionFactory.getSearchIndexStatusDao()
-				.getStatus(KeyFactory.stringToKey(entityId))
-				.map(SearchIndexStatus::getSourceVersion)
-				.orElse(null);
-		return !Objects.equals(currentVersion, storedVersion);
 	}
 
 	/**

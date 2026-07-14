@@ -7,8 +7,9 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.dbo.dao.table.InvalidStatusTokenException;
-import org.sagebionetworks.repo.model.dbo.dao.table.MaterializedViewDao;
+import org.sagebionetworks.repo.model.dbo.dao.table.DefiningSqlDependencyDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.semaphore.LockContext;
 import org.sagebionetworks.repo.model.semaphore.LockContext.ContextType;
@@ -39,23 +40,25 @@ public class MaterializedViewManagerImpl implements MaterializedViewManager {
 	private static final Log LOG = LogFactory.getLog(MaterializedViewManagerImpl.class);	
 	
 	private static final long PAGE_SIZE_LIMIT = 1000;
-	
+
 	public static final String DEFAULT_ETAG = "DEFAULT";
-	
+
+	private static final String OBJECT_TYPE = EntityType.materializedview.name();
+
 	final private ColumnModelManager columModelManager;
 	final private TableManagerSupport tableManagerSupport;
 	final private TableIndexConnectionFactory connectionFactory;
-	final private MaterializedViewDao materializedViewDao;
+	final private DefiningSqlDependencyDao definingSqlDependencyDao;
 
 	@Autowired
-	public MaterializedViewManagerImpl(ColumnModelManager columModelManager, 
-			TableManagerSupport tableManagerSupport, 
+	public MaterializedViewManagerImpl(ColumnModelManager columModelManager,
+			TableManagerSupport tableManagerSupport,
 			TableIndexConnectionFactory connectionFactory,
-			MaterializedViewDao materializedViewDa) {
+			DefiningSqlDependencyDao definingSqlDependencyDao) {
 		this.columModelManager = columModelManager;
 		this.tableManagerSupport = tableManagerSupport;
 		this.connectionFactory = connectionFactory;
-		this.materializedViewDao = materializedViewDa;
+		this.definingSqlDependencyDao = definingSqlDependencyDao;
 	}
 
 	@Override
@@ -88,15 +91,15 @@ public class MaterializedViewManagerImpl implements MaterializedViewManager {
 
 		QueryExpression query = TableModelUtils.getQuerySpecification(definingSql);
 		Set<IdAndVersion> newSourceTables = new HashSet<>(TableModelUtils.getSourceTableIds(query));
-		Set<IdAndVersion> currentSourceTables = materializedViewDao.getSourceTablesIds(idAndVersion);
-		
+		Set<IdAndVersion> currentSourceTables = definingSqlDependencyDao.getSourceTables(idAndVersion);
+
 		if (!newSourceTables.equals(currentSourceTables)) {
 			Set<IdAndVersion> toDelete = new HashSet<>(currentSourceTables);
-			
+
 			toDelete.removeAll(newSourceTables);
-			
-			materializedViewDao.deleteSourceTablesIds(idAndVersion, toDelete);
-			materializedViewDao.addSourceTablesIds(idAndVersion, newSourceTables);
+
+			definingSqlDependencyDao.deleteSourceTables(idAndVersion, toDelete);
+			definingSqlDependencyDao.addSourceTables(idAndVersion, OBJECT_TYPE, newSourceTables);
 		}
 		
 		bindSchemaToView(idAndVersion, query);
@@ -110,7 +113,7 @@ public class MaterializedViewManagerImpl implements MaterializedViewManager {
 		ValidateArgument.required(tableId, "The tableId");
 		
 		PaginationIterator<IdAndVersion> idsIterator = new PaginationIterator<IdAndVersion>(
-			(long limit, long offset) -> materializedViewDao.getMaterializedViewIdsPage(tableId, limit, offset),
+			(long limit, long offset) -> definingSqlDependencyDao.getDependentObjectIdsPage(OBJECT_TYPE, tableId, limit, offset),
 			PAGE_SIZE_LIMIT);
 		
 		// Sends an update without changing the status of the table, this allows to decide if the table should be built in a temporary space while

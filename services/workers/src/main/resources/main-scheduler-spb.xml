@@ -146,7 +146,7 @@
 		<ref bean="fileHandleKeysArchiveWorkerTrigger"/>
 		<ref bean="fileHandleRestoreRequestWorkerTrigger"/>
 		<ref bean="materializedViewWorkerTrigger"/>
-		<ref bean="materializedViewSourceUpdateWorkerTrigger"/>
+		<ref bean="definingSqlSourceUpdateWorkerTrigger"/>
 		<ref bean="accessRequirementToProjectWorkerTrigger"/>
 		<ref bean="missingTableStatusWorkerTrigger"/>
 		<ref bean="tableSnapshotWorkerTrigger"/>
@@ -193,7 +193,6 @@
 		<!-- Search Index -->
 		<ref bean="searchQueryWorkerTrigger"/>
 		<ref bean="searchIndexLifecycleWorkerTrigger"/>
-		<ref bean="searchIndexSourceUpdateWorkerTrigger"/>
 		<ref bean="searchIndexRebuildWorkerTrigger"/>
 
 		<!-- Curation compute task execution -->

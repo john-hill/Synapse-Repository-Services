@@ -193,12 +193,15 @@ See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for th
 
 - **Prioritize Expressive Code**: Write highly readable, self-documenting code as the primary means of explanation. Use comments exclusively to provide critical context that cannot be naturally expressed through clean naming conventions and clear structure.
 - **Target the Audience (Javadocs vs. Inline)**: Match documentation placement to its specific consumer:
-  - Public API (Javadocs): Focus class and method Javadocs strictly on the public contract, defining the behavior, parameters, and return values expected by the caller at that specific level of abstraction.
-  - Internal Logic (Inline Comments): Place all underlying execution details, algorithmic mechanics, and internal complexities entirely within inline comments inside the implementation body.
+  - **Public API (Javadocs)**: Focus class and method Javadocs strictly on the public contract, defining the behavior, parameters, and return values expected by the caller at that specific level of abstraction.
+  - **Internal Logic (Inline Comments)**: Place all underlying execution details, algorithmic mechanics, and internal complexities entirely within inline comments inside the implementation body.
 - **Document Intent, Refactor Mechanics**: Dedicate internal comments to explaining the underlying business logic, constraints, and rationale behind the code (the Why). Allow the code architecture to explain the execution (the What). Treat any impulse to write step-by-step prose about what the code is doing as an immediate signal to refactor the code into clearer, smaller functions.
-- **Current State Only**: Code comments should exclusively describe the current state, logic, and intent of the code.
+- **Current State Only**: Code comments and CLAUDE.md files should exclusively describe the current state, logic, and intent of the code.
   - Keep historical context, diff explanations, and "before vs. after" commentary entirely within planning documents, commit messages, PR descriptions, or narrowly scoped as comments that are co-located with specific regression tests.
-  - Limit references to past logic strictly to active, ongoing code migration paths that directly impact current execution. 
+  - Limit references to past logic strictly to active, ongoing code migration paths that directly impact current execution.
+- **Stable References**: Code comments and CLAUDE.md files should use reference points that survive automated refactoring and ongoing codebase evolution.
+  - Point to other code exclusively through language-supported dynamic links (like Javadoc {@link}) or external issue keys (like PLFM-1234).
+  - Define target locations using conceptual names or programmable signatures instead of brittle options like absolute file paths or hard-coded line numbers.
 
 
 ## Critical Constraints

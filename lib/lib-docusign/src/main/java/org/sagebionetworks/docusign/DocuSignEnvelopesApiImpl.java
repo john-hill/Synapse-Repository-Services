@@ -43,23 +43,24 @@ class DocuSignEnvelopesApiImpl implements DocuSignEnvelopesApi {
 	}
 
 	@Override
+	public Envelope getEnvelope(String envelopeId) {
+		return retryHelper.executeWithRetry(accessToken -> {
+			ApiClient apiClient = new ApiClient(config.getBasePath());
+			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
+			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
+			EnvelopesApi.GetEnvelopeOptions options = envelopesApi.new GetEnvelopeOptions();
+			options.setInclude("recipients");
+			return envelopesApi.getEnvelope(config.getAccountId(), envelopeId, options);
+		});
+	}
+
+	@Override
 	public byte[] getDocument(String envelopeId, String documentId) {
 		return retryHelper.executeWithRetry(accessToken -> {
 			ApiClient apiClient = new ApiClient(config.getBasePath());
 			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
 			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
 			return envelopesApi.getDocument(config.getAccountId(), envelopeId, documentId);
-		});
-	}
-
-	@Override
-	public String getEnvelopeStatus(String envelopeId) {
-		return retryHelper.executeWithRetry(accessToken -> {
-			ApiClient apiClient = new ApiClient(config.getBasePath());
-			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
-			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
-			Envelope envelope = envelopesApi.getEnvelope(config.getAccountId(), envelopeId);
-			return envelope.getStatus();
 		});
 	}
 }

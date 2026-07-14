@@ -1,5 +1,6 @@
 package org.sagebionetworks.docusign;
 
+import com.docusign.esign.model.Envelope;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 
@@ -9,7 +10,7 @@ interface DocuSignEnvelopesApi {
 
 	void voidEnvelope(String envelopeId, String reason);
 
-	byte[] getDocument(String envelopeId, String documentId);
+	Envelope getEnvelope(String envelopeId);
 
-	String getEnvelopeStatus(String envelopeId);
+	byte[] getDocument(String envelopeId, String documentId);
 }

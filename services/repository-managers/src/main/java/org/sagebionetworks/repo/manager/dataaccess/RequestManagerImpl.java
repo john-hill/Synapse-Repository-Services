@@ -5,7 +5,9 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.sagebionetworks.docusign.DocuSignClient;
+import org.sagebionetworks.docusign.EnvelopeStatusResult;
 import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationManager;
+import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
@@ -98,8 +100,8 @@ public class RequestManagerImpl implements RequestManager{
 	void validateFileHandleAccess(UserInfo userInfo, RequestInterface request) {
 		if (request.getDucFileHandleId() != null) {
 			if (request.getEDucSignatureEnvelopeId() != null) {
-				String envelopeStatus = docuSignClient.getEnvelopeStatus(request.getEDucSignatureEnvelopeId());
-				ValidateArgument.requirement("completed".equalsIgnoreCase(envelopeStatus),
+				EnvelopeStatusResult envelopeResult = docuSignClient.getEnvelopeStatus(request.getEDucSignatureEnvelopeId());
+				ValidateArgument.requirement(EDucStatusEnum.completed.equals(envelopeResult.status().getDucStatus()),
 						"Cannot set ducFileHandleId: the eDUC envelope has not been completed.");
 			}
 			fileHandleAuthorizationManager.canAccessRawFileHandleById(userInfo, request.getDucFileHandleId())

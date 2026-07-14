@@ -11,6 +11,7 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
 import org.sagebionetworks.docusign.DocuSignClient;
+import org.sagebionetworks.docusign.EnvelopeStatusResult;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.AccessRequirement;
@@ -30,11 +31,15 @@ import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.EDucQuotaDao;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
-import org.sagebionetworks.repo.model.duc.DucFileHandleId;
-import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.educ.EDucFileHandleId;
+import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignerStatus;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
-import org.sagebionetworks.repo.model.educ.SignatureQuota;
+import org.sagebionetworks.repo.model.educ.EDucSignatureQuota;
+import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.principal.AliasType;
+import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.ValidateArgument;
@@ -87,7 +92,7 @@ public class EDucManager {
 		return page;
 	}
 
-	public SignatureQuota routeForSignature(UserInfo userInfo, String requestId) {
+	public EDucSignatureQuota routeForSignature(UserInfo userInfo, String requestId) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(requestId, "requestId");
 
@@ -145,10 +150,48 @@ public class EDucManager {
 
 		eDucQuotaDao.create(userId, arId, envelopeId);
 
-		SignatureQuota result = new SignatureQuota();
+		EDucSignatureQuota result = new EDucSignatureQuota();
 		result.setQuota((long) MAX_ENVELOPES_PER_MONTH);
 		result.setRemaining((long) (MAX_ENVELOPES_PER_MONTH - count - 1));
 		return result;
+	}
+
+	public EDucSignatureStatus getSignatureStatus(UserInfo userInfo, String requestId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(requestId, "requestId");
+
+		RequestInterface request = requestDao.get(requestId);
+
+		if (!AuthorizationUtils.isUserCreatorOrAdmin(userInfo, request.getCreatedBy())) {
+			throw new UnauthorizedException("Only the request creator or an administrator can view signature status.");
+		}
+
+		String envelopeId = request.getEDucSignatureEnvelopeId();
+		if (envelopeId == null) {
+			throw new IllegalArgumentException("This request does not have a routed DUC.");
+		}
+
+		EnvelopeStatusResult result = docuSignClient.getEnvelopeStatus(envelopeId);
+		EDucSignatureStatus status = result.status();
+		List<String> signerEmails = result.signerEmails();
+
+		status.setDataAccessRequestId(requestId);
+		// TODO PLFM-9657 will set the following to show whether
+		// changes to the request have been applied to the routed document
+		status.setIncludesRequestChanges(true);
+
+		if (status.getSignerStatus() != null) {
+			for (int i = 0; i < status.getSignerStatus().size(); i++) {
+				EDucSignerStatus signerStatus = status.getSignerStatus().get(i);
+				String email = signerEmails.get(i);
+				PrincipalAlias principalAlias = principalAliasDao.findPrincipalWithAlias(email, AliasType.USER_EMAIL);
+				if (principalAlias != null) {
+					signerStatus.setUserId(principalAlias.getPrincipalId().toString());
+				}
+			}
+		}
+
+		return status;
 	}
 
 	public void cancelSignature(UserInfo userInfo, String requestId) {
@@ -171,7 +214,7 @@ public class EDucManager {
 		requestDao.update(request);
 	}
 
-	public DucFileHandleId getSignedDocumentFileHandle(UserInfo userInfo, String requestId) {
+	public EDucFileHandleId getSignedDocumentFileHandle(UserInfo userInfo, String requestId) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(requestId, "requestId");
 
@@ -192,7 +235,7 @@ public class EDucManager {
 			S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(
 					userInfo.getId().toString(), new Date(), pdfBytes,
 					"eDUC_" + requestId + ".pdf", ContentType.create("application/pdf"), null);
-			DucFileHandleId result = new DucFileHandleId();
+			EDucFileHandleId result = new EDucFileHandleId();
 			result.setFileHandleId(fileHandle.getId());
 			return result;
 		} catch (IOException e) {

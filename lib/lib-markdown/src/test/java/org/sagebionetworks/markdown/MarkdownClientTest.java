@@ -16,13 +16,15 @@ import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpRequest;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpResponse;
 
+@ExtendWith(MockitoExtension.class)
 public class MarkdownClientTest {
 	@Mock
 	private SimpleHttpClient mockHttpClient;
@@ -34,7 +36,6 @@ public class MarkdownClientTest {
 
 	@BeforeEach
 	public void before() {
-		MockitoAnnotations.initMocks(this);
 		markdownClient = new MarkdownClient(
 			"https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown",
 			mockSigner,
@@ -45,9 +46,7 @@ public class MarkdownClientTest {
 	@Test
 	public void testRequestMarkdownConversionFailure() throws Exception {
 		String request = "{\"markdown\":\"## a heading\"}";
-		String response = "{\"error\":\"Service unavailable\"}";
 		when(mockResponse.getStatusCode()).thenReturn(500);
-		when(mockResponse.getContent()).thenReturn(response);
 		when(mockSigner.sign(any(URI.class), any(byte[].class))).thenReturn(new HashMap<>());
 		when(mockHttpClient.post(any(SimpleHttpRequest.class), eq(request))).thenReturn(mockResponse);
 

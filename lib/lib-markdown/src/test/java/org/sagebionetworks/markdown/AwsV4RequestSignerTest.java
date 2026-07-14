@@ -3,6 +3,7 @@ package org.sagebionetworks.markdown;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
@@ -84,7 +85,7 @@ public class AwsV4RequestSignerTest {
 	}
 
 	@Test
-	public void testSignReturnsMutableMap() throws Exception {
+	public void testSignReturnsUnmodifiableMap() throws Exception {
 		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
 		String payload = "{\"markdown\":\"## a heading\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
@@ -92,10 +93,8 @@ public class AwsV4RequestSignerTest {
 		// call under test
 		Map<String, String> signedHeaders = signer.sign(URI.create(endpoint), payloadBytes);
 
-		// Verify the returned map is not null and contains signing headers
-		assertNotNull(signedHeaders);
-		assertTrue(signedHeaders.containsKey("Authorization"));
-		assertTrue(signedHeaders.containsKey("X-Amz-Date"));
+		// Callers (e.g. MarkdownClient) must copy this map before mutating it
+		assertThrows(UnsupportedOperationException.class, () -> signedHeaders.put("foo", "bar"));
 	}
 
 	@Test

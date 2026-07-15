@@ -410,6 +410,32 @@ class CurationTaskDaoAutowireTest {
         dao.deleteCurationTask(created.getTaskId());
     }
 
+    @ParameterizedTest
+    @EnumSource(TaskState.class)
+    public void testUpdateTaskStatusWithEachState(TaskState state) {
+        // Every value of the TaskState model must be persistable. This guards against the STATE column
+        // ENUM in the DDL drifting out of sync with the TaskState enum (e.g. missing EXECUTING/IN_REVIEW).
+        CurationTask created = dao.createCurationTask(userId, new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("fastq")
+                .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
+
+        TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
+
+        TaskStatus statusUpdate = new TaskStatus()
+                .setState(state)
+                .setEtag(initialStatus.getEtag());
+
+        // call under test
+        TaskStatus updated = dao.updateTaskStatus(userId, created.getTaskId(), statusUpdate);
+
+        assertEquals(state, updated.getState());
+        // Verify it round-trips from the database rather than just echoing the input.
+        assertEquals(state, dao.getTaskStatus(created.getTaskId()).getState());
+
+        dao.deleteCurationTask(created.getTaskId());
+    }
+
     @Test
     public void testUpdateTaskStatusWithExecutionDetails() {
         CurationTask created = dao.createCurationTask(userId, new CurationTask()

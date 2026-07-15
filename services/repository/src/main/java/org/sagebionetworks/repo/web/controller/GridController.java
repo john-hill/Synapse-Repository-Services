@@ -429,6 +429,7 @@ public class GridController {
 	 */
     @RequiredScope({view,download})
     @ResponseStatus(HttpStatus.CREATED)
+	@Deprecated // callers should use gridSynchronizeStart/gridSynchronizeGet
     @RequestMapping(value = UrlHelpers.GRID_EXPORT_RECORDSET_ASYNC_START, method = RequestMethod.POST)
     public @ResponseBody
     AsyncJobId exportRecordSetAsyncStart(
@@ -463,6 +464,7 @@ public class GridController {
     @RequiredScope({view,download})
     @ResponseStatus(HttpStatus.CREATED)
     @RequestMapping(value = UrlHelpers.GRID_EXPORT_RECORDSET_ASYNC_GET, method = RequestMethod.GET)
+	@Deprecated // callers should use gridSynchronizeStart/gridSynchronizeGet
     public @ResponseBody
     GridRecordSetExportResponse exportRecordSetAsyncGet(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
                                                @PathVariable String asyncToken) throws Throwable {

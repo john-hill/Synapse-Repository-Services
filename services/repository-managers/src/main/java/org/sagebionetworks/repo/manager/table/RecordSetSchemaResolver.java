@@ -39,16 +39,6 @@ import au.com.bytecode.opencsv.CSVReader;
 @Service
 public class RecordSetSchemaResolver {
 
-	/**
-	 * The number of CSV rows scanned when inferring the schema on the synchronous
-	 * create/update path. This is a sample: a column whose type only widens later
-	 * in the file (e.g. a late decimal in an otherwise-integer column, or a longer
-	 * string that would increase the maximum allowed string length) may not be
-	 * captured. Users can bind a JSON Schema for explicit typing or cast in a
-	 * downstream materialized view.
-	 */
-	static final int SAMPLE_ROWS_TO_SCAN = 10;
-
 	private final CsvFileHandleProvider csvFileHandleProvider;
 	private final EntityManager entityManager;
 	private final JsonSchemaManager jsonSchemaManager;
@@ -61,16 +51,21 @@ public class RecordSetSchemaResolver {
 	}
 
 	/**
-	 * Result of {@link #getReconciledSchema}: the reconciled schema plus the indices
-	 * (into that schema) of the columns the bound JSON Schema marked as required.
+	 * Result of {@link #getReconciledSchema}: the reconciled schema, the indices
+	 * (into that schema) of the columns the bound JSON Schema marked as required,
+	 * and the full set of top-level JSON Schema property names (including properties
+	 * that also appear in the CSV).
 	 */
 	public static class ReconciledSchema {
 		private final List<ColumnModel> schema;
 		private final List<Integer> requiredColumnIndices;
+		private final List<String> jsonSchemaColumnNames;
 
-		public ReconciledSchema(List<ColumnModel> schema, List<Integer> requiredColumnIndices) {
+		public ReconciledSchema(List<ColumnModel> schema, List<Integer> requiredColumnIndices,
+				List<String> jsonSchemaColumnNames) {
 			this.schema = schema;
 			this.requiredColumnIndices = requiredColumnIndices;
+			this.jsonSchemaColumnNames = jsonSchemaColumnNames;
 		}
 
 		public List<ColumnModel> getSchema() {
@@ -80,23 +75,30 @@ public class RecordSetSchemaResolver {
 		public List<Integer> getRequiredColumnIndices() {
 			return requiredColumnIndices;
 		}
+
+		/**
+		 * All top-level property names declared in the bound JSON Schema, including
+		 * properties that also appear as CSV columns. Empty when there is no bound
+		 * schema.
+		 */
+		public List<String> getJsonSchemaColumnNames() {
+			return jsonSchemaColumnNames;
+		}
 	}
 
 	/**
 	 * Infer the schema from the CSV file and reconcile it with the RecordSet's bound
 	 * JSON Schema, upgrading scalar columns to list types where the JSON Schema
-	 * declares an array. Used on the synchronous create/update path where a full
-	 * scan would add too much latency.
+	 * declares an array.
 	 *
 	 * @param entityId      the RecordSet entity id, used to look up the bound schema
 	 * @param fileHandle    the CSV data file handle
 	 * @param csvDescriptor CSV parsing options
-	 * @param fullScan		whether to scan the full CSV (most accurate) or a small sample of rows
 	 * @return the reconciled schema (never null, possibly empty)
 	 */
 	public ReconciledSchema getReconciledSchema(String entityId, FileHandle fileHandle,
-			CsvTableDescriptor csvDescriptor, boolean fullScan) {
-		List<ColumnModel> schema = new ArrayList<>(inferSchemaFromCsv(fileHandle, csvDescriptor, fullScan));
+			CsvTableDescriptor csvDescriptor) {
+		List<ColumnModel> schema = new ArrayList<>(inferSchemaFromCsv(fileHandle, csvDescriptor));
 		Optional<JsonSchema> validationSchema = getBoundValidationSchema(entityId);
 		validationSchema.ifPresent(vs -> CsvSchemaReconciler.reconcile(schema, vs));
 		validationSchema.ifPresent(vs -> addJsonSchemaOnlyColumns(schema, vs));
@@ -111,9 +113,15 @@ public class RecordSetSchemaResolver {
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 
-		return new ReconciledSchema(schema, requiredColumnIndices);
-	}
+		List<String> jsonSchemaColumnNames = validationSchema
+				.map(RecordSetSchemaResolver::getJsonSchemaColumns)
+				.orElse(Collections.emptyList())
+				.stream()
+				.map(ColumnModel::getName)
+				.collect(Collectors.toList());
 
+		return new ReconciledSchema(schema, requiredColumnIndices, jsonSchemaColumnNames);
+	}
 
 	public static List<ColumnModel> getJsonSchemaColumns(JsonSchema validationSchema) {
 		return JsonSchemaProperties.collectTopLevelProperties(validationSchema)
@@ -183,15 +191,12 @@ public class RecordSetSchemaResolver {
 		};
 	}
 
-	List<ColumnModel> inferSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor, boolean fullScan) {
+	List<ColumnModel> inferSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {
 		try (CSVReader csvReader = csvFileHandleProvider.getCsvReader(fileHandle, csvDescriptor)) {
 			UploadToTablePreviewRequest request = new UploadToTablePreviewRequest()
 					.setCsvTableDescriptor(csvDescriptor)
-					.setDoFullFileScan(fullScan);
+					.setDoFullFileScan(true);
 			UploadPreviewBuilder builder = new UploadPreviewBuilder(csvReader, request);
-			if (!fullScan) {
-				builder.setMaxRowsInpartialScan(SAMPLE_ROWS_TO_SCAN);
-			}
 			List<ColumnModel> suggested = builder.buildResult().getSuggestedColumns();
 			return suggested == null ? Collections.emptyList() : suggested;
 		} catch (IOException e) {

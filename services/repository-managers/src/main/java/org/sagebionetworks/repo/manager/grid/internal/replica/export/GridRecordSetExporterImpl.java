@@ -31,11 +31,14 @@ import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.csv.CSVWriterProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import au.com.bytecode.opencsv.CSVWriter;
 
 @Service
 public class GridRecordSetExporterImpl implements GridRecordSetExporter {
+
+	private static final int VALIDATION_BATCH_SIZE = 1000;
 
 	private final GridManager gridManager;
 	private final GridReplicaSupport gridReplicaSupport;
@@ -45,8 +48,15 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 	private final CSVWriterProvider csvWriterProvider;
 	private final FileHandleManager fileHandleManager;
 	private final GridRowValidator gridRowValidator;
+	private final TransactionTemplate readCommitedTransactionTemplate;
 
-	public GridRecordSetExporterImpl(GridManager gridManager, GridReplicaSupport gridReplicaSupport, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao, CSVWriterProvider csvWriterProvider, FileHandleManager fileHandleManager, GridRowValidator gridRowValidator) {
+
+	public GridRecordSetExporterImpl(GridManager gridManager, GridReplicaSupport gridReplicaSupport,
+									 EntityService entityService, GridReplicaCsvExporter csvExporter,
+									 EntitySchemaValidationResultDao validationResultDao,
+									 CSVWriterProvider csvWriterProvider, FileHandleManager fileHandleManager,
+									 GridRowValidator gridRowValidator, TransactionTemplate readCommitedTransactionTemplate
+	) {
 		this.gridManager = gridManager;
 		this.gridReplicaSupport = gridReplicaSupport;
 		this.entityService = entityService;
@@ -55,6 +65,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		this.csvWriterProvider = csvWriterProvider;
 		this.fileHandleManager = fileHandleManager;
 		this.gridRowValidator = gridRowValidator;
+		this.readCommitedTransactionTemplate = readCommitedTransactionTemplate;
 	}
 	
 	@Override
@@ -134,6 +145,62 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		}
 		
 		return result.getResultsFileHandleId();
+	}
+	
+	@Override
+	public RecordSetArtifactBuilder createArtifactBuilder(String fileNamePrefix, List<String> orderedColumnNames,
+	                                                      JsonSchema validationSchema, CsvTableDescriptor csvDescriptor, String recordSetId) throws IOException {
+		File dataFile = File.createTempFile(fileNamePrefix + "_push_data", ".csv");
+		File validationFile = File.createTempFile(fileNamePrefix + "_push_validation_details", ".csv");
+		CSVWriter dataWriter = null;
+		CSVWriter validationWriter = null;
+		try {
+			dataWriter = csvWriterProvider.createWriter(new FileWriter(dataFile, StandardCharsets.UTF_8), csvDescriptor);
+			validationWriter = csvWriterProvider.createWriter(new FileWriter(validationFile, StandardCharsets.UTF_8),
+					null);
+			return new RecordSetArtifactBuilder(orderedColumnNames, validationSchema, gridRowValidator, dataWriter, validationWriter,
+					dataFile, validationFile, VALIDATION_BATCH_SIZE, recordSetId);
+		} catch (IOException | RuntimeException e) {
+			// Clean up on failure to construct the artifact builder.
+			closeQuietly(dataWriter);
+			closeQuietly(validationWriter);
+			dataFile.delete();
+			validationFile.delete();
+			throw e;
+		}
+	}
+
+	private static void closeQuietly(CSVWriter writer) {
+		if (writer != null) {
+			try {
+				writer.close();
+			} catch (IOException e) {
+				// ignore
+			}
+		}
+	}
+
+	@Override
+	public RecordSet pushFromArtifactBuilder(UserInfo user, RecordSet recordSet, RecordSetArtifactBuilder artifactBuilder) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(recordSet, "recordSet");
+		ValidateArgument.required(artifactBuilder, "artifactBuilder");
+
+		String dataFileId = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest()
+				.withUserId(user.getId().toString())
+				.withFileToUpload(artifactBuilder.getDataCsvFile())
+				.withContentType("text/csv")).getId();
+
+		String validationFileId = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest()
+				.withUserId(user.getId().toString())
+				.withFileName("grid_validation_details.csv")
+				.withContentType("text/csv")
+				.withFileToUpload(artifactBuilder.getValidationDetailsFile())).getId();
+
+		// Start the transaction AFTER the uploads complete.
+		return readCommitedTransactionTemplate.execute((status) ->
+				createRecordSetVersionFromArtifacts(user, recordSet, dataFileId, artifactBuilder.getValidationSummary(), validationFileId)
+		);
 	}
 
 

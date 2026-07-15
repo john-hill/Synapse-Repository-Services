@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaConnectionManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRowValidator;
 import org.sagebionetworks.repo.manager.table.RecordSetSchemaResolver;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -46,6 +47,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
 	private final RecordSetSchemaResolver schemaResolver;
+	private final GridReplicaConnectionManager gridReplicaConnectionManager;
 
 	public static final CsvTableDescriptor DEFAULT_RECORD_SET_CSV_DESCRIPTOR = new CsvTableDescriptor().setIsFirstLineHeader(true);
 
@@ -53,7 +55,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 									  EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider,
 									  GridRowValidator gridRowValidator,
 									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider,
-									  RecordSetSchemaResolver schemaResolver) {
+									  RecordSetSchemaResolver schemaResolver,
+									  GridReplicaConnectionManager gridReplicaConnectionManager) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -64,6 +67,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
 		this.schemaResolver = schemaResolver;
+		this.gridReplicaConnectionManager = gridReplicaConnectionManager;
 	}
 
 	@Override
@@ -89,7 +93,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 				.setSchemaId(validationSchemaId.orElse(null))
 				.setOwner(request.getOwnerPrincipalId()).setAuthorizationMode(request.getAuthorizationMode()));
 
-		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
+		GridReplica replica = gridReplicaConnectionManager.createReplicaAndConnect(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
 
 		// We already checked that the user has download access
 		FileHandle fileHandle = fileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId());
@@ -110,7 +114,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		// compute the indices of the columns the JSON Schema marks as required. This is
 		// the same inference the RecordSetMetadataProvider binds at create/update time.
 		RecordSetSchemaResolver.ReconciledSchema reconciled = schemaResolver
-				.getReconciledSchema(recordSet.getId(), fileHandle, csvDescriptor, true);
+				.getReconciledSchema(recordSet.getId(), fileHandle, csvDescriptor);
 		final List<ColumnModel> schema = reconciled.getSchema();
 		final List<Integer> columnsRequiredByJsonSchemaIndices = reconciled.getRequiredColumnIndices();
 

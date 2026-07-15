@@ -8,7 +8,6 @@ import java.util.Optional;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.grid.SyncType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
 /**
@@ -16,6 +15,10 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
  * <ul>
  * <li><b>In-place</b> (entity view): cell changes are written directly to the
  * source (annotations); row/column membership cannot be changed.</li>
+ * <li><b>RecordSetSourceWriter</b>: the source is never mutated in place;
+ * instead the surviving rows are accumulated ({@link #beginPush},
+ * {@link #recordFinalRowState}, {@link #completePush}) into a new exported
+ * artifact.</li>
  * </ul>
  */
 public interface SourceWriter extends AutoCloseable {
@@ -81,10 +84,9 @@ public interface SourceWriter extends AutoCloseable {
 	 *
 	 * @param callback    the async-job progress callback (used for the job id)
 	 * @param finalSchema the synchronized schema produced by Phase 1
-	 * @param syncType    the resolved sync type for this run
 	 * @throws IOException if the push artifact cannot be opened
 	 */
-	default void beginPush(AsyncJobProgressCallback callback, List<Column> finalSchema, SyncType syncType)
+	default void beginPush(AsyncJobProgressCallback callback, List<Column> finalSchema)
 			throws IOException {
 		// no-op by default
 	}

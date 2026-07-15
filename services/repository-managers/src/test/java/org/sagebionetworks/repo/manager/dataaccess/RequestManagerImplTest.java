@@ -24,8 +24,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.docusign.DocuSignClient;
+import org.sagebionetworks.docusign.EnvelopeStatusResult;
 import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationManager;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
+import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
+import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
@@ -55,6 +59,8 @@ public class RequestManagerImplTest {
 	private SubmissionDAO mockSubmissionDao;
 	@Mock
 	private FileHandleAuthorizationManager mockFileHandleAuthorizationManager;
+	@Mock
+	private DocuSignClient mockDocuSignClient;
 	@Mock
 	private UserInfo mockUser;
 	@Mock
@@ -593,5 +599,56 @@ public class RequestManagerImplTest {
 				() -> manager.update(mockUser, toUpdate));
 
 		assertEquals("Not the owner", ex.getMessage());
+	}
+
+	@Test
+	public void testValidateEnvelopeCompletionWithCompletedEnvelope() {
+		Request request = createNewRequest();
+		request.setDucFileHandleId("fh-duc");
+		request.setEDucSignatureEnvelopeId("env-1");
+		EDucSignatureStatus status = new EDucSignatureStatus();
+		status.setDucStatus(EDucStatusEnum.completed);
+		when(mockDocuSignClient.getEnvelopeStatus("env-1"))
+				.thenReturn(new EnvelopeStatusResult(status, List.of()));
+
+		// call under test — should not throw
+		manager.validateEnvelopeCompletion(request);
+	}
+
+	@Test
+	public void testValidateEnvelopeCompletionWithIncompleteEnvelope() {
+		Request request = createNewRequest();
+		request.setDucFileHandleId("fh-duc");
+		request.setEDucSignatureEnvelopeId("env-1");
+		EDucSignatureStatus status = new EDucSignatureStatus();
+		status.setDucStatus(EDucStatusEnum.sent);
+		when(mockDocuSignClient.getEnvelopeStatus("env-1"))
+				.thenReturn(new EnvelopeStatusResult(status, List.of()));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateEnvelopeCompletion(request));
+
+		assertEquals("Cannot set ducFileHandleId: the eDUC envelope has not been completed.", ex.getMessage());
+	}
+
+	@Test
+	public void testValidateEnvelopeCompletionWithNoDucFileHandle() {
+		Request request = createNewRequest();
+		request.setDucFileHandleId(null);
+		request.setEDucSignatureEnvelopeId("env-1");
+
+		// call under test — should not throw, no ducFileHandleId means nothing to validate
+		manager.validateEnvelopeCompletion(request);
+	}
+
+	@Test
+	public void testValidateEnvelopeCompletionWithNoEnvelope() {
+		Request request = createNewRequest();
+		request.setDucFileHandleId("fh-duc");
+		request.setEDucSignatureEnvelopeId(null);
+
+		// call under test — should not throw, traditional (non-eDUC) flow
+		manager.validateEnvelopeCompletion(request);
 	}
 }

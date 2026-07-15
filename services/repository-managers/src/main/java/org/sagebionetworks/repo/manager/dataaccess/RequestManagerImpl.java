@@ -98,6 +98,11 @@ public class RequestManagerImpl implements RequestManager{
 	}
 
 
+	/*
+	 * If there is an associated eDUC envelope then a signed DUC document if the envelope is done being
+	 * routed.  If there is no associated eDUC envelope then the request is using a 'traditional' (non-eDUC)
+	 * flow and it's OK to attach the signed document.
+	 */
 	void validateEnvelopeCompletion(RequestInterface request) {
 		if (request.getDucFileHandleId() != null && request.getEDucSignatureEnvelopeId() != null) {
 			EnvelopeStatusResult envelopeResult = docuSignClient.getEnvelopeStatus(request.getEDucSignatureEnvelopeId());
@@ -106,6 +111,9 @@ public class RequestManagerImpl implements RequestManager{
 		}
 	}
 
+	/*
+	 * Can only attach documents uploaded by the same user who created the request.
+	 */
 	void validateFileHandleAccess(UserInfo userInfo, RequestInterface request) {
 		if (request.getDucFileHandleId() != null) {
 			fileHandleAuthorizationManager.canAccessRawFileHandleById(userInfo, request.getDucFileHandleId())

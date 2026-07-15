@@ -287,4 +287,66 @@ public class DocuSignClientTest {
 				() -> DocuSignClient.toEDucSignerStatusEnum("bogus"));
 		assertEquals("Unexpected status bogus", ex.getMessage());
 	}
+
+	@Test
+	public void testVoidEnvelopeSuccess() {
+		// call under test
+		client.voidEnvelope("env-1", "Cancelled by user.");
+
+		verify(mockDocuSignEnvelopesApi).voidEnvelope("env-1", "Cancelled by user.");
+	}
+
+	@Test
+	public void testVoidEnvelopeWithNullEnvelopeId() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.voidEnvelope(null, "reason"));
+
+		assertEquals("envelopeId is required.", ex.getMessage());
+	}
+
+	@Test
+	public void testVoidEnvelopeWithNullReason() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.voidEnvelope("env-1", null));
+
+		assertEquals("reason is required.", ex.getMessage());
+	}
+
+	@Test
+	public void testGetSignedDocumentSuccess() {
+		Envelope envelope = new Envelope();
+		envelope.setStatus("completed");
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(envelope);
+		when(mockDocuSignEnvelopesApi.getDocument("env-1", "combined")).thenReturn(new byte[]{1, 2, 3});
+
+		// call under test
+		byte[] result = client.getSignedDocument("env-1");
+
+		assertEquals(3, result.length);
+		verify(mockDocuSignEnvelopesApi).getDocument("env-1", "combined");
+	}
+
+	@Test
+	public void testGetSignedDocumentWithIncompleteEnvelope() {
+		Envelope envelope = new Envelope();
+		envelope.setStatus("sent");
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(envelope);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.getSignedDocument("env-1"));
+
+		assertEquals("Cannot retrieve signed document: envelope status is sent.", ex.getMessage());
+	}
+
+	@Test
+	public void testGetSignedDocumentWithNullEnvelopeId() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.getSignedDocument(null));
+
+		assertEquals("envelopeId is required.", ex.getMessage());
+	}
 }

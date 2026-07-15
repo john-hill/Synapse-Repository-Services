@@ -1067,6 +1067,13 @@ public class SqlConstants {
 	public static final String COL_DATA_ACCESS_REQUEST_MODIFIED_ON = 				"MODIFIED_ON";
 	public static final String COL_DATA_ACCESS_REQUEST_ETAG = 						"ETAG";
 	public static final String COL_DATA_ACCESS_REQUEST_REQUEST_SERIALIZED = 		"REQUEST_SERIALIZED";
+	public static final String COL_DATA_ACCESS_REQUEST_EDUC_ENVELOPE_ID =		"EDUC_ENVELOPE_ID";
+
+	// DataAccessRequestUser
+	public static final String DDL_DATA_ACCESS_REQUEST_USER =					"schema/DataAccessRequestUser-ddl.sql";
+	public static final String TABLE_DATA_ACCESS_REQUEST_USER =					"DATA_ACCESS_REQUEST_USER";
+	public static final String COL_DATA_ACCESS_REQUEST_USER_REQUEST_ID =		"REQUEST_ID";
+	public static final String COL_DATA_ACCESS_REQUEST_USER_USER_ID =			"USER_ID";
 
 	// DataAccessSubmission
 	public static final String DDL_DATA_ACCESS_SUBMISSION = 						"schema/DataAccessSubmission-ddl.sql";

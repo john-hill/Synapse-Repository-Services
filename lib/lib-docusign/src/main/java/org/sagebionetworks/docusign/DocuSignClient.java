@@ -161,6 +161,13 @@ public class DocuSignClient {
 		return new EnvelopeStatusResult(status, signerEmails);
 	}
 
+	public List<Envelope> listEnvelopeStatuses(List<String> envelopeIds) {
+		if (envelopeIds == null || envelopeIds.isEmpty()) {
+			return List.of();
+		}
+		return envelopesApi.listStatus(envelopeIds);
+	}
+
 	public byte[] getSignedDocument(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
 		Envelope envelope = envelopesApi.getEnvelope(envelopeId);

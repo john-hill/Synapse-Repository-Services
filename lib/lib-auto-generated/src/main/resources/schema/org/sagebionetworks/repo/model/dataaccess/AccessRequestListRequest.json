@@ -1,0 +1,9 @@
+{
+    "description": "Request to list data access requests for the current user",
+    "properties": {
+        "nextPageToken": {
+            "type": "string",
+            "description": "The token to get the next page of results."
+        }
+    }
+}

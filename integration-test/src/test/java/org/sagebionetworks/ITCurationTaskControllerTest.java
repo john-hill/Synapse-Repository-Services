@@ -10,7 +10,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.sql.Timestamp;
-import java.time.LocalDate;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Collections;
@@ -199,8 +200,8 @@ public class ITCurationTaskControllerTest {
             assertEquals(TaskState.NOT_STARTED, bundle.getStatus().getState());
             assertEquals(task.getEtag(), bundle.getStatus().getEtag());
 
-            // A due date is a timestamp; use a local-midnight value for consistency across timezones
-            Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(0, 0, 0)).getTime());
+            // Set due date to 2 days in the future
+            Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
 
             // Update status to IN_PROGRESS
             TaskStatus statusUpdate = new TaskStatus()

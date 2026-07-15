@@ -8,7 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
-import java.time.LocalDate;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -420,7 +421,7 @@ class CurationTaskDaoAutowireTest {
                 .setDataType("fastq")
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
-        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(0, 0, 0)).getTime());
+        Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
         TaskStatus statusUpdate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
                 .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())
@@ -443,7 +444,7 @@ class CurationTaskDaoAutowireTest {
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
         // Set a due date
-        Date dueDate = new Date(Timestamp.valueOf(LocalDate.of(2026, 8, 15).atTime(0, 0, 0)).getTime());
+        Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
         TaskStatus withDueDate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
                 .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())

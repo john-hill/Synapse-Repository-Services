@@ -23,7 +23,7 @@
 	<!-- We don't want to send emails during testing, so we stub out Amazon 
 		SES -->
 	<bean id="amazonSESClient"
-		class="org.sagebionetworks.repo.manager.StubSesClient" />
+		class="org.sagebionetworks.repo.manager.StubSesClient" factory-method="create" />
 
 	<bean id="jiraClient" class="org.sagebionetworks.repo.manager.TestJiraClient" />
 	

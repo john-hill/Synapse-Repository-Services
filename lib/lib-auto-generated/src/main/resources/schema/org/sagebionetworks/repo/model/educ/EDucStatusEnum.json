@@ -1,6 +1,6 @@
 {
     "description": "Status of a DUC envelope",
-    "name": "DucStatusEnum",
+    "name": "EDucStatusEnum",
     "type": "string",
     "enum": [
         {

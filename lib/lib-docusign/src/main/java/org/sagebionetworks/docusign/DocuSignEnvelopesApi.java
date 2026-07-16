@@ -8,5 +8,9 @@ interface DocuSignEnvelopesApi {
 
 	EnvelopeSummary createEnvelope(EnvelopeDefinition envelopeDefinition);
 
+	void voidEnvelope(String envelopeId, String reason);
+
 	Envelope getEnvelope(String envelopeId);
+
+	byte[] getDocument(String envelopeId, String documentId);
 }

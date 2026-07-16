@@ -6,10 +6,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
-import org.sagebionetworks.repo.model.duc.DucSignerStatus;
-import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
-import org.sagebionetworks.repo.model.duc.DucStatusEnum;
+import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignerStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignerStatusEnum;
+import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.util.ValidateArgument;
@@ -123,29 +123,35 @@ public class DocuSignClient {
 		return roles;
 	}
 
+	public void voidEnvelope(String envelopeId, String reason) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		ValidateArgument.required(reason, "reason");
+		envelopesApi.voidEnvelope(envelopeId, reason);
+	}
+
 	/*
 	 * Return the status for the given envelope.
-	 * Note, email addresses are omitted from the DucSignatureStatus DTO though
+	 * Note, email addresses are omitted from the EDucSignatureStatus DTO though
 	 * they are needed by the caller to determine which (if any) Synapse
-	 * user the signer is, so this method returns the list of email 
-	 * addresses alongside the DucSignatureStatus object.
+	 * user the signer is, so this method returns the list of email
+	 * addresses alongside the EDucSignatureStatus object.
 	 */
 	public EnvelopeStatusResult getEnvelopeStatus(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
 		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
 
-		DucSignatureStatus status = new DucSignatureStatus();
+		EDucSignatureStatus status = new EDucSignatureStatus();
 		status.setCreatedOn(parseDate(envelope.getCreatedDateTime()));
 		status.setModifiedOn(parseDate(envelope.getLastModifiedDateTime()));
-		status.setDucStatus(toDucStatusEnum(envelope.getStatus()));
+		status.setDucStatus(toEDucStatusEnum(envelope.getStatus()));
 
-		List<DucSignerStatus> signerStatuses = new ArrayList<>();
+		List<EDucSignerStatus> signerStatuses = new ArrayList<>();
 		List<String> signerEmails = new ArrayList<>();
 		if (envelope.getRecipients() != null && envelope.getRecipients().getSigners() != null) {
 			for (Signer signer : envelope.getRecipients().getSigners()) {
-				DucSignerStatus signerStatus = new DucSignerStatus();
+				EDucSignerStatus signerStatus = new EDucSignerStatus();
 				signerStatus.setName(signer.getName());
-				signerStatus.setStatus(toDucSignerStatusEnum(signer.getStatus()));
+				signerStatus.setStatus(toEDucSignerStatusEnum(signer.getStatus()));
 				signerStatuses.add(signerStatus);
 				signerEmails.add(signer.getEmail());
 			}
@@ -155,46 +161,56 @@ public class DocuSignClient {
 		return new EnvelopeStatusResult(status, signerEmails);
 	}
 
-	static DucStatusEnum toDucStatusEnum(String docuSignStatus) {
+	public byte[] getSignedDocument(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
+		String status = envelope.getStatus();
+		if (!"completed".equalsIgnoreCase(status)) {
+			throw new IllegalArgumentException("Cannot retrieve signed document: envelope status is " + status + ".");
+		}
+		return envelopesApi.getDocument(envelopeId, "combined");
+	}
+
+	static EDucStatusEnum toEDucStatusEnum(String docuSignStatus) {
 		if (docuSignStatus == null) {
 			return null;
 		}
 		switch (docuSignStatus.toLowerCase()) {
 			case "sent":
-				return DucStatusEnum.sent;
+				return EDucStatusEnum.sent;
 			case "delivered":
-				return DucStatusEnum.delivered;
+				return EDucStatusEnum.delivered;
 			case "completed":
 			case "signed":
-				return DucStatusEnum.completed;
+				return EDucStatusEnum.completed;
 			case "declined":
-				return DucStatusEnum.declined;
+				return EDucStatusEnum.declined;
 			case "voided":
-				return DucStatusEnum.voided;
+				return EDucStatusEnum.voided;
 			case "correct":
-				return DucStatusEnum.correct;
+				return EDucStatusEnum.correct;
 			default:
 				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
 		}
 	}
 
-	static DucSignerStatusEnum toDucSignerStatusEnum(String docuSignStatus) {
+	static EDucSignerStatusEnum toEDucSignerStatusEnum(String docuSignStatus) {
 		if (docuSignStatus == null) {
-			return DucSignerStatusEnum.pending;
+			return EDucSignerStatusEnum.pending;
 		}
 		switch (docuSignStatus.toLowerCase()) {
 			case "sent":
 			case "delivered":
 			case "created":
 			case "faxpending":
-				return DucSignerStatusEnum.pending;
+				return EDucSignerStatusEnum.pending;
 			case "completed":
 			case "signed":
-				return DucSignerStatusEnum.done;
+				return EDucSignerStatusEnum.done;
 			case "declined":
-				return DucSignerStatusEnum.declined;
+				return EDucSignerStatusEnum.declined;
 			case "autoresponded":
-				return DucSignerStatusEnum.bounced;
+				return EDucSignerStatusEnum.bounced;
 			default:
 				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
 		}

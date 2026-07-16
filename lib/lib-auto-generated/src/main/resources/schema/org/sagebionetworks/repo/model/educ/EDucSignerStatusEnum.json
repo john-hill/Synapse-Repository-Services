@@ -1,6 +1,6 @@
 {
     "description": "Status of a signer within a DUC",
-    "name": "DucSignerStatusEnum",
+    "name": "EDucSignerStatusEnum",
     "type": "string",
     "enum": [
         {
@@ -17,7 +17,7 @@
         },
         {
             "name": "bounced",
-            "description": "Signing request email bounced"
+            "description": "The signer's email server sent an automated response indicating a problem with delivering the email to the specified email address."
         }
     ]
 }

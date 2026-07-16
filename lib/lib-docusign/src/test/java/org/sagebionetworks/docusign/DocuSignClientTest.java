@@ -25,9 +25,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 
-import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
-import org.sagebionetworks.repo.model.duc.DucSignerStatusEnum;
-import org.sagebionetworks.repo.model.duc.DucStatusEnum;
+import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignerStatusEnum;
+import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
 
 import com.docusign.esign.client.ApiException;
 
@@ -244,47 +244,109 @@ public class DocuSignClientTest {
 		// call under test
 		EnvelopeStatusResult result = client.getEnvelopeStatus("env-123");
 
-		DucSignatureStatus status = result.status();
-		assertEquals(DucStatusEnum.sent, status.getDucStatus());
+		EDucSignatureStatus status = result.status();
+		assertEquals(EDucStatusEnum.sent, status.getDucStatus());
 		assertNotNull(status.getCreatedOn());
 		assertNotNull(status.getModifiedOn());
 		assertEquals(2, status.getSignerStatus().size());
 		assertEquals("Dr. Jones", status.getSignerStatus().get(0).getName());
-		assertEquals(DucSignerStatusEnum.done, status.getSignerStatus().get(0).getStatus());
+		assertEquals(EDucSignerStatusEnum.done, status.getSignerStatus().get(0).getStatus());
 		assertEquals("Jane Admin", status.getSignerStatus().get(1).getName());
-		assertEquals(DucSignerStatusEnum.pending, status.getSignerStatus().get(1).getStatus());
+		assertEquals(EDucSignerStatusEnum.pending, status.getSignerStatus().get(1).getStatus());
 
 		assertEquals(List.of("pi@university.edu", "so@university.edu"), result.signerEmails());
 	}
 
 	@Test
-	public void testToDucStatusEnum() {
-		assertEquals(DucStatusEnum.sent, DocuSignClient.toDucStatusEnum("sent"));
-		assertEquals(DucStatusEnum.delivered, DocuSignClient.toDucStatusEnum("delivered"));
-		assertEquals(DucStatusEnum.completed, DocuSignClient.toDucStatusEnum("completed"));
-		assertEquals(DucStatusEnum.completed, DocuSignClient.toDucStatusEnum("signed"));
-		assertEquals(DucStatusEnum.declined, DocuSignClient.toDucStatusEnum("declined"));
-		assertEquals(DucStatusEnum.voided, DocuSignClient.toDucStatusEnum("voided"));
-		assertEquals(DucStatusEnum.correct, DocuSignClient.toDucStatusEnum("correct"));
-		assertNull(DocuSignClient.toDucStatusEnum(null));
+	public void testToEDucStatusEnum() {
+		assertEquals(EDucStatusEnum.sent, DocuSignClient.toEDucStatusEnum("sent"));
+		assertEquals(EDucStatusEnum.delivered, DocuSignClient.toEDucStatusEnum("delivered"));
+		assertEquals(EDucStatusEnum.completed, DocuSignClient.toEDucStatusEnum("completed"));
+		assertEquals(EDucStatusEnum.completed, DocuSignClient.toEDucStatusEnum("signed"));
+		assertEquals(EDucStatusEnum.declined, DocuSignClient.toEDucStatusEnum("declined"));
+		assertEquals(EDucStatusEnum.voided, DocuSignClient.toEDucStatusEnum("voided"));
+		assertEquals(EDucStatusEnum.correct, DocuSignClient.toEDucStatusEnum("correct"));
+		assertNull(DocuSignClient.toEDucStatusEnum(null));
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> DocuSignClient.toDucStatusEnum("created"));
+				() -> DocuSignClient.toEDucStatusEnum("created"));
 		assertEquals("Unexpected status created", ex.getMessage());
 	}
 
 	@Test
-	public void testToDucSignerStatusEnum() {
-		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("sent"));
-		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("delivered"));
-		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("created"));
-		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum("faxpending"));
-		assertEquals(DucSignerStatusEnum.pending, DocuSignClient.toDucSignerStatusEnum(null));
-		assertEquals(DucSignerStatusEnum.done, DocuSignClient.toDucSignerStatusEnum("completed"));
-		assertEquals(DucSignerStatusEnum.done, DocuSignClient.toDucSignerStatusEnum("signed"));
-		assertEquals(DucSignerStatusEnum.declined, DocuSignClient.toDucSignerStatusEnum("declined"));
-		assertEquals(DucSignerStatusEnum.bounced, DocuSignClient.toDucSignerStatusEnum("autoresponded"));
+	public void testToEDucSignerStatusEnum() {
+		assertEquals(EDucSignerStatusEnum.pending, DocuSignClient.toEDucSignerStatusEnum("sent"));
+		assertEquals(EDucSignerStatusEnum.pending, DocuSignClient.toEDucSignerStatusEnum("delivered"));
+		assertEquals(EDucSignerStatusEnum.pending, DocuSignClient.toEDucSignerStatusEnum("created"));
+		assertEquals(EDucSignerStatusEnum.pending, DocuSignClient.toEDucSignerStatusEnum("faxpending"));
+		assertEquals(EDucSignerStatusEnum.pending, DocuSignClient.toEDucSignerStatusEnum(null));
+		assertEquals(EDucSignerStatusEnum.done, DocuSignClient.toEDucSignerStatusEnum("completed"));
+		assertEquals(EDucSignerStatusEnum.done, DocuSignClient.toEDucSignerStatusEnum("signed"));
+		assertEquals(EDucSignerStatusEnum.declined, DocuSignClient.toEDucSignerStatusEnum("declined"));
+		assertEquals(EDucSignerStatusEnum.bounced, DocuSignClient.toEDucSignerStatusEnum("autoresponded"));
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> DocuSignClient.toDucSignerStatusEnum("bogus"));
+				() -> DocuSignClient.toEDucSignerStatusEnum("bogus"));
 		assertEquals("Unexpected status bogus", ex.getMessage());
+	}
+
+	@Test
+	public void testVoidEnvelopeSuccess() {
+		// call under test
+		client.voidEnvelope("env-1", "Cancelled by user.");
+
+		verify(mockDocuSignEnvelopesApi).voidEnvelope("env-1", "Cancelled by user.");
+	}
+
+	@Test
+	public void testVoidEnvelopeWithNullEnvelopeId() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.voidEnvelope(null, "reason"));
+
+		assertEquals("envelopeId is required.", ex.getMessage());
+	}
+
+	@Test
+	public void testVoidEnvelopeWithNullReason() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.voidEnvelope("env-1", null));
+
+		assertEquals("reason is required.", ex.getMessage());
+	}
+
+	@Test
+	public void testGetSignedDocumentSuccess() {
+		Envelope envelope = new Envelope();
+		envelope.setStatus("completed");
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(envelope);
+		when(mockDocuSignEnvelopesApi.getDocument("env-1", "combined")).thenReturn(new byte[]{1, 2, 3});
+
+		// call under test
+		byte[] result = client.getSignedDocument("env-1");
+
+		assertEquals(3, result.length);
+		verify(mockDocuSignEnvelopesApi).getDocument("env-1", "combined");
+	}
+
+	@Test
+	public void testGetSignedDocumentWithIncompleteEnvelope() {
+		Envelope envelope = new Envelope();
+		envelope.setStatus("sent");
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(envelope);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.getSignedDocument("env-1"));
+
+		assertEquals("Cannot retrieve signed document: envelope status is sent.", ex.getMessage());
+	}
+
+	@Test
+	public void testGetSignedDocumentWithNullEnvelopeId() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.getSignedDocument(null));
+
+		assertEquals("envelopeId is required.", ex.getMessage());
 	}
 }

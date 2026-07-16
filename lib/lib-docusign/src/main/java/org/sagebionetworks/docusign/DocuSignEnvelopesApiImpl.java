@@ -30,6 +30,19 @@ class DocuSignEnvelopesApiImpl implements DocuSignEnvelopesApi {
 	}
 
 	@Override
+	public void voidEnvelope(String envelopeId, String reason) {
+		retryHelper.executeWithRetry(accessToken -> {
+			ApiClient apiClient = new ApiClient(config.getBasePath());
+			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
+			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
+			Envelope envelope = new Envelope();
+			envelope.setStatus("voided");
+			envelope.setVoidedReason(reason);
+			return envelopesApi.update(config.getAccountId(), envelopeId, envelope);
+		});
+	}
+
+	@Override
 	public Envelope getEnvelope(String envelopeId) {
 		return retryHelper.executeWithRetry(accessToken -> {
 			ApiClient apiClient = new ApiClient(config.getBasePath());
@@ -38,6 +51,16 @@ class DocuSignEnvelopesApiImpl implements DocuSignEnvelopesApi {
 			EnvelopesApi.GetEnvelopeOptions options = envelopesApi.new GetEnvelopeOptions();
 			options.setInclude("recipients");
 			return envelopesApi.getEnvelope(config.getAccountId(), envelopeId, options);
+		});
+	}
+
+	@Override
+	public byte[] getDocument(String envelopeId, String documentId) {
+		return retryHelper.executeWithRetry(accessToken -> {
+			ApiClient apiClient = new ApiClient(config.getBasePath());
+			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
+			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
+			return envelopesApi.getDocument(config.getAccountId(), envelopeId, documentId);
 		});
 	}
 }

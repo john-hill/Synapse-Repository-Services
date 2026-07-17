@@ -17,9 +17,6 @@
 		<constructor-arg ref="awsSQSClient" />
 	</bean>
 
-	<!-- We don't want to send emails during testing, so we stub out Amazon SES -->
-	<bean id="amazonSESClient" class="org.sagebionetworks.StubSesClientFactory" factory-method="create" />
-	
 	<!-- We don't want to contact prod during the worker testing -->
 	<bean id="prodDetector" class="org.sagebionetworks.repo.manager.testing.StubProdDetector">
 		<constructor-arg value="false" />

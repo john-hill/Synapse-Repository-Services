@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.synch.handler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -317,9 +318,9 @@ public class RecordSetSourceHandlerTest {
 		// do not collapse in the disk index, and neither collides with a real key.
 		RowSourceItem rowA = handler.createSynchRow(new String[] { "", "Alice" }, headerIndex);
 		RowSourceItem rowB = handler.createSynchRow(new String[] { "", "Bob" }, headerIndex);
-		org.junit.jupiter.api.Assertions.assertNotEquals(rowA.getKey(), rowB.getKey());
-		org.junit.jupiter.api.Assertions.assertNotEquals(keyOne, rowA.getKey());
-		org.junit.jupiter.api.Assertions.assertNotEquals(
+		assertNotEquals(rowA.getKey(), rowB.getKey());
+		assertNotEquals(keyOne, rowA.getKey());
+		assertNotEquals(
 				UpsertKeyEncoder.encode(List.of(new ConValue(ConType.UNDEFINED, null))), rowA.getKey());
 	}
 

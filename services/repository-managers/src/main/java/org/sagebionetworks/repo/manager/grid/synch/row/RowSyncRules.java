@@ -45,7 +45,7 @@ public class RowSyncRules implements SyncRules<RowCopyItem, RowSourceItemReferen
 		String key = sourceItem.getKey();
 		// This step is the final check to decide if a copy can delete a row.
 		// We intentionally exclude rows that have changed since the last synced baseline
-		// to avoid silently droppping changes to data that the user that started the sync
+		// to avoid silently dropping changes to data that the user that started the sync
 		// may not know about.
 		return sourceHandler.wasInSyncedBaseline(key) && !sourceHandler.changedSinceBaseline(key);
 	}

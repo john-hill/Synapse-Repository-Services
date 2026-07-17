@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -25,9 +24,7 @@ import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.GridManager;
-import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
@@ -61,8 +58,6 @@ import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.ReplicationType;
 import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.GridService;
-import org.sagebionetworks.util.Pair;
-import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -71,7 +66,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class GridEntityViewSynchronizationIntegrationTest {
 
-	public static final long MAX_WAIT_MS = 120_000;
+	public static final long MAX_WAIT_MS = GridIntegrationTestUtils.MAX_WAIT_MS;
 
 	@Autowired
 	private EntityService entityService;
@@ -88,11 +83,11 @@ public class GridEntityViewSynchronizationIntegrationTest {
 	@Autowired
 	private ColumnModelManager columnModelManager;
 	@Autowired
-	private GridReplicaViewManager gridViewManager;
-	@Autowired
 	private GridService gridService;
 	@Autowired
 	private GridManager gridManager;
+	@Autowired
+	private GridIntegrationTestUtils gridTestUtils;
 
 	private UserInfo admin;
 
@@ -101,7 +96,6 @@ public class GridEntityViewSynchronizationIntegrationTest {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 		jsonSchemaManager.truncateAll();
 		entityManager.truncateAll();
-
 	}
 
 	@Test
@@ -176,26 +170,14 @@ public class GridEntityViewSynchronizationIntegrationTest {
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
 		WebSocket websoceket = asynchronousJobWorkerHelper.createConnection(urlOne, incomingMessages);
 
-		List<RowView> fetchedRows = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalCon.getReplicaId());
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
-			System.out.println("row count" + rows.size());
-			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
-					.collect(Collectors.toSet());
-			System.out.println(results);
-			Set<String> expected = Set.of(
-					//
-					"{\"theString\":\"one\",\"theId\":111,\"toRemove\":\"1.1\"}",
-					//
-					"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
-					//
-					"{\"theString\":\"three\",\"theId\":333}");
-			return Pair.create(expected.equals(results), rows);
-		});
+		List<RowView> fetchedRows = gridTestUtils.waitForRowJsonSet(session.getSessionId(), internalCon.getReplicaId(),
+				Set.of(
+						//
+						"{\"theString\":\"one\",\"theId\":111,\"toRemove\":\"1.1\"}",
+						//
+						"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
+						//
+						"{\"theString\":\"three\",\"theId\":333}"));
 
 		// update the first row in the grid
 		Patch patch = new Patch()
@@ -218,26 +200,13 @@ public class GridEntityViewSynchronizationIntegrationTest {
 		asynchronousJobWorkerHelper.waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == message.getId().get(),
 				incomingMessages);
 
-		fetchedRows = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalCon.getReplicaId());
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
-			System.out.println("row count" + rows.size());
-			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
-					.collect(Collectors.toSet());
-			System.out.println(results);
-			Set<String> expected = Set.of(
-					//
-					"{\"theString\":\"oneUpdated\",\"theId\":111,\"toRemove\":\"1.3\"}",
-					//
-					"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
-					//
-					"{\"theString\":\"three\",\"theId\":333}");
-			return Pair.create(expected.equals(results), rows);
-		});
+		fetchedRows = gridTestUtils.waitForRowJsonSet(session.getSessionId(), internalCon.getReplicaId(), Set.of(
+				//
+				"{\"theString\":\"oneUpdated\",\"theId\":111,\"toRemove\":\"1.3\"}",
+				//
+				"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
+				//
+				"{\"theString\":\"three\",\"theId\":333}"));
 
 		// delete the third file
 		FileEntity toDelete = files.remove(2);
@@ -271,26 +240,13 @@ public class GridEntityViewSynchronizationIntegrationTest {
 					System.out.println(r);
 				}, MAX_WAIT_MS);
 
-		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalCon.getReplicaId());
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
-			System.out.println("row count" + rows.size());
-			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
-					.collect(Collectors.toSet());
-			System.out.println(results);
-			Set<String> expected = Set.of(
-					//
-					"{\"added\":\"oneUpdatedInSource\",\"theString\":\"oneUpdated\",\"theId\":111}",
-					//
-					"{\"added\":\"updatedInSource\",\"theString\":\"two\",\"theId\":222}",
-					//
-					"{\"added\":\"newlyAdded\",\"theString\":\"four\",\"theId\":444}");
-			return Pair.create(expected.equals(results), null);
-		});
+		gridTestUtils.waitForRowJsonSet(session.getSessionId(), internalCon.getReplicaId(), Set.of(
+				//
+				"{\"added\":\"oneUpdatedInSource\",\"theString\":\"oneUpdated\",\"theId\":111}",
+				//
+				"{\"added\":\"updatedInSource\",\"theString\":\"two\",\"theId\":222}",
+				//
+				"{\"added\":\"newlyAdded\",\"theString\":\"four\",\"theId\":444}"));
 
 		verifyExpectedAnnotations(files.get(0).getId(), new JSONObject().put(c1Name, "oneUpdated").put(c2Name, 111L)
 				.put(c3Name, "1.2").put(c4Name, "oneUpdatedInSource"));
@@ -364,20 +320,14 @@ public class GridEntityViewSynchronizationIntegrationTest {
 		WebSocket websocket = asynchronousJobWorkerHelper.createConnection(url, incomingMessages);
 
 		// wait for the 2000-char initial value to appear in the grid
-		List<RowView> fetchedRows = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalCon.getReplicaId());
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
-			if (rows.size() != 1) {
-				return Pair.create(false, null);
-			}
-			String rowString = rows.get(0).getRowObject().getData().getRowJsonDocument().toString();
-			boolean match = rowString.contains(initialValue) && rowString.contains(initialListElement);
-			return Pair.create(match, rows);
-		});
+		List<RowView> fetchedRows = gridTestUtils.waitForRows(session.getSessionId(), internalCon.getReplicaId(),
+				rows -> {
+					if (rows.size() != 1) {
+						return false;
+					}
+					String rowString = rows.get(0).getRowObject().getData().getRowJsonDocument().toString();
+					return rowString.contains(initialValue) && rowString.contains(initialListElement);
+				});
 
 		// update the grid cell with a 2000-char value
 		Patch patch = new Patch()
@@ -396,19 +346,12 @@ public class GridEntityViewSynchronizationIntegrationTest {
 				incomingMessages);
 
 		// verify updated value is present in grid
-		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalCon.getReplicaId());
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+		gridTestUtils.waitForRows(session.getSessionId(), internalCon.getReplicaId(), rows -> {
 			if (rows.size() != 1) {
-				return Pair.create(false, null);
+				return false;
 			}
 			String rowString = rows.get(0).getRowObject().getData().getRowJsonDocument().toString();
-			boolean match = rowString.contains(updatedValue) && rowString.contains(updatedListElement);
-			return Pair.create(match, null);
+			return rowString.contains(updatedValue) && rowString.contains(updatedListElement);
 		});
 
 		// call under test

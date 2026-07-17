@@ -380,8 +380,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// index table; build context is rejected by table and view sources (only a
 			// materialized view accepts it). No userId is supplied: a SearchIndex indexes every
 			// source row without authorization and is served to many users through per-row
-			// benefactor filtering, so there is no single current user to bind. registerSchema
-			// rejects CURRENT_USER() up front, so no substitution is needed here.
+			// benefactor filtering, so there is no single current user to bind.
 			QueryTranslator base = QueryTranslator.builder()
 					.sql(definingSQL)
 					.schemaProvider(tableManagerSupport)

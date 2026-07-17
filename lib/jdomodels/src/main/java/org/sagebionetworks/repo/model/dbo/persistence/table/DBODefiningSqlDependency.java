@@ -20,6 +20,7 @@ import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.sagebionetworks.util.TemporaryCode;
 
 /**
  * Maps a defining-SQL object (a materialized view or search index, identified by its node id and
@@ -44,12 +45,10 @@ public class DBODefiningSqlDependency
 		new FieldColumn("sourceTableVersion", COL_DEFINING_SQL_DEP_SOURCE_TABLE_VERSION, true)
 	};
 
-	// TODO: TEMPORARY MIGRATION BRIDGE — remove after this release reaches prod, together with the
-	// materializedViewId/materializedViewVersion bridge fields. Once production serializes the new
-	// objectId/objectVersion column names, the legacy fields never arrive and this translator becomes
-	// the identity. The both-non-null guard below is the forcing function: it can only fire if the
-	// bridge is still present while both old and new names arrive, so leaving it in makes a stale
-	// bridge a hard failure rather than silent data corruption.
+	// The both-non-null guard is the forcing function for removal: it can only fire if the bridge is
+	// still present while a backup carries both the old and new column names, turning a stale bridge
+	// into a hard failure rather than silent data corruption.
+	@TemporaryCode(author = "BryanFauble", comment = "Remove with the materializedViewId/materializedViewVersion bridge fields once production serializes the objectId/objectVersion column names; this translator then becomes the identity.")
 	private static final MigratableTableTranslation<DBODefiningSqlDependency, DBODefiningSqlDependency> TRANSLATOR = new BasicMigratableTableTranslation<DBODefiningSqlDependency>() {
 		@Override
 		public DBODefiningSqlDependency createDatabaseObjectFromBackup(DBODefiningSqlDependency dbo) {
@@ -114,11 +113,12 @@ public class DBODefiningSqlDependency
 	private Long sourceTableId;
 	private Long sourceTableVersion;
 
-	// TODO: TEMPORARY MIGRATION BRIDGE — remove after this release reaches prod (see TRANSLATOR).
 	// Bridge fields: prior production backups serialize these legacy names. They have no FieldColumn
 	// (not read from or written to the database) and are copied into objectId/objectVersion by the
 	// translator during migration restore.
+	@TemporaryCode(author = "BryanFauble", comment = "Remove once production serializes the objectId/objectVersion column names (see TRANSLATOR).")
 	private Long materializedViewId;
+	@TemporaryCode(author = "BryanFauble", comment = "Remove once production serializes the objectId/objectVersion column names (see TRANSLATOR).")
 	private Long materializedViewVersion;
 
 	public DBODefiningSqlDependency() {}
@@ -166,6 +166,7 @@ public class DBODefiningSqlDependency
 	/**
 	 * @deprecated Use {@link #getObjectId()}. Kept for migration backup compatibility.
 	 */
+	@Deprecated
 	public Long getMaterializedViewId() {
 		return materializedViewId;
 	}
@@ -173,6 +174,7 @@ public class DBODefiningSqlDependency
 	/**
 	 * @deprecated Use {@link #setObjectId(Long)}. Kept for migration backup compatibility.
 	 */
+	@Deprecated
 	public void setMaterializedViewId(Long materializedViewId) {
 		this.materializedViewId = materializedViewId;
 	}
@@ -180,6 +182,7 @@ public class DBODefiningSqlDependency
 	/**
 	 * @deprecated Use {@link #getObjectVersion()}. Kept for migration backup compatibility.
 	 */
+	@Deprecated
 	public Long getMaterializedViewVersion() {
 		return materializedViewVersion;
 	}
@@ -187,6 +190,7 @@ public class DBODefiningSqlDependency
 	/**
 	 * @deprecated Use {@link #setObjectVersion(Long)}. Kept for migration backup compatibility.
 	 */
+	@Deprecated
 	public void setMaterializedViewVersion(Long materializedViewVersion) {
 		this.materializedViewVersion = materializedViewVersion;
 	}

@@ -1,6 +1,7 @@
 package org.sagebionetworks.agent.worker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.InputStream;
@@ -35,7 +36,9 @@ import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.TaskState;
 import org.sagebionetworks.repo.model.curation.TaskStatus;
 import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionDetails;
+import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionProperties;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
+import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.helper.DaoObjectHelper;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
@@ -58,8 +61,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
  * a COMPUTE_TASK_EXECUTION async job for a CurationTask whose execution details are
  * {@link SampleSheetGenerationExecutionDetails}. The job is picked up by the ComputeTaskExecutionWorker,
  * dispatched to the SampleSheetGenerationSubWorker, which runs the AI supervisor (delegating to the
- * specialists over a shared code interpreter session) and then persists a RecordSet + review task.
- * Requires live Bedrock + code interpreter access.
+ * specialists over a shared code interpreter session), persists a RecordSet, and links it to the
+ * pre-created destination task. Requires live Bedrock + code interpreter access.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -152,47 +155,72 @@ public class SampleSheetGenerationIntegrationTest {
 
 	@Test
 	public void testGenerateSampleSheetViaComputeTask() throws Exception {
-		// Create the curation task. A sample-sheet generation task reads a file view and writes to a
-		// folder, so it uses FileBasedMetadataTaskProperties.
-		CurationTask task = curationTaskManager.createCurationTask(adminUser, new CurationTask()
+		// The input file-based task supplies the source FileView (the task used to curate that data).
+		CurationTask inputTask = curationTaskManager.createCurationTask(adminUser, new CurationTask()
 				.setProjectId(projectId)
-				.setDataType("rnaseq sample sheet")
-				.setInstructions("Generate an nf-core/rnaseq sample sheet from the input view.")
+				.setDataType("rnaseq fastq files")
+				.setInstructions("Curate the source fastq annotations.")
 				.setTaskProperties(new FileBasedMetadataTaskProperties()
 						.setFileViewId(viewId)
 						.setUploadFolderId(outputFolderId)));
 
-		// Attach the executable sample-sheet generation details, leaving the task in NOT_STARTED.
+		// The data manager pre-creates the record-based destination task and the RecordSet it targets.
+		// The sub-worker writes the generated sample sheet into that RecordSet as a new version.
+		String destinationRecordSetId = createDestinationRecordSet();
+		String originalDataFileHandleId = entityManager.getEntity(adminUser, destinationRecordSetId, RecordSet.class)
+				.getDataFileHandleId();
+		CurationTask destinationTask = curationTaskManager.createCurationTask(adminUser, new CurationTask()
+				.setProjectId(projectId)
+				.setDataType("rnaseq sample sheet review")
+				.setInstructions("Review the generated sample sheet.")
+				.setTaskProperties(new RecordBasedMetadataTaskProperties().setRecordSetId(destinationRecordSetId)));
+
+		// The generation task carries its input parameters in its SampleSheetGenerationExecutionProperties,
+		// referencing the input and destination tasks.
+		CurationTask task = curationTaskManager.createCurationTask(adminUser, new CurationTask()
+				.setProjectId(projectId)
+				.setDataType("rnaseq sample sheet")
+				.setInstructions("Generate an nf-core/rnaseq sample sheet from the input task's view.")
+				.setTaskProperties(new SampleSheetGenerationExecutionProperties()
+						.setInputTaskId(inputTask.getTaskId())
+						.setTargetSchemaId(targetSchemaId)
+						.setDestinationTaskId(destinationTask.getTaskId())));
+
+		// Attach the executable sample-sheet generation details (a routing marker), leaving the task in
+		// NOT_STARTED.
 		TaskStatus currentStatus = curationTaskManager.getTaskStatus(adminUser, task.getTaskId());
 		currentStatus.setState(TaskState.NOT_STARTED);
-		currentStatus.setExecutionDetails(new SampleSheetGenerationExecutionDetails()
-				.setInputFileViewId(viewId)
-				.setOutputFolderId(outputFolderId)
-				.setTargetSchemaId(targetSchemaId));
+		currentStatus.setExecutionDetails(new SampleSheetGenerationExecutionDetails());
 		curationTaskManager.updateTaskStatus(adminUser, task.getTaskId(), currentStatus);
 
 		// call under test — submit and monitor the real COMPUTE_TASK_EXECUTION job end to end.
 		ComputeTaskExecutionRequest request = new ComputeTaskExecutionRequest().setTaskId(task.getTaskId());
-		ComputeTaskExecutionResponse response = asyncHelper.assertJobResponse(adminUser, request,
-				(ComputeTaskExecutionResponse r) -> {
-					assertNotNull(r.getExecutionDetails());
-					SampleSheetGenerationExecutionDetails details =
-							(SampleSheetGenerationExecutionDetails) r.getExecutionDetails();
-					assertNotNull(details.getOutputRecordSetId(), "outputRecordSetId should be populated");
-					assertNotNull(details.getReviewTaskId(), "reviewTaskId should be populated");
-				}, MAX_WAIT_MS).getResponse();
+		asyncHelper.assertJobResponse(adminUser, request,
+				(ComputeTaskExecutionResponse r) -> assertNotNull(r.getExecutionDetails()), MAX_WAIT_MS).getResponse();
 
-		SampleSheetGenerationExecutionDetails details =
-				(SampleSheetGenerationExecutionDetails) response.getExecutionDetails();
-
-		// The output RecordSet is a real recordset entity in the output folder, backed by a CSV.
-		assertEquals(EntityType.recordset, entityManager.getEntityType(adminUser, details.getOutputRecordSetId()));
-		RecordSet recordSet = entityManager.getEntity(adminUser, details.getOutputRecordSetId(), RecordSet.class);
-		assertEquals(outputFolderId, recordSet.getParentId());
+		// The generated sample sheet was written into the destination RecordSet as a new version,
+		// replacing the original CSV file handle.
+		RecordSet recordSet = entityManager.getEntity(adminUser, destinationRecordSetId, RecordSet.class);
+		assertEquals(EntityType.recordset, entityManager.getEntityType(adminUser, destinationRecordSetId));
 		assertNotNull(recordSet.getDataFileHandleId(), "RecordSet should be backed by a CSV file handle");
+		assertNotEquals(originalDataFileHandleId, recordSet.getDataFileHandleId(),
+				"The generated CSV should replace the original file handle");
 
-		// The task advanced to IN_REVIEW.
+		// The generation task advanced to IN_REVIEW.
 		assertEquals(TaskState.IN_REVIEW, curationTaskManager.getTaskStatus(adminUser, task.getTaskId()).getState());
+	}
+
+	private String createDestinationRecordSet() {
+		String dataFileHandleId = fileHandleDaoHelper.create((f) -> {
+			f.setCreatedBy(adminUser.getId().toString());
+			f.setFileName("destination.csv");
+			f.setContentSize(1L);
+		}).getId();
+		return entityManager.createEntity(adminUser, new RecordSet()
+				.setName("Destination RecordSet " + UUID.randomUUID())
+				.setParentId(outputFolderId)
+				.setDataFileHandleId(dataFileHandleId)
+				.setUpsertKey(List.of("sample")), null);
 	}
 
 	private void createAnnotatedFile(String sample, String fastq1, String strandedness) throws Exception {

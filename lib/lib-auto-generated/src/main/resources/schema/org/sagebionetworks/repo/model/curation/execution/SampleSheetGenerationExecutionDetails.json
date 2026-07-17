@@ -1,30 +1,9 @@
 {
-  "description": "Execution details for sample sheet generation via a multi-agent system.",
+  "description": "Execution details for sample sheet generation via a multi-agent system. The concrete type routes execution to the sample sheet generation sub-worker; the input parameters are carried by the task's SampleSheetGenerationExecutionProperties.",
   "implements": [
     {
       "$ref": "org.sagebionetworks.repo.model.curation.execution.ExecutableTaskExecutionDetails"
     }
   ],
-  "properties": {
-    "inputFileViewId": {
-      "type": "string",
-      "description": "The synId of the EntityView containing source annotations."
-    },
-    "outputFolderId": {
-      "type": "string",
-      "description": "The synId of the folder where the output RecordSet will be written."
-    },
-    "targetSchemaId": {
-      "type": "string",
-      "description": "The $id of the JSON Schema defining the target sample sheet format."
-    },
-    "outputRecordSetId": {
-      "type": "string",
-      "description": "The synId of the generated RecordSet. Populated on success."
-    },
-    "reviewTaskId": {
-      "type": "integer",
-      "description": "The ID of the review CurationTask created for human inspection. Populated on success."
-    }
-  }
+  "properties": {}
 }

@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.manager.curation.compute;
 
-import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -12,31 +10,35 @@ import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionDetails;
+import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionProperties;
+import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
-import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.stereotype.Service;
 
 /**
  * Executes a sample sheet generation task via the multi-agent supervisor.
  * <p>
+ * The generation task's input parameters are carried by its
+ * {@link SampleSheetGenerationExecutionProperties} (task properties): the input file-based task
+ * providing the source FileView, the target JSON Schema, and the destination record-based task.
  * The AI supervisor is responsible only for producing a conformed CSV on the shared code
- * interpreter session (source annotations from the input EntityView, transformed to match the
- * target JSON Schema). This sub-worker performs the deterministic persistence around that:
+ * interpreter session (source annotations from the input FileView, transformed to match the target
+ * JSON Schema). This sub-worker performs the deterministic persistence around that:
  * <ol>
+ * <li>Resolve the source FileView from the input file-based task, and the destination
+ * {@link RecordSet} from the destination record-based task.</li>
  * <li>Start a code interpreter session and run the supervisor, asking it to write the sample sheet
  * CSV to a known session path.</li>
- * <li>Pull that CSV off the session into a Synapse file handle.</li>
- * <li>Create a {@link RecordSet} entity in the output folder backed by that file handle, and bind
- * the target JSON Schema to it.</li>
- * <li>Create a record-based review {@link CurationTask} referencing the new RecordSet.</li>
+ * <li>Pull the generated CSV off the session into a Synapse file handle and store it as a new
+ * version of the destination RecordSet, then bind the target JSON Schema to it.</li>
  * </ol>
- * The updated {@link SampleSheetGenerationExecutionDetails} (with {@code outputRecordSetId} and
- * {@code reviewTaskId} populated) is returned; the dispatcher then transitions the task to
- * IN_REVIEW.
+ * The input and destination tasks are created and configured by the data manager ahead of
+ * execution, which gives them full control over the workflow. The dispatcher transitions the task
+ * to IN_REVIEW once this returns.
  */
 @Service
 public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<SampleSheetGenerationExecutionDetails> {
@@ -71,50 +73,50 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 	@Override
 	public SampleSheetGenerationExecutionDetails execute(UserInfo user, CurationTask task,
 			SampleSheetGenerationExecutionDetails details, AsyncJobProgressCallback callback) throws Exception {
-		ValidateArgument.required(details.getInputFileViewId(), "inputFileViewId");
-		ValidateArgument.required(details.getOutputFolderId(), "outputFolderId");
-		ValidateArgument.required(details.getTargetSchemaId(), "targetSchemaId");
+		if (!(task.getTaskProperties() instanceof SampleSheetGenerationExecutionProperties properties)) {
+			throw new IllegalArgumentException(
+					"Task " + task.getTaskId() + " must have SampleSheetGenerationExecutionProperties.");
+		}
+		ValidateArgument.required(properties.getInputTaskId(), "inputTaskId");
+		ValidateArgument.required(properties.getTargetSchemaId(), "targetSchemaId");
+		ValidateArgument.required(properties.getDestinationTaskId(), "destinationTaskId");
+
+		// Resolve the source FileView and destination RecordSet from the input/destination tasks up
+		// front, so a misconfigured task fails before the (expensive) supervisor run.
+		String fileViewId = getInputFileViewId(user, properties.getInputTaskId());
+		String recordSetId = getDestinationRecordSetId(user, properties.getDestinationTaskId());
 
 		String sessionId = codeInterpreterClient.startSession("sampleSheetGen-" + task.getTaskId());
 		try {
 			callback.updateProgress("Running the sample sheet supervisor", 0L, 100L);
-			String supervisorResponse = supervisorFactory.create().chat(buildSupervisorMessage(details), user, sessionId);
+			String supervisorResponse = supervisorFactory.create()
+					.chat(buildSupervisorMessage(fileViewId, properties.getTargetSchemaId()), user, sessionId);
 
 			if (supervisorResponse == null || !supervisorResponse.contains(SUCCESS_MARKER)) {
 				throw new IllegalStateException("Sample sheet generation did not succeed: "
 						+ extractErrorMessage(supervisorResponse));
 			}
 
-			callback.updateProgress("Creating the RecordSet from the generated sample sheet", 50L, 100L);
-			List<String> columns = readCsvHeader(sessionId);
+			callback.updateProgress("Storing the generated sample sheet in the RecordSet", 50L, 100L);
 
 			// Pull the generated CSV off the session and into a Synapse file handle.
 			String dataFileHandleId = codeInterpreterFileManager.getFileFromSession(user, sessionId, OUTPUT_CSV_PATH,
 					"text/csv");
 
-			RecordSet recordSet = new RecordSet();
-			recordSet.setName("Sample Sheet (task " + task.getTaskId() + ")");
-			recordSet.setParentId(details.getOutputFolderId());
+			// Store the generated CSV as a new version of the destination RecordSet, preserving its
+			// data-manager-configured properties (name, parent, upsertKey). Clear the version label and
+			// comment so the DAO assigns a unique label for the new version (see NodeDAOImpl.createNewVersion);
+			// reusing the existing label collides on UNIQUE_REVISION_LABEL.
+			RecordSet recordSet = entityManager.getEntity(user, recordSetId, RecordSet.class);
 			recordSet.setDataFileHandleId(dataFileHandleId);
-			// upsertKey must be non-empty; use the first column of the generated sample sheet as the key.
-			recordSet.setUpsertKey(List.of(columns.get(0)));
-
-			String recordSetId = entityManager.createEntity(user, recordSet, null);
+			recordSet.setVersionLabel(null);
+			recordSet.setVersionComment(null);
+			entityManager.updateEntity(user, recordSet, true, null);
 
 			// Bind the target JSON Schema to the RecordSet so it is validated and indexed against it.
 			entityManager.bindSchemaToEntity(user, new BindSchemaToEntityRequest()
 					.setEntityId(recordSetId)
-					.setSchema$id(details.getTargetSchemaId()));
-
-			callback.updateProgress("Creating the review task", 80L, 100L);
-			CurationTask reviewTask = curationTaskManager.createCurationTask(user, new CurationTask()
-					.setProjectId(task.getProjectId())
-					.setDataType(task.getDataType() + " (sample sheet review)")
-					.setInstructions("Review the generated sample sheet.")
-					.setTaskProperties(new RecordBasedMetadataTaskProperties().setRecordSetId(recordSetId)));
-
-			details.setOutputRecordSetId(recordSetId);
-			details.setReviewTaskId(reviewTask.getTaskId());
+					.setSchema$id(properties.getTargetSchemaId()));
 
 			callback.updateProgress("Sample sheet generation complete", 100L, 100L);
 			return details;
@@ -127,30 +129,42 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 		}
 	}
 
-	String buildSupervisorMessage(SampleSheetGenerationExecutionDetails details) {
-		return "Generate a sample sheet.\n"
-				+ "inputFileViewId: " + details.getInputFileViewId() + "\n"
-				+ "targetSchemaId: " + details.getTargetSchemaId() + "\n"
-				+ "outputCsvPath: " + OUTPUT_CSV_PATH + "\n"
-				+ "Write the final, conformed sample sheet CSV to outputCsvPath and report the result.";
+	/**
+	 * Resolves the source FileView from the input task. The input task must be a file-based task with
+	 * a FileView; the data manager references the curation task used to collect the source data.
+	 */
+	String getInputFileViewId(UserInfo user, Long inputTaskId) {
+		CurationTask inputTask = curationTaskManager.getCurationTask(user, inputTaskId);
+		if (!(inputTask.getTaskProperties() instanceof FileBasedMetadataTaskProperties fileProperties)) {
+			throw new IllegalArgumentException(
+					"Input task " + inputTaskId + " must be a file-based metadata task.");
+		}
+		ValidateArgument.required(fileProperties.getFileViewId(), "input task " + inputTaskId + " fileViewId");
+		return fileProperties.getFileViewId();
 	}
 
 	/**
-	 * Reads the header line of the generated CSV directly from the session to determine the column
-	 * names deterministically (rather than parsing them out of the supervisor's prose).
+	 * Resolves the RecordSet that the pre-created destination task references. The destination task
+	 * must be a record-based task with a RecordSet; the data manager is responsible for configuring it
+	 * before execution.
 	 */
-	List<String> readCsvHeader(String sessionId) {
-		CodeExecutionResult result = codeInterpreterClient.executeCode(sessionId, "python",
-				"with open('" + OUTPUT_CSV_PATH + "') as f:\n    print(f.readline().strip())");
-		if (result.isError()) {
-			throw new IllegalStateException("Could not read the generated sample sheet header: " + result.textOutput());
+	String getDestinationRecordSetId(UserInfo user, Long destinationTaskId) {
+		CurationTask destinationTask = curationTaskManager.getCurationTask(user, destinationTaskId);
+		if (!(destinationTask.getTaskProperties() instanceof RecordBasedMetadataTaskProperties recordProperties)) {
+			throw new IllegalArgumentException(
+					"Destination task " + destinationTaskId + " must be a record-based metadata task.");
 		}
-		String header = result.textOutput() == null ? "" : result.textOutput().trim();
-		if (header.isEmpty()) {
-			throw new IllegalStateException("The generated sample sheet has no header row");
-		}
-		String[] parts = header.split(",");
-		return List.of(parts).stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
+		ValidateArgument.required(recordProperties.getRecordSetId(),
+				"destination task " + destinationTaskId + " recordSetId");
+		return recordProperties.getRecordSetId();
+	}
+
+	String buildSupervisorMessage(String fileViewId, String targetSchemaId) {
+		return "Generate a sample sheet.\n"
+				+ "inputFileViewId: " + fileViewId + "\n"
+				+ "targetSchemaId: " + targetSchemaId + "\n"
+				+ "outputCsvPath: " + OUTPUT_CSV_PATH + "\n"
+				+ "Write the final, conformed sample sheet CSV to outputCsvPath and report the result.";
 	}
 
 	private String extractErrorMessage(String supervisorResponse) {

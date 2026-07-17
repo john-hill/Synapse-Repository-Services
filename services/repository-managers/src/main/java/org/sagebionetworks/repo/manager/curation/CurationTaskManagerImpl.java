@@ -22,6 +22,7 @@ import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.TaskBundle;
 import org.sagebionetworks.repo.model.curation.TaskStatus;
+import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionProperties;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.GridSupportedTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
@@ -241,8 +242,35 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
 
             EntityType typeOfSpecifiedRecordSet = entityManager.getEntityType(userInfo, recordBasedMetadataTaskProperties.getRecordSetId());
             ValidateArgument.requirement(EntityType.recordset.equals(typeOfSpecifiedRecordSet), "The recordSetId must be a RecordSet.");
+        } else if (task.getTaskProperties() instanceof SampleSheetGenerationExecutionProperties) {
+            SampleSheetGenerationExecutionProperties sampleSheetProperties = (SampleSheetGenerationExecutionProperties) task.getTaskProperties();
+            ValidateArgument.required(sampleSheetProperties.getInputTaskId(), "inputTaskId");
+            ValidateArgument.required(sampleSheetProperties.getTargetSchemaId(), "targetSchemaId");
+            ValidateArgument.required(sampleSheetProperties.getDestinationTaskId(), "destinationTaskId");
+
+            // The input task must supply the source FileView and the destination task must receive the
+            // generated RecordSet. Both referenced tasks must be of the expected type and belong to the
+            // same project as the generation task.
+            validateReferencedTask(sampleSheetProperties.getInputTaskId(), "inputTaskId",
+                    FileBasedMetadataTaskProperties.class, task.getProjectId());
+            validateReferencedTask(sampleSheetProperties.getDestinationTaskId(), "destinationTaskId",
+                    RecordBasedMetadataTaskProperties.class, task.getProjectId());
         } else {
             throw new IllegalArgumentException("Unknown CurationTaskProperties concreteType: " + task.getTaskProperties().getConcreteType());
         }
+    }
+
+    /**
+     * Validates that a referenced task exists, carries task properties of the expected type, and
+     * belongs to the same project as the generation task.
+     */
+    private void validateReferencedTask(Long referencedTaskId, String fieldName,
+            Class<? extends CurationTaskProperties> expectedType, String projectId) {
+        CurationTask referencedTask = curationTaskDao.getCurationTask(referencedTaskId)
+                .orElseThrow(() -> new IllegalArgumentException("The " + fieldName + " task does not exist: " + referencedTaskId));
+        ValidateArgument.requirement(expectedType.isInstance(referencedTask.getTaskProperties()),
+                "The " + fieldName + " must reference a task with " + expectedType.getSimpleName() + ".");
+        ValidateArgument.requirement(projectId.equals(referencedTask.getProjectId()),
+                "The " + fieldName + " must reference a task in the same project.");
     }
 }

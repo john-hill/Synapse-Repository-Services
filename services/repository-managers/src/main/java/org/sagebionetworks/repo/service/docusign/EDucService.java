@@ -7,6 +7,7 @@ import org.sagebionetworks.repo.model.educ.EDucFileHandleId;
 import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.repo.model.educ.EDucTemplateValidationResult;
 import org.sagebionetworks.repo.model.educ.EDucSignatureQuota;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,11 @@ public class EDucService {
 	public EDucTemplatePage listTemplates(Long userId, EDucTemplateListRequest request) throws Exception {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return eDucManager.listTemplates(userInfo, request);
+	}
+
+	public EDucTemplateValidationResult validateTemplate(Long userId, String templateId) {
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		return eDucManager.validateTemplate(userInfo, templateId);
 	}
 
 	public EDucSignatureQuota routeForSignature(Long userId, String requestId) {

@@ -1202,7 +1202,8 @@ public class UrlHelpers {
 
 	// Electronic Data Use Certificate (eDUC) services
 	public static final String EDUC_TEMPLATE = "/eDuc/template";
-	
+	public static final String EDUC_TEMPLATE_VALIDATE = "/eDuc/template/{templateId}/validation";
+
 	// Statistics Services
 	public static final String STATISTICS = "/statistics";
 

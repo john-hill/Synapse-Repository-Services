@@ -34,6 +34,11 @@
             "type": "string",
             "format": "date-time",
             "description": "Date/time the request was last modified"
+        },
+        "expiresOn": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Date/time when the access approval expires, or null if no approval exists for this user"
         }
     }
 }

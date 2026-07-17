@@ -4,6 +4,10 @@
         "nextPageToken": {
             "type": "string",
             "description": "The token to get the next page of results."
+        },
+        "sortBy": {
+            "$ref": "org.sagebionetworks.repo.model.dataaccess.AccessRequestSortField",
+            "description": "Optional field to sort results by. If omitted, results are sorted by submission modified date."
         }
     }
 }

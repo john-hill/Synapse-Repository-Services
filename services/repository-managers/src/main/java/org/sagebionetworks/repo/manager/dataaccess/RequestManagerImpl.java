@@ -278,11 +278,10 @@ public class RequestManagerImpl implements RequestManager{
 
 		NextPageToken token = new NextPageToken(request.getNextPageToken());
 		List<RequestUserInfo> page = requestDao.getUserRequests(
-				userInfo.getId(), token.getLimitForQuery(), token.getOffset());
+				userInfo.getId(), token.getLimitForQuery(), token.getOffset(), request.getSortBy());
 
 		List<String> envelopeIds = page.stream()
-				.filter(RequestUserInfo::getIsEDuc)
-				.map(r -> r.getEnvelopeId())
+				.map(RequestUserInfo::getEnvelopeId)
 				.filter(id -> id != null)
 				.collect(Collectors.toList());
 
@@ -299,13 +298,14 @@ public class RequestManagerImpl implements RequestManager{
 			AccessRequestSummary summary = new AccessRequestSummary();
 			summary.setRequestId(info.getRequestId());
 			summary.setAccessRequirementName(info.getAccessRequirementName());
-			summary.setIsEDuc(info.getIsEDuc());
+			summary.setIsEDuc(info.getEnvelopeId() != null);
 			summary.setSubmittedOn(info.getSubmittedOn());
 			summary.setModifiedOn(info.getModifiedOn());
+			summary.setExpiresOn(info.getExpiresOn());
 
 			if (info.getSubmissionStatus() != null) {
 				summary.setStatus(toAccessRequestStatus(info.getSubmissionStatus()));
-			} else if (info.getIsEDuc() && info.getEnvelopeId() != null) {
+			} else if (info.getEnvelopeId() != null) {
 				Envelope env = envelopeMap.get(info.getEnvelopeId());
 				if (env != null) {
 					summary.setStatus(toAccessRequestStatusFromEnvelope(env.getStatus()));
@@ -334,24 +334,24 @@ public class RequestManagerImpl implements RequestManager{
 		return result;
 	}
 
-	static AccessRequestStatusEnum toAccessRequestStatus(String submissionState) {
-		switch (submissionState.toUpperCase()) {
-			case "SUBMITTED":
+	static AccessRequestStatusEnum toAccessRequestStatus(SubmissionState submissionState) {
+		switch (submissionState) {
+			case SUBMITTED:
 				return AccessRequestStatusEnum.submitted;
-			case "APPROVED":
+			case APPROVED:
 				return AccessRequestStatusEnum.approved;
-			case "REJECTED":
+			case REJECTED:
 				return AccessRequestStatusEnum.rejected;
-			case "CANCELLED":
+			case CANCELLED:
 				return AccessRequestStatusEnum.cancelled;
 			default:
-				return AccessRequestStatusEnum.created;
+				throw new IllegalArgumentException("Unexpected submission state: " + submissionState);
 		}
 	}
 
 	static AccessRequestStatusEnum toAccessRequestStatusFromEnvelope(String envelopeStatus) {
 		if (envelopeStatus == null) {
-			return AccessRequestStatusEnum.created;
+			throw new IllegalArgumentException("Unexpected envelope status: null");
 		}
 		switch (envelopeStatus.toLowerCase()) {
 			case "sent":
@@ -368,7 +368,7 @@ public class RequestManagerImpl implements RequestManager{
 			case "correct":
 				return AccessRequestStatusEnum.correct;
 			default:
-				return AccessRequestStatusEnum.created;
+				throw new IllegalArgumentException("Unexpected envelope status: " + envelopeStatus);
 		}
 	}
 

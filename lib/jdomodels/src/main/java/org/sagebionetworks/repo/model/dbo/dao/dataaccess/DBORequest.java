@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
@@ -265,13 +266,9 @@ public class DBORequest implements MigratableDatabaseObject<DBORequest, DBOReque
 			@Override
 			public DBORequest createDatabaseObjectFromBackup(DBORequest backup) {
 				if (backup.getEDucEnvelopeId() == null && backup.getRequestSerialized() != null) {
-					try {
-						var dto = RequestUtils.readSerializedField(backup.getRequestSerialized());
-						if (dto.getEDucSignatureEnvelopeId() != null) {
-							backup.setEDucEnvelopeId(dto.getEDucSignatureEnvelopeId());
-						}
-					} catch (Exception e) {
-						// If deserialization fails during migration, skip populating the column
+					RequestInterface dto = RequestUtils.readSerializedField(backup.getRequestSerialized());
+					if (dto.getEDucSignatureEnvelopeId() != null) {
+						backup.setEDucEnvelopeId(dto.getEDucSignatureEnvelopeId());
 					}
 				}
 				return backup;

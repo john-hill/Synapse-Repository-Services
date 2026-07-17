@@ -3,16 +3,18 @@ package org.sagebionetworks.repo.model.dbo.dao.dataaccess;
 import java.util.Date;
 import java.util.Objects;
 
+import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
+
 public class RequestUserInfo {
 
 	private String requestId;
 	private String accessRequirementId;
 	private String accessRequirementName;
-	private String submissionStatus;
-	private Boolean isEDuc;
+	private SubmissionState submissionStatus;
 	private String envelopeId;
 	private Date submittedOn;
 	private Date modifiedOn;
+	private Date expiresOn;
 
 	public String getRequestId() {
 		return requestId;
@@ -38,20 +40,12 @@ public class RequestUserInfo {
 		this.accessRequirementName = accessRequirementName;
 	}
 
-	public String getSubmissionStatus() {
+	public SubmissionState getSubmissionStatus() {
 		return submissionStatus;
 	}
 
-	public void setSubmissionStatus(String submissionStatus) {
+	public void setSubmissionStatus(SubmissionState submissionStatus) {
 		this.submissionStatus = submissionStatus;
-	}
-
-	public Boolean getIsEDuc() {
-		return isEDuc;
-	}
-
-	public void setIsEDuc(Boolean isEDuc) {
-		this.isEDuc = isEDuc;
 	}
 
 	public String getEnvelopeId() {
@@ -78,10 +72,18 @@ public class RequestUserInfo {
 		this.modifiedOn = modifiedOn;
 	}
 
+	public Date getExpiresOn() {
+		return expiresOn;
+	}
+
+	public void setExpiresOn(Date expiresOn) {
+		this.expiresOn = expiresOn;
+	}
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(requestId, accessRequirementId, accessRequirementName,
-				submissionStatus, isEDuc, submittedOn, modifiedOn);
+				submissionStatus, envelopeId, submittedOn, modifiedOn, expiresOn);
 	}
 
 	@Override
@@ -93,7 +95,8 @@ public class RequestUserInfo {
 				&& Objects.equals(accessRequirementId, other.accessRequirementId)
 				&& Objects.equals(accessRequirementName, other.accessRequirementName)
 				&& Objects.equals(submissionStatus, other.submissionStatus)
-				&& Objects.equals(isEDuc, other.isEDuc)
+				&& Objects.equals(envelopeId, other.envelopeId)
+				&& Objects.equals(expiresOn, other.expiresOn)
 				&& Objects.equals(submittedOn, other.submittedOn)
 				&& Objects.equals(modifiedOn, other.modifiedOn);
 	}

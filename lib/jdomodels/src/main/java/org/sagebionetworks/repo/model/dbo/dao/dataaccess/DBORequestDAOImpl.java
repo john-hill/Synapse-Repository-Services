@@ -1,7 +1,12 @@
 package org.sagebionetworks.repo.model.dbo.dao.dataaccess;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_ACCESSOR_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_EXPIRED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_REQUIREMENT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_SUBMITTER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_REQUIREMENT_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_REQUEST_ACCESS_REQUIREMENT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_REQUEST_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_REQUEST_EDUC_ENVELOPE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_REQUEST_ID;
@@ -14,6 +19,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACC
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_STATUS_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_STATUS_STATE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_STATUS_SUBMISSION_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_ACCESS_APPROVAL;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_ACCESS_REQUIREMENT;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DATA_ACCESS_REQUEST;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DATA_ACCESS_REQUEST_USER;
@@ -21,7 +27,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DATA_A
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DATA_ACCESS_SUBMISSION_STATUS;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashSet;
@@ -30,11 +35,13 @@ import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestSortField;
 import org.sagebionetworks.repo.model.dataaccess.AccessType;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
 import org.sagebionetworks.repo.model.dataaccess.PrincipalInvestigator;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
+import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.transactions.MandatoryWriteTransaction;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
@@ -80,23 +87,24 @@ public class DBORequestDAOImpl implements RequestDAO {
 	private static final String SQL_DELETE_REQUEST_USERS = "DELETE FROM " + TABLE_DATA_ACCESS_REQUEST_USER
 			+ " WHERE " + COL_DATA_ACCESS_REQUEST_USER_REQUEST_ID + " = ?";
 
-	private static final String SQL_GET_USER_REQUESTS =
+	private static final String SQL_GET_USER_REQUESTS_BASE =
 			"SELECT r." + COL_DATA_ACCESS_REQUEST_ID + " AS REQUEST_ID"
 			+ ", r." + COL_DATA_ACCESS_REQUEST_ACCESS_REQUIREMENT_ID + " AS ACCESS_REQUIREMENT_ID"
 			+ ", ar." + COL_ACCESS_REQUIREMENT_NAME + " AS ACCESS_REQUIREMENT_NAME"
 			+ ", ss." + COL_DATA_ACCESS_SUBMISSION_STATUS_STATE + " AS SUBMISSION_STATUS"
-			+ ", r." + COL_DATA_ACCESS_REQUEST_EDUC_ENVELOPE_ID + " IS NOT NULL AS IS_EDUC"
 			+ ", r." + COL_DATA_ACCESS_REQUEST_EDUC_ENVELOPE_ID + " AS ENVELOPE_ID"
 			+ ", ss." + COL_DATA_ACCESS_SUBMISSION_STATUS_CREATED_ON + " AS SUBMITTED_ON"
 			+ ", ss." + COL_DATA_ACCESS_SUBMISSION_STATUS_MODIFIED_ON + " AS MODIFIED_ON"
+			+ ", aa." + COL_ACCESS_APPROVAL_EXPIRED_ON + " AS EXPIRES_ON"
 			+ " FROM " + TABLE_DATA_ACCESS_REQUEST + " r"
 			+ " JOIN " + TABLE_DATA_ACCESS_REQUEST_USER + " ru ON r." + COL_DATA_ACCESS_REQUEST_ID + " = ru." + COL_DATA_ACCESS_REQUEST_USER_REQUEST_ID
 			+ " JOIN " + TABLE_ACCESS_REQUIREMENT + " ar ON r." + COL_DATA_ACCESS_REQUEST_ACCESS_REQUIREMENT_ID + " = ar.ID"
 			+ " LEFT JOIN " + TABLE_DATA_ACCESS_SUBMISSION + " s ON s." + COL_DATA_ACCESS_SUBMISSION_DATA_ACCESS_REQUEST_ID + " = r." + COL_DATA_ACCESS_REQUEST_ID
 			+ " LEFT JOIN " + TABLE_DATA_ACCESS_SUBMISSION_STATUS + " ss ON ss." + COL_DATA_ACCESS_SUBMISSION_STATUS_SUBMISSION_ID + " = s." + COL_DATA_ACCESS_SUBMISSION_ID
-			+ " WHERE ru." + COL_DATA_ACCESS_REQUEST_USER_USER_ID + " = ?"
-			+ " ORDER BY r." + COL_DATA_ACCESS_REQUEST_MODIFIED_ON + " DESC"
-			+ " LIMIT ? OFFSET ?";
+			+ " LEFT JOIN " + TABLE_ACCESS_APPROVAL + " aa ON aa." + COL_ACCESS_APPROVAL_REQUIREMENT_ID + " = r." + COL_DATA_ACCESS_REQUEST_ACCESS_REQUIREMENT_ID
+			+ " AND aa." + COL_ACCESS_APPROVAL_ACCESSOR_ID + " = ru." + COL_DATA_ACCESS_REQUEST_USER_USER_ID
+			+ " AND aa." + COL_ACCESS_APPROVAL_SUBMITTER_ID + " = s." + COL_DATA_ACCESS_SUBMISSION_CREATED_BY
+			+ " WHERE ru." + COL_DATA_ACCESS_REQUEST_USER_USER_ID + " = ?";
 
 	private static final RowMapper<DBORequest> MAPPER = new DBORequest().getTableMapping();
 
@@ -105,13 +113,15 @@ public class DBORequestDAOImpl implements RequestDAO {
 		info.setRequestId(String.valueOf(rs.getLong("REQUEST_ID")));
 		info.setAccessRequirementId(String.valueOf(rs.getLong("ACCESS_REQUIREMENT_ID")));
 		info.setAccessRequirementName(rs.getString("ACCESS_REQUIREMENT_NAME"));
-		info.setSubmissionStatus(rs.getString("SUBMISSION_STATUS"));
-		info.setIsEDuc(rs.getBoolean("IS_EDUC"));
+		String state = rs.getString("SUBMISSION_STATUS");
+		info.setSubmissionStatus(state != null ? SubmissionState.valueOf(state) : null);
 		info.setEnvelopeId(rs.getString("ENVELOPE_ID"));
 		long submittedOn = rs.getLong("SUBMITTED_ON");
 		info.setSubmittedOn(rs.wasNull() ? null : new Date(submittedOn));
 		long modifiedOn = rs.getLong("MODIFIED_ON");
 		info.setModifiedOn(rs.wasNull() ? null : new Date(modifiedOn));
+		long expiresOn = rs.getLong("EXPIRES_ON");
+		info.setExpiresOn(rs.wasNull() || expiresOn == 0 ? null : new Date(expiresOn));
 		return info;
 	};
 
@@ -151,6 +161,8 @@ public class DBORequestDAOImpl implements RequestDAO {
 
 	@Override
 	public void delete(String id) {
+		// Note that we don't have to clean up the TABLE_DATA_ACCESS_REQUEST_USER table
+		// since that's taken care of by the 'on delete cascade' foreign key constraint
 		jdbcTemplate.update(SQL_DELETE, id);
 	}
 
@@ -185,8 +197,28 @@ public class DBORequestDAOImpl implements RequestDAO {
 	}
 
 	@Override
-	public List<RequestUserInfo> getUserRequests(Long userId, long limit, long offset) {
-		return jdbcTemplate.query(SQL_GET_USER_REQUESTS, USER_REQUEST_MAPPER, userId, limit, offset);
+	public List<RequestUserInfo> getUserRequests(Long userId, long limit, long offset, AccessRequestSortField sortBy) {
+		String orderBy = toOrderByClause(sortBy);
+		String sql = SQL_GET_USER_REQUESTS_BASE + orderBy + " LIMIT ? OFFSET ?";
+		return jdbcTemplate.query(sql, USER_REQUEST_MAPPER, userId, limit, offset);
+	}
+
+	static String toOrderByClause(AccessRequestSortField sortBy) {
+		if (sortBy == null) {
+			return " ORDER BY MODIFIED_ON DESC";
+		}
+		switch (sortBy) {
+			case ACCESS_REQUIREMENT_NAME:
+				return " ORDER BY ACCESS_REQUIREMENT_NAME ASC";
+			case SUBMITTED_ON:
+				return " ORDER BY SUBMITTED_ON DESC";
+			case MODIFIED_ON:
+				return " ORDER BY MODIFIED_ON DESC";
+			case EXPIRES_ON:
+				return " ORDER BY EXPIRES_ON ASC";
+			default:
+				return " ORDER BY MODIFIED_ON DESC";
+		}
 	}
 
 	@Override
@@ -204,7 +236,7 @@ public class DBORequestDAOImpl implements RequestDAO {
 		}
 	}
 
-	List<DBORequestUser> buildRequestUsers(RequestInterface request) {
+	static List<DBORequestUser> buildRequestUsers(RequestInterface request) {
 		Long requestId = Long.parseLong(request.getId());
 		LinkedHashSet<Long> userIds = new LinkedHashSet<>();
 

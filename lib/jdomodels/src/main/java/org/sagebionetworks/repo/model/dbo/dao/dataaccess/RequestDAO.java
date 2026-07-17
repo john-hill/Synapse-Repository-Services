@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.dbo.dao.dataaccess;
 
 import java.util.List;
 
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestSortField;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -64,10 +65,9 @@ public interface RequestDAO {
 	String getAccessRequirementId(String requestId);
 
 	/**
-	 * Returns requests associated with the given user (as creator, PI, or collaborator),
-	 * ordered by most recently modified first.
+	 * Returns requests associated with the given user (as creator, PI, or collaborator).
 	 */
-	List<RequestUserInfo> getUserRequests(Long userId, long limit, long offset);
+	List<RequestUserInfo> getUserRequests(Long userId, long limit, long offset, AccessRequestSortField sortBy);
 
 	// For testing
 

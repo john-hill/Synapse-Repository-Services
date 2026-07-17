@@ -204,7 +204,7 @@
         },
         {
             "name": "SEARCH_INDEX",
-            "description": "A SearchIndex entity. Change messages with this object type are routed to the search index rebuild topic when a source table/view the index depends on becomes available."
+            "description": "A SearchIndex entity. Used as the type discriminator on source-dependency fan-out messages (published to the SOURCE_DEPENDENCY_EVENT topic) so the search index rebuild worker can select the messages meant for it."
         },
         {
             "name": "SOURCE_DEPENDENCY_EVENT",

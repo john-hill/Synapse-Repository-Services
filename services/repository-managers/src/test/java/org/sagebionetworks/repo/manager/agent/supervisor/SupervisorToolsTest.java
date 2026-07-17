@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialist;
+import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialist;
@@ -29,6 +31,8 @@ public class SupervisorToolsTest {
 	private JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory;
 	@Mock
 	private FileSummarySpecialistFactory fileSummarySpecialistFactory;
+	@Mock
+	private EntityMetadataSpecialistFactory entityMetadataSpecialistFactory;
 
 	@Mock
 	private TableQuerySpecialist tableQuerySpecialist;
@@ -36,6 +40,8 @@ public class SupervisorToolsTest {
 	private JsonSchemaSpecialist jsonSchemaSpecialist;
 	@Mock
 	private FileSummarySpecialist fileSummarySpecialist;
+	@Mock
+	private EntityMetadataSpecialist entityMetadataSpecialist;
 
 	private SupervisorTools tools;
 	private UserInfo userInfo;
@@ -43,7 +49,8 @@ public class SupervisorToolsTest {
 
 	@BeforeEach
 	public void setup() {
-		tools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory, fileSummarySpecialistFactory);
+		tools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory, fileSummarySpecialistFactory,
+				entityMetadataSpecialistFactory);
 		userInfo = new UserInfo(false, 101L);
 		toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "session-123"));
 	}
@@ -86,6 +93,19 @@ public class SupervisorToolsTest {
 		assertEquals("file summarized", result);
 		verify(fileSummarySpecialistFactory).create();
 		verify(fileSummarySpecialist).chat("summarize out.csv", userInfo, "session-123");
+	}
+
+	@Test
+	public void testAskEntityMetadataSpecialist() {
+		when(entityMetadataSpecialistFactory.create()).thenReturn(entityMetadataSpecialist);
+		when(entityMetadataSpecialist.chat("annotations of syn1", userInfo, "session-123")).thenReturn("annotations described");
+
+		// call under test
+		String result = tools.askEntityMetadataSpecialist("annotations of syn1", toolContext);
+
+		assertEquals("annotations described", result);
+		verify(entityMetadataSpecialistFactory).create();
+		verify(entityMetadataSpecialist).chat("annotations of syn1", userInfo, "session-123");
 	}
 
 	@Test

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.agent.supervisor;
 
+import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySpecialistFactory;
@@ -22,13 +23,16 @@ public class SupervisorTools {
 	private final TableQuerySpecialistFactory tableQuerySpecialistFactory;
 	private final JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory;
 	private final FileSummarySpecialistFactory fileSummarySpecialistFactory;
+	private final EntityMetadataSpecialistFactory entityMetadataSpecialistFactory;
 
 	public SupervisorTools(TableQuerySpecialistFactory tableQuerySpecialistFactory,
 			JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory,
-			FileSummarySpecialistFactory fileSummarySpecialistFactory) {
+			FileSummarySpecialistFactory fileSummarySpecialistFactory,
+			EntityMetadataSpecialistFactory entityMetadataSpecialistFactory) {
 		this.tableQuerySpecialistFactory = tableQuerySpecialistFactory;
 		this.jsonSchemaSpecialistFactory = jsonSchemaSpecialistFactory;
 		this.fileSummarySpecialistFactory = fileSummarySpecialistFactory;
+		this.entityMetadataSpecialistFactory = entityMetadataSpecialistFactory;
 	}
 
 	@Tool(description = "Delegate a task about a Synapse table or view to the table query specialist. "
@@ -59,6 +63,16 @@ public class SupervisorTools {
 			@ToolParam(description = "A complete, self-contained instruction for the file summary specialist", required = true) String message,
 			ToolContext toolContext) {
 		return fileSummarySpecialistFactory.create().chat(message, extractUserInfo(toolContext), extractSessionId(toolContext));
+	}
+
+	@Tool(description = "Delegate a task about a Synapse entity's metadata to the entity metadata specialist. "
+			+ "The specialist can describe an entity, list its annotations (including schema-derived ones), report "
+			+ "its JSON schema binding, list the children of a container, and copy FileEntity contents into the shared "
+			+ "session. Provide a complete, self-contained instruction; the specialist has no memory of this conversation.")
+	public String askEntityMetadataSpecialist(
+			@ToolParam(description = "A complete, self-contained instruction for the entity metadata specialist", required = true) String message,
+			ToolContext toolContext) {
+		return entityMetadataSpecialistFactory.create().chat(message, extractUserInfo(toolContext), extractSessionId(toolContext));
 	}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {

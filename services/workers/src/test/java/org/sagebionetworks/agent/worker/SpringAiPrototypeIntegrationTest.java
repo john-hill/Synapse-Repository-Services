@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
@@ -88,7 +89,10 @@ public class SpringAiPrototypeIntegrationTest {
 
 	@Autowired
 	private CodeInterpreterTools codeInterpreterTools;
-	
+
+	@Autowired
+	private CodeInterpreterFileManager codeInterpreterFileManager;
+
 	@Autowired
 	private S3Presigner presigner;
 
@@ -316,51 +320,21 @@ public class SpringAiPrototypeIntegrationTest {
 	}
 
 	@Test
-	public void testCodeInterpreterToolsRoundTrip() throws Exception {
-		// Upload a CSV to S3 via FileHandleManager
-		String csvContent = String.join("\n",
-				"city,population,area_km2",
-				"Seattle,749256,369",
-				"Portland,652503,376",
-				"Vancouver,694664,115");
-
-		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(
-				admin.getId().toString(), new Date(),
-				csvContent.getBytes(StandardCharsets.UTF_8),
-				"cities.csv", ContentTypeUtil.TEXT_PLAIN_UTF8, null);
-		fileHandlesToDelete.add(fileHandle);
-
+	public void testGetFileFromSessionRoundTrip() throws Exception {
 		String sessionId = codeInterpreterClient.startSession("toolsRoundTrip" + System.nanoTime());
 		try {
-			ToolContext toolContext = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionId));
-
-			// call under test — add file to session
-			String addResult = codeInterpreterTools.addFileToSession(fileHandle.getId(), toolContext);
-			assertTrue(addResult.contains("cities.csv"), "Should confirm file name. Got: " + addResult);
-			assertTrue(addResult.contains("available"), "Should confirm availability. Got: " + addResult);
-
-			// Transform the CSV in the session to produce a new file
-			String transformCode = String.join("\n",
-					"import csv",
+			// Produce a file in the session.
+			CodeExecutionResult createResult = codeInterpreterClient.executeCode(sessionId, "python", String.join("\n",
 					"import json",
-					"",
-					"with open('cities.csv', 'r') as f:",
-					"    rows = list(csv.DictReader(f))",
-					"",
-					"result = [{'city': r['city'], 'density': round(int(r['population']) / int(r['area_km2']))}",
-					"          for r in rows]",
-					"",
 					"with open('density.json', 'w') as f:",
-					"    json.dump(result, f)",
-					"",
-					"print('done')");
-			CodeExecutionResult transformResult = codeInterpreterClient.executeCode(sessionId, "python", transformCode);
-			assertFalse(transformResult.isError(), "Transform should succeed. Output: " + transformResult.textOutput());
+					"    json.dump([{'city': 'Seattle', 'density': 2030}], f)",
+					"print('done')"));
+			assertFalse(createResult.isError(), "Create should succeed. Output: " + createResult.textOutput());
 
-			// call under test — get file from session
-			String fileHandleId = codeInterpreterTools.getFileFromSession("density.json", "application/json", toolContext);
+			// call under test — export the session file into a new Synapse file handle
+			String fileHandleId = codeInterpreterFileManager.getFileFromSession(admin, sessionId, "density.json",
+					"application/json");
 			assertNotNull(fileHandleId, "Should return a file handle ID");
-			assertFalse(fileHandleId.startsWith("Error"), "Should not be an error. Got: " + fileHandleId);
 
 			// Verify the created file handle
 			S3FileHandle exportedHandle = (S3FileHandle) fileHandleDao.get(fileHandleId);

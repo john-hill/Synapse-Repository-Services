@@ -179,8 +179,6 @@ public class ComputeTaskDispatcherImplTest {
 		CurationTask task = new CurationTask().setProjectId(projectId).setAssigneePrincipalId(userId.toString());
 
 		SampleSheetGenerationExecutionDetails details = new SampleSheetGenerationExecutionDetails();
-		details.setInputFileViewId("syn456");
-		details.setOutputFolderId("syn789");
 		TaskStatus status = new TaskStatus().setState(TaskState.NOT_STARTED).setExecutionDetails(details).setEtag("etag1");
 		TaskStatus freshStatus = new TaskStatus().setState(TaskState.EXECUTING).setExecutionDetails(details).setEtag("etag2");
 
@@ -189,10 +187,6 @@ public class ComputeTaskDispatcherImplTest {
 		when(mockCurationTaskDao.updateTaskStatus(eq(userId), eq(taskId), any())).thenReturn(status, freshStatus);
 
 		SampleSheetGenerationExecutionDetails resultDetails = new SampleSheetGenerationExecutionDetails();
-		resultDetails.setInputFileViewId("syn456");
-		resultDetails.setOutputFolderId("syn789");
-		resultDetails.setOutputRecordSetId("syn1000");
-		resultDetails.setReviewTaskId(1001L);
 		when(mockSubWorker.execute(eq(userInfo), eq(task), any(), eq(mockCallback))).thenReturn(resultDetails);
 
 		// call under test
@@ -221,7 +215,6 @@ public class ComputeTaskDispatcherImplTest {
 		CurationTask task = new CurationTask().setProjectId(projectId).setAssigneePrincipalId(userId.toString());
 
 		SampleSheetGenerationExecutionDetails details = new SampleSheetGenerationExecutionDetails();
-		details.setInputFileViewId("syn456");
 		TaskStatus status = new TaskStatus().setState(TaskState.NOT_STARTED).setExecutionDetails(details).setEtag("etag1");
 		TaskStatus freshStatus = new TaskStatus().setState(TaskState.EXECUTING).setExecutionDetails(details).setEtag("etag2");
 

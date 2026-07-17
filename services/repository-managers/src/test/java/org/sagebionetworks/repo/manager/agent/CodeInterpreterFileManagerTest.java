@@ -24,10 +24,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.BatchFileRequest;
 import org.sagebionetworks.repo.model.file.BatchFileResult;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
@@ -35,6 +39,8 @@ import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileResult;
 import org.sagebionetworks.repo.model.file.FileResultFailureCode;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.project.S3StorageLocationSetting;
+import org.sagebionetworks.repo.model.project.StorageLocationSetting;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 
@@ -68,6 +74,12 @@ public class CodeInterpreterFileManagerTest {
 	private CodeExecutionResult mockCodeResult;
 	@Mock
 	private FileHandleManager mockFileHandleManager;
+	@Mock
+	private FileHandleDao mockFileHandleDao;
+	@Mock
+	private IdGenerator mockIdGenerator;
+	@Mock
+	private StorageLocationDAO mockStorageLocationDAO;
 
 	@TempDir
 	Path tempDir;
@@ -77,8 +89,9 @@ public class CodeInterpreterFileManagerTest {
 	@BeforeEach
 	public void setup() {
 		when(mockStackConfig.getStack()).thenReturn("dev");
+		when(mockStackConfig.getS3Bucket()).thenReturn("devdata.sagebase.org");
 		fileManager = new CodeInterpreterFileManager(mockS3Client, mockS3Presigner, mockCodeInterpreterClient,
-				mockFileHandleManager, mockStackConfig);
+				mockFileHandleManager, mockFileHandleDao, mockIdGenerator, mockStorageLocationDAO, mockStackConfig);
 	}
 
 	@Test
@@ -323,5 +336,113 @@ public class CodeInterpreterFileManagerTest {
 
 		verifyNoInteractions(mockS3Client);
 		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testGetFileFromSessionWithValidFile() {
+		UserInfo user = new UserInfo(false, 123L);
+		String filePath = "analysis_result.csv";
+		String contentType = "text/csv";
+		String sessionId = "testSession123";
+
+		CodeInterpreterFileManager.PullResult pullResult = new CodeInterpreterFileManager.PullResult(
+				"dev.code-interpreter.staging.sagebase.org", "123/some-uuid/analysis_result.csv",
+				"abc123def456abc123def456abc12345", 1024L);
+		when(mockS3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenReturn(mockPresignedPutRequest);
+		try {
+			when(mockPresignedPutRequest.url()).thenReturn(new URL("https://example.com/presigned"));
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+		when(mockCodeResult.textOutput()).thenReturn(pullResult.md5() + ":" + pullResult.contentSize() + "\n");
+
+		StorageLocationSetting storageLocation = new S3StorageLocationSetting();
+		when(mockStorageLocationDAO.get(StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID)).thenReturn(storageLocation);
+		when(mockS3Client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+		when(mockIdGenerator.generateNewId(IdType.FILE_IDS)).thenReturn(789L);
+
+		S3FileHandle createdHandle = new S3FileHandle();
+		createdHandle.setId("789");
+		when(mockFileHandleDao.createFile(any(S3FileHandle.class))).thenReturn(createdHandle);
+
+		// call under test
+		String result = fileManager.getFileFromSession(user, sessionId, filePath, contentType);
+
+		assertEquals("789", result);
+
+		ArgumentCaptor<CopyObjectRequest> copyCaptor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+		verify(mockS3Client).copyObject(copyCaptor.capture());
+		assertEquals("dev.code-interpreter.staging.sagebase.org", copyCaptor.getValue().sourceBucket());
+		assertEquals("devdata.sagebase.org", copyCaptor.getValue().destinationBucket());
+
+		ArgumentCaptor<S3FileHandle> handleCaptor = ArgumentCaptor.forClass(S3FileHandle.class);
+		verify(mockFileHandleDao).createFile(handleCaptor.capture());
+		S3FileHandle persistedHandle = handleCaptor.getValue();
+		assertEquals("devdata.sagebase.org", persistedHandle.getBucketName());
+		assertEquals("abc123def456abc123def456abc12345", persistedHandle.getContentMd5());
+		assertEquals(1024L, persistedHandle.getContentSize());
+		assertEquals("text/csv", persistedHandle.getContentType());
+		assertEquals("analysis_result.csv", persistedHandle.getFileName());
+		assertEquals("123", persistedHandle.getCreatedBy());
+		assertEquals("789", persistedHandle.getId());
+	}
+
+	@Test
+	public void testGetFileFromSessionWithNestedPath() throws Exception {
+		UserInfo user = new UserInfo(false, 123L);
+		String filePath = "output/subdir/report.json";
+		String contentType = "application/json";
+		String sessionId = "testSession123";
+
+		when(mockS3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenReturn(mockPresignedPutRequest);
+		when(mockPresignedPutRequest.url()).thenReturn(new URL("https://example.com/presigned"));
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+		when(mockCodeResult.textOutput()).thenReturn("aabbccdd11223344aabbccdd11223344:512\n");
+
+		StorageLocationSetting storageLocation = new S3StorageLocationSetting();
+		when(mockStorageLocationDAO.get(StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID)).thenReturn(storageLocation);
+		when(mockS3Client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+		when(mockIdGenerator.generateNewId(IdType.FILE_IDS)).thenReturn(999L);
+
+		S3FileHandle createdHandle = new S3FileHandle();
+		createdHandle.setId("999");
+		when(mockFileHandleDao.createFile(any(S3FileHandle.class))).thenReturn(createdHandle);
+
+		// call under test — only the last path segment becomes the file name
+		String result = fileManager.getFileFromSession(user, sessionId, filePath, contentType);
+
+		assertEquals("999", result);
+
+		ArgumentCaptor<S3FileHandle> handleCaptor = ArgumentCaptor.forClass(S3FileHandle.class);
+		verify(mockFileHandleDao).createFile(handleCaptor.capture());
+		assertEquals("report.json", handleCaptor.getValue().getFileName());
+	}
+
+	@Test
+	public void testGetFileFromSessionWithPullError() {
+		UserInfo user = new UserInfo(false, 123L);
+		String filePath = "result.csv";
+		String contentType = "text/csv";
+		String sessionId = "testSession123";
+
+		when(mockS3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenReturn(mockPresignedPutRequest);
+		try {
+			when(mockPresignedPutRequest.url()).thenReturn(new URL("https://example.com/presigned"));
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(true);
+		when(mockCodeResult.textOutput()).thenReturn("FileNotFoundError: result.csv");
+
+		// call under test — a failed pull propagates and no file handle is created
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> fileManager.getFileFromSession(user, sessionId, filePath, contentType));
+		assertTrue(ex.getMessage().contains("FileNotFoundError"));
+
+		verifyNoInteractions(mockFileHandleDao);
 	}
 }

@@ -1,12 +1,11 @@
 package org.sagebionetworks.repo.manager.curation.compute;
 
 import java.util.List;
-import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisorFactory;
 import org.sagebionetworks.repo.manager.curation.CurationTaskManager;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -19,7 +18,6 @@ import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
-import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.stereotype.Service;
 
 /**
@@ -51,16 +49,16 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 
 	private final SampleSheetSupervisorFactory supervisorFactory;
 	private final AgentCoreCodeInterpreterClient codeInterpreterClient;
-	private final CodeInterpreterTools codeInterpreterTools;
+	private final CodeInterpreterFileManager codeInterpreterFileManager;
 	private final EntityManager entityManager;
 	private final CurationTaskManager curationTaskManager;
 
 	public SampleSheetGenerationSubWorker(SampleSheetSupervisorFactory supervisorFactory,
-			AgentCoreCodeInterpreterClient codeInterpreterClient, CodeInterpreterTools codeInterpreterTools,
+			AgentCoreCodeInterpreterClient codeInterpreterClient, CodeInterpreterFileManager codeInterpreterFileManager,
 			EntityManager entityManager, CurationTaskManager curationTaskManager) {
 		this.supervisorFactory = supervisorFactory;
 		this.codeInterpreterClient = codeInterpreterClient;
-		this.codeInterpreterTools = codeInterpreterTools;
+		this.codeInterpreterFileManager = codeInterpreterFileManager;
 		this.entityManager = entityManager;
 		this.curationTaskManager = curationTaskManager;
 	}
@@ -90,10 +88,9 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 			callback.updateProgress("Creating the RecordSet from the generated sample sheet", 50L, 100L);
 			List<String> columns = readCsvHeader(sessionId);
 
-			// Pull the generated CSV off the session and into a Synapse file handle. getFileFromSession
-			// reads userInfo/sessionId from the tool context, so provide them directly.
-			ToolContext toolContext = new ToolContext(Map.of("userInfo", user, "sessionId", sessionId));
-			String dataFileHandleId = codeInterpreterTools.getFileFromSession(OUTPUT_CSV_PATH, "text/csv", toolContext);
+			// Pull the generated CSV off the session and into a Synapse file handle.
+			String dataFileHandleId = codeInterpreterFileManager.getFileFromSession(user, sessionId, OUTPUT_CSV_PATH,
+					"text/csv");
 
 			RecordSet recordSet = new RecordSet();
 			recordSet.setName("Sample Sheet (task " + task.getTaskId() + ")");

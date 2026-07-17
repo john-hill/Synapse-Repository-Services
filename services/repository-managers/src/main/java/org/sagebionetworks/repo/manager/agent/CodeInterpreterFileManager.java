@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,13 +14,18 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.BatchFileRequest;
 import org.sagebionetworks.repo.model.file.BatchFileResult;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileResult;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.upload.multipart.MultipartUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
@@ -43,17 +49,26 @@ public class CodeInterpreterFileManager {
 	private final S3Presigner s3Presigner;
 	private final AgentCoreCodeInterpreterClient codeInterpreterClient;
 	private final FileHandleManager fileHandleManager;
+	private final FileHandleDao fileHandleDao;
+	private final IdGenerator idGenerator;
+	private final StorageLocationDAO storageLocationDAO;
 	private final String stagingBucket;
+	private final String synapseBucket;
 	private final VelocityEngine velocityEngine;
 
 	public CodeInterpreterFileManager(S3Client s3Client, S3Presigner s3Presigner,
 			AgentCoreCodeInterpreterClient codeInterpreterClient, FileHandleManager fileHandleManager,
+			FileHandleDao fileHandleDao, IdGenerator idGenerator, StorageLocationDAO storageLocationDAO,
 			StackConfiguration stackConfig) {
 		this.s3Client = s3Client;
 		this.s3Presigner = s3Presigner;
 		this.codeInterpreterClient = codeInterpreterClient;
 		this.fileHandleManager = fileHandleManager;
+		this.fileHandleDao = fileHandleDao;
+		this.idGenerator = idGenerator;
+		this.storageLocationDAO = storageLocationDAO;
 		this.stagingBucket = stackConfig.getStack() + ".code-interpreter.staging.sagebase.org";
+		this.synapseBucket = stackConfig.getS3Bucket();
 		this.velocityEngine = new VelocityEngine();
 		this.velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath");
 		this.velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
@@ -172,6 +187,53 @@ public class CodeInterpreterFileManager {
 		public boolean isError() {
 			return error != null;
 		}
+	}
+
+	/**
+	 * Export a file from a code interpreter session into a new Synapse S3 file handle. Pulls the file
+	 * off the session to the staging bucket, copies it into the Synapse bucket, and persists a new
+	 * file handle owned by the given user.
+	 *
+	 * @param user        The user that will own the new file handle
+	 * @param sessionId   The code interpreter session ID
+	 * @param filePath    The path of the file within the session
+	 * @param contentType The content type for the created file handle
+	 * @return The ID of the newly created Synapse file handle
+	 */
+	public String getFileFromSession(UserInfo user, String sessionId, String filePath, String contentType) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(filePath, "filePath");
+
+		String userId = user.getId().toString();
+		String fileName = filePath.contains("/") ? filePath.substring(filePath.lastIndexOf('/') + 1) : filePath;
+
+		PullResult pullResult = pullFileFromSession(sessionId, filePath, contentType, userId);
+
+		String synapseKey = MultipartUtils.createNewKey(userId, fileName,
+				storageLocationDAO.get(StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID));
+
+		s3Client.copyObject(CopyObjectRequest.builder()
+				.sourceBucket(pullResult.bucket())
+				.sourceKey(pullResult.key())
+				.destinationBucket(synapseBucket)
+				.destinationKey(synapseKey)
+				.build());
+
+		S3FileHandle handle = new S3FileHandle();
+		handle.setStorageLocationId(StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID);
+		handle.setBucketName(synapseBucket);
+		handle.setKey(synapseKey);
+		handle.setContentMd5(pullResult.md5());
+		handle.setContentType(contentType);
+		handle.setContentSize(pullResult.contentSize());
+		handle.setFileName(fileName);
+		handle.setCreatedBy(userId);
+		handle.setCreatedOn(new Date());
+		handle.setId(idGenerator.generateNewId(IdType.FILE_IDS).toString());
+		handle.setEtag(UUID.randomUUID().toString());
+
+		return ((S3FileHandle) fileHandleDao.createFile(handle)).getId();
 	}
 
 	/**

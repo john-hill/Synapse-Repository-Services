@@ -19,7 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisor;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisorFactory;
 import org.sagebionetworks.repo.manager.curation.CurationTaskManager;
@@ -32,7 +32,6 @@ import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
-import org.springframework.ai.chat.model.ToolContext;
 
 @ExtendWith(MockitoExtension.class)
 public class SampleSheetGenerationSubWorkerTest {
@@ -44,7 +43,7 @@ public class SampleSheetGenerationSubWorkerTest {
 	@Mock
 	private AgentCoreCodeInterpreterClient codeInterpreterClient;
 	@Mock
-	private CodeInterpreterTools codeInterpreterTools;
+	private CodeInterpreterFileManager codeInterpreterFileManager;
 	@Mock
 	private EntityManager entityManager;
 	@Mock
@@ -60,7 +59,7 @@ public class SampleSheetGenerationSubWorkerTest {
 
 	@BeforeEach
 	public void setup() {
-		subWorker = new SampleSheetGenerationSubWorker(supervisorFactory, codeInterpreterClient, codeInterpreterTools,
+		subWorker = new SampleSheetGenerationSubWorker(supervisorFactory, codeInterpreterClient, codeInterpreterFileManager,
 				entityManager, curationTaskManager);
 		user = new UserInfo(false, 101L);
 		task = new CurationTask().setTaskId(555L).setProjectId("syn1").setDataType("fastq");
@@ -85,8 +84,8 @@ public class SampleSheetGenerationSubWorkerTest {
 		// Header read from the session.
 		when(codeInterpreterClient.executeCode(eq("session-1"), eq("python"), any()))
 				.thenReturn(new CodeExecutionResult("sampleId,assay,platform\n", false, List.of()));
-		when(codeInterpreterTools.getFileFromSession(eq(SampleSheetGenerationSubWorker.OUTPUT_CSV_PATH), eq("text/csv"),
-				any(ToolContext.class))).thenReturn("999");
+		when(codeInterpreterFileManager.getFileFromSession(eq(user), eq("session-1"),
+				eq(SampleSheetGenerationSubWorker.OUTPUT_CSV_PATH), eq("text/csv"))).thenReturn("999");
 		when(entityManager.createEntity(eq(user), any(RecordSet.class), isNull())).thenReturn("syn300");
 		when(curationTaskManager.createCurationTask(eq(user), any(CurationTask.class)))
 				.thenReturn(new CurationTask().setTaskId(777L));

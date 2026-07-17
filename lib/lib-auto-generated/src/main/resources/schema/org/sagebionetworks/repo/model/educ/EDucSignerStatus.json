@@ -10,7 +10,7 @@
             "description": "Synapse user id of the signer, if any"
         },
         "status": {
-            "$ref": "org.sagebionetworks.repo.model.duc.DucSignerStatusEnum",
+            "$ref": "org.sagebionetworks.repo.model.educ.EDucSignerStatusEnum",
             "description": "status of the signer"
         }
     }

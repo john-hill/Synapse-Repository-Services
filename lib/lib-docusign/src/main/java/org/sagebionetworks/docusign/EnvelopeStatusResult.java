@@ -2,10 +2,10 @@ package org.sagebionetworks.docusign;
 
 import java.util.List;
 
-import org.sagebionetworks.repo.model.duc.DucSignatureStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
 
 /*
- * Allows returning the signers' emails, which are not part of the DucSignatureStatus DTO
+ * Allows returning the signers' emails, which are not part of the EDucSignatureStatus DTO
  */
-public record EnvelopeStatusResult(DucSignatureStatus status, List<String> signerEmails) {
+public record EnvelopeStatusResult(EDucSignatureStatus status, List<String> signerEmails) {
 }

@@ -1,17 +1,20 @@
 package org.sagebionetworks.repo.manager.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,17 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
+import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.file.BatchFileRequest;
+import org.sagebionetworks.repo.model.file.BatchFileResult;
+import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
+import org.sagebionetworks.repo.model.file.FileResult;
+import org.sagebionetworks.repo.model.file.FileResultFailureCode;
+import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 
@@ -52,6 +66,8 @@ public class CodeInterpreterFileManagerTest {
 	private PresignedPutObjectRequest mockPresignedPutRequest;
 	@Mock
 	private CodeExecutionResult mockCodeResult;
+	@Mock
+	private FileHandleManager mockFileHandleManager;
 
 	@TempDir
 	Path tempDir;
@@ -61,7 +77,8 @@ public class CodeInterpreterFileManagerTest {
 	@BeforeEach
 	public void setup() {
 		when(mockStackConfig.getStack()).thenReturn("dev");
-		fileManager = new CodeInterpreterFileManager(mockS3Client, mockS3Presigner, mockCodeInterpreterClient, mockStackConfig);
+		fileManager = new CodeInterpreterFileManager(mockS3Client, mockS3Presigner, mockCodeInterpreterClient,
+				mockFileHandleManager, mockStackConfig);
 	}
 
 	@Test
@@ -209,5 +226,102 @@ public class CodeInterpreterFileManagerTest {
 		assertTrue(result.key().endsWith("/report.csv"));
 		assertEquals("md5hash12345678901234567890abcde", result.md5());
 		assertEquals(512L, result.contentSize());
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithAuthorizedS3File() throws Exception {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, "entity_metadata_specialist/data.csv");
+
+		S3FileHandle s3Handle = new S3FileHandle();
+		s3Handle.setId("222");
+		s3Handle.setBucketName("source-bucket");
+		s3Handle.setKey("path/to/file.csv");
+		s3Handle.setFileName("file.csv");
+		FileResult fileResult = new FileResult().setFileHandleId("222").setFileHandle(s3Handle);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+		when(mockS3Client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+		when(mockS3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(mockPresignedGetRequest);
+		when(mockPresignedGetRequest.url()).thenReturn(new URL("https://staging.s3.amazonaws.com/path/to/file.csv?presigned=true"));
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertFalse(results.get(0).isError());
+		assertEquals(request, results.get(0).request());
+		assertEquals(mockCodeResult, results.get(0).execution());
+
+		ArgumentCaptor<BatchFileRequest> batchCaptor = ArgumentCaptor.forClass(BatchFileRequest.class);
+		verify(mockFileHandleManager).getFileHandleAndUrlBatch(eq(user), batchCaptor.capture());
+		BatchFileRequest batchRequest = batchCaptor.getValue();
+		assertTrue(batchRequest.getIncludeFileHandles());
+		assertFalse(batchRequest.getIncludePreSignedURLs());
+		assertFalse(batchRequest.getIncludePreviewPreSignedURLs());
+		assertEquals(List.of(association), batchRequest.getRequestedFiles());
+
+		verify(mockS3Client).copyObject(any(CopyObjectRequest.class));
+		verify(mockCodeInterpreterClient).executeCode(eq(sessionId), eq("python"), any(String.class));
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithUnauthorizedFile() {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, "data.csv");
+
+		FileResult fileResult = new FileResult().setFileHandleId("222").setFailureCode(FileResultFailureCode.UNAUTHORIZED);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertTrue(results.get(0).isError());
+		assertEquals("UNAUTHORIZED", results.get(0).error());
+
+		// Unauthorized files never touch S3 or the session.
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockS3Presigner);
+		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithNonS3File() {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, "data.csv");
+
+		// A resolved-but-non-S3 file handle: the file handle is left null to represent an unsupported type.
+		FileResult fileResult = new FileResult().setFileHandleId("222");
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertTrue(results.get(0).isError());
+		assertTrue(results.get(0).error().contains("not an S3-backed file"));
+
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockCodeInterpreterClient);
 	}
 }

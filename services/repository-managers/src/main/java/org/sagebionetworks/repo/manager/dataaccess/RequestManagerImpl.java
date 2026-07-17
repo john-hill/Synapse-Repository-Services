@@ -278,7 +278,8 @@ public class RequestManagerImpl implements RequestManager{
 
 		NextPageToken token = new NextPageToken(request.getNextPageToken());
 		List<RequestUserInfo> page = requestDao.getUserRequests(
-				userInfo.getId(), token.getLimitForQuery(), token.getOffset(), request.getSortBy());
+				userInfo.getId(), token.getLimitForQuery(), token.getOffset(),
+				request.getSortBy(), request.getSortDirection());
 
 		List<String> envelopeIds = page.stream()
 				.map(RequestUserInfo::getEnvelopeId)

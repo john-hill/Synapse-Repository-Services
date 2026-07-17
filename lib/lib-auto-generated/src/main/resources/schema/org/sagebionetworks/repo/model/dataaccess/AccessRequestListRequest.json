@@ -8,6 +8,10 @@
         "sortBy": {
             "$ref": "org.sagebionetworks.repo.model.dataaccess.AccessRequestSortField",
             "description": "Optional field to sort results by. If omitted, results are sorted by submission modified date."
+        },
+        "sortDirection": {
+            "$ref": "org.sagebionetworks.repo.model.dataaccess.SortDirection",
+            "description": "Optional sort direction. Defaults to DESC if omitted."
         }
     }
 }

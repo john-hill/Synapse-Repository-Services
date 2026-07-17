@@ -36,6 +36,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequestSortField;
 import org.sagebionetworks.repo.model.dataaccess.AccessType;
+import org.sagebionetworks.repo.model.dataaccess.SortDirection;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
 import org.sagebionetworks.repo.model.dataaccess.PrincipalInvestigator;
 import org.sagebionetworks.repo.model.dataaccess.Request;
@@ -196,28 +197,17 @@ public class DBORequestDAOImpl implements RequestDAO {
 	}
 
 	@Override
-	public List<RequestUserInfo> getUserRequests(Long userId, long limit, long offset, AccessRequestSortField sortBy) {
-		String orderBy = toOrderByClause(sortBy);
+	public List<RequestUserInfo> getUserRequests(Long userId, long limit, long offset,
+			AccessRequestSortField sortBy, SortDirection sortDirection) {
+		String orderBy = toOrderByClause(sortBy, sortDirection);
 		String sql = SQL_GET_USER_REQUESTS_BASE + orderBy + " LIMIT ? OFFSET ?";
 		return jdbcTemplate.query(sql, USER_REQUEST_MAPPER, userId, limit, offset);
 	}
 
-	static String toOrderByClause(AccessRequestSortField sortBy) {
-		if (sortBy == null) {
-			return " ORDER BY MODIFIED_ON DESC";
-		}
-		switch (sortBy) {
-			case ACCESS_REQUIREMENT_NAME:
-				return " ORDER BY ACCESS_REQUIREMENT_NAME ASC";
-			case SUBMITTED_ON:
-				return " ORDER BY SUBMITTED_ON DESC";
-			case MODIFIED_ON:
-				return " ORDER BY MODIFIED_ON DESC";
-			case EXPIRES_ON:
-				return " ORDER BY EXPIRES_ON ASC";
-			default:
-				throw new IllegalArgumentException("Unexpected sort field: " + sortBy);
-		}
+	static String toOrderByClause(AccessRequestSortField sortBy, SortDirection sortDirection) {
+		String field = sortBy != null ? sortBy.name() : AccessRequestSortField.MODIFIED_ON.name();
+		String direction = sortDirection != null ? sortDirection.name() : SortDirection.DESC.name();
+		return " ORDER BY " + field + " " + direction;
 	}
 
 	@Override

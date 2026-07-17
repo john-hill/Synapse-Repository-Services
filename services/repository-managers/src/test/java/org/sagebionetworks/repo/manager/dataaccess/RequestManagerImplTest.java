@@ -718,7 +718,7 @@ public class RequestManagerImplTest {
 	@Test
 	public void testListUserRequestsWithNoRequests() {
 		when(mockUser.getId()).thenReturn(1L);
-		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null)).thenReturn(List.of());
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of());
 
 		AccessRequestListRequest listRequest = new AccessRequestListRequest();
 
@@ -742,7 +742,7 @@ public class RequestManagerImplTest {
 		info.setSubmittedOn(new Date(1000L));
 		info.setModifiedOn(new Date(2000L));
 
-		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null)).thenReturn(List.of(info));
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of(info));
 
 		AccessRequestListRequest listRequest = new AccessRequestListRequest();
 
@@ -771,7 +771,7 @@ public class RequestManagerImplTest {
 		info.setSubmissionStatus(null);
 		info.setEnvelopeId("env-abc");
 
-		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null)).thenReturn(List.of(info));
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of(info));
 
 		Signer signer1 = new Signer();
 		signer1.setStatus("completed");
@@ -814,7 +814,7 @@ public class RequestManagerImplTest {
 		info.setSubmissionStatus(null);
 		info.setEnvelopeId(null);
 
-		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null)).thenReturn(List.of(info));
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of(info));
 
 		AccessRequestListRequest listRequest = new AccessRequestListRequest();
 

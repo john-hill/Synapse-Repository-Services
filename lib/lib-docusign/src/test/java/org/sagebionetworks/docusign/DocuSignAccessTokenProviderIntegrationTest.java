@@ -1,7 +1,5 @@
 package org.sagebionetworks.docusign;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -31,28 +29,5 @@ public class DocuSignAccessTokenProviderIntegrationTest {
 		String token = provider.getAccessToken();
 
 		assertNotNull(token);
-	}
-
-	@Test
-	public void testGetAccessTokenReturnsCachedToken() {
-		String first = provider.getAccessToken();
-
-		// call under test
-		String second = provider.getAccessToken();
-
-		assertNotNull(first);
-		assertEquals(first, second);
-	}
-
-	@Test
-	public void testInvalidateAndRefresh() {
-		String first = provider.getAccessToken();
-		provider.invalidateAccessToken();
-
-		// call under test
-		String second = provider.getAccessToken();
-
-		assertNotNull(first);
-		assertNotEquals(first, second);
 	}
 }

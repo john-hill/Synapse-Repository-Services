@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.dbo.dao.table.InvalidStatusTokenException;
 import org.sagebionetworks.repo.model.dbo.dao.table.DefiningSqlDependencyDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -40,7 +40,7 @@ public class MaterializedViewManagerImpl implements MaterializedViewManager {
 	
 	public static final String DEFAULT_ETAG = "DEFAULT";
 
-	private static final String OBJECT_TYPE = EntityType.materializedview.name();
+	private static final String OBJECT_TYPE = ObjectType.MATERIALIZED_VIEW.name();
 
 	final private ColumnModelManager columModelManager;
 	final private TableManagerSupport tableManagerSupport;

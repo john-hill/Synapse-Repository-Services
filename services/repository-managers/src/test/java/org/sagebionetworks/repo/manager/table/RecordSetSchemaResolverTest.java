@@ -57,8 +57,7 @@ public class RecordSetSchemaResolverTest {
 	}
 
 	private void stubInferSchema(List<ColumnModel> columns) {
-		doReturn(columns).when(resolver).inferSchemaFromCsv(any(FileHandle.class), any(CsvTableDescriptor.class),
-				anyBoolean());
+		doReturn(columns).when(resolver).inferSchemaFromCsv(any(FileHandle.class), any(CsvTableDescriptor.class));
 	}
 
 	private void stubBoundSchema(JsonSchema schema) {
@@ -78,7 +77,7 @@ public class RecordSetSchemaResolverTest {
 
 		// call under test
 		RecordSetSchemaResolver.ReconciledSchema result = resolver.getReconciledSchema(entityId, fileHandle,
-				csvDescriptor, false);
+				csvDescriptor);
 		List<ColumnModel> schema = result.getSchema();
 
 		assertEquals(2, schema.size());
@@ -102,7 +101,7 @@ public class RecordSetSchemaResolverTest {
 
 		// call under test
 		RecordSetSchemaResolver.ReconciledSchema result = resolver.getReconciledSchema(entityId, fileHandle,
-				csvDescriptor, false);
+				csvDescriptor);
 		List<ColumnModel> schema = result.getSchema();
 
 		assertEquals(2, schema.size());
@@ -125,7 +124,7 @@ public class RecordSetSchemaResolverTest {
 
 		// call under test
 		RecordSetSchemaResolver.ReconciledSchema result = resolver.getReconciledSchema(entityId, fileHandle,
-				csvDescriptor, false);
+				csvDescriptor);
 
 		assertEquals(List.of("a", "b", "c"),
 				result.getSchema().stream().map(ColumnModel::getName).collect(Collectors.toList()));
@@ -142,32 +141,10 @@ public class RecordSetSchemaResolverTest {
 
 		// call under test
 		RecordSetSchemaResolver.ReconciledSchema result = resolver.getReconciledSchema(entityId, fileHandle,
-				csvDescriptor, false);
+				csvDescriptor);
 
 		assertEquals(2, result.getSchema().size());
 		assertTrue(result.getRequiredColumnIndices().isEmpty());
-	}
-
-	@Test
-	public void testGetReconciledSchemaWithFullScanFalsePassesFlagThrough() {
-		stubInferSchema(List.of(new ColumnModel().setName("value").setColumnType(ColumnType.INTEGER)));
-		when(mockEntityManager.findBoundSchema(entityId)).thenReturn(Optional.empty());
-
-		// call under test
-		resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, false);
-
-		verify(resolver).inferSchemaFromCsv(fileHandle, csvDescriptor, false);
-	}
-
-	@Test
-	public void testGetReconciledSchemaWithFullScanTruePassesFlagThrough() {
-		stubInferSchema(List.of(new ColumnModel().setName("value").setColumnType(ColumnType.DOUBLE)));
-		when(mockEntityManager.findBoundSchema(entityId)).thenReturn(Optional.empty());
-
-		// call under test
-		resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, true);
-
-		verify(resolver).inferSchemaFromCsv(fileHandle, csvDescriptor, true);
 	}
 
 	@Test
@@ -272,10 +249,40 @@ public class RecordSetSchemaResolverTest {
 		stubBoundSchema(validationSchema);
 
 		// call under test
-		List<ColumnModel> schema = resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor, false).getSchema();
+		List<ColumnModel> schema = resolver.getReconciledSchema(entityId, fileHandle, csvDescriptor).getSchema();
 
 		assertEquals(List.of("a", "c"),
 				schema.stream().map(ColumnModel::getName).collect(Collectors.toList()));
 		assertEquals(ColumnType.INTEGER, schema.get(1).getColumnType());
+	}
+
+	@Test
+	public void testGetReconciledSchemaIncludesJsonSchemaPropertyNames() {
+		// Both "a" (overlaps CSV) and "b" (schema-only) must appear in jsonSchemaColumnNames.
+		stubInferSchema(List.of(new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER)));
+		JsonSchema validationSchema = new JsonSchema().setProperties(Map.of(
+				"a", new JsonSchema().setType(Type.integer),
+				"b", new JsonSchema().setType(Type.string)));
+		stubBoundSchema(validationSchema);
+
+		// call under test
+		RecordSetSchemaResolver.ReconciledSchema result = resolver.getReconciledSchema(entityId, fileHandle,
+				csvDescriptor);
+
+		List<String> names = result.getJsonSchemaColumnNames();
+		assertEquals(2, names.size());
+		assertTrue(names.containsAll(List.of("a", "b")));
+	}
+
+	@Test
+	public void testGetReconciledSchemaWithNoBoundSchemaHasEmptyJsonSchemaColumnNames() {
+		stubInferSchema(List.of(new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER)));
+		when(mockEntityManager.findBoundSchema(entityId)).thenReturn(Optional.empty());
+
+		// call under test
+		RecordSetSchemaResolver.ReconciledSchema result = resolver.getReconciledSchema(entityId, fileHandle,
+				csvDescriptor);
+
+		assertTrue(result.getJsonSchemaColumnNames().isEmpty());
 	}
 }

@@ -139,7 +139,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	@Override
-	public SourceWriter createSourceWriter() {
+	public SourceWriter createSourceWriter(SyncType syncType) {
 		return new InPlaceAnnotationSourceWriter(user, annotationWriter, annotationsTranslator);
 	}
 

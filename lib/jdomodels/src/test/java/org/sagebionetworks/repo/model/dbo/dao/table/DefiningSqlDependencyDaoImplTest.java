@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.helper.NodeDaoObjectHelper;
@@ -27,8 +28,8 @@ import com.google.common.collect.ImmutableSet;
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class DefiningSqlDependencyDaoImplTest {
 
-	private static final String MV_TYPE = EntityType.materializedview.name();
-	private static final String SEARCH_TYPE = EntityType.searchindex.name();
+	private static final String MV_TYPE = ObjectType.MATERIALIZED_VIEW.name();
+	private static final String SEARCH_TYPE = ObjectType.SEARCH_INDEX.name();
 
 	@Autowired
 	private NodeDAO nodeDao;
@@ -260,172 +261,44 @@ public class DefiningSqlDependencyDaoImplTest {
 	}
 
 	@Test
-	public void testGetDependentObjectIdsPage() {
-
-		long limit = 10;
-		long offset = 0;
-
-		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
-
-		Set<IdAndVersion> sourceTables = ImmutableSet.of(sourceTableId, IdAndVersion.parse("456"));
-
-		dao.addSourceTables(viewId, MV_TYPE, sourceTables);
-
-		List<IdAndVersion> expected = Arrays.asList(viewId);
-
-		// Call under test
-		List<IdAndVersion> result = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expected, result);
-	}
-
-	@Test
-	public void testGetDependentObjectIdsPageMultiplePages() {
-
-		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
-
-		// Multiple versions that reference the same source table
-		dao.addSourceTables(viewId, MV_TYPE,
-				ImmutableSet.of(sourceTableId, IdAndVersion.parse("456"), IdAndVersion.parse("789")));
-
-		IdAndVersion viewIdV2 = IdAndVersion.parse(viewId.getId() + ".2");
-
-		dao.addSourceTables(viewIdV2, MV_TYPE,
-				ImmutableSet.of(sourceTableId, IdAndVersion.parse("654"), IdAndVersion.parse("345")));
-
-		IdAndVersion viewIdV3 = IdAndVersion.parse(viewId.getId() + ".3");
-
-		dao.addSourceTables(viewIdV3, MV_TYPE,
-				ImmutableSet.of(sourceTableId, IdAndVersion.parse("456"), IdAndVersion.parse("345")));
-
-		long limit = 2;
-		long offset = 0;
-
-		List<IdAndVersion> expectedfirstPage = Arrays.asList(viewId, viewIdV2);
-
-		// Call under test
-		List<IdAndVersion> firstPage = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expectedfirstPage, firstPage);
-
-		offset = 2;
-
-		List<IdAndVersion> expectedSecondPage = Arrays.asList(viewIdV3);
-
-		// Call under test
-		List<IdAndVersion> secondPage = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expectedSecondPage, secondPage);
-	}
-
-	@Test
-	public void testGetDependentObjectIdsPageWithVersion() {
-
-		long limit = 10;
-		long offset = 0;
-
-		IdAndVersion sourceTableId = IdAndVersion.parse("syn123.2");
-
-		Set<IdAndVersion> sourceTables = ImmutableSet.of(sourceTableId, IdAndVersion.parse("456"));
-
-		dao.addSourceTables(viewId, MV_TYPE, sourceTables);
-
-		List<IdAndVersion> expected = Arrays.asList(viewId);
-
-		// Call under test
-		List<IdAndVersion> result = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expected, result);
-	}
-
-	@Test
-	public void testGetDependentObjectIdsPageWithOverlappingIds() {
-
-		long limit = 10;
-		long offset = 0;
-
-		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
-
-		Set<IdAndVersion> sourceTables = ImmutableSet.of(sourceTableId, IdAndVersion.parse("456"));
-
-		dao.addSourceTables(viewId, MV_TYPE, sourceTables);
-
-		// Another version of the view that uses the same source table
-		IdAndVersion viewWithVersion = IdAndVersion.newBuilder().setId(viewId.getId()).setVersion(5L).build();
-
-		dao.addSourceTables(viewWithVersion, MV_TYPE, ImmutableSet.of(sourceTableId));
-
-		List<IdAndVersion> expected = Arrays.asList(viewId, viewWithVersion);
-
-		// Call under test
-		List<IdAndVersion> result = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expected, result);
-	}
-
-	@Test
-	public void testGetDependentObjectIdsPageWithNonOverlappingIds() {
-
-		long limit = 10;
-		long offset = 0;
-
-		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
-
-		Set<IdAndVersion> sourceTables = ImmutableSet.of(sourceTableId, IdAndVersion.parse("456"));
-
-		dao.addSourceTables(viewId, MV_TYPE, sourceTables);
-
-		// Another version of the view that does not use the source table
-		IdAndVersion viewWithVersion = IdAndVersion.newBuilder().setId(viewId.getId()).setVersion(5L).build();
-
-		dao.addSourceTables(viewWithVersion, MV_TYPE,
-				ImmutableSet.of(IdAndVersion.parse("syn123.2"), IdAndVersion.parse("456")));
-
-		List<IdAndVersion> expected = Arrays.asList(viewId);
-
-		// Call under test
-		List<IdAndVersion> result = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expected, result);
-	}
-
-	@Test
-	public void testGetDependentObjectIdsPageWithNoData() {
-
-		long limit = 10;
-		long offset = 0;
-
-		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
-
-		List<IdAndVersion> expected = Collections.emptyList();
-
-		// Call under test
-		List<IdAndVersion> result = dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset);
-
-		assertEquals(expected, result);
-	}
-
-	@Test
-	public void testGetDependentObjectIdsPageFiltersByObjectType() {
-
-		// A materialized view and a search index that both depend on the same source table.
+	public void testGetDependentsPageReturnsAllTypes() {
+		// The unfiltered fan-out lookup returns dependents of every type, each paired with its type.
 		String searchNodeId = nodeHelper.create(node -> {
 			node.setNodeType(EntityType.searchindex);
 		}).getId();
 		IdAndVersion searchIndexId = KeyFactory.idAndVersion(searchNodeId, null);
 
 		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
+		dao.addSourceTables(viewId, MV_TYPE, ImmutableSet.of(sourceTableId));
+		dao.addSourceTables(searchIndexId, SEARCH_TYPE, ImmutableSet.of(sourceTableId));
+
+		// Call under test
+		List<DefiningSqlDependencyDao.DependentObject> result = dao.getDependentsPage(sourceTableId, 10, 0);
+
+		// Ordered by OBJECT_TYPE then id: materializedview before searchindex.
+		assertEquals(Arrays.asList(
+				new DefiningSqlDependencyDao.DependentObject(viewId, MV_TYPE),
+				new DefiningSqlDependencyDao.DependentObject(searchIndexId, SEARCH_TYPE)),
+				result);
+	}
+
+	@Test
+	public void testGetDependentsPagePaginates() {
+		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
+		String searchNodeId = nodeHelper.create(node -> {
+			node.setNodeType(EntityType.searchindex);
+		}).getId();
+		IdAndVersion searchIndexId = KeyFactory.idAndVersion(searchNodeId, null);
 
 		dao.addSourceTables(viewId, MV_TYPE, ImmutableSet.of(sourceTableId));
 		dao.addSourceTables(searchIndexId, SEARCH_TYPE, ImmutableSet.of(sourceTableId));
 
-		long limit = 10;
-		long offset = 0;
-
-		// Call under test: each type only sees its own dependents
-		assertEquals(Arrays.asList(viewId), dao.getDependentObjectIdsPage(MV_TYPE, sourceTableId, limit, offset));
-		assertEquals(Arrays.asList(searchIndexId),
-				dao.getDependentObjectIdsPage(SEARCH_TYPE, sourceTableId, limit, offset));
+		// Call under test — first page (ordered by OBJECT_TYPE: materializedview first)
+		assertEquals(Arrays.asList(new DefiningSqlDependencyDao.DependentObject(viewId, MV_TYPE)),
+				dao.getDependentsPage(sourceTableId, 1, 0));
+		// Call under test — second page
+		assertEquals(Arrays.asList(new DefiningSqlDependencyDao.DependentObject(searchIndexId, SEARCH_TYPE)),
+				dao.getDependentsPage(sourceTableId, 1, 1));
 	}
 
 }

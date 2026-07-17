@@ -190,7 +190,7 @@ public class ChangeMessageWorkersConfig {
 			.withStartDelay(253)
 			.build();
 	}
-	
+
 	@Bean
 	public SimpleTriggerFactoryBean fileHandleStreamWorkerTrigger(StackStatusGate stackStatusGate, FileHandleStreamWorker fileHandleStreamWorker) {
 		

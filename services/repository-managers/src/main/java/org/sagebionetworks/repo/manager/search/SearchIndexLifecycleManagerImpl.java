@@ -20,14 +20,9 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.message.RepositoryMessagePublisher;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.dao.table.DefiningSqlDependencyDao;
@@ -40,7 +35,6 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
-import org.sagebionetworks.repo.model.search.table.SearchIndexRebuildMessage;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
@@ -61,11 +55,13 @@ import org.sagebionetworks.table.cluster.description.BenefactorDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.table.query.ParseException;
+import org.sagebionetworks.table.query.TableQueryParser;
+import org.sagebionetworks.table.query.model.CurrentUserFunction;
 import org.sagebionetworks.table.query.model.DerivedColumn;
 import org.sagebionetworks.table.query.model.SelectList;
 import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.table.query.util.SqlElementUtils;
-import org.sagebionetworks.util.PaginationIterator;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -80,7 +76,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 	private static final Logger LOG = LogManager.getLogger(SearchIndexLifecycleManagerImpl.class);
 	private static final String INDEX_PREFIX = "search-index-";
-	private static final String OBJECT_TYPE = EntityType.searchindex.name();
+	private static final String OBJECT_TYPE = ObjectType.SEARCH_INDEX.name();
 	// Blue-green physical slots. Queries target the alias getAliasName(entityId); each build streams
 	// into whichever of these two deterministic physical indices the alias is NOT currently serving,
 	// then atomically repoints the alias and deletes the just-demoted slot. Two fixed names bound the
@@ -92,7 +88,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
 	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
-	private static final long PAGE_SIZE_LIMIT = 1000;
 	private static final ObjectMapper SEARCH_DOC_MAPPER = new ObjectMapper();
 
 	// Build-time dynamic shard sizing for the managed OpenSearch domain. The source table's
@@ -151,7 +146,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
 	private final SearchConfigurationResolver searchConfigurationResolver;
-	private final UserManager userManager;
 	private final EntityManager entityManager;
 	private final SynonymSetDao synonymSetDao;
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
@@ -161,12 +155,10 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final WriteReadSemaphore writeReadSemaphore;
 	private final StackConfiguration stackConfiguration;
 	private final DefiningSqlDependencyDao definingSqlDependencyDao;
-	private final RepositoryMessagePublisher messagePublisher;
 
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
 			SearchConfigurationResolver searchConfigurationResolver,
-			UserManager userManager,
 			EntityManager entityManager,
 			SynonymSetDao synonymSetDao, ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
 			TextAnalyzerDao textAnalyzerDao,
@@ -174,12 +166,10 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			ColumnModelManager columnModelManager,
 			WriteReadSemaphore writeReadSemaphore,
 			StackConfiguration stackConfiguration,
-			DefiningSqlDependencyDao definingSqlDependencyDao,
-			RepositoryMessagePublisher messagePublisher) {
+			DefiningSqlDependencyDao definingSqlDependencyDao) {
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
-		this.userManager = userManager;
 		this.entityManager = entityManager;
 		this.synonymSetDao = synonymSetDao;
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
@@ -189,7 +179,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.writeReadSemaphore = writeReadSemaphore;
 		this.stackConfiguration = stackConfiguration;
 		this.definingSqlDependencyDao = definingSqlDependencyDao;
-		this.messagePublisher = messagePublisher;
 	}
 
 	@Override
@@ -226,12 +215,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	@Override
-	public void handleCreate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception {
+	public void handleCreate(ProgressCallback progressCallback, String entityId) throws Exception {
 		ValidateArgument.required(entityId, "entityId");
-		ValidateArgument.required(userId, "userId");
 		try (WriteLock lock = writeReadSemaphore.getWriteLock(
 				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.buildIndex", LOCK_KEY_PREFIX + entityId))) {
-			buildIndex(progressCallback, entityId, userId);
+			buildIndex(progressCallback, entityId);
 		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
 					"Search index " + entityId + " is already being built by another worker", e);
@@ -239,13 +227,12 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	@Override
-	public void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception {
+	public void handleUpdate(ProgressCallback progressCallback, String entityId) throws Exception {
 		ValidateArgument.required(entityId, "entityId");
-		ValidateArgument.required(userId, "userId");
 		try (WriteLock lock = writeReadSemaphore.getWriteLock(
 				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.buildIndex", LOCK_KEY_PREFIX + entityId))) {
 			// In the MVP updates are unconditionally replacing the index on all changes regardless of what the change is.
-			buildIndex(progressCallback, entityId, userId);
+			buildIndex(progressCallback, entityId);
 		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
 					"Search index " + entityId + " is already being built by another worker", e);
@@ -265,12 +252,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 *
 	 * @param progressCallback     Refreshes the per-entity write lock during the build.
 	 * @param entityId             SearchIndex entity ID.
-	 * @param userId               User who triggered the change. Used to load the SearchIndex
-	 *                             entity and resolve its configuration; it only feeds
-	 *                             CURRENT_USER() substitution in the row stream, which is not
-	 *                             authorized.
 	 */
-	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId)
+	private void buildIndex(ProgressCallback progressCallback, String entityId)
 			throws Exception {
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
 		String aliasName = getAliasName(entityId);
@@ -278,8 +261,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		// failure path can clean up the partial green index without touching the live one.
 		String physicalSlot = null;
 		try {
-			UserInfo user = userManager.getUserInfo(userId);
-			SearchIndex searchIndex = entityManager.getEntity(user, entityId, SearchIndex.class);
+			SearchIndex searchIndex = entityManager.getEntityWithoutAuthorization(entityId, SearchIndex.class);
 
 			String definingSQL = searchIndex.getDefiningSQL();
 
@@ -295,7 +277,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 
 			Optional<SearchConfiguration> configOpt = searchConfigurationResolver.resolve(
-					user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
+					searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
 			SearchConfiguration config = configOpt.orElse(null);
 
 			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
@@ -324,8 +306,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// retrying the message — a source table can take far longer to become AVAILABLE than
 			// the SQS retention window, so retry-until-expiry sends the message to the dead-letter
 			// queue. Instead record WAITING_FOR_SOURCE and consume the message; the rebuild fires
-			// later, driven by the source's own TABLE_STATUS_EVENT(AVAILABLE) via
-			// refreshDependentSearchIndexes. A failed source is a permanent build failure.
+			// later, driven by the source's own TABLE_STATUS_EVENT(AVAILABLE), which fans out a
+			// per-dependent rebuild message. A failed source is a permanent build failure.
 			TableStatus sourceStatus = tableManagerSupport.getTableStatusOrCreateIfNotExists(sourceId);
 			switch (sourceStatus.getState()) {
 			case AVAILABLE:
@@ -395,13 +377,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			openSearchManager.waitForIndexWritable(physicalSlot);
 
 			// SqlContext.query (not build) emits the select against the source's materialized
-			// index table. userId only feeds CURRENT_USER() substitution.
+			// index table; build context is rejected by table and view sources (only a
+			// materialized view accepts it). No userId is supplied: a SearchIndex indexes every
+			// source row without authorization and is served to many users through per-row
+			// benefactor filtering, so there is no single current user to bind. registerSchema
+			// rejects CURRENT_USER() up front, so no substitution is needed here.
 			QueryTranslator base = QueryTranslator.builder()
 					.sql(definingSQL)
 					.schemaProvider(tableManagerSupport)
 					.sqlContext(SqlContext.query)
 					.indexDescription(sourceIndexDescription)
-					.userId(userId)
 					.build();
 			// Splice the source's per-dependency benefactor columns into the select so the handler can
 			// read them as trailing row values.
@@ -523,44 +508,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	@Override
-	public void refreshDependentSearchIndexes(IdAndVersion sourceTableId) {
-		ValidateArgument.required(sourceTableId, "sourceTableId");
-		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
-		// Indexed reverse lookup via the shared source dependency table (DEFINING_SQL_DEPENDENCY),
-		// filtered to searchindex objects. The lookup matches on the source's id and version, so a
-		// dependency on a specific source version only fires for events on that version.
-		PaginationIterator<IdAndVersion> dependentIds = new PaginationIterator<>(
-				(limit, offset) -> definingSqlDependencyDao.getDependentObjectIdsPage(OBJECT_TYPE, sourceTableId, limit, offset),
-				PAGE_SIZE_LIMIT);
-		while (dependentIds.hasNext()) {
-			Long dependentId = dependentIds.next().getId();
-			Optional<SearchIndexState> stateOpt = statusDao.getState(dependentId);
-			if (stateOpt.isEmpty()) {
-				continue;
-			}
-			// Enqueue a rebuild for indexes that react to this source becoming available. WAITING_FOR_SOURCE
-			// is first-availability; ACTIVE is live-sync (the source's data changed); CREATING closes a
-			// lost-wakeup race where a build that read the source as unavailable had not recorded
-			// WAITING_FOR_SOURCE yet. The fan-out stays dumb — no version check here. The authoritative
-			// stale-or-not decision is made under the per-entity lock by rebuildIfStale, which no-ops an
-			// ACTIVE index whose source version has not moved. FAILED (terminal/manual) is left alone.
-			SearchIndexState state = stateOpt.get();
-			if (SearchIndexState.WAITING_FOR_SOURCE.equals(state) || SearchIndexState.CREATING.equals(state)
-					|| SearchIndexState.ACTIVE.equals(state)) {
-				messagePublisher.fireLocalStackMessage(new SearchIndexRebuildMessage()
-						.setObjectType(ObjectType.SEARCH_INDEX_REBUILD)
-						.setObjectId(KeyFactory.keyToString(dependentId)));
-			}
-		}
-	}
-
-	@Override
 	public void rebuildIfStale(ProgressCallback progressCallback, String entityId) throws Exception {
 		ValidateArgument.required(entityId, "entityId");
-		// The triggering TABLE_STATUS_EVENT carries no user; build as the admin principal. Read
-		// access is enforced at query time via per-row _benefactor_<i> filtering, so the build
-		// itself does not authorize rows.
-		Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		try (WriteLock lock = writeReadSemaphore.getWriteLock(
 				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.rebuildIfStale",
 						LOCK_KEY_PREFIX + entityId))) {
@@ -576,18 +525,13 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 			SearchIndexState state = stateOpt.get();
 			if (SearchIndexState.WAITING_FOR_SOURCE.equals(state) || SearchIndexState.ACTIVE.equals(state)) {
-				buildIndex(progressCallback, entityId, adminUserId);
+				buildIndex(progressCallback, entityId);
 			}
 		} catch (LockUnavilableException e) {
-			// A build can hold the per-entity lock for minutes. Throwing RecoverableMessageException
-			// here would requeue with a short delay and DLQ before the build releases — reintroducing
-			// the very failure this feature removes. Instead consume this message and republish a
-			// fresh one (resets the SQS receive count). Strictly 1-in-1-out and idempotent under the
-			// lock, so the cycle converges once the lock frees.
-			LOG.info("Search index {} is locked; republishing rebuild request.", entityId);
-			messagePublisher.fireLocalStackMessage(new SearchIndexRebuildMessage()
-					.setObjectType(ObjectType.SEARCH_INDEX_REBUILD)
-					.setObjectId(entityId));
+			// Another worker holds the per-entity lock (an in-flight build). Requeue for retry once it
+			// frees, same as the materialized view rebuild path.
+			throw new RecoverableMessageException(
+					"Search index " + entityId + " is locked by another worker", e);
 		}
 	}
 

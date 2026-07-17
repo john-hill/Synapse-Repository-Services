@@ -203,8 +203,12 @@
             "description": "A RecordSet entity whose CSV-backed data is indexed and queryable like a table."
         },
         {
-            "name": "SEARCH_INDEX_REBUILD",
-            "description": "An event fired per dependent SearchIndex when a source table/view becomes AVAILABLE, requesting a full rebuild of an index waiting on that source."
+            "name": "SEARCH_INDEX",
+            "description": "A SearchIndex entity. Change messages with this object type are routed to the search index rebuild topic when a source table/view the index depends on becomes available."
+        },
+        {
+            "name": "SOURCE_DEPENDENCY_EVENT",
+            "description": "A non-durable event topic that fans out rebuild triggers to every defining-SQL object (materialized view, search index, ...) that depends on a source table/view when that source becomes available."
         }
     ]
 }

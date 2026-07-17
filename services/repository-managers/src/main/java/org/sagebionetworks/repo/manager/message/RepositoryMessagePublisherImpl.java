@@ -50,7 +50,7 @@ public class RepositoryMessagePublisherImpl implements RepositoryMessagePublishe
 	private StackConfiguration stackConfiguration;
 
 	// Maps each object type to its topic
-	private Map<ObjectType, TopicInfo> typeToTopicMap = new HashMap<ObjectType, TopicInfo>();;
+	private Map<ObjectType, TopicInfo> typeToTopicMap = new HashMap<ObjectType, TopicInfo>();
 
 	private ConcurrentLinkedQueue<Message> messageQueue = new ConcurrentLinkedQueue<Message>();
 
@@ -102,6 +102,13 @@ public class RepositoryMessagePublisherImpl implements RepositoryMessagePublishe
 		ValidateArgument.required(message.getObjectType(), "The message.objectType");
 		String topicArn = getTopicInfoLazy(message.getObjectType()).getArn();
 		publish(message, topicArn);
+	}
+
+	@Override
+	public void publishLocalStackMessageToTopic(ObjectType topicType, LocalStackMessage message) {
+		ValidateArgument.required(topicType, "The topicType");
+		ValidateArgument.required(message, "The message");
+		publish(message, getTopicInfoLazy(topicType).getArn());
 	}
 
 	@Override

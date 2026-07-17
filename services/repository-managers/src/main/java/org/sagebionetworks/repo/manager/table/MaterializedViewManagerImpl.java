@@ -24,7 +24,6 @@ import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescri
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 import org.sagebionetworks.table.query.model.QueryExpression;
 import org.sagebionetworks.table.query.model.SqlContext;
-import org.sagebionetworks.util.PaginationIterator;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.util.progress.ProgressingCallable;
@@ -39,8 +38,6 @@ public class MaterializedViewManagerImpl implements MaterializedViewManager {
 	
 	private static final Log LOG = LogFactory.getLog(MaterializedViewManagerImpl.class);	
 	
-	private static final long PAGE_SIZE_LIMIT = 1000;
-
 	public static final String DEFAULT_ETAG = "DEFAULT";
 
 	private static final String OBJECT_TYPE = EntityType.materializedview.name();
@@ -105,21 +102,6 @@ public class MaterializedViewManagerImpl implements MaterializedViewManager {
 		bindSchemaToView(idAndVersion, query);
 		
 		tableManagerSupport.setTableToProcessingAndTriggerUpdate(idAndVersion);
-	}
-	
-	@Override
-	@WriteTransaction
-	public void refreshDependentMaterializedViews(IdAndVersion tableId) {
-		ValidateArgument.required(tableId, "The tableId");
-		
-		PaginationIterator<IdAndVersion> idsIterator = new PaginationIterator<IdAndVersion>(
-			(long limit, long offset) -> definingSqlDependencyDao.getDependentObjectIdsPage(OBJECT_TYPE, tableId, limit, offset),
-			PAGE_SIZE_LIMIT);
-		
-		// Sends an update without changing the status of the table, this allows to decide if the table should be built in a temporary space while
-		// leaving the original version available for querying
-		idsIterator.forEachRemaining(id -> tableManagerSupport.triggerIndexUpdate(id));
-		
 	}
 	
 	/**

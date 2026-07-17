@@ -158,17 +158,15 @@ public class DefiningSqlDependencyDaoImpl implements DefiningSqlDependencyDao {
 	}
 
 	@Override
-	public List<IdAndVersion> getDependentObjectIdsPage(String objectType, IdAndVersion sourceTableId, long limit,
-			long offset) {
-		ValidateArgument.requiredNotBlank(objectType, "objectType");
+	public List<DependentObject> getDependentsPage(IdAndVersion sourceTableId, long limit, long offset) {
 		ValidateArgument.required(sourceTableId, "sourceTableId");
 
 		return jdbcTemplate.getJdbcTemplate().query(
-				"SELECT OBJECT_ID, OBJECT_VERSION FROM DEFINING_SQL_DEPENDENCY WHERE SOURCE_TABLE_ID = ?"
-						+ " AND SOURCE_TABLE_VERSION = ? AND OBJECT_TYPE = ? ORDER BY OBJECT_ID, OBJECT_VERSION"
+				"SELECT OBJECT_ID, OBJECT_VERSION, OBJECT_TYPE FROM DEFINING_SQL_DEPENDENCY WHERE SOURCE_TABLE_ID = ?"
+						+ " AND SOURCE_TABLE_VERSION = ? ORDER BY OBJECT_TYPE, OBJECT_ID, OBJECT_VERSION"
 						+ " LIMIT ? OFFSET ?",
-				ID_AND_VERSION_MAPPER, sourceTableId.getId(), sourceTableId.getVersion().orElse(DEFAULT_VERSION),
-				objectType, limit, offset);
+				(rs, i) -> new DependentObject(ID_AND_VERSION_MAPPER.mapRow(rs, i), rs.getString("OBJECT_TYPE")),
+				sourceTableId.getId(), sourceTableId.getVersion().orElse(DEFAULT_VERSION), limit, offset);
 	}
 
 }

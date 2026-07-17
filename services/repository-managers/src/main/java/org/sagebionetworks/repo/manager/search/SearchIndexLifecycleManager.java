@@ -28,14 +28,11 @@ public interface SearchIndexLifecycleManager {
 	 * @param progressCallback Progress callback used to refresh the per-entity write lock
 	 *        while the build runs.
 	 * @param entityId         The SearchIndex entity ID being built.
-	 * @param userId           The ID of the user who triggered the change. Authorization
-	 *                         decisions during the row stream are made as the realm's
-	 *                         anonymous user; this id is recorded for audit only.
 	 * @throws Exception transient failures (table unavailable, AOSS retryable error)
 	 *         propagate so the worker can re-queue. Permanent failures are recorded as
 	 *         FAILED on {@code SearchIndexStatus} and not rethrown.
 	 */
-	void handleCreate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
+	void handleCreate(ProgressCallback progressCallback, String entityId) throws Exception;
 
 	/**
 	 * Handle an update event for a SearchIndex entity. Unconditionally deletes and rebuilds
@@ -44,10 +41,9 @@ public interface SearchIndexLifecycleManager {
 	 * @param progressCallback Progress callback used to refresh the per-entity write lock
 	 *        while the rebuild runs.
 	 * @param entityId         The SearchIndex entity ID being rebuilt.
-	 * @param userId           The ID of the user who triggered the change.
 	 * @throws Exception same retry / fail-recording semantics as {@link #handleCreate}.
 	 */
-	void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
+	void handleUpdate(ProgressCallback progressCallback, String entityId) throws Exception;
 
 	/**
 	 * Handle a delete event for a SearchIndex entity. Acquires the per-entity write lock
@@ -77,19 +73,7 @@ public interface SearchIndexLifecycleManager {
 	List<String> registerSchema(IdAndVersion searchIndexId, String definingSql);
 
 	/**
-	 * Hop-1 of the source-availability / live-sync rebuild. A source table/view became AVAILABLE (it
-	 * emitted a {@code TABLE_STATUS_EVENT}). Reverse-look-up every SearchIndex that depends on the
-	 * source and enqueue a rebuild request ({@code SearchIndexRebuildMessage}) for each one whose state
-	 * is WAITING_FOR_SOURCE (first-availability), ACTIVE (live-sync), or CREATING. FAILED indexes are
-	 * left alone. No version check happens here — the authoritative stale-or-not decision is made under
-	 * the per-entity lock by {@link #rebuildIfStale}.
-	 *
-	 * @param sourceTableId The source table/view (with version) that became available.
-	 */
-	void refreshDependentSearchIndexes(IdAndVersion sourceTableId);
-
-	/**
-	 * Hop-2 of the source-availability / live-sync rebuild. Under the per-entity write lock, rebuild
+	 * Under the per-entity write lock, rebuild
 	 * the index when it is WAITING_FOR_SOURCE (first-availability) or when it is ACTIVE and its source's
 	 * content version has moved since the last build (live-sync); no-op otherwise (covers a CREATING
 	 * index, a FAILED index, and a no-op source touch of an up-to-date ACTIVE index). If the lock is

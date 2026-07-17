@@ -62,11 +62,17 @@ public interface DefiningSqlDependencyDao {
 	void deleteObject(IdAndVersion objectId);
 
 	/**
-	 * @param objectType    The type discriminator to filter on
-	 * @param sourceTableId The id and (optional) version of a source table
-	 * @return A page of ids and (optional) versions of the objects of the given type that depend on
-	 *         the source table with the given id and (optional) version
+	 * A dependent defining-SQL object: its id/version paired with its type discriminator.
 	 */
-	List<IdAndVersion> getDependentObjectIdsPage(String objectType, IdAndVersion sourceTableId, long limit, long offset);
+	record DependentObject(IdAndVersion objectId, String objectType) {}
+
+	/**
+	 * Reverse lookup of every dependent object (of any type) that depends on the given source table,
+	 * each paired with its {@code OBJECT_TYPE} — used by the generic source-dependency fan-out.
+	 *
+	 * @param sourceTableId The id and (optional) version of a source table
+	 * @return A page of dependents (id/version + type) that depend on the source table
+	 */
+	List<DependentObject> getDependentsPage(IdAndVersion sourceTableId, long limit, long offset);
 
 }

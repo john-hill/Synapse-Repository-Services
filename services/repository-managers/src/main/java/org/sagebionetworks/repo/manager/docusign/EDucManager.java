@@ -120,6 +120,14 @@ public class EDucManager {
 			throw new IllegalArgumentException("The access requirement does not have an eDUC template ID configured.");
 		}
 
+		PrincipalInvestigator pi = request.getPrincipalInvestigator();
+		ValidateArgument.required(pi, "principalInvestigator");
+		ValidateArgument.required(pi.getUserId(), "principalInvestigator.userId");
+
+		SigningOfficial so = request.getSigningOfficial();
+		ValidateArgument.required(so, "signingOfficial");
+		ValidateArgument.required(so.getInstitutionalEmail(), "signingOfficial.institutionalEmail");
+
 		Long userId = userInfo.getId();
 		Long arId = Long.parseLong(request.getAccessRequirementId());
 

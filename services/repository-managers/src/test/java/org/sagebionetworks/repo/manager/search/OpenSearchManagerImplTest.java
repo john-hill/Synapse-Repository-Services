@@ -145,6 +145,8 @@ public class OpenSearchManagerImplTest {
 	private long originalBulkInitialBackoffMs;
 	private long originalProbeInitialBackoffMs;
 	private long originalSentinelCleanupInitialBackoffMs;
+	private long originalCreateIndexInitialBackoffMs;
+	private long originalGetAliasInitialBackoffMs;
 
 	@BeforeEach
 	public void setUp() {
@@ -156,6 +158,10 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = 1L;
 		originalSentinelCleanupInitialBackoffMs = OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = 1L;
+		originalCreateIndexInitialBackoffMs = OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS = 1L;
+		originalGetAliasInitialBackoffMs = OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS = 1L;
 	}
 
 	@AfterEach
@@ -163,6 +169,8 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = originalBulkInitialBackoffMs;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = originalProbeInitialBackoffMs;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
+		OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS = originalCreateIndexInitialBackoffMs;
+		OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS = originalGetAliasInitialBackoffMs;
 	}
 
 	/**
@@ -1023,6 +1031,23 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testCreateIndexWithTransientIOExceptionRetriesThenSucceeds() throws IOException {
+		String indexName = "search-index-syn1";
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenThrow(new IOException("read timed out"))
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(
+						r -> r.acknowledged(true).shardsAcknowledged(true).index(indexName)));
+
+		// call under test
+		Optional<String> result = manager.createIndex(indexName, Collections.emptyList(), null,
+				Collections.emptyList(), Collections.emptyMap(), 0, 1, 0);
+
+		assertTrue(result.isPresent());
+		verify(indicesClient, times(2)).create(any(CreateIndexRequest.class));
+	}
+
+	@Test
 	public void testCreateIndexWithDuplicateColumnNamesUsesFirst() throws IOException {
 		// Two columns share a name: the nameToId toMap merge function keeps the first id and
 		// must not throw on the duplicate key.
@@ -1190,6 +1215,34 @@ public class OpenSearchManagerImplTest {
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.getAliasTarget("search-index-syn1"));
 		assertTrue(ex.getMessage().contains("resolves to multiple indices"));
+	}
+
+	@Test
+	public void testGetAliasTargetWithTransientIOExceptionRetriesThenSucceeds() throws IOException {
+		GetAliasResponse response = GetAliasResponse.of(r -> r
+				.putResult("search-index-syn1-a", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap()))));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any()))
+				.thenThrow(new IOException("read timed out"))
+				.thenReturn(response);
+
+		// call under test
+		assertEquals(Optional.of("search-index-syn1-a"), manager.getAliasTarget("search-index-syn1"));
+		verify(indicesClient, times(2)).getAlias(ArgumentMatchers.<java.util.function.Function>any());
+	}
+
+	@Test
+	public void testGetAliasTargetWithIOExceptionThrowsRuntime() throws IOException {
+		IOException ioException = new IOException("read timed out");
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any())).thenThrow(ioException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.getAliasTarget("search-index-syn1"));
+
+		assertEquals(ioException, ex.getCause());
+		assertEquals("Failed to resolve alias: search-index-syn1", ex.getMessage());
 	}
 
 	@Test

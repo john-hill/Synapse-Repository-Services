@@ -109,6 +109,21 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static int VALIDATE_MAX_RETRIES = 10;
 	static long VALIDATE_INITIAL_BACKOFF_MS = 1000L;
 
+	// Retry budget for the createIndex transport call. A create-index request against the
+	// managed domain can hit a transient read timeout or other IOException before the domain
+	// acknowledges; absorb those before failing the build so a single network blip doesn't
+	// turn into a hard failure. OpenSearchException (including resource_already_exists) is
+	// permanent and not retried.
+	static int CREATE_INDEX_MAX_RETRIES = 3;
+	static long CREATE_INDEX_INITIAL_BACKOFF_MS = 1000L;
+
+	// Retry budget for the getAliasTarget transport call. Resolving the alias is the first
+	// transport call on the build path and can hit the same transient read timeout / IOException
+	// as createIndex; a single blip here otherwise marks the SearchIndex terminally FAILED.
+	// A missing alias (404) is a normal first-build condition and returned as empty, not retried.
+	static int GET_ALIAS_MAX_RETRIES = 3;
+	static long GET_ALIAS_INITIAL_BACKOFF_MS = 1000L;
+
 	// Cleanup retry for the readiness-probe sentinel. AOSS doesn't honor refresh=wait_for,
 	// so a single delete that fails on a transient network blip would orphan the sentinel
 	// (visible only to MATCH_ALL queries since _row_id = -1 cannot collide with real ids,
@@ -195,38 +210,49 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
 		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
 
+		CreateIndexRequest request = CreateIndexRequest.of(req -> req
+				.index(indexName)
+				.settings(s -> s
+					.numberOfShards(numberOfShards)
+					.numberOfReplicas(numberOfReplicas)
+					.analysis(a -> {
+						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+						return a;
+					}))
+				.mappings(m -> {
+					buildMappings(m, columns, defaultAnalyzer,
+							overrideMap, resolvedAnalyzers, benefactorCount);
+					return m;
+				})
+		);
+
+		String appliedConfigJson = request.toJsonString();
+
 		try {
-			CreateIndexRequest request = CreateIndexRequest.of(req -> req
-					.index(indexName)
-					.settings(s -> s
-						.numberOfShards(numberOfShards)
-						.numberOfReplicas(numberOfReplicas)
-						.analysis(a -> {
-							buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-							return a;
-						}))
-					.mappings(m -> {
-						buildMappings(m, columns, defaultAnalyzer,
-								overrideMap, resolvedAnalyzers, benefactorCount);
-						return m;
-					})
-			);
-
-			String appliedConfigJson = request.toJsonString();
-			CreateIndexResponse response = openSearchClient.indices().create(request);
-
-			if (!response.acknowledged()) {
-				throw new IllegalStateException("Search index " + indexName + " creation was not acknowledged.");
-			}
-
-			return Optional.of(appliedConfigJson);
-		} catch (OpenSearchException e) {
-			if ("resource_already_exists_exception".equals(e.error().type())) {
-				return Optional.empty();
-			}
-			throw new RuntimeException("Failed to create search index: " + indexName
-					+ " (" + describeError(e.error()) + ")", e);
-		} catch (IOException e) {
+			return TimeUtils.waitForExponentialMaxRetry(CREATE_INDEX_MAX_RETRIES,
+					CREATE_INDEX_INITIAL_BACKOFF_MS, () -> {
+				try {
+					CreateIndexResponse response = openSearchClient.indices().create(request);
+					if (!response.acknowledged()) {
+						throw new IllegalStateException(
+								"Search index " + indexName + " creation was not acknowledged.");
+					}
+					return Optional.of(appliedConfigJson);
+				} catch (OpenSearchException e) {
+					if ("resource_already_exists_exception".equals(e.error().type())) {
+						return Optional.<String>empty();
+					}
+					throw new RuntimeException("Failed to create search index: " + indexName
+							+ " (" + describeError(e.error()) + ")", e);
+				} catch (IOException e) {
+					throw new RetryException(e);
+				}
+			});
+		} catch (RetryException e) {
+			throw new RuntimeException("Failed to create search index: " + indexName, e.getCause());
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
 			throw new RuntimeException("Failed to create search index: " + indexName, e);
 		}
 	}
@@ -488,26 +514,37 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	public Optional<String> getAliasTarget(String aliasName) {
 		ValidateArgument.required(aliasName, "aliasName");
 		try {
-			GetAliasResponse response = openSearchClient.indices().getAlias(req -> req.name(aliasName));
-			// The response maps each concrete index carrying the alias to its alias definitions;
-			// the key set is therefore the set of physical indices the alias resolves to.
-			Set<String> targets = response.result().keySet();
-			if (targets.isEmpty()) {
-				return Optional.empty();
-			}
-			if (targets.size() > 1) {
-				throw new IllegalStateException("Alias " + aliasName
-						+ " resolves to multiple indices " + targets + "; expected exactly one.");
-			}
-			return Optional.of(targets.iterator().next());
-		} catch (OpenSearchException e) {
-			// A missing alias is reported as a 404; treat it as "no live index yet" (first build).
-			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type()) || Integer.valueOf(404).equals(e.status())) {
-				return Optional.empty();
-			}
-			throw new RuntimeException("Failed to resolve alias: " + aliasName
-					+ " (" + describeError(e.error()) + ")", e);
-		} catch (IOException e) {
+			return TimeUtils.waitForExponentialMaxRetry(GET_ALIAS_MAX_RETRIES,
+					GET_ALIAS_INITIAL_BACKOFF_MS, () -> {
+				try {
+					GetAliasResponse response = openSearchClient.indices().getAlias(req -> req.name(aliasName));
+					// The response maps each concrete index carrying the alias to its alias definitions;
+					// the key set is therefore the set of physical indices the alias resolves to.
+					Set<String> targets = response.result().keySet();
+					if (targets.isEmpty()) {
+						return Optional.<String>empty();
+					}
+					if (targets.size() > 1) {
+						throw new IllegalStateException("Alias " + aliasName
+								+ " resolves to multiple indices " + targets + "; expected exactly one.");
+					}
+					return Optional.of(targets.iterator().next());
+				} catch (OpenSearchException e) {
+					// A missing alias is reported as a 404; treat it as "no live index yet" (first build).
+					if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type()) || Integer.valueOf(404).equals(e.status())) {
+						return Optional.<String>empty();
+					}
+					throw new RuntimeException("Failed to resolve alias: " + aliasName
+							+ " (" + describeError(e.error()) + ")", e);
+				} catch (IOException e) {
+					throw new RetryException(e);
+				}
+			});
+		} catch (RetryException e) {
+			throw new RuntimeException("Failed to resolve alias: " + aliasName, e.getCause());
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
 			throw new RuntimeException("Failed to resolve alias: " + aliasName, e);
 		}
 	}

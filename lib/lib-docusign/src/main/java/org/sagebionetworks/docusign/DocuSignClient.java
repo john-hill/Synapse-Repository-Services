@@ -24,6 +24,8 @@ import com.docusign.esign.model.Signer;
 import com.docusign.esign.model.Tabs;
 import com.docusign.esign.model.TemplateRole;
 
+import io.jsonwebtoken.lang.Collections;
+
 /**
  * Client for the DocuSign REST API. Authenticates headlessly via the JWT Bearer
  * Grant: a JWT assertion signed with the configured RSA private key is
@@ -159,6 +161,13 @@ public class DocuSignClient {
 		status.setSignerStatus(signerStatuses);
 
 		return new EnvelopeStatusResult(status, signerEmails);
+	}
+
+	public List<Envelope> listEnvelopeStatuses(List<String> envelopeIds) {
+		if (Collections.isEmpty(envelopeIds)) {
+			return List.of();
+		}
+		return envelopesApi.listStatus(envelopeIds);
 	}
 
 	public byte[] getSignedDocument(String envelopeId) {

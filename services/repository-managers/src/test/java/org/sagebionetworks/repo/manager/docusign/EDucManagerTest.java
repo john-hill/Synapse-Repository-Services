@@ -425,6 +425,70 @@ public class EDucManagerTest {
 	}
 
 	@Test
+	public void testRouteForSignatureWithNoPrincipalInvestigator() {
+		Request request = buildValidRequest();
+		request.setPrincipalInvestigator(null);
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
+
+		assertEquals("principalInvestigator is required.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testRouteForSignatureWithNoPIUserId() {
+		Request request = buildValidRequest();
+		request.getPrincipalInvestigator().setUserId(null);
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
+
+		assertEquals("principalInvestigator.userId is required.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testRouteForSignatureWithNoSigningOfficial() {
+		Request request = buildValidRequest();
+		request.setSigningOfficial(null);
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
+
+		assertEquals("signingOfficial is required.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testRouteForSignatureWithNoSOEmail() {
+		Request request = buildValidRequest();
+		request.getSigningOfficial().setInstitutionalEmail(null);
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
+
+		assertEquals("signingOfficial.institutionalEmail is required.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
 	public void testRouteForSignatureWithNoAccessorChanges() {
 		Request request = buildValidRequest();
 		request.setAccessorChanges(Collections.emptyList());

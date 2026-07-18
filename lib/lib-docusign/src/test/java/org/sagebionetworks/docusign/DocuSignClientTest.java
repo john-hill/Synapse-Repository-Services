@@ -349,4 +349,43 @@ public class DocuSignClientTest {
 
 		assertEquals("envelopeId is required.", ex.getMessage());
 	}
+
+	@Test
+	public void testListEnvelopeStatusesSuccess() {
+		Envelope env1 = new Envelope();
+		env1.setEnvelopeId("env-1");
+		env1.setStatus("sent");
+		Envelope env2 = new Envelope();
+		env2.setEnvelopeId("env-2");
+		env2.setStatus("completed");
+		when(mockDocuSignEnvelopesApi.listStatus(List.of("env-1", "env-2")))
+				.thenReturn(List.of(env1, env2));
+
+		// call under test
+		List<Envelope> result = client.listEnvelopeStatuses(List.of("env-1", "env-2"));
+
+		assertEquals(2, result.size());
+		assertEquals("env-1", result.get(0).getEnvelopeId());
+		assertEquals("sent", result.get(0).getStatus());
+		assertEquals("env-2", result.get(1).getEnvelopeId());
+		assertEquals("completed", result.get(1).getStatus());
+	}
+
+	@Test
+	public void testListEnvelopeStatusesWithEmptyList() {
+		// call under test
+		List<Envelope> result = client.listEnvelopeStatuses(List.of());
+
+		assertEquals(0, result.size());
+		verifyNoInteractions(mockDocuSignEnvelopesApi);
+	}
+
+	@Test
+	public void testListEnvelopeStatusesWithNull() {
+		// call under test
+		List<Envelope> result = client.listEnvelopeStatuses(null);
+
+		assertEquals(0, result.size());
+		verifyNoInteractions(mockDocuSignEnvelopesApi);
+	}
 }

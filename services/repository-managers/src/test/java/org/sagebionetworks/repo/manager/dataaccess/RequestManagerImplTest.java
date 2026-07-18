@@ -43,7 +43,16 @@ import org.sagebionetworks.repo.model.dataaccess.Renewal;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestList;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestListRequest;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestStatusEnum;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestSummary;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestUserInfo;
+
+import com.docusign.esign.model.Envelope;
+import com.docusign.esign.model.Recipients;
+import com.docusign.esign.model.Signer;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -650,5 +659,188 @@ public class RequestManagerImplTest {
 
 		// call under test — should not throw, traditional (non-eDUC) flow
 		manager.validateEnvelopeCompletion(request);
+	}
+
+	@Test
+	public void testGetRequestForSubmission() {
+		when(mockRequestDao.get(requestId)).thenReturn(request);
+
+		// call under test
+		RequestInterface result = manager.getRequestForSubmission(requestId);
+
+		assertEquals(request, result);
+		verify(mockRequestDao).get(requestId);
+	}
+
+	@Test
+	public void testGetRequestForSubmissionWithNullId() {
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.getRequestForSubmission(null));
+	}
+
+	@Test
+	public void testToAccessRequestStatus() {
+		assertEquals(AccessRequestStatusEnum.submitted, RequestManagerImpl.toAccessRequestStatus(SubmissionState.SUBMITTED));
+		assertEquals(AccessRequestStatusEnum.approved, RequestManagerImpl.toAccessRequestStatus(SubmissionState.APPROVED));
+		assertEquals(AccessRequestStatusEnum.rejected, RequestManagerImpl.toAccessRequestStatus(SubmissionState.REJECTED));
+		assertEquals(AccessRequestStatusEnum.cancelled, RequestManagerImpl.toAccessRequestStatus(SubmissionState.CANCELLED));
+	}
+
+	@Test
+	public void testToAccessRequestStatusFromEnvelope() {
+		assertEquals(AccessRequestStatusEnum.sent, RequestManagerImpl.toAccessRequestStatusFromEnvelope("sent"));
+		assertEquals(AccessRequestStatusEnum.delivered, RequestManagerImpl.toAccessRequestStatusFromEnvelope("delivered"));
+		assertEquals(AccessRequestStatusEnum.completed, RequestManagerImpl.toAccessRequestStatusFromEnvelope("completed"));
+		assertEquals(AccessRequestStatusEnum.completed, RequestManagerImpl.toAccessRequestStatusFromEnvelope("signed"));
+		assertEquals(AccessRequestStatusEnum.declined, RequestManagerImpl.toAccessRequestStatusFromEnvelope("declined"));
+		assertEquals(AccessRequestStatusEnum.voided, RequestManagerImpl.toAccessRequestStatusFromEnvelope("voided"));
+		assertEquals(AccessRequestStatusEnum.correct, RequestManagerImpl.toAccessRequestStatusFromEnvelope("correct"));
+	}
+
+	@Test
+	public void testToAccessRequestStatusFromEnvelopeWithUnexpectedValue() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> RequestManagerImpl.toAccessRequestStatusFromEnvelope("bogus"));
+
+		assertEquals("Unexpected envelope status: bogus", ex.getMessage());
+	}
+
+	@Test
+	public void testToAccessRequestStatusFromEnvelopeWithNull() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> RequestManagerImpl.toAccessRequestStatusFromEnvelope(null));
+
+		assertEquals("Unexpected envelope status: null", ex.getMessage());
+	}
+
+	@Test
+	public void testListUserRequestsWithNoRequests() {
+		when(mockUser.getId()).thenReturn(1L);
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of());
+
+		AccessRequestListRequest listRequest = new AccessRequestListRequest();
+
+		// call under test
+		AccessRequestList result = manager.listUserRequests(mockUser, listRequest);
+
+		assertNotNull(result);
+		assertEquals(0, result.getResults().size());
+		assertNull(result.getNextPageToken());
+	}
+
+	@Test
+	public void testListUserRequestsWithSubmittedRequest() {
+		when(mockUser.getId()).thenReturn(1L);
+
+		RequestUserInfo info = new RequestUserInfo();
+		info.setRequestId("100");
+		info.setAccessRequirementName("AR Name");
+		info.setSubmissionStatus(SubmissionState.APPROVED);
+		info.setEnvelopeId(null);
+		info.setSubmittedOn(new Date(1000L));
+		info.setModifiedOn(new Date(2000L));
+
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of(info));
+
+		AccessRequestListRequest listRequest = new AccessRequestListRequest();
+
+		// call under test
+		AccessRequestList result = manager.listUserRequests(mockUser, listRequest);
+
+		assertEquals(1, result.getResults().size());
+		AccessRequestSummary summary = result.getResults().get(0);
+		assertEquals("100", summary.getRequestId());
+		assertEquals("AR Name", summary.getAccessRequirementName());
+		assertEquals(AccessRequestStatusEnum.approved, summary.getStatus());
+		assertEquals(false, summary.getIsEDuc());
+		assertNull(summary.getSignaturesRequested());
+		assertNull(summary.getSignaturesAcquired());
+		assertEquals(new Date(1000L), summary.getSubmittedOn());
+		assertEquals(new Date(2000L), summary.getModifiedOn());
+	}
+
+	@Test
+	public void testListUserRequestsWithEDucEnvelope() {
+		when(mockUser.getId()).thenReturn(1L);
+
+		RequestUserInfo info = new RequestUserInfo();
+		info.setRequestId("200");
+		info.setAccessRequirementName("AR2");
+		info.setSubmissionStatus(null);
+		info.setEnvelopeId("env-abc");
+
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of(info));
+
+		Signer signer1 = new Signer();
+		signer1.setStatus("completed");
+		Signer signer2 = new Signer();
+		signer2.setStatus("sent");
+		Signer signer3 = new Signer();
+		signer3.setStatus("signed");
+
+		Recipients recipients = new Recipients();
+		recipients.setSigners(List.of(signer1, signer2, signer3));
+
+		Envelope envelope = new Envelope();
+		envelope.setEnvelopeId("env-abc");
+		envelope.setStatus("sent");
+		envelope.setRecipients(recipients);
+
+		when(mockDocuSignClient.listEnvelopeStatuses(List.of("env-abc"))).thenReturn(List.of(envelope));
+
+		AccessRequestListRequest listRequest = new AccessRequestListRequest();
+
+		// call under test
+		AccessRequestList result = manager.listUserRequests(mockUser, listRequest);
+
+		assertEquals(1, result.getResults().size());
+		AccessRequestSummary summary = result.getResults().get(0);
+		assertEquals("200", summary.getRequestId());
+		assertEquals(AccessRequestStatusEnum.sent, summary.getStatus());
+		assertEquals(true, summary.getIsEDuc());
+		assertEquals(Long.valueOf(3), summary.getSignaturesRequested());
+		assertEquals(Long.valueOf(2), summary.getSignaturesAcquired());
+	}
+
+	@Test
+	public void testListUserRequestsWithNoSubmissionAndNoEnvelope() {
+		when(mockUser.getId()).thenReturn(1L);
+
+		RequestUserInfo info = new RequestUserInfo();
+		info.setRequestId("300");
+		info.setAccessRequirementName("AR3");
+		info.setSubmissionStatus(null);
+		info.setEnvelopeId(null);
+
+		when(mockRequestDao.getUserRequests(1L, 51L, 0L, null, null)).thenReturn(List.of(info));
+
+		AccessRequestListRequest listRequest = new AccessRequestListRequest();
+
+		// call under test
+		AccessRequestList result = manager.listUserRequests(mockUser, listRequest);
+
+		assertEquals(1, result.getResults().size());
+		AccessRequestSummary summary = result.getResults().get(0);
+		assertEquals("300", summary.getRequestId());
+		assertEquals(AccessRequestStatusEnum.created, summary.getStatus());
+		assertEquals(false, summary.getIsEDuc());
+		assertNull(summary.getSignaturesRequested());
+		assertNull(summary.getSignaturesAcquired());
+	}
+
+	@Test
+	public void testListUserRequestsWithNullUserInfo() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> manager.listUserRequests(null, new AccessRequestListRequest()));
+	}
+
+	@Test
+	public void testListUserRequestsWithNullRequest() {
+		// call under test
+		assertThrows(IllegalArgumentException.class,
+				() -> manager.listUserRequests(mockUser, null));
 	}
 }

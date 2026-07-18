@@ -445,6 +445,30 @@ public class DataAccessController {
 	 * @param requestId - The ID of the data access request.
 	 * @return The signature quota information including remaining routings.
 	 */
+	/**
+	 * Preview the eDUC document for a data access request.
+	 * Creates a draft envelope if one doesn't exist and returns the PDF as a file handle.
+	 *
+	 * @param userId    - The ID of the user who is making the request.
+	 * @param requestId - The ID of the data access request.
+	 * @return The file handle ID for the preview PDF.
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_ID_PREVIEW, method = RequestMethod.GET)
+	public @ResponseBody EDucFileHandleId previewEDuc(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String requestId) {
+		return serviceProvider.getEDucService().previewEDuc(userId, requestId);
+	}
+
+	/**
+	 * Route the eDUC associated with a data access request for electronic signature.
+	 *
+	 * @param userId    - The ID of the user who is making the request.
+	 * @param requestId - The ID of the data access request.
+	 * @return The signature quota information including remaining routings.
+	 */
 	@RequiredScope({view, modify})
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_ID_SIGNATURE, method = RequestMethod.POST)

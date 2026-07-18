@@ -145,14 +145,14 @@ public class DocuSignClientTest {
 		);
 
 		// call under test
-		String envelopeId = client.createAndSendEnvelope("tpl-1", roleEmails, tabValues);
+		String envelopeId = client.createEnvelope("tpl-1", roleEmails, tabValues);
 
 		assertEquals("env-123", envelopeId);
 		ArgumentCaptor<EnvelopeDefinition> captor = ArgumentCaptor.forClass(EnvelopeDefinition.class);
 		verify(mockDocuSignEnvelopesApi).createEnvelope(captor.capture());
 		EnvelopeDefinition captured = captor.getValue();
 		assertEquals("tpl-1", captured.getTemplateId());
-		assertEquals("sent", captured.getStatus());
+		assertEquals("created", captured.getStatus());
 		assertEquals(2, captured.getTemplateRoles().size());
 	}
 
@@ -167,7 +167,7 @@ public class DocuSignClientTest {
 
 		// call under test
 		assertThrows(IllegalArgumentException.class,
-				() -> client.createAndSendEnvelope("tpl-1", roleEmails, tabValues));
+				() -> client.createEnvelope("tpl-1", roleEmails, tabValues));
 
 		verifyNoInteractions(mockDocuSignEnvelopesApi);
 	}
@@ -266,10 +266,11 @@ public class DocuSignClientTest {
 		assertEquals(EDucStatusEnum.declined, DocuSignClient.toEDucStatusEnum("declined"));
 		assertEquals(EDucStatusEnum.voided, DocuSignClient.toEDucStatusEnum("voided"));
 		assertEquals(EDucStatusEnum.correct, DocuSignClient.toEDucStatusEnum("correct"));
+		assertEquals(EDucStatusEnum.draft, DocuSignClient.toEDucStatusEnum("created"));
 		assertNull(DocuSignClient.toEDucStatusEnum(null));
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> DocuSignClient.toEDucStatusEnum("created"));
-		assertEquals("Unexpected status created", ex.getMessage());
+				() -> DocuSignClient.toEDucStatusEnum("bogus_status"));
+		assertEquals("Unexpected status bogus_status", ex.getMessage());
 	}
 
 	@Test

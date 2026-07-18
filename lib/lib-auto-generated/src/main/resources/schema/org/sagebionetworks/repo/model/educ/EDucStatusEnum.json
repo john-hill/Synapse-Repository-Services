@@ -4,6 +4,10 @@
     "type": "string",
     "enum": [
         {
+            "name": "draft",
+            "description": "the envelope has been created but not yet sent for signature"
+        },
+        {
             "name": "sent",
             "description": "email notification with a link has been sent to at least one recipient, and it stays in this state until recipients have at least viewed it"
         },

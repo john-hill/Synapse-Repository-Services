@@ -102,24 +102,6 @@ public class EDucManager {
 			throw new UnauthorizedException("Only the request creator or an administrator can route for signature.");
 		}
 
-		if (request.getEDucSignatureEnvelopeId() != null) {
-			throw new IllegalArgumentException("This request already has a signature envelope: "
-					+ request.getEDucSignatureEnvelopeId());
-		}
-
-		AccessRequirement ar = accessRequirementDao.get(request.getAccessRequirementId());
-		if (!(ar instanceof ManagedACTAccessRequirement managedAr)) {
-			throw new IllegalArgumentException("The access requirement is not a ManagedACTAccessRequirement.");
-		}
-		if (!Boolean.TRUE.equals(managedAr.getIsDUCRequired())) {
-			throw new IllegalArgumentException("The access requirement does not require a DUC.");
-		}
-
-		String templateId = managedAr.getEDucTemplateId();
-		if (StringUtils.isBlank(templateId)) {
-			throw new IllegalArgumentException("The access requirement does not have an eDUC template ID configured.");
-		}
-
 		Long userId = userInfo.getId();
 		Long arId = Long.parseLong(request.getAccessRequirementId());
 
@@ -139,14 +121,10 @@ public class EDucManager {
 					"The global daily eDUC routing limit has been reached. Please try again later.");
 		}
 
-		List<String> collaboratorUserIds = buildCollaboratorUserIds(request);
-		Map<String, String> roleEmails = buildRoleEmails(request, collaboratorUserIds);
-		Map<RoleLabelKey, String> tabValues = buildTabValues(request, collaboratorUserIds);
+		request = createDraftEDuc(request);
+		String envelopeId = request.getEDucSignatureEnvelopeId();
 
-		String envelopeId = docuSignClient.createAndSendEnvelope(templateId, roleEmails, tabValues);
-
-		request.setEDucSignatureEnvelopeId(envelopeId);
-		requestDao.update(request);
+		docuSignClient.sendEnvelope(envelopeId);
 
 		eDucQuotaDao.create(userId, arId, envelopeId);
 
@@ -154,6 +132,70 @@ public class EDucManager {
 		result.setQuota((long) MAX_ENVELOPES_PER_MONTH);
 		result.setRemaining((long) (MAX_ENVELOPES_PER_MONTH - count - 1));
 		return result;
+	}
+
+	public EDucFileHandleId previewEDuc(UserInfo userInfo, String requestId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(requestId, "requestId");
+
+		RequestInterface request = requestDao.get(requestId);
+
+		if (!AuthorizationUtils.isUserCreatorOrAdmin(userInfo, request.getCreatedBy())) {
+			throw new UnauthorizedException("Only the request creator or an administrator can preview the eDUC.");
+		}
+
+		request = createDraftEDuc(request);
+		String envelopeId = request.getEDucSignatureEnvelopeId();
+
+		byte[] pdfBytes = docuSignClient.getDocument(envelopeId);
+
+		try {
+			S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(
+					userInfo.getId().toString(), new Date(), pdfBytes,
+					"eDUC_preview_" + requestId + ".pdf", ContentType.create("application/pdf"), null);
+			EDucFileHandleId result = new EDucFileHandleId();
+			result.setFileHandleId(fileHandle.getId());
+			return result;
+		} catch (IOException e) {
+			throw new IllegalStateException("Failed to upload preview document.", e);
+		}
+	}
+
+	RequestInterface createDraftEDuc(RequestInterface request) {
+		if (request.getEDucSignatureEnvelopeId() != null) {
+			return request;
+		}
+
+		AccessRequirement ar = accessRequirementDao.get(request.getAccessRequirementId());
+		if (!(ar instanceof ManagedACTAccessRequirement managedAr)) {
+			throw new IllegalArgumentException("The access requirement is not a ManagedACTAccessRequirement.");
+		}
+		if (!Boolean.TRUE.equals(managedAr.getIsDUCRequired())) {
+			throw new IllegalArgumentException("The access requirement does not require a DUC.");
+		}
+
+		String templateId = managedAr.getEDucTemplateId();
+		if (StringUtils.isBlank(templateId)) {
+			throw new IllegalArgumentException("The access requirement does not have an eDUC template ID configured.");
+		}
+
+		PrincipalInvestigator pi = request.getPrincipalInvestigator();
+		ValidateArgument.required(pi, "principalInvestigator");
+		ValidateArgument.required(pi.getUserId(), "principalInvestigator.userId");
+
+		SigningOfficial so = request.getSigningOfficial();
+		ValidateArgument.required(so, "signingOfficial");
+		ValidateArgument.required(so.getInstitutionalEmail(), "signingOfficial.institutionalEmail");
+
+		List<String> collaboratorUserIds = buildCollaboratorUserIds(request);
+		Map<String, String> roleEmails = buildRoleEmails(request, collaboratorUserIds);
+		Map<RoleLabelKey, String> tabValues = buildTabValues(request, collaboratorUserIds);
+
+		String envelopeId = docuSignClient.createEnvelope(templateId, roleEmails, tabValues);
+
+		request.setEDucSignatureEnvelopeId(envelopeId);
+		requestDao.update(request);
+		return request;
 	}
 
 	public EDucSignatureStatus getSignatureStatus(UserInfo userInfo, String requestId) {

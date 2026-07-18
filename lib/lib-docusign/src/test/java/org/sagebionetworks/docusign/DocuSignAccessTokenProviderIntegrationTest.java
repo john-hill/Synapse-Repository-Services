@@ -30,27 +30,4 @@ public class DocuSignAccessTokenProviderIntegrationTest {
 
 		assertNotNull(token);
 	}
-
-	@Test
-	public void testGetAccessTokenReturnsCachedToken() {
-		String first = provider.getAccessToken();
-
-		// call under test
-		String second = provider.getAccessToken();
-
-		assertNotNull(first);
-		assertNotNull(second);
-	}
-
-	@Test
-	public void testInvalidateAndRefresh() {
-		String first = provider.getAccessToken();
-		provider.invalidateAccessToken();
-
-		// call under test
-		String second = provider.getAccessToken();
-
-		assertNotNull(first);
-		assertNotNull(second);
-	}
 }

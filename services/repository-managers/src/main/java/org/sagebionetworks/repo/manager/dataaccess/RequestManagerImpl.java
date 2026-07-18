@@ -1,14 +1,23 @@
 package org.sagebionetworks.repo.manager.dataaccess;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.EnvelopeStatusResult;
 import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationManager;
+import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
 import org.sagebionetworks.repo.model.AccessRequirement;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestList;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestListRequest;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestStatusEnum;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestSummary;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
@@ -23,7 +32,11 @@ import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
 import org.sagebionetworks.repo.model.dataaccess.SigningOfficial;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestUserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
+
+import com.docusign.esign.model.Envelope;
+import com.docusign.esign.model.Signer;
 import org.sagebionetworks.repo.model.principal.AliasEnum;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -256,6 +269,108 @@ public class RequestManagerImpl implements RequestManager{
 	public RequestInterface getRequestForSubmission(String requestId) {
 		ValidateArgument.required(requestId, "requestId");
 		return requestDao.get(requestId);
+	}
+
+	@Override
+	public AccessRequestList listUserRequests(UserInfo userInfo, AccessRequestListRequest request) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(request, "request");
+
+		NextPageToken token = new NextPageToken(request.getNextPageToken());
+		List<RequestUserInfo> page = requestDao.getUserRequests(
+				userInfo.getId(), token.getLimitForQuery(), token.getOffset(),
+				request.getSortBy(), request.getSortDirection());
+
+		List<String> envelopeIds = page.stream()
+				.map(RequestUserInfo::getEnvelopeId)
+				.filter(id -> id != null)
+				.collect(Collectors.toList());
+
+		Map<String, Envelope> envelopeMap = new HashMap<>();
+		if (!envelopeIds.isEmpty()) {
+			List<Envelope> envelopes = docuSignClient.listEnvelopeStatuses(envelopeIds);
+			for (Envelope env : envelopes) {
+				envelopeMap.put(env.getEnvelopeId(), env);
+			}
+		}
+
+		List<AccessRequestSummary> results = new ArrayList<>();
+		for (RequestUserInfo info : page) {
+			AccessRequestSummary summary = new AccessRequestSummary();
+			summary.setRequestId(info.getRequestId());
+			summary.setAccessRequirementName(info.getAccessRequirementName());
+			summary.setIsEDuc(info.getEnvelopeId() != null);
+			summary.setSubmittedOn(info.getSubmittedOn());
+			summary.setModifiedOn(info.getModifiedOn());
+			summary.setExpiresOn(info.getExpiresOn());
+
+			if (info.getSubmissionStatus() != null) {
+				summary.setStatus(toAccessRequestStatus(info.getSubmissionStatus()));
+			} else if (info.getEnvelopeId() != null) {
+				Envelope env = envelopeMap.get(info.getEnvelopeId());
+				if (env != null) {
+					summary.setStatus(toAccessRequestStatusFromEnvelope(env.getStatus()));
+					if (env.getRecipients() != null && env.getRecipients().getSigners() != null) {
+						List<Signer> signers = env.getRecipients().getSigners();
+						summary.setSignaturesRequested((long) signers.size());
+						long completed = signers.stream()
+								.filter(s -> "completed".equalsIgnoreCase(s.getStatus())
+										|| "signed".equalsIgnoreCase(s.getStatus()))
+								.count();
+						summary.setSignaturesAcquired(completed);
+					}
+				} else {
+					summary.setStatus(AccessRequestStatusEnum.created);
+				}
+			} else {
+				summary.setStatus(AccessRequestStatusEnum.created);
+			}
+
+			results.add(summary);
+		}
+
+		AccessRequestList result = new AccessRequestList();
+		result.setResults(results);
+		result.setNextPageToken(token.getNextPageTokenForCurrentResults(results));
+		return result;
+	}
+
+	static AccessRequestStatusEnum toAccessRequestStatus(SubmissionState submissionState) {
+		switch (submissionState) {
+			case SUBMITTED:
+				return AccessRequestStatusEnum.submitted;
+			case APPROVED:
+				return AccessRequestStatusEnum.approved;
+			case REJECTED:
+				return AccessRequestStatusEnum.rejected;
+			case CANCELLED:
+				return AccessRequestStatusEnum.cancelled;
+			default:
+				throw new IllegalArgumentException("Unexpected submission state: " + submissionState);
+		}
+	}
+
+	static AccessRequestStatusEnum toAccessRequestStatusFromEnvelope(String envelopeStatus) {
+		if (envelopeStatus == null) {
+			throw new IllegalArgumentException("Unexpected envelope status: null");
+		}
+		switch (envelopeStatus.toLowerCase()) {
+			case "sent":
+				return AccessRequestStatusEnum.sent;
+			case "delivered":
+				return AccessRequestStatusEnum.delivered;
+			case "completed":
+			case "signed":
+				return AccessRequestStatusEnum.completed;
+			case "declined":
+				return AccessRequestStatusEnum.declined;
+			case "voided":
+				return AccessRequestStatusEnum.voided;
+			case "correct":
+				return AccessRequestStatusEnum.correct;
+			default:
+				throw new IllegalArgumentException("Unexpected envelope status: " + envelopeStatus);
+		}
 	}
 
 	@Override

@@ -10,6 +10,8 @@ import org.sagebionetworks.repo.model.RestrictionInformationBatchRequest;
 import org.sagebionetworks.repo.model.RestrictionInformationBatchResponse;
 import org.sagebionetworks.repo.model.RestrictionInformationRequest;
 import org.sagebionetworks.repo.model.RestrictionInformationResponse;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestList;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequestListRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementStatus;
 import org.sagebionetworks.repo.model.dataaccess.CreateSubmissionRequest;
 import org.sagebionetworks.repo.model.dataaccess.OpenSubmissionPage;
@@ -114,6 +116,22 @@ public class DataAccessController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody RequestInterface toCreate) throws NotFoundException {
 		return serviceProvider.getDataAccessService().createOrUpdate(userId, toCreate);
+	}
+
+	/**
+	 * List data access requests associated with the current user.
+	 *
+	 * @param userId  - The ID of the user who is making the request.
+	 * @param request - Pagination parameters.
+	 * @return A paginated list of access request summaries.
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.DATA_ACCESS_REQUEST_LIST, method = RequestMethod.POST)
+	public @ResponseBody AccessRequestList listUserRequests(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody AccessRequestListRequest request) {
+		return serviceProvider.getDataAccessService().listUserRequests(userId, request);
 	}
 
 	/**

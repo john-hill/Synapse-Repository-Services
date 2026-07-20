@@ -69,7 +69,7 @@ public class DefiningSqlSourceUpdateWorker implements TypedMessageDrivenRunner<T
 		dependents.forEachRemaining(dependent -> repositoryMessagePublisher.publishLocalStackMessageToTopic(
 				ObjectType.SOURCE_DEPENDENCY_EVENT,
 				new LocalStackChangeMesssage()
-						.setObjectId(dependent.objectId().getId().toString())
+						.setObjectId(KeyFactory.keyToString(dependent.objectId().getId()))
 						.setObjectVersion(dependent.objectId().getVersion().orElse(null))
 						.setObjectType(ObjectType.valueOf(dependent.objectType()))
 						.setChangeType(ChangeType.UPDATE)

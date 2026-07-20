@@ -84,8 +84,8 @@ public class DefiningSqlSourceUpdateWorkerTest {
 		// The worker stamps a non-null timestamp on each message.
 		assertNotNull(published.get(0).getTimestamp());
 		assertNotNull(published.get(1).getTimestamp());
-		assertEquals(newMessage("456", null, ObjectType.MATERIALIZED_VIEW), clearTimestamp(published.get(0)));
-		assertEquals(newMessage("789", 2L, ObjectType.SEARCH_INDEX), clearTimestamp(published.get(1)));
+		assertEquals(newMessage("syn456", null, ObjectType.MATERIALIZED_VIEW), clearTimestamp(published.get(0)));
+		assertEquals(newMessage("syn789", 2L, ObjectType.SEARCH_INDEX), clearTimestamp(published.get(1)));
 	}
 
 	@Test
@@ -105,7 +105,7 @@ public class DefiningSqlSourceUpdateWorkerTest {
 
 		verify(mockRepositoryMessagePublisher).publishLocalStackMessageToTopic(
 				eq(ObjectType.SOURCE_DEPENDENCY_EVENT), messageCaptor.capture());
-		assertEquals(newMessage("456", null, ObjectType.MATERIALIZED_VIEW), clearTimestamp(messageCaptor.getValue()));
+		assertEquals(newMessage("syn456", null, ObjectType.MATERIALIZED_VIEW), clearTimestamp(messageCaptor.getValue()));
 	}
 
 	@Test

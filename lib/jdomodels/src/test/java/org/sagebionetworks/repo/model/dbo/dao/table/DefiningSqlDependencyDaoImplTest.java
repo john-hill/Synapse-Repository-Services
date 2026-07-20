@@ -283,6 +283,32 @@ public class DefiningSqlDependencyDaoImplTest {
 	}
 
 	@Test
+	public void testGetDependentsPageDiscriminatesBySourceVersion() {
+		// A source table with a current (unversioned) index and a snapshot version 2. A distinct
+		// dependent is registered against each. The fan-out for one source version must return only
+		// the dependent registered against that exact version — never the other — because each
+		// version builds and fires its TABLE_STATUS_EVENT independently.
+		IdAndVersion currentSource = IdAndVersion.parse("syn123");
+		IdAndVersion snapshotSource = IdAndVersion.parse("syn123.2");
+
+		String currentDependentNodeId = nodeHelper.create(node -> node.setNodeType(EntityType.searchindex)).getId();
+		IdAndVersion currentDependent = KeyFactory.idAndVersion(currentDependentNodeId, null);
+
+		String snapshotDependentNodeId = nodeHelper.create(node -> node.setNodeType(EntityType.searchindex)).getId();
+		IdAndVersion snapshotDependent = KeyFactory.idAndVersion(snapshotDependentNodeId, null);
+
+		dao.addSourceTables(currentDependent, SEARCH_TYPE, ImmutableSet.of(currentSource));
+		dao.addSourceTables(snapshotDependent, SEARCH_TYPE, ImmutableSet.of(snapshotSource));
+
+		// Call under test — current-version source wakes only the current-version dependent.
+		assertEquals(Arrays.asList(new DefiningSqlDependencyDao.DependentObject(currentDependent, SEARCH_TYPE)),
+				dao.getDependentsPage(currentSource, 10, 0));
+		// Call under test — snapshot source wakes only the snapshot dependent.
+		assertEquals(Arrays.asList(new DefiningSqlDependencyDao.DependentObject(snapshotDependent, SEARCH_TYPE)),
+				dao.getDependentsPage(snapshotSource, 10, 0));
+	}
+
+	@Test
 	public void testGetDependentsPagePaginates() {
 		IdAndVersion sourceTableId = IdAndVersion.parse("syn123");
 		String searchNodeId = nodeHelper.create(node -> {

@@ -1588,6 +1588,26 @@ public class SearchIndexLifecycleManagerImplTest {
 		verify(definingSqlDependencyDao).setSourceTable(searchIndexId, ObjectType.SEARCH_INDEX.name(), sourceId);
 	}
 
+	@Test
+	public void testRegisterSchemaWithVirtualTableSourceThrows() {
+		IdAndVersion searchIndexId = IdAndVersion.parse("syn456");
+		IdAndVersion sourceId = IdAndVersion.parse("syn789");
+		// A virtual table is a query rewrite with no materialized index and no status events, so
+		// it would never trigger a source-availability rebuild — the SearchIndex must reject it.
+		IndexDescription virtualSource = mock(IndexDescription.class);
+		when(virtualSource.getTableType()).thenReturn(TableType.virtualtable);
+		when(tableManagerSupport.getIndexDescription(sourceId)).thenReturn(virtualSource);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.registerSchema(searchIndexId, "SELECT foo FROM syn789"));
+		assertTrue(ex.getMessage().contains("cannot reference a virtual table"),
+				"expected the virtual-table guard message, got: " + ex.getMessage());
+		// Guard fires before any schema is bound or dependency edge recorded.
+		verify(columnModelManager, never()).bindColumnsToVersionOfObject(any(), any());
+		verify(definingSqlDependencyDao, never()).setSourceTable(any(), any(), any());
+	}
+
 	// -------- buildWithBenefactorColumns (package-private) --------
 
 	@Test

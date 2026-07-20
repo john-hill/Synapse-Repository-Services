@@ -188,6 +188,15 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		ValidateArgument.requiredNotBlank(definingSql, "definingSql");
 		IdAndVersion sourceId = TableModelUtils.getSourceTableIds(definingSql).get(0);
 		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceId);
+		// A virtual table is a query rewrite, not a materialized index: it has no status row and
+		// never fires a TABLE_STATUS_EVENT. A SearchIndex registered against one would build once
+		// but never receive a source-availability event to rebuild on, drifting silently stale.
+		// The dependency graph is one level deep, so the underlying table's events would fan out
+		// to that table's own dependents, never to this SearchIndex. Forbid it at registration.
+		if (TableType.virtualtable.equals(indexDescription.getTableType())) {
+			throw new IllegalArgumentException(
+					"The defining SQL of a search index cannot reference a virtual table.");
+		}
 		// SqlContext.query: TableIndexDescription rejects `build`; only Views/MVs accept it.
 		QueryTranslator sqlQuery = QueryTranslator.builder()
 				.sql(definingSql)

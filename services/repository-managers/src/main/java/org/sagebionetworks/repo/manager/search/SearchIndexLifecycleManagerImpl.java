@@ -255,6 +255,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 */
 	private void buildIndex(ProgressCallback progressCallback, String entityId)
 			throws Exception {
+		LOG.info("Building search index for entity: {}", entityId);
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
 		String aliasName = getAliasName(entityId);
 		// The physical index this build streams into; assigned once the target slot is known so the
@@ -316,6 +317,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				statusDao.createOrUpdate(new SearchIndexStatus()
 						.setSearchIndexId(entityId)
 						.setState(SearchIndexState.WAITING_FOR_SOURCE));
+				LOG.info("Search index for entity {} is WAITING_FOR_SOURCE ({})", entityId, sourceId);
 				return;
 			default:
 				throw new TableFailedException(sourceStatus);
@@ -416,6 +418,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
 					.setState(SearchIndexState.ACTIVE));
+			LOG.info("Search index for entity {} is ACTIVE", entityId);
 		} catch (RecoverableMessageException | TableFailedException | LockUnavilableException e) {
 			// Propagate transient/infrastructure exceptions to the worker so it can
 			// convert them into RecoverableMessageException (lock) or permanent failure

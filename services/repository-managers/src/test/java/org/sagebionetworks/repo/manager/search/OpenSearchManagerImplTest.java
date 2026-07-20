@@ -78,8 +78,12 @@ import org.opensearch.client.opensearch.core.search.TotalHits;
 import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 import org.opensearch.client.opensearch.core.search.TrackHits;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
+import org.opensearch.client.opensearch.indices.GetAliasResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
+import org.opensearch.client.opensearch.indices.UpdateAliasesRequest;
+import org.opensearch.client.opensearch.indices.get_alias.IndexAliases;
+import org.opensearch.client.opensearch.indices.update_aliases.Action;
 import org.sagebionetworks.repo.model.search.SearchAutocompleteBody;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHighlight;
@@ -141,6 +145,8 @@ public class OpenSearchManagerImplTest {
 	private long originalBulkInitialBackoffMs;
 	private long originalProbeInitialBackoffMs;
 	private long originalSentinelCleanupInitialBackoffMs;
+	private long originalCreateIndexInitialBackoffMs;
+	private long originalGetAliasInitialBackoffMs;
 
 	@BeforeEach
 	public void setUp() {
@@ -152,6 +158,10 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = 1L;
 		originalSentinelCleanupInitialBackoffMs = OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = 1L;
+		originalCreateIndexInitialBackoffMs = OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS = 1L;
+		originalGetAliasInitialBackoffMs = OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS = 1L;
 	}
 
 	@AfterEach
@@ -159,6 +169,8 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = originalBulkInitialBackoffMs;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = originalProbeInitialBackoffMs;
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
+		OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS = originalCreateIndexInitialBackoffMs;
+		OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS = originalGetAliasInitialBackoffMs;
 	}
 
 	/**
@@ -1019,6 +1031,23 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testCreateIndexWithTransientIOExceptionRetriesThenSucceeds() throws IOException {
+		String indexName = "search-index-syn1";
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenThrow(new IOException("read timed out"))
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(
+						r -> r.acknowledged(true).shardsAcknowledged(true).index(indexName)));
+
+		// call under test
+		Optional<String> result = manager.createIndex(indexName, Collections.emptyList(), null,
+				Collections.emptyList(), Collections.emptyMap(), 0, 1, 0);
+
+		assertTrue(result.isPresent());
+		verify(indicesClient, times(2)).create(any(CreateIndexRequest.class));
+	}
+
+	@Test
 	public void testCreateIndexWithDuplicateColumnNamesUsesFirst() throws IOException {
 		// Two columns share a name: the nameToId toMap merge function keeps the first id and
 		// must not throw on the duplicate key.
@@ -1138,6 +1167,127 @@ public class OpenSearchManagerImplTest {
 
 		assertEquals(ioException, ex.getCause());
 		assertEquals("Failed to delete search index: " + indexName, ex.getMessage());
+	}
+
+	@Test
+	public void testGetAliasTargetWithSingleIndex() throws IOException {
+		GetAliasResponse response = GetAliasResponse.of(r -> r
+				.putResult("search-index-syn1-a", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap()))));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any())).thenReturn(response);
+
+		// call under test
+		assertEquals(Optional.of("search-index-syn1-a"), manager.getAliasTarget("search-index-syn1"));
+	}
+
+	@Test
+	public void testGetAliasTargetWithNoAlias() throws IOException {
+		GetAliasResponse response = GetAliasResponse.of(r -> r.result(Collections.emptyMap()));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any())).thenReturn(response);
+
+		// call under test — an empty result means the alias does not exist yet (first build)
+		assertEquals(Optional.empty(), manager.getAliasTarget("search-index-syn1"));
+	}
+
+	@Test
+	public void testGetAliasTargetWithMissingAliasReturnsEmpty() throws IOException {
+		OpenSearchException notFound = new OpenSearchException(ErrorResponse.of(er -> er
+				.error(ErrorCause.of(c -> c.type("index_not_found_exception").reason("missing")))
+				.status(404)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any())).thenThrow(notFound);
+
+		// call under test — a 404 for the alias is treated as "no live index yet"
+		assertEquals(Optional.empty(), manager.getAliasTarget("search-index-syn1"));
+	}
+
+	@Test
+	public void testGetAliasTargetWithMultipleIndicesThrows() throws IOException {
+		Map<String, IndexAliases> result = new LinkedHashMap<>();
+		result.put("search-index-syn1-a", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap())));
+		result.put("search-index-syn1-b", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap())));
+		GetAliasResponse response = GetAliasResponse.of(r -> r.result(result));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any())).thenReturn(response);
+
+		// call under test — the blue-green invariant is exactly one live index per alias
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> manager.getAliasTarget("search-index-syn1"));
+		assertTrue(ex.getMessage().contains("resolves to multiple indices"));
+	}
+
+	@Test
+	public void testGetAliasTargetWithTransientIOExceptionRetriesThenSucceeds() throws IOException {
+		GetAliasResponse response = GetAliasResponse.of(r -> r
+				.putResult("search-index-syn1-a", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap()))));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any()))
+				.thenThrow(new IOException("read timed out"))
+				.thenReturn(response);
+
+		// call under test
+		assertEquals(Optional.of("search-index-syn1-a"), manager.getAliasTarget("search-index-syn1"));
+		verify(indicesClient, times(2)).getAlias(ArgumentMatchers.<java.util.function.Function>any());
+	}
+
+	@Test
+	public void testGetAliasTargetWithIOExceptionThrowsRuntime() throws IOException {
+		IOException ioException = new IOException("read timed out");
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any())).thenThrow(ioException);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.getAliasTarget("search-index-syn1"));
+
+		assertEquals(ioException, ex.getCause());
+		assertEquals("Failed to resolve alias: search-index-syn1", ex.getMessage());
+	}
+
+	@Test
+	public void testSwapAliasWithExistingOldIndex() throws IOException {
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		ArgumentCaptor<Function<UpdateAliasesRequest.Builder, org.opensearch.client.util.ObjectBuilder<UpdateAliasesRequest>>> captor =
+				ArgumentCaptor.forClass(Function.class);
+
+		// call under test
+		manager.swapAlias("search-index-syn1", "search-index-syn1-b", Optional.of("search-index-syn1-a"));
+
+		verify(indicesClient).updateAliases(captor.capture());
+		UpdateAliasesRequest.Builder builder = new UpdateAliasesRequest.Builder();
+		captor.getValue().apply(builder);
+		UpdateAliasesRequest request = builder.build();
+		// One remove of the old index and one add of the new, both on the same alias.
+		assertEquals(2, request.actions().size());
+		Action remove = request.actions().get(0);
+		assertTrue(remove.isRemove());
+		assertEquals("search-index-syn1-a", remove.remove().index());
+		assertEquals("search-index-syn1", remove.remove().alias());
+		Action add = request.actions().get(1);
+		assertTrue(add.isAdd());
+		assertEquals("search-index-syn1-b", add.add().index());
+		assertEquals("search-index-syn1", add.add().alias());
+	}
+
+	@Test
+	public void testSwapAliasWithNoOldIndex() throws IOException {
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		ArgumentCaptor<Function<UpdateAliasesRequest.Builder, org.opensearch.client.util.ObjectBuilder<UpdateAliasesRequest>>> captor =
+				ArgumentCaptor.forClass(Function.class);
+
+		// call under test — first build has no old index to remove
+		manager.swapAlias("search-index-syn1", "search-index-syn1-a", Optional.empty());
+
+		verify(indicesClient).updateAliases(captor.capture());
+		UpdateAliasesRequest.Builder builder = new UpdateAliasesRequest.Builder();
+		captor.getValue().apply(builder);
+		UpdateAliasesRequest request = builder.build();
+		// Only the add action — nothing to remove.
+		assertEquals(1, request.actions().size());
+		Action add = request.actions().get(0);
+		assertTrue(add.isAdd());
+		assertEquals("search-index-syn1-a", add.add().index());
 	}
 
 	private static BulkResponseItem okItem(String id) {

@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
+import org.sagebionetworks.repo.model.message.LocalStackMessage;
 import org.sagebionetworks.repo.model.message.TransactionalMessengerObserver;
 
 import software.amazon.awssdk.services.sns.SnsClient;
@@ -56,9 +57,19 @@ public interface RepositoryMessagePublisher extends TransactionalMessengerObserv
 	 * batch must be of the given Object type. The batch size cannot be larger
 	 * than the maximum number of change messages that can be written to a
 	 * single SQS message body.
-	 * 
+	 *
 	 * @param type The object type of the batch.
 	 * @param batch
 	 */
 	public void publishBatchToTopic(ObjectType type, List<ChangeMessage> batch);
+
+	/**
+	 * Publish a message directly to the topic of the given type. The destination topic is
+	 * the given {@code topicType} rather than the message's own object type, so a single topic can
+	 * carry messages that retain a different object type for downstream routing.
+	 *
+	 * @param topicType The type whose topic the message is published to.
+	 * @param message   The message to publish.
+	 */
+	public void publishLocalStackMessageToTopic(ObjectType topicType, LocalStackMessage message);
 }

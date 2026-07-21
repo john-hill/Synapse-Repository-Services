@@ -1265,17 +1265,19 @@ public class SqlConstants {
 	public static final String COL_FILES_SCANNER_STATUS_SCANNED_ASSOCIATIONS_COUNT = 	"SCANNED_ASSOCIATIONS_COUNT";
 	public static final String COL_FILES_SCANNER_STATUS_RELINKED_FILES_COUNT =		 	"RELINKED_FILES_COUNT";
 	
-	// The materialized view source tables
-	public static final String DDL_MV_ID = 												"schema/MaterializedViewId-ddl.sql";
-	public static final String TABLE_MV_ID = 											"MATERIALIZED_VIEW_ID";
-	public static final String COL_MV_ID_ID = 											"MATERIALIZED_VIEW_ID";
-	public static final String COL_MV_ID_ETAG = 										"ETAG";
-	public static final String DDL_MV_SOURCE_TABLES = 									"schema/MaterializedViewSourceTables-ddl.sql";
-	public static final String TABLE_MV_TABLES = 										"MATERIALIZED_VIEW_SOURCE_TABLES";
-	public static final String COL_MV_TABLES_MV_ID = 									"MATERIALIZED_VIEW_ID";
-	public static final String COL_MV_TABLES_MV_VERSION = 								"MATERIALIZED_VIEW_VERSION";
-	public static final String COL_MV_TABLES_SOURCE_TABLE_ID =							"SOURCE_TABLE_ID";
-	public static final String COL_MV_TABLES_SOURCE_TABLE_VERSION =						"SOURCE_TABLE_VERSION";
+	// The defining-SQL object id table (owner) and its source-dependency table.
+	// Generalized from the materialized view pattern to also serve other defining-SQL objects (e.g. SearchIndex).
+	public static final String DDL_DEFINING_SQL_OBJECT = 								"schema/DefiningSqlObject-ddl.sql";
+	public static final String TABLE_DEFINING_SQL_OBJECT = 								"DEFINING_SQL_OBJECT";
+	public static final String COL_DEFINING_SQL_OBJECT_ID = 							"OBJECT_ID";
+	public static final String COL_DEFINING_SQL_OBJECT_ETAG = 							"ETAG";
+	public static final String DDL_DEFINING_SQL_DEPENDENCY = 							"schema/DefiningSqlDependency-ddl.sql";
+	public static final String TABLE_DEFINING_SQL_DEPENDENCY = 							"DEFINING_SQL_DEPENDENCY";
+	public static final String COL_DEFINING_SQL_DEP_OBJECT_ID = 						"OBJECT_ID";
+	public static final String COL_DEFINING_SQL_DEP_OBJECT_VERSION = 					"OBJECT_VERSION";
+	public static final String COL_DEFINING_SQL_DEP_OBJECT_TYPE = 						"OBJECT_TYPE";
+	public static final String COL_DEFINING_SQL_DEP_SOURCE_TABLE_ID =					"SOURCE_TABLE_ID";
+	public static final String COL_DEFINING_SQL_DEP_SOURCE_TABLE_VERSION =				"SOURCE_TABLE_VERSION";
 	
 	// The principal OIDC subject mapping table
 	public static final String DDL_PRINCIPAL_OIDC_BINDING = 							"schema/PrincipalOIDCBinding-ddl.sql";

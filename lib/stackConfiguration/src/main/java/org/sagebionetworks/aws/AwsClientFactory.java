@@ -14,8 +14,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.simpleemail.AmazonSimpleEmailService;
-import com.amazonaws.services.simpleemail.AmazonSimpleEmailServiceClientBuilder;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 
@@ -92,18 +90,6 @@ public class AwsClientFactory {
 	 */
 	public static AmazonSQS createAmazonSQSClient() {
 		AmazonSQSClientBuilder builder = AmazonSQSClientBuilder.standard();
-		builder.withRegion(Regions.US_EAST_1);
-		builder.withCredentials(SynapseAWSCredentialsProviderChain.getInstance());
-		return builder.build();
-	}
-
-	/**
-	 * Create an instance of AmazonSimpleEmailService using a credential chain.
-	 *
-	 * @return
-	 */
-	public static AmazonSimpleEmailService createAmazonSimpleEmailServiceClient() {
-		AmazonSimpleEmailServiceClientBuilder builder = AmazonSimpleEmailServiceClientBuilder.standard();
 		builder.withRegion(Regions.US_EAST_1);
 		builder.withCredentials(SynapseAWSCredentialsProviderChain.getInstance());
 		return builder.build();

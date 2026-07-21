@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.firehose.FirehoseClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.ses.SesClient;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -90,6 +91,13 @@ public class AwsClientFactoryV2 {
 
 	public static GlueClient createGlueClient() {
 		return GlueClient.builder()
+				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
+				.region(Region.US_EAST_1)
+				.build();
+	}
+
+	public static SesClient createSesClient() {
+		return SesClient.builder()
 				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
 				.region(Region.US_EAST_1)
 				.build();

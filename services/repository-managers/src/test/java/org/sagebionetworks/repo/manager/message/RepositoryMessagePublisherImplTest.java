@@ -147,16 +147,64 @@ public class RepositoryMessagePublisherImplTest {
 	
 	@Test
 	public void testFireLocalStackMessageWithNoMessage() throws JSONObjectAdapterException {
-		String message = assertThrows(IllegalArgumentException.class, () -> {			
+		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
 			messagePublisher.fireLocalStackMessage(null);
 		}).getMessage();
 
 		assertEquals("The message is required.", message);
-		
+
 		verifyNoMoreInteractions(mockConfig);
 		verifyNoMoreInteractions(mockAwsSNSClient);
-		
+
 	}
-	
+
+	@Test
+	public void testPublishLocalStackMessageToTopic() throws JSONObjectAdapterException {
+		ObjectType topicType = ObjectType.SOURCE_DEPENDENCY_EVENT;
+
+		// The message carries a different object type than the destination topic.
+		when(mockConfig.getRepositoryChangeTopic(any())).thenReturn("topic");
+		when(mockAwsSNSClient.createTopic(any(CreateTopicRequest.class))).thenReturn(
+				CreateTopicResponse.builder().topicArn("topicArn").build());
+
+		String expectedJson = EntityFactory.createJSONStringForEntity(mockLocalMessage);
+
+		// Call under test
+		messagePublisher.publishLocalStackMessageToTopic(topicType, mockLocalMessage);
+
+		// Routing uses the topicType, not the message's own object type.
+		verify(mockConfig).getRepositoryChangeTopic(topicType.name());
+		verify(mockAwsSNSClient).createTopic(CreateTopicRequest.builder().name("topic").build());
+		verify(mockAwsSNSClient).publish(PublishRequest.builder().topicArn("topicArn").message(expectedJson).build());
+		// Non-durable: no CHANGES/SENT_MESSAGES bookkeeping.
+		verifyNoMoreInteractions(mockTransactionalMessanger);
+	}
+
+	@Test
+	public void testPublishLocalStackMessageToTopicWithNullTopicType() throws JSONObjectAdapterException {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			messagePublisher.publishLocalStackMessageToTopic(null, mockLocalMessage);
+		}).getMessage();
+
+		assertEquals("The topicType is required.", message);
+
+		verifyNoMoreInteractions(mockConfig);
+		verifyNoMoreInteractions(mockAwsSNSClient);
+	}
+
+	@Test
+	public void testPublishLocalStackMessageToTopicWithNullMessage() throws JSONObjectAdapterException {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			messagePublisher.publishLocalStackMessageToTopic(ObjectType.SOURCE_DEPENDENCY_EVENT, null);
+		}).getMessage();
+
+		assertEquals("The message is required.", message);
+
+		verifyNoMoreInteractions(mockConfig);
+		verifyNoMoreInteractions(mockAwsSNSClient);
+	}
+
 }

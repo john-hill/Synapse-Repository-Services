@@ -22,6 +22,7 @@ import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.TaskBundle;
 import org.sagebionetworks.repo.model.curation.TaskStatus;
+import org.sagebionetworks.repo.model.curation.execution.RecordSetGenerationExecutionProperties;
 import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionProperties;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.GridSupportedTaskProperties;
@@ -245,7 +246,6 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
         } else if (task.getTaskProperties() instanceof SampleSheetGenerationExecutionProperties) {
             SampleSheetGenerationExecutionProperties sampleSheetProperties = (SampleSheetGenerationExecutionProperties) task.getTaskProperties();
             ValidateArgument.required(sampleSheetProperties.getInputTaskId(), "inputTaskId");
-            ValidateArgument.required(sampleSheetProperties.getTargetSchemaId(), "targetSchemaId");
             ValidateArgument.required(sampleSheetProperties.getDestinationTaskId(), "destinationTaskId");
 
             // The input task must supply the source FileView and the destination task must receive the
@@ -254,6 +254,19 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
             validateReferencedTask(sampleSheetProperties.getInputTaskId(), "inputTaskId",
                     FileBasedMetadataTaskProperties.class, task.getProjectId());
             validateReferencedTask(sampleSheetProperties.getDestinationTaskId(), "destinationTaskId",
+                    RecordBasedMetadataTaskProperties.class, task.getProjectId());
+        } else if (task.getTaskProperties() instanceof RecordSetGenerationExecutionProperties recordSetProperties) {
+            ValidateArgument.required(recordSetProperties.getFolderId(), "folderId");
+            ValidateArgument.required(recordSetProperties.getInstructions(), "instructions");
+            ValidateArgument.required(recordSetProperties.getDestinationTaskId(), "destinationTaskId");
+
+            // The input is a raw Folder synID (not a task reference); the destination task must receive
+            // the generated RecordSet and belong to the same project as the generation task.
+            EntityType typeOfSpecifiedFolder = entityManager.getEntityType(userInfo, recordSetProperties.getFolderId());
+            ValidateArgument.requirement(EntityType.folder.equals(typeOfSpecifiedFolder),
+                    "The folderId must be a Folder.");
+
+            validateReferencedTask(recordSetProperties.getDestinationTaskId(), "destinationTaskId",
                     RecordBasedMetadataTaskProperties.class, task.getProjectId());
         } else {
             throw new IllegalArgumentException("Unknown CurationTaskProperties concreteType: " + task.getTaskProperties().getConcreteType());

@@ -100,9 +100,12 @@ public class EntityMetadataSpecialistIntegrationTest {
 		fileId = entityManager.createEntity(adminUser, new FileEntity().setName("metadata-file")
 				.setParentId(projectId).setDataFileHandleId(fileHandle.getId()), null);
 
-		// Bind a schema to the project so the specialist can report the binding.
-		asyncHelper.getOrCreateOrganization(adminUser.getId(), "my.organization");
-		schema$id = registerSchema(getSchemaFromClasspath("schema/SimpleFolder.json"));
+		// Bind a schema to the project so the specialist can report the binding. Use self-contained
+		// schemas (Person $refs only Address) so registration does not depend on the bootstrapped
+		// Synapse entity schemas, which are not registered in this test's clean schema state.
+		asyncHelper.getOrCreateOrganization(adminUser.getId(), "my.specialist.org");
+		registerSchema(getSchemaFromClasspath("schemaSpecialist/Address.json"));
+		schema$id = registerSchema(getSchemaFromClasspath("schemaSpecialist/Person.json"));
 		BindSchemaToEntityRequest bindRequest = new BindSchemaToEntityRequest();
 		bindRequest.setEntityId(projectId);
 		bindRequest.setSchema$id(schema$id);
@@ -158,7 +161,7 @@ public class EntityMetadataSpecialistIntegrationTest {
 
 		assertNotNull(response);
 		assertTrue(response.length() <= MAX_RESPONSE_CHARS, "Response should be within the cap. Got: " + response);
-		assertTrue(response.contains("SimpleFolder") || response.toLowerCase().contains("my.organization"),
+		assertTrue(response.contains("Person") || response.toLowerCase().contains("my.specialist.org"),
 				"Response should mention the bound schema. Got: " + response);
 	}
 

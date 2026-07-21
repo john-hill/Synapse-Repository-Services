@@ -143,11 +143,6 @@ public class DocuSignClient {
 		envelopesApi.voidEnvelope(envelopeId, reason);
 	}
 
-	public byte[] getDocument(String envelopeId) {
-		ValidateArgument.required(envelopeId, "envelopeId");
-		return envelopesApi.getDocument(envelopeId, "combined");
-	}
-
 	/*
 	 * Return the status for the given envelope.
 	 * Note, email addresses are omitted from the EDucSignatureStatus DTO though
@@ -187,6 +182,11 @@ public class DocuSignClient {
 		return envelopesApi.listStatus(envelopeIds);
 	}
 
+	public byte[] getDocument(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		return envelopesApi.getDocument(envelopeId, "combined");
+	}
+	
 	public byte[] getSignedDocument(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
 		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
@@ -197,7 +197,7 @@ public class DocuSignClient {
 		return envelopesApi.getDocument(envelopeId, "combined");
 	}
 
-	static EDucStatusEnum toEDucStatusEnum(String docuSignStatus) {
+	public static EDucStatusEnum toEDucStatusEnum(String docuSignStatus) {
 		if (docuSignStatus == null) {
 			return null;
 		}

@@ -180,6 +180,7 @@ public class EDucManager {
 	}
 
 	RequestInterface createDraftEDuc(RequestInterface request) {
+		// if an envelope already exists then there's nothing more to do
 		if (request.getEDucSignatureEnvelopeId() != null) {
 			return request;
 		}

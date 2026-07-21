@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -36,6 +37,7 @@ import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
 import org.sagebionetworks.repo.model.educ.EDucSignerStatus;
 import org.sagebionetworks.repo.model.educ.EDucSignerStatusEnum;
 import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
+import org.sagebionetworks.repo.model.educ.EDucTemplateValidationResult;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.TeamConstants;
@@ -815,5 +817,39 @@ public class EDucManagerTest {
 		assertEquals("Alice", EDucManager.buildFullName("Alice", null));
 		assertEquals("Smith", EDucManager.buildFullName(null, "Smith"));
 		assertNull(EDucManager.buildFullName(null, null));
+	}
+
+	// --- validateTemplate tests ---
+
+	@Test
+	public void testValidateTemplateWithValidTemplate() {
+		// call under test
+		EDucTemplateValidationResult result = eDucManager.validateTemplate(actUser, "tpl-1");
+
+		assertEquals(true, result.getIsValid());
+		assertNull(result.getReason());
+		verify(mockDocuSignClient).validateTemplate("tpl-1");
+	}
+
+	@Test
+	public void testValidateTemplateWithInvalidTemplate() {
+		doThrow(new IllegalArgumentException("Template is missing required role: signing_official"))
+				.when(mockDocuSignClient).validateTemplate("tpl-bad");
+
+		// call under test
+		EDucTemplateValidationResult result = eDucManager.validateTemplate(actUser, "tpl-bad");
+
+		assertEquals(false, result.getIsValid());
+		assertEquals("Template is missing required role: signing_official", result.getReason());
+	}
+
+	@Test
+	public void testValidateTemplateWithUnauthorizedUser() {
+		// call under test
+		UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+				() -> eDucManager.validateTemplate(regularUser, "tpl-1"));
+
+		assertEquals("Only ACT member can perform this action.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
 	}
 }

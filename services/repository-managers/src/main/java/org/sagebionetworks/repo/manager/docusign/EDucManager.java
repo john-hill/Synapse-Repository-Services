@@ -36,6 +36,7 @@ import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
 import org.sagebionetworks.repo.model.educ.EDucSignerStatus;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.repo.model.educ.EDucTemplateValidationResult;
 import org.sagebionetworks.repo.model.educ.EDucSignatureQuota;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.principal.AliasType;
@@ -90,6 +91,23 @@ public class EDucManager {
 		EDucTemplatePage page = docuSignClient.listTemplates(startPosition, count);
 		page.setNextPageToken(token.getNextPageTokenForCurrentResults(page.getResults()));
 		return page;
+	}
+
+	public EDucTemplateValidationResult validateTemplate(UserInfo userInfo, String templateId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(templateId, "templateId");
+		if (!AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo)) {
+			throw new UnauthorizedException("Only ACT member can perform this action.");
+		}
+		EDucTemplateValidationResult result = new EDucTemplateValidationResult();
+		try {
+			docuSignClient.validateTemplate(templateId);
+			result.setIsValid(true);
+		} catch (IllegalArgumentException e) {
+			result.setIsValid(false);
+			result.setReason(e.getMessage());
+		}
+		return result;
 	}
 
 	public EDucSignatureQuota routeForSignature(UserInfo userInfo, String requestId) {

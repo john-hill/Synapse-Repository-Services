@@ -32,6 +32,7 @@ import org.sagebionetworks.repo.model.educ.EDucFileHandleId;
 import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
 import org.sagebionetworks.repo.model.educ.EDucTemplateListRequest;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
+import org.sagebionetworks.repo.model.educ.EDucTemplateValidationResult;
 import org.sagebionetworks.repo.model.educ.EDucSignatureQuota;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -357,6 +358,23 @@ public class DataAccessController {
 			@RequestBody EDucTemplateListRequest request)
 			throws Exception {
 		return serviceProvider.getEDucService().listTemplates(userId, request);
+	}
+
+	/**
+	 * Validate a DocuSign template for use with Synapse eDUC.
+	 * Only an ACT member can perform this action.
+	 *
+	 * @param userId     - The ID of the user who is making the request.
+	 * @param templateId - The DocuSign template ID to validate.
+	 * @return The validation result indicating whether the template is valid.
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.EDUC_TEMPLATE_VALIDATE, method = RequestMethod.GET)
+	public @ResponseBody EDucTemplateValidationResult validateEDucTemplate(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String templateId) {
+		return serviceProvider.getEDucService().validateTemplate(userId, templateId);
 	}
 	
 	/**

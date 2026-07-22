@@ -10,7 +10,7 @@ import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.cloudwatch.Consumer;
 import org.sagebionetworks.cloudwatch.ProfileData;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 
 /**
  * Monitors the disk space associated with the temporary directory.
@@ -37,7 +37,7 @@ public class DiskMonitor {
 		double usedPercent = provider.getDiskSpaceUsedPercent();
 		
 		consumer.addProfileData(new ProfileData().setNamespace(namespace).setName("percentTempDiskSpaceUsed")
-				.setValue(Double.valueOf(usedPercent * 100)).setUnit(StandardUnit.Percent.name())
+				.setValue(Double.valueOf(usedPercent * 100)).setUnit(StandardUnit.PERCENT.toString())
 				.setDimension(Collections.singletonMap("machineId", provider.getMachineId())));
 
 		if (usedPercent > 0.9) {

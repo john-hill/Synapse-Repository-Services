@@ -4,6 +4,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigatewayv2.ApiGatewayV2Client;
 import software.amazon.awssdk.services.appconfigdata.AppConfigDataClient;
 import software.amazon.awssdk.services.athena.AthenaClient;
+import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.firehose.FirehoseClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -98,6 +99,13 @@ public class AwsClientFactoryV2 {
 
 	public static SesClient createSesClient() {
 		return SesClient.builder()
+				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
+				.region(Region.US_EAST_1)
+				.build();
+	}
+
+	public static CloudWatchClient createCloudWatchClient() {
+		return CloudWatchClient.builder()
 				.credentialsProvider(AwsCredentialsProviderV2.PROVIDER_CHAIN)
 				.region(Region.US_EAST_1)
 				.build();

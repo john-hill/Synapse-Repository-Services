@@ -10,13 +10,9 @@
       "type": "integer",
       "description": "The ID of the file-based CurationTask (with FileBasedMetadataTaskProperties) whose FileView provides the source annotations."
     },
-    "targetSchemaId": {
-      "type": "string",
-      "description": "The $id of the JSON Schema defining the target sample sheet format."
-    },
     "destinationTaskId": {
       "type": "integer",
-      "description": "The ID of the record-based CurationTask whose RecordSet will receive the generated sample sheet."
+      "description": "The ID of the record-based CurationTask whose RecordSet will receive the generated sample sheet as a new version. The JSON Schema bound to that RecordSet defines the target sample sheet format."
     }
   }
 }

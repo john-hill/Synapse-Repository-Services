@@ -336,6 +336,26 @@ public class DocuSignClientTest {
 	}
 
 	@Test
+	public void testGetDocumentSuccess() {
+		when(mockDocuSignEnvelopesApi.getDocument("env-1", "combined")).thenReturn(new byte[]{1, 2, 3});
+
+		// call under test
+		byte[] result = client.getDocument("env-1");
+
+		assertEquals(3, result.length);
+		verify(mockDocuSignEnvelopesApi).getDocument("env-1", "combined");
+	}
+
+	@Test
+	public void testGetDocumentWithNullEnvelopeId() {
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> client.getDocument(null));
+
+		assertEquals("envelopeId is required.", ex.getMessage());
+	}
+
+	@Test
 	public void testGetSignedDocumentSuccess() {
 		Envelope envelope = new Envelope();
 		envelope.setStatus("completed");

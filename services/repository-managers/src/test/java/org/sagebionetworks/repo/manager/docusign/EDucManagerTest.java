@@ -819,6 +819,67 @@ public class EDucManagerTest {
 		assertNull(EDucManager.buildFullName(null, null));
 	}
 
+	// --- previewEDuc tests ---
+
+	@Test
+	public void testPreviewEDucSuccess() throws Exception {
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockPrincipalAliasDao.getUserName(any(Long.class))).thenReturn("someuser");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(any(Long.class))).thenReturn("x@y.com");
+		UserProfile profile = new UserProfile();
+		profile.setFirstName("A");
+		profile.setLastName("B");
+		when(mockUserProfileDao.get(any(String.class))).thenReturn(profile);
+		when(mockDocuSignClient.createEnvelope(any(), any(), any())).thenReturn("env-draft");
+		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
+		when(mockDocuSignClient.getDocument("env-draft")).thenReturn(new byte[]{1, 2, 3});
+		S3FileHandle fileHandle = new S3FileHandle();
+		fileHandle.setId("fh-preview");
+		when(mockFileHandleManager.createFileFromByteArray(any(), any(), any(), any(), any(), any()))
+				.thenReturn(fileHandle);
+
+		// call under test
+		EDucFileHandleId result = eDucManager.previewEDuc(user, "req-1");
+
+		assertEquals("fh-preview", result.getFileHandleId());
+		verify(mockDocuSignClient).getDocument("env-draft");
+	}
+
+	@Test
+	public void testPreviewEDucWithExistingDraft() throws Exception {
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		Request request = buildValidRequest();
+		request.setEDucSignatureEnvelopeId("env-existing");
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockDocuSignClient.getDocument("env-existing")).thenReturn(new byte[]{4, 5});
+		S3FileHandle fileHandle = new S3FileHandle();
+		fileHandle.setId("fh-existing");
+		when(mockFileHandleManager.createFileFromByteArray(any(), any(), any(), any(), any(), any()))
+				.thenReturn(fileHandle);
+
+		// call under test
+		EDucFileHandleId result = eDucManager.previewEDuc(user, "req-1");
+
+		assertEquals("fh-existing", result.getFileHandleId());
+		verify(mockDocuSignClient).getDocument("env-existing");
+	}
+
+	@Test
+	public void testPreviewEDucWithUnauthorizedUser() {
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+
+		// call under test
+		UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+				() -> eDucManager.previewEDuc(regularUser, "req-1"));
+
+		assertEquals("Only the request creator or an administrator can preview the eDUC.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
 	// --- validateTemplate tests ---
 
 	@Test

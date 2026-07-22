@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +32,7 @@ import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFil
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.SessionFileMetadata;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.BatchFileRequest;
 import org.sagebionetworks.repo.model.file.BatchFileResult;
@@ -304,7 +306,7 @@ public class CodeInterpreterFileManagerTest {
 
 		assertEquals(1, results.size());
 		assertTrue(results.get(0).isError());
-		assertEquals("UNAUTHORIZED", results.get(0).error());
+		assertTrue(results.get(0).error().contains("do not have permission to download"), "Got: " + results.get(0).error());
 
 		// Unauthorized files never touch S3 or the session.
 		verifyNoInteractions(mockS3Client);
@@ -334,6 +336,136 @@ public class CodeInterpreterFileManagerTest {
 		assertTrue(results.get(0).isError());
 		assertTrue(results.get(0).error().contains("not an S3-backed file"));
 
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithUnsupportedType() {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, "data.bin");
+
+		// An image is neither an allowed content type nor an allowed extension.
+		S3FileHandle s3Handle = new S3FileHandle();
+		s3Handle.setId("222");
+		s3Handle.setBucketName("source-bucket");
+		s3Handle.setKey("path/to/file.png");
+		s3Handle.setFileName("file.png");
+		s3Handle.setContentType("image/png");
+		FileResult fileResult = new FileResult().setFileHandleId("222").setFileHandle(s3Handle);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertTrue(results.get(0).isError());
+		assertTrue(results.get(0).error().contains("type is not supported"), "Got: " + results.get(0).error());
+
+		// Unsupported files never touch S3 or the session.
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithTooLargeFile() {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, "data.csv");
+
+		// An allowed type, but one byte over the size limit.
+		S3FileHandle s3Handle = new S3FileHandle();
+		s3Handle.setId("222");
+		s3Handle.setBucketName("source-bucket");
+		s3Handle.setKey("path/to/big.csv");
+		s3Handle.setFileName("big.csv");
+		s3Handle.setContentType("text/csv");
+		s3Handle.setContentSize(CodeInterpreterFileManager.MAX_FILE_SIZE_BYTES + 1);
+		FileResult fileResult = new FileResult().setFileHandleId("222").setFileHandle(s3Handle);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertTrue(results.get(0).isError());
+		assertTrue(results.get(0).error().contains("exceeds the maximum"), "Got: " + results.get(0).error());
+
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testGetFileMetadataBatchWithMixedResults() {
+		UserInfo user = new UserInfo(false, 101L);
+
+		FileHandleAssociation eligible = new FileHandleAssociation().setFileHandleId("1")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn1");
+		FileHandleAssociation unauthorized = new FileHandleAssociation().setFileHandleId("2")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn2");
+		FileHandleAssociation tooLarge = new FileHandleAssociation().setFileHandleId("3")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn3");
+
+		S3FileHandle okHandle = new S3FileHandle();
+		okHandle.setContentType("text/csv");
+		okHandle.setFileName("ok.csv");
+		okHandle.setContentSize(1024L);
+
+		S3FileHandle bigHandle = new S3FileHandle();
+		bigHandle.setContentType("application/pdf");
+		bigHandle.setFileName("big.pdf");
+		bigHandle.setContentSize(CodeInterpreterFileManager.MAX_FILE_SIZE_BYTES + 1);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(
+						new FileResult().setFileHandleId("1").setFileHandle(okHandle),
+						new FileResult().setFileHandleId("2").setFailureCode(FileResultFailureCode.UNAUTHORIZED),
+						new FileResult().setFileHandleId("3").setFileHandle(bigHandle))));
+
+		// call under test
+		List<SessionFileMetadata> results = fileManager.getFileMetadataBatch(user,
+				List.of(eligible, unauthorized, tooLarge));
+
+		assertEquals(3, results.size());
+
+		// Eligible: downloadable, supported type, within size limit; content metadata populated.
+		SessionFileMetadata ok = results.get(0);
+		assertTrue(ok.getCanDownload());
+		assertTrue(ok.getIsSupportedType());
+		assertTrue(ok.getIsWithinSizeLimit());
+		assertTrue(ok.getCanAddToSession());
+		assertEquals("text/csv", ok.getContentType());
+		assertEquals(1024L, ok.getContentSizeBytes());
+		assertEquals(eligible, ok.getFileHandleAssociation());
+
+		// Unauthorized: not downloadable; content metadata omitted; the association is still reported.
+		SessionFileMetadata denied = results.get(1);
+		assertFalse(denied.getCanDownload());
+		assertFalse(denied.getCanAddToSession());
+		assertNull(denied.getContentType());
+		assertNull(denied.getContentSizeBytes());
+		assertEquals(unauthorized, denied.getFileHandleAssociation());
+
+		// Too large: downloadable and supported type, but over the size limit.
+		SessionFileMetadata big = results.get(2);
+		assertTrue(big.getCanDownload());
+		assertTrue(big.getIsSupportedType());
+		assertFalse(big.getIsWithinSizeLimit());
+		assertFalse(big.getCanAddToSession());
+		assertTrue(big.getReason().contains("exceeds the maximum"), "Got: " + big.getReason());
+
+		// Reporting metadata never stages files.
 		verifyNoInteractions(mockS3Client);
 		verifyNoInteractions(mockCodeInterpreterClient);
 	}

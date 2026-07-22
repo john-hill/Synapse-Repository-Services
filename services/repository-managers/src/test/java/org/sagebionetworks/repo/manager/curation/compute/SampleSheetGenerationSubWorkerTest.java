@@ -1,17 +1,13 @@
 package org.sagebionetworks.repo.manager.curation.compute;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,12 +15,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisor;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisorFactory;
 import org.sagebionetworks.repo.manager.curation.CurationTaskManager;
-import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionDetails;
@@ -32,7 +26,6 @@ import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationEx
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,7 +40,7 @@ public class SampleSheetGenerationSubWorkerTest {
 	@Mock
 	private CodeInterpreterFileManager codeInterpreterFileManager;
 	@Mock
-	private EntityManager entityManager;
+	private RecordSetOutputWriter recordSetOutputWriter;
 	@Mock
 	private CurationTaskManager curationTaskManager;
 	@Mock
@@ -62,13 +55,12 @@ public class SampleSheetGenerationSubWorkerTest {
 	@BeforeEach
 	public void setup() {
 		subWorker = new SampleSheetGenerationSubWorker(supervisorFactory, codeInterpreterClient, codeInterpreterFileManager,
-				entityManager, curationTaskManager);
+				recordSetOutputWriter, curationTaskManager);
 		user = new UserInfo(false, 101L);
 		// The generation task carries its input parameters in its SampleSheetGenerationExecutionProperties.
 		task = new CurationTask().setTaskId(555L).setProjectId("syn1").setDataType("fastq")
 				.setTaskProperties(new SampleSheetGenerationExecutionProperties()
 						.setInputTaskId(777L)
-						.setTargetSchemaId("my.org-Sheet-1.0.0")
 						.setDestinationTaskId(888L));
 		details = new SampleSheetGenerationExecutionDetails();
 	}
@@ -93,46 +85,30 @@ public class SampleSheetGenerationSubWorkerTest {
 	@Test
 	public void testExecuteHappyPath() throws Exception {
 		stubInputAndDestinationTasks("syn100", "syn300");
+		// The target schema is the schema bound to the destination RecordSet.
+		when(recordSetOutputWriter.getBoundSchemaId(user, "syn300")).thenReturn("my.org-Sheet-1.0.0");
 		when(codeInterpreterClient.startSession(any())).thenReturn("session-1");
 		when(supervisorFactory.create()).thenReturn(supervisor);
 		when(supervisor.chat(any(), eq(user), eq("session-1")))
 				.thenReturn("Done. RESULT: SUCCESS - " + SampleSheetGenerationSubWorker.OUTPUT_CSV_PATH);
 		when(codeInterpreterFileManager.getFileFromSession(eq(user), eq("session-1"),
 				eq(SampleSheetGenerationSubWorker.OUTPUT_CSV_PATH), eq("text/csv"))).thenReturn("999");
-		when(entityManager.getEntity(user, "syn300", RecordSet.class)).thenReturn(new RecordSet()
-				.setId("syn300").setParentId("syn200").setUpsertKey(List.of("sampleId"))
-				.setVersionLabel("1").setVersionComment("original"));
 
 		// call under test
 		SampleSheetGenerationExecutionDetails result = subWorker.execute(user, task, details, callback);
 
 		assertEquals(details, result);
 
-		// The source FileView from the input task is passed to the supervisor.
+		// The source FileView from the input task and the RecordSet's bound schema are passed to the supervisor.
 		ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
 		verify(supervisor).chat(messageCaptor.capture(), eq(user), eq("session-1"));
 		assertTrue(messageCaptor.getValue().contains("inputFileViewId: syn100"), "Got: " + messageCaptor.getValue());
+		assertTrue(messageCaptor.getValue().contains("targetSchemaId: my.org-Sheet-1.0.0"), "Got: " + messageCaptor.getValue());
 
-		// The generated CSV is stored as a new version of the existing RecordSet, preserving its properties.
-		ArgumentCaptor<RecordSet> recordSetCaptor = ArgumentCaptor.forClass(RecordSet.class);
-		verify(entityManager).updateEntity(eq(user), recordSetCaptor.capture(), eq(true), isNull());
-		RecordSet updated = recordSetCaptor.getValue();
-		assertEquals("syn300", updated.getId());
-		assertEquals("999", updated.getDataFileHandleId());
-		assertEquals("syn200", updated.getParentId());
-		assertEquals(List.of("sampleId"), updated.getUpsertKey());
-		// Version label/comment cleared so the DAO assigns a unique label for the new version.
-		assertNull(updated.getVersionLabel());
-		assertNull(updated.getVersionComment());
+		// The generated CSV is handed to the shared writer to store as a new RecordSet version.
+		verify(recordSetOutputWriter).storeCsvAsNewRecordSetVersion(user, "syn300", "999");
 
-		// Target schema bound to the RecordSet.
-		ArgumentCaptor<BindSchemaToEntityRequest> bindCaptor = ArgumentCaptor.forClass(BindSchemaToEntityRequest.class);
-		verify(entityManager).bindSchemaToEntity(eq(user), bindCaptor.capture());
-		assertEquals("syn300", bindCaptor.getValue().getEntityId());
-		assertEquals("my.org-Sheet-1.0.0", bindCaptor.getValue().getSchema$id());
-
-		// No new RecordSet is created and the referenced tasks are left untouched.
-		verify(entityManager, never()).createEntity(any(), any(), any());
+		// The referenced tasks are left untouched.
 		verify(curationTaskManager, never()).updateCurationTask(any(), any());
 
 		// Session is always stopped.
@@ -198,6 +174,7 @@ public class SampleSheetGenerationSubWorkerTest {
 	@Test
 	public void testExecuteWithSupervisorError() throws Exception {
 		stubInputAndDestinationTasks("syn100", "syn300");
+		when(recordSetOutputWriter.getBoundSchemaId(user, "syn300")).thenReturn("my.org-Sheet-1.0.0");
 		when(codeInterpreterClient.startSession(any())).thenReturn("session-1");
 		when(supervisorFactory.create()).thenReturn(supervisor);
 		when(supervisor.chat(any(), eq(user), eq("session-1")))
@@ -209,8 +186,7 @@ public class SampleSheetGenerationSubWorkerTest {
 
 		assertTrue(ex.getMessage().contains("input view syn100 is empty"));
 		// No persistence should occur when the supervisor did not succeed.
-		verify(entityManager, never()).updateEntity(any(), any(), eq(true), any());
-		verify(entityManager, never()).bindSchemaToEntity(any(), any());
+		verify(recordSetOutputWriter, never()).storeCsvAsNewRecordSetVersion(any(), any(), any());
 		// Session is still stopped.
 		verify(codeInterpreterClient).stopSession("session-1");
 	}

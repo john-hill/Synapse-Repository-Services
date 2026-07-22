@@ -19,9 +19,11 @@ import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.SessionFileMetadata;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.BatchFileRequest;
 import org.sagebionetworks.repo.model.file.BatchFileResult;
+import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileResult;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -44,6 +46,12 @@ public class CodeInterpreterFileManager {
 
 	static final String DOWNLOAD_TEMPLATE = "code-templates/code-interpreter-download.py.vtp";
 	static final String UPLOAD_TEMPLATE = "code-templates/code-interpreter-upload.py.vtp";
+
+	/**
+	 * The maximum size of a file that may be added to a code interpreter session. Larger files are
+	 * rejected rather than staged.
+	 */
+	static final long MAX_FILE_SIZE_BYTES = 100L * 1024L * 1024L;
 
 	private final S3Client s3Client;
 	private final S3Presigner s3Presigner;
@@ -112,8 +120,11 @@ public class CodeInterpreterFileManager {
 	 * Push a batch of Synapse files, identified by their file handle associations, into a code
 	 * interpreter session. Download authorization is enforced for each file via
 	 * {@link FileHandleManager#getFileHandleAndUrlBatch(UserInfo, BatchFileRequest)}: a file the
-	 * user cannot download is reported as a failure rather than staged. Batching the authorization
-	 * and file handle resolution into a single call keeps this efficient for multi-file requests.
+	 * user cannot download is reported as a failure rather than staged. Each file must also be an
+	 * allowed type ({@link AllowedSessionFileType}) and no larger than {@link #MAX_FILE_SIZE_BYTES};
+	 * files that fail these checks are reported as failures rather than staged. Batching the
+	 * authorization and file handle resolution into a single call keeps this efficient for multi-file
+	 * requests.
 	 *
 	 * @param user     The user on whose behalf the files are pushed; used for download authorization
 	 * @param requests The files to push, each pairing a file handle association with the session path
@@ -133,31 +144,111 @@ public class CodeInterpreterFileManager {
 			associations.add(request.association());
 		}
 
-		BatchFileResult batchResult = fileHandleManager.getFileHandleAndUrlBatch(user, new BatchFileRequest()
-				.setRequestedFiles(associations)
-				.setIncludeFileHandles(true)
-				.setIncludePreSignedURLs(false)
-				.setIncludePreviewPreSignedURLs(false));
-
-		// getFileHandleAndUrlBatch returns one FileResult per requested file, in request order, so
-		// each result lines up positionally with its originating request.
+		// Resolve the handle and eligibility for each file in one batch (which enforces download
+		// authorization), then stage only the files that may be added. The metadata list lines up
+		// positionally with the requests, so the resolved S3 handle for each eligible file is looked up
+		// by index.
+		BatchFileResult batchResult = getFileHandleBatch(user, associations);
 		List<PushFileResult> results = new ArrayList<>(requests.size());
 		for (int i = 0; i < requests.size(); i++) {
 			PushFileRequest request = requests.get(i);
 			FileResult fileResult = batchResult.getRequestedFiles().get(i);
+			SessionFileMetadata metadata = toMetadata(request.association(), fileResult);
 
-			if (fileResult.getFailureCode() != null) {
-				results.add(PushFileResult.failure(request, fileResult.getFailureCode().name()));
-			} else if (!(fileResult.getFileHandle() instanceof S3FileHandle s3Handle)) {
-				results.add(PushFileResult.failure(request, "File handle '" + request.association().getFileHandleId()
-						+ "' is not an S3-backed file"));
+			if (!metadata.getCanAddToSession()) {
+				results.add(PushFileResult.failure(request, metadata.getReason()));
 			} else {
+				S3FileHandle s3Handle = (S3FileHandle) fileResult.getFileHandle();
 				CodeExecutionResult execution = pushS3FileToSession(sessionId, s3Handle.getBucketName(),
 						s3Handle.getKey(), request.sessionPath());
 				results.add(PushFileResult.staged(request, execution));
 			}
 		}
 		return results;
+	}
+
+	/**
+	 * Report metadata and session-eligibility for a batch of Synapse files without staging them. This
+	 * lets a caller (e.g. an agent) explain why a file cannot be added to a session, or skip it, before
+	 * attempting to add it: the user may lack download permission, the file may be too large, or its
+	 * type may not be supported. Content size and content type can only be read from a file's
+	 * FileHandle, which requires download permission, so those are populated only when the returned
+	 * {@link SessionFileMetadata#getCanDownload()} is true.
+	 *
+	 * @param user         The user on whose behalf the metadata is read; used for download authorization
+	 * @param associations The files to describe, each identifying a file and its authorization context
+	 * @return One {@link SessionFileMetadata} per association, preserving input order
+	 */
+	public List<SessionFileMetadata> getFileMetadataBatch(UserInfo user, List<FileHandleAssociation> associations) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.requiredNotEmpty(associations, "associations");
+
+		BatchFileResult batchResult = getFileHandleBatch(user, associations);
+		List<SessionFileMetadata> results = new ArrayList<>(associations.size());
+		for (int i = 0; i < associations.size(); i++) {
+			results.add(toMetadata(associations.get(i), batchResult.getRequestedFiles().get(i)));
+		}
+		return results;
+	}
+
+	/**
+	 * Resolves file handles for a batch of associations, including the file handles and enforcing
+	 * download authorization per file. Returns one {@link FileResult} per association, in input order.
+	 */
+	private BatchFileResult getFileHandleBatch(UserInfo user, List<FileHandleAssociation> associations) {
+		return fileHandleManager.getFileHandleAndUrlBatch(user, new BatchFileRequest()
+				.setRequestedFiles(associations)
+				.setIncludeFileHandles(true)
+				.setIncludePreSignedURLs(false)
+				.setIncludePreviewPreSignedURLs(false));
+	}
+
+	/**
+	 * Classifies a single resolved file against the session eligibility rules. Download authorization
+	 * has already been applied by {@link FileHandleManager#getFileHandleAndUrlBatch}; a non-null failure
+	 * code means the user could not download the file. The file-handle content fields (name, type, size)
+	 * and the derived type/size flags are populated only when the file was downloadable and S3-backed.
+	 */
+	private SessionFileMetadata toMetadata(FileHandleAssociation association, FileResult fileResult) {
+		SessionFileMetadata metadata = new SessionFileMetadata()
+				.setEntityId(association.getAssociateObjectId())
+				.setFileHandleAssociation(association);
+
+		if (fileResult.getFailureCode() != null) {
+			String reason = switch (fileResult.getFailureCode()) {
+				case UNAUTHORIZED -> "You do not have permission to download this file.";
+				case NOT_FOUND -> "The file could not be found.";
+			};
+			return metadata.setCanDownload(false).setCanAddToSession(false).setReason(reason);
+		}
+
+		metadata.setCanDownload(true);
+		FileHandle fileHandle = fileResult.getFileHandle();
+		if (!(fileHandle instanceof S3FileHandle)) {
+			return metadata.setCanAddToSession(false)
+					.setReason("File handle '" + association.getFileHandleId() + "' is not an S3-backed file.");
+		}
+
+		boolean supportedType = AllowedSessionFileType.match(fileHandle.getContentType(), fileHandle.getFileName())
+				.isPresent();
+		boolean withinSizeLimit = fileHandle.getContentSize() == null
+				|| fileHandle.getContentSize() <= MAX_FILE_SIZE_BYTES;
+		metadata.setFileName(fileHandle.getFileName())
+				.setContentType(fileHandle.getContentType())
+				.setContentSizeBytes(fileHandle.getContentSize())
+				.setIsSupportedType(supportedType)
+				.setIsWithinSizeLimit(withinSizeLimit)
+				.setCanAddToSession(supportedType && withinSizeLimit);
+
+		if (!supportedType) {
+			metadata.setReason("The file type is not supported (content type '" + fileHandle.getContentType()
+					+ "', file name '" + fileHandle.getFileName() + "'). Allowed types: "
+					+ AllowedSessionFileType.describeAllowed() + ".");
+		} else if (!withinSizeLimit) {
+			metadata.setReason("The file is " + fileHandle.getContentSize() + " bytes, which exceeds the maximum of "
+					+ MAX_FILE_SIZE_BYTES + " bytes allowed for a session.");
+		}
+		return metadata;
 	}
 
 	/**

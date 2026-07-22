@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.specialist.entitymetadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,7 +31,10 @@ import org.sagebionetworks.repo.model.EntityChildrenResponse;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.SessionFileMetadata;
+import org.sagebionetworks.repo.model.agent.SessionFileMetadataBatch;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2TestUtils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
@@ -233,101 +237,60 @@ public class EntityMetadataSpecialistToolsTest {
 
 	@Test
 	public void testAddFilesToSessionWithSuccess() {
-		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
-				.thenReturn(new FileEntity().setId("syn123").setDataFileHandleId("222"));
-		when(mockEntityService.getEntityForVersion(userInfo.getId(), "syn456", 2L))
-				.thenReturn(new FileEntity().setId("syn456").setDataFileHandleId("333"));
+		FileHandleAssociation a1 = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		FileHandleAssociation a2 = new FileHandleAssociation().setFileHandleId("333")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn456");
 
-		PushFileResult result1 = new PushFileResult(
-				new PushFileRequest(new FileHandleAssociation().setFileHandleId("222"), "meta/a.csv"), null, null);
-		PushFileResult result2 = new PushFileResult(
-				new PushFileRequest(new FileHandleAssociation().setFileHandleId("333"), "meta/b.csv"), null, null);
+		PushFileResult result1 = new PushFileResult(new PushFileRequest(a1, "meta/a.csv"), null, null);
+		PushFileResult result2 = new PushFileResult(new PushFileRequest(a2, "meta/b.csv"), null, null);
 		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
 				.thenReturn(List.of(result1, result2));
 
-		List<FileToAdd> files = List.of(new FileToAdd("syn123", "meta/a.csv"), new FileToAdd("syn456.2", "meta/b.csv"));
-
-		// call under test
-		String response = tools.addFilesToSession(files, toolContextWithSession);
-
-		assertTrue(response.contains("Added 'syn123' at 'meta/a.csv'"));
-		assertTrue(response.contains("Added 'syn456.2' at 'meta/b.csv'"));
-
-		ArgumentCaptor<List<PushFileRequest>> pushCaptor = ArgumentCaptor.forClass(List.class);
-		verify(mockCodeInterpreterFileManager).pushFileHandlesToSession(eq(userInfo), pushCaptor.capture(), eq("session-123"));
-		List<PushFileRequest> pushRequests = pushCaptor.getValue();
-		assertEquals(2, pushRequests.size());
-		assertEquals("222", pushRequests.get(0).association().getFileHandleId());
-		assertEquals(FileHandleAssociateType.FileEntity, pushRequests.get(0).association().getAssociateObjectType());
-		assertEquals("syn123", pushRequests.get(0).association().getAssociateObjectId());
-		assertEquals("meta/a.csv", pushRequests.get(0).sessionPath());
-		assertEquals("333", pushRequests.get(1).association().getFileHandleId());
-	}
-
-	@Test
-	public void testAddFilesToSessionWithFailure() {
-		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
-				.thenReturn(new FileEntity().setId("syn123").setDataFileHandleId("222"));
-
-		PushFileResult failure = new PushFileResult(
-				new PushFileRequest(new FileHandleAssociation().setFileHandleId("222"), "meta/a.csv"), null, "UNAUTHORIZED");
-		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
-				.thenReturn(List.of(failure));
-
-		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd("syn123", "meta/a.csv")), toolContextWithSession);
-
-		assertTrue(response.contains("Failed to add 'syn123': UNAUTHORIZED"));
-	}
-
-	@Test
-	public void testAddFilesToSessionWithNonFileEntity() {
-		// A Project is not a FileEntity: it should be reported as a failure without a batch push.
-		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
-				.thenReturn(new Project().setId("syn123"));
-
-		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd("syn123", "meta/a.csv")), toolContextWithSession);
-
-		assertEquals("Failed to add 'syn123': not a FileEntity", response);
-		verifyNoInteractions(mockCodeInterpreterFileManager);
-	}
-
-	@Test
-	public void testAddFilesToSessionWithMixOfFileAndNonFileEntity() {
-		// syn123 is a FileEntity and should be pushed; syn999 is a Project and should fail locally,
-		// without aborting the push of the valid file.
-		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
-				.thenReturn(new FileEntity().setId("syn123").setDataFileHandleId("222"));
-		when(mockEntityService.getEntity(userInfo.getId(), "syn999"))
-				.thenReturn(new Project().setId("syn999"));
-
-		PushFileResult staged = new PushFileResult(
-				new PushFileRequest(new FileHandleAssociation().setFileHandleId("222"), "meta/a.csv"), null, null);
-		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
-				.thenReturn(List.of(staged));
-
-		List<FileToAdd> files = List.of(new FileToAdd("syn123", "meta/a.csv"), new FileToAdd("syn999", "meta/b.csv"));
+		List<FileToAdd> files = List.of(new FileToAdd(a1, "meta/a.csv"), new FileToAdd(a2, "meta/b.csv"));
 
 		// call under test
 		String response = tools.addFilesToSession(files, toolContextWithSession);
 
 		assertTrue(response.contains("Added 'syn123' at 'meta/a.csv'"), "Got: " + response);
-		assertTrue(response.contains("Failed to add 'syn999': not a FileEntity"), "Got: " + response);
+		assertTrue(response.contains("Added 'syn456' at 'meta/b.csv'"), "Got: " + response);
 
-		// Only the valid FileEntity is forwarded to the batch push.
+		// The associations are forwarded to the batch push unchanged, paired with their session paths.
 		ArgumentCaptor<List<PushFileRequest>> pushCaptor = ArgumentCaptor.forClass(List.class);
 		verify(mockCodeInterpreterFileManager).pushFileHandlesToSession(eq(userInfo), pushCaptor.capture(), eq("session-123"));
-		assertEquals(1, pushCaptor.getValue().size());
-		assertEquals("222", pushCaptor.getValue().get(0).association().getFileHandleId());
+		List<PushFileRequest> pushRequests = pushCaptor.getValue();
+		assertEquals(2, pushRequests.size());
+		assertEquals(a1, pushRequests.get(0).association());
+		assertEquals("meta/a.csv", pushRequests.get(0).sessionPath());
+		assertEquals(a2, pushRequests.get(1).association());
+		// The tool does not resolve entities; that is done by getFilesMetadata.
+		verifyNoInteractions(mockEntityService);
+	}
+
+	@Test
+	public void testAddFilesToSessionWithFailure() {
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileResult failure = new PushFileResult(new PushFileRequest(association, "meta/a.csv"), null,
+				"You do not have permission to download this file.");
+		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
+				.thenReturn(List.of(failure));
+
+		// call under test
+		String response = tools.addFilesToSession(List.of(new FileToAdd(association, "meta/a.csv")), toolContextWithSession);
+
+		assertTrue(response.contains("Failed to add 'syn123' at 'meta/a.csv': You do not have permission to download this file."),
+				"Got: " + response);
 	}
 
 	@Test
 	public void testAddFilesToSessionWithNoUserInfo() {
 		ToolContext noUserContext = new ToolContext(Map.of("sessionId", "session-123"));
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
 
 		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd("syn123", "meta/a.csv")), noUserContext);
+		String response = tools.addFilesToSession(List.of(new FileToAdd(association, "meta/a.csv")), noUserContext);
 
 		assertEquals("Error: No user context available", response);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
@@ -336,8 +299,11 @@ public class EntityMetadataSpecialistToolsTest {
 
 	@Test
 	public void testAddFilesToSessionWithNoSessionId() {
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+
 		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd("syn123", "meta/a.csv")), toolContext);
+		String response = tools.addFilesToSession(List.of(new FileToAdd(association, "meta/a.csv")), toolContext);
 
 		assertEquals("Error: No code interpreter session ID available", response);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
@@ -352,5 +318,111 @@ public class EntityMetadataSpecialistToolsTest {
 		assertEquals("Error: No files were provided to add to the session", response);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
 		verifyNoInteractions(mockEntityService);
+	}
+
+	@Test
+	public void testGetFilesMetadataWithFileEntityAndRecordSet() {
+		// A FileEntity and a RecordSet both resolve to a FileEntity association from their dataFileHandleId.
+		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
+				.thenReturn(new FileEntity().setId("syn123").setDataFileHandleId("222"));
+		when(mockEntityService.getEntityForVersion(userInfo.getId(), "syn456", 2L))
+				.thenReturn(new RecordSet().setId("syn456").setDataFileHandleId("333"));
+
+		SessionFileMetadata m1 = new SessionFileMetadata().setCanDownload(true).setCanAddToSession(true)
+				.setContentType("text/csv").setContentSizeBytes(100L);
+		SessionFileMetadata m2 = new SessionFileMetadata().setCanDownload(true).setCanAddToSession(true)
+				.setContentType("application/json").setContentSizeBytes(50L);
+		when(mockCodeInterpreterFileManager.getFileMetadataBatch(eq(userInfo), any()))
+				.thenReturn(List.of(m1, m2));
+
+		// call under test
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123", "syn456.2"), toolContext);
+
+		assertNull(response.getErrorMessage());
+		List<SessionFileMetadata> results = response.getResponseBody().getResults();
+		assertEquals(2, results.size());
+		// Each result carries the originating entity id.
+		assertEquals("syn123", results.get(0).getEntityId());
+		assertEquals("syn456.2", results.get(1).getEntityId());
+
+		// Both entities resolve to FileEntity associations built from their dataFileHandleId.
+		ArgumentCaptor<List<FileHandleAssociation>> captor = ArgumentCaptor.forClass(List.class);
+		verify(mockCodeInterpreterFileManager).getFileMetadataBatch(eq(userInfo), captor.capture());
+		List<FileHandleAssociation> associations = captor.getValue();
+		assertEquals(2, associations.size());
+		assertEquals("222", associations.get(0).getFileHandleId());
+		assertEquals(FileHandleAssociateType.FileEntity, associations.get(0).getAssociateObjectType());
+		assertEquals("syn123", associations.get(0).getAssociateObjectId());
+		assertEquals("333", associations.get(1).getFileHandleId());
+		assertEquals(FileHandleAssociateType.FileEntity, associations.get(1).getAssociateObjectType());
+		assertEquals("syn456", associations.get(1).getAssociateObjectId());
+	}
+
+	@Test
+	public void testGetFilesMetadataWithNonFileEntity() {
+		// A Project is neither a FileEntity nor a RecordSet: it is reported as ineligible without a batch call.
+		when(mockEntityService.getEntity(userInfo.getId(), "syn123")).thenReturn(new Project().setId("syn123"));
+
+		// call under test
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123"), toolContext);
+
+		assertNull(response.getErrorMessage());
+		List<SessionFileMetadata> results = response.getResponseBody().getResults();
+		assertEquals(1, results.size());
+		assertEquals("syn123", results.get(0).getEntityId());
+		assertFalse(results.get(0).getCanAddToSession());
+		assertTrue(results.get(0).getReason().contains("not a FileEntity or RecordSet"), "Got: " + results.get(0).getReason());
+		verifyNoInteractions(mockCodeInterpreterFileManager);
+	}
+
+	@Test
+	public void testGetFilesMetadataWithMixOfFileAndNonFileEntity() {
+		// syn123 is a FileEntity (described via the batch); syn999 is a Project (reported locally as ineligible).
+		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
+				.thenReturn(new FileEntity().setId("syn123").setDataFileHandleId("222"));
+		when(mockEntityService.getEntity(userInfo.getId(), "syn999")).thenReturn(new Project().setId("syn999"));
+
+		SessionFileMetadata m1 = new SessionFileMetadata().setCanDownload(true).setCanAddToSession(true);
+		when(mockCodeInterpreterFileManager.getFileMetadataBatch(eq(userInfo), any())).thenReturn(List.of(m1));
+
+		// call under test
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123", "syn999"), toolContext);
+
+		List<SessionFileMetadata> results = response.getResponseBody().getResults();
+		assertEquals(2, results.size());
+		assertEquals("syn123", results.get(0).getEntityId());
+		assertTrue(results.get(0).getCanAddToSession());
+		assertEquals("syn999", results.get(1).getEntityId());
+		assertFalse(results.get(1).getCanAddToSession());
+
+		// Only the valid file is forwarded to the batch metadata call.
+		ArgumentCaptor<List<FileHandleAssociation>> captor = ArgumentCaptor.forClass(List.class);
+		verify(mockCodeInterpreterFileManager).getFileMetadataBatch(eq(userInfo), captor.capture());
+		assertEquals(1, captor.getValue().size());
+		assertEquals("222", captor.getValue().get(0).getFileHandleId());
+	}
+
+	@Test
+	public void testGetFilesMetadataWithNoUserInfo() {
+		ToolContext noUserContext = new ToolContext(Map.of());
+
+		// call under test
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123"), noUserContext);
+
+		assertNull(response.getResponseBody());
+		assertEquals("No user context available", response.getErrorMessage());
+		verifyNoInteractions(mockEntityService);
+		verifyNoInteractions(mockCodeInterpreterFileManager);
+	}
+
+	@Test
+	public void testGetFilesMetadataWithEmptyIds() {
+		// call under test
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of(), toolContext);
+
+		assertNull(response.getResponseBody());
+		assertEquals("No entity IDs were provided", response.getErrorMessage());
+		verifyNoInteractions(mockEntityService);
+		verifyNoInteractions(mockCodeInterpreterFileManager);
 	}
 }

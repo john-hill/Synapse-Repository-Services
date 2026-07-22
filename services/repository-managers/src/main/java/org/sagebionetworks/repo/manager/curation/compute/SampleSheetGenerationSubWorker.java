@@ -2,7 +2,6 @@ package org.sagebionetworks.repo.manager.curation.compute;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisorFactory;
 import org.sagebionetworks.repo.manager.curation.CurationTaskManager;
@@ -14,7 +13,6 @@ import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationEx
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springframework.stereotype.Service;
@@ -24,17 +22,18 @@ import org.springframework.stereotype.Service;
  * <p>
  * The generation task's input parameters are carried by its
  * {@link SampleSheetGenerationExecutionProperties} (task properties): the input file-based task
- * providing the source FileView, the target JSON Schema, and the destination record-based task.
- * The AI supervisor is responsible only for producing a conformed CSV on the shared code
- * interpreter session (source annotations from the input FileView, transformed to match the target
- * JSON Schema). This sub-worker performs the deterministic persistence around that:
+ * providing the source FileView, and the destination record-based task. The target JSON Schema is
+ * the schema bound to the destination RecordSet. The AI supervisor is responsible only for producing
+ * a conformed CSV on the shared code interpreter session (source annotations from the input FileView,
+ * transformed to match the target JSON Schema). This sub-worker performs the deterministic
+ * persistence around that:
  * <ol>
- * <li>Resolve the source FileView from the input file-based task, and the destination
- * {@link RecordSet} from the destination record-based task.</li>
+ * <li>Resolve the source FileView from the input file-based task, the destination {@link RecordSet}
+ * from the destination record-based task, and the target JSON Schema from the RecordSet's binding.</li>
  * <li>Start a code interpreter session and run the supervisor, asking it to write the sample sheet
  * CSV to a known session path.</li>
  * <li>Pull the generated CSV off the session into a Synapse file handle and store it as a new
- * version of the destination RecordSet, then bind the target JSON Schema to it.</li>
+ * version of the destination RecordSet.</li>
  * </ol>
  * The input and destination tasks are created and configured by the data manager ahead of
  * execution, which gives them full control over the workflow. The dispatcher transitions the task
@@ -46,22 +45,20 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 	private static final Logger LOG = LogManager.getLogger(SampleSheetGenerationSubWorker.class);
 
 	static final String OUTPUT_CSV_PATH = "sample_sheet/output.csv";
-	static final String SUCCESS_MARKER = "RESULT: SUCCESS";
-	static final String ERROR_MARKER = "RESULT: ERROR";
 
 	private final SampleSheetSupervisorFactory supervisorFactory;
 	private final AgentCoreCodeInterpreterClient codeInterpreterClient;
 	private final CodeInterpreterFileManager codeInterpreterFileManager;
-	private final EntityManager entityManager;
+	private final RecordSetOutputWriter recordSetOutputWriter;
 	private final CurationTaskManager curationTaskManager;
 
 	public SampleSheetGenerationSubWorker(SampleSheetSupervisorFactory supervisorFactory,
 			AgentCoreCodeInterpreterClient codeInterpreterClient, CodeInterpreterFileManager codeInterpreterFileManager,
-			EntityManager entityManager, CurationTaskManager curationTaskManager) {
+			RecordSetOutputWriter recordSetOutputWriter, CurationTaskManager curationTaskManager) {
 		this.supervisorFactory = supervisorFactory;
 		this.codeInterpreterClient = codeInterpreterClient;
 		this.codeInterpreterFileManager = codeInterpreterFileManager;
-		this.entityManager = entityManager;
+		this.recordSetOutputWriter = recordSetOutputWriter;
 		this.curationTaskManager = curationTaskManager;
 	}
 
@@ -78,24 +75,21 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 					"Task " + task.getTaskId() + " must have SampleSheetGenerationExecutionProperties.");
 		}
 		ValidateArgument.required(properties.getInputTaskId(), "inputTaskId");
-		ValidateArgument.required(properties.getTargetSchemaId(), "targetSchemaId");
 		ValidateArgument.required(properties.getDestinationTaskId(), "destinationTaskId");
 
-		// Resolve the source FileView and destination RecordSet from the input/destination tasks up
-		// front, so a misconfigured task fails before the (expensive) supervisor run.
+		// Resolve the source FileView, destination RecordSet, and the target schema bound to that
+		// RecordSet up front, so a misconfigured task fails before the (expensive) supervisor run.
 		String fileViewId = getInputFileViewId(user, properties.getInputTaskId());
 		String recordSetId = getDestinationRecordSetId(user, properties.getDestinationTaskId());
+		String targetSchemaId = recordSetOutputWriter.getBoundSchemaId(user, recordSetId);
 
 		String sessionId = codeInterpreterClient.startSession("sampleSheetGen-" + task.getTaskId());
 		try {
 			callback.updateProgress("Running the sample sheet supervisor", 0L, 100L);
 			String supervisorResponse = supervisorFactory.create()
-					.chat(buildSupervisorMessage(fileViewId, properties.getTargetSchemaId()), user, sessionId);
+					.chat(buildSupervisorMessage(fileViewId, targetSchemaId), user, sessionId);
 
-			if (supervisorResponse == null || !supervisorResponse.contains(SUCCESS_MARKER)) {
-				throw new IllegalStateException("Sample sheet generation did not succeed: "
-						+ extractErrorMessage(supervisorResponse));
-			}
+			SupervisorResult.requireSuccess(supervisorResponse, "Sample sheet generation did not succeed: ");
 
 			callback.updateProgress("Storing the generated sample sheet in the RecordSet", 50L, 100L);
 
@@ -103,20 +97,7 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 			String dataFileHandleId = codeInterpreterFileManager.getFileFromSession(user, sessionId, OUTPUT_CSV_PATH,
 					"text/csv");
 
-			// Store the generated CSV as a new version of the destination RecordSet, preserving its
-			// data-manager-configured properties (name, parent, upsertKey). Clear the version label and
-			// comment so the DAO assigns a unique label for the new version (see NodeDAOImpl.createNewVersion);
-			// reusing the existing label collides on UNIQUE_REVISION_LABEL.
-			RecordSet recordSet = entityManager.getEntity(user, recordSetId, RecordSet.class);
-			recordSet.setDataFileHandleId(dataFileHandleId);
-			recordSet.setVersionLabel(null);
-			recordSet.setVersionComment(null);
-			entityManager.updateEntity(user, recordSet, true, null);
-
-			// Bind the target JSON Schema to the RecordSet so it is validated and indexed against it.
-			entityManager.bindSchemaToEntity(user, new BindSchemaToEntityRequest()
-					.setEntityId(recordSetId)
-					.setSchema$id(properties.getTargetSchemaId()));
+			recordSetOutputWriter.storeCsvAsNewRecordSetVersion(user, recordSetId, dataFileHandleId);
 
 			callback.updateProgress("Sample sheet generation complete", 100L, 100L);
 			return details;
@@ -167,14 +148,4 @@ public class SampleSheetGenerationSubWorker implements ComputeTaskSubWorker<Samp
 				+ "Write the final, conformed sample sheet CSV to outputCsvPath and report the result.";
 	}
 
-	private String extractErrorMessage(String supervisorResponse) {
-		if (supervisorResponse == null) {
-			return "the supervisor returned no response";
-		}
-		int idx = supervisorResponse.indexOf(ERROR_MARKER);
-		if (idx >= 0) {
-			return supervisorResponse.substring(idx);
-		}
-		return supervisorResponse;
-	}
 }

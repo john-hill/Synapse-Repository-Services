@@ -179,6 +179,25 @@ public class EntityMetadataSpecialistIntegrationTest {
 	}
 
 	@Test
+	public void testGetFilesMetadata() {
+		EntityMetadataSpecialist specialist = specialistFactory.create();
+
+		// call under test
+		String response = specialist.chat("Report the file metadata for " + fileId
+				+ ". Include its content type, its size in bytes, and whether it can be added to a session.",
+				adminUser, null);
+
+		assertNotNull(response);
+		assertTrue(response.length() <= MAX_RESPONSE_CHARS, "Response should be within the cap. Got: " + response);
+		// The file is a small, downloadable CSV, so the specialist should report its type and that it is
+		// eligible to be added to a session.
+		assertTrue(response.toLowerCase().contains("csv"),
+				"Response should mention the CSV content type. Got: " + response);
+		assertTrue(response.toLowerCase().contains("add") || response.toLowerCase().contains("eligible"),
+				"Response should mention the file can be added to a session. Got: " + response);
+	}
+
+	@Test
 	public void testAddFileToSession() {
 		String sessionId = codeInterpreterClient.startSession("entityMetadataIT-" + System.nanoTime());
 		try {

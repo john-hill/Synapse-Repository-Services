@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -85,6 +86,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * rather than mocked assumptions. Document content is verified deeply here so that
  * higher-level tests can trust the DAO and do spot checks only.
  */
+@Disabled("Disabled because OpenSearch returns 504 sporadically")
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class OpenSearchManagerImplAutoWiredTest {

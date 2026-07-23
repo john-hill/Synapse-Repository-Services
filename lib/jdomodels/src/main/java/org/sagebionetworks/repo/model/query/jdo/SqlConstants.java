@@ -1476,6 +1476,7 @@ public class SqlConstants {
     public static final String COL_CURATION_TASK_EXECUTION_DETAILS = "EXECUTION_DETAILS";
     public static final String COL_CURATION_TASK_STATE_UPDATED_BY = "STATE_UPDATED_BY";
     public static final String COL_CURATION_TASK_STATE_UPDATED_ON = "STATE_UPDATED_ON";
+    public static final String COL_CURATION_TASK_DUE_DATE = "DUE_DATE";
 
 
     // Table to track a record set validation summary for a specific version
@@ -1580,6 +1581,15 @@ public class SqlConstants {
 	public static final String COL_SCOB_CREATED_BY						= "CREATED_BY";
 	public static final String COL_SCOB_CREATED_ON						= "CREATED_ON";
 	public static final String DDL_SEARCH_CONFIG_OBJECT_BINDING			= "schema/SearchConfigBinding-ddl.sql";
+
+	// EDUC_QUOTA
+	public static final String TABLE_EDUC_QUOTA							= "EDUC_QUOTA";
+	public static final String COL_EDUC_QUOTA_ID						= "ID";
+	public static final String COL_EDUC_QUOTA_USER_ID					= "USER_ID";
+	public static final String COL_EDUC_QUOTA_ACCESS_REQUIREMENT_ID		= "ACCESS_REQUIREMENT_ID";
+	public static final String COL_EDUC_QUOTA_CREATED_ON				= "CREATED_ON";
+	public static final String COL_EDUC_QUOTA_ENVELOPE_ID				= "ENVELOPE_ID";
+	public static final String DDL_EDUC_QUOTA							= "schema/EDucQuota-ddl.sql";
 
 	/**
 	 * Function names:

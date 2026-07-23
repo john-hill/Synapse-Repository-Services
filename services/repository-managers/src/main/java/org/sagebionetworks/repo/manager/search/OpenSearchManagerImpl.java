@@ -28,6 +28,7 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.DeleteRequest;
@@ -55,6 +56,7 @@ import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 /**
@@ -73,6 +75,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final Logger LOG = LogManager.getLogger(OpenSearchManagerImpl.class);
 
 	private static final int HTTP_TOO_MANY_REQUESTS = 429;
+	// AOSS returns 402 with service_quota_exceeded_exception ("maximum OCU capacity reached")
+	// when the collection hits its OCU ceiling — a transient, auto-scaling condition, so retryable.
+	private static final int HTTP_PAYMENT_REQUIRED = 402;
 	private static final int HTTP_INTERNAL_SERVER_ERROR = 500;
 	private static final int HTTP_MAX_SERVER_ERROR = 599;
 
@@ -116,6 +121,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
+	// Prefix of the per-dependency row-level access-control fields (_benefactor_0, _benefactor_1,
+	// ...) written into each document's _source at build time. They drive the query-time benefactor
+	// terms filter but are not part of the entity schema, so they are stripped from returned hits.
+	private static final String BENEFACTOR_FIELD_PREFIX = "_benefactor_";
 	private static final String SUB_FIELD_KEYWORD = "keyword";
 	private static final String INDEX_NOT_FOUND_EXCEPTION = "index_not_found_exception";
 	// Reason-text fragment AOSS includes when a concurrent index-delete is in flight;
@@ -169,15 +178,16 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private final OpenSearchClient openSearchClient;
 
-	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
-		this.openSearchClient = openSearchClient;
+	public OpenSearchManagerImpl(@Qualifier("searchIndexManagedClient") OpenSearchClient searchIndexManagedClient) {
+		this.openSearchClient = searchIndexManagedClient;
 	}
 
 	@Override
 	public Optional<String> createIndex(String indexName, List<ColumnModel> columns,
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers) {
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int benefactorCount, int numberOfShards, int numberOfReplicas) {
 		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
 
 		Map<String, String> nameToId = columns.stream()
@@ -187,13 +197,16 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		try {
 			CreateIndexRequest request = CreateIndexRequest.of(req -> req
 					.index(indexName)
-					.settings(s -> s.analysis(a -> {
-						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
-						return a;
-					}))
+					.settings(s -> s
+						.numberOfShards(numberOfShards)
+						.numberOfReplicas(numberOfReplicas)
+						.analysis(a -> {
+							buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
+							return a;
+						}))
 					.mappings(m -> {
 						buildMappings(m, columns, defaultAnalyzer,
-								overrideMap, resolvedAnalyzers);
+								overrideMap, resolvedAnalyzers, benefactorCount);
 						return m;
 					})
 			);
@@ -399,10 +412,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private void buildMappings(org.opensearch.client.opensearch._types.mapping.TypeMapping.Builder m,
 			List<ColumnModel> columns, String defaultAnalyzerQname,
 			Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<String, IndexSettingsAnalysis> resolvedAnalyzers) {
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers,
+			int benefactorCount) {
 		Set<String> registeredAnalyzerQnames = resolvedAnalyzers.keySet();
 		m.properties(SYSTEM_FIELD_ROW_ID, p -> p.long_(l -> l));
 		m.properties(SYSTEM_FIELD_ROW_VERSION, p -> p.long_(l -> l));
+
+		// Row-level access-control fields: one per source dependency, non-analyzed long
+		// so the query-time benefactor terms filter can match them exactly.
+		for (int i = 0; i < benefactorCount; i++) {
+			m.properties(BENEFACTOR_FIELD_PREFIX + i, p -> p.long_(l -> l));
+		}
 
 		for (ColumnModel column : columns) {
 			String columnId = column.getId();
@@ -712,6 +732,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	static boolean isRetryableItemStatus(int status) {
 		return status == HTTP_TOO_MANY_REQUESTS
+				|| status == HTTP_PAYMENT_REQUIRED
 				|| (status >= HTTP_INTERNAL_SERVER_ERROR && status <= HTTP_MAX_SERVER_ERROR);
 	}
 
@@ -934,17 +955,19 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options) {
-		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false);
+			Set<SearchQueryPart> options,
+			List<Query> accessFilters) {
+		return executeSearch(indexName, body, columns, options, DEFAULT_LIMIT, MAX_LIMIT, false, accessFilters);
 	}
 
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchAutocompleteBody body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options) {
+			Set<SearchQueryPart> options,
+			List<Query> accessFilters) {
 		// Autocomplete does not accept a caller-supplied size; force the server cap as both
 		// default and ceiling.
 		return executeSearch(indexName, body, columns, options,
-				AUTOCOMPLETE_MAX_LIMIT, AUTOCOMPLETE_MAX_LIMIT, true);
+				AUTOCOMPLETE_MAX_LIMIT, AUTOCOMPLETE_MAX_LIMIT, true, accessFilters);
 	}
 
 	// ---- Private helpers ----
@@ -975,7 +998,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@SuppressWarnings("rawtypes")
 	SearchQueryResults executeSearch(String indexName, Object body, List<ColumnModel> columns,
-			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete) {
+			Set<SearchQueryPart> options, int defaultSize, int maxSize, boolean autocomplete,
+			List<Query> accessFilters) {
 		Map<String, String> idToName = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 		SearchFieldRewriter.RoutingContext ctx = routingContextFor(columns);
@@ -991,9 +1015,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				req.cancelAfterTimeInterval(t -> t.time("60s"));
 				effectiveFrom[0] = autocomplete
 						? SearchOpaqueJsonUtil.applyAutocompleteBodyToRequest(
-								body, ctx, req, options, defaultSize)
+								body, ctx, req, options, defaultSize, accessFilters)
 						: SearchOpaqueJsonUtil.applyBodyToRequest(
-								body, ctx, req, options, defaultSize, maxSize);
+								body, ctx, req, options, defaultSize, maxSize, accessFilters);
 				return req;
 			}, Map.class);
 			return convertResponse(response, indexName, effectiveFrom[0], idToName, options);
@@ -1058,8 +1082,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			searchHit.setRowId(toLong(source.get(SYSTEM_FIELD_ROW_ID)));
 			searchHit.setRowVersion(toLong(source.get(SYSTEM_FIELD_ROW_VERSION)));
 
+			// _row_id / _row_version are surfaced via dedicated SearchHit fields above, and the
+			// _benefactor_N fields are internal row-level access-control values (not part of the
+			// entity schema) — exclude all of them so they are never leaked back to the caller.
 			List<SearchFieldValue> fields = source.entrySet().stream()
-					.filter(e -> !SYSTEM_FIELD_ROW_ID.equals(e.getKey()) && !SYSTEM_FIELD_ROW_VERSION.equals(e.getKey()))
+					.filter(e -> !SYSTEM_FIELD_ROW_ID.equals(e.getKey())
+							&& !SYSTEM_FIELD_ROW_VERSION.equals(e.getKey())
+							&& !e.getKey().startsWith(BENEFACTOR_FIELD_PREFIX))
 					.map(e -> {
 						SearchFieldValue fv = new SearchFieldValue();
 						fv.setName(idToName.getOrDefault(e.getKey(), e.getKey()));

@@ -35,7 +35,7 @@ public class PrincipalOIDCBindingDaoImpl implements PrincipalOIDCBindingDao {
 	@Override
 	@WriteTransaction
 	public void bindPrincipalToSubject(Long principalId, Long aliasId, OAuthProvider provider, String subject) {
-		String sql = "INSERT IGNORE INTO " + TABLE_PRINCIPAL_OIDC_BINDING + "(" 
+		String sql = "INSERT INTO " + TABLE_PRINCIPAL_OIDC_BINDING + "(" 
 			+ COL_PRINCIPAL_OIDC_BINDING_ID + ", "
 			+ COL_PRINCIPAL_OIDC_BINDING_ETAG + ", " 
 			+ COL_PRINCIPAL_OIDC_BINDING_CREATED_ON + ","

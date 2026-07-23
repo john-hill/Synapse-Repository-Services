@@ -67,14 +67,14 @@ public class DocuSignClient {
 	}
 
 	/**
-	 * Creates and immediately sends an envelope from the specified template.
+	 * Creates a draft envelope from the specified template without sending it.
 	 *
 	 * @param templateId the DocuSign template ID
 	 * @param roleEmails map from role name to the signer's email address
 	 * @param tabValues map from (roleName, tabLabel) to the text value to pre-fill
-	 * @return the envelope ID of the created envelope
+	 * @return the envelope ID of the created draft envelope
 	 */
-	public String createAndSendEnvelope(String templateId, Map<String, String> roleEmails,
+	public String createEnvelope(String templateId, Map<String, String> roleEmails,
 			Map<RoleLabelKey, String> tabValues) {
 		ValidateArgument.required(templateId, "templateId");
 		ValidateArgument.required(roleEmails, "roleEmails");
@@ -87,10 +87,22 @@ public class DocuSignClient {
 		EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
 		envelopeDefinition.setTemplateId(templateId);
 		envelopeDefinition.setTemplateRoles(templateRoles);
-		envelopeDefinition.setStatus("sent");
+		envelopeDefinition.setStatus("created");
 
 		EnvelopeSummary summary = envelopesApi.createEnvelope(envelopeDefinition);
 		return summary.getEnvelopeId();
+	}
+
+	/**
+	 * Sends an existing draft envelope.
+	 *
+	 * @param envelopeId the ID of the draft envelope to send
+	 */
+	public void sendEnvelope(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		Envelope envelope = new Envelope();
+		envelope.setStatus("sent");
+		envelopesApi.updateEnvelope(envelopeId, envelope);
 	}
 
 	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
@@ -170,6 +182,11 @@ public class DocuSignClient {
 		return envelopesApi.listStatus(envelopeIds);
 	}
 
+	public byte[] getDocument(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		return envelopesApi.getDocument(envelopeId, "combined");
+	}
+	
 	public byte[] getSignedDocument(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
 		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
@@ -180,11 +197,13 @@ public class DocuSignClient {
 		return envelopesApi.getDocument(envelopeId, "combined");
 	}
 
-	static EDucStatusEnum toEDucStatusEnum(String docuSignStatus) {
+	public static EDucStatusEnum toEDucStatusEnum(String docuSignStatus) {
 		if (docuSignStatus == null) {
 			return null;
 		}
 		switch (docuSignStatus.toLowerCase()) {
+			case "created":
+				return EDucStatusEnum.draft;
 			case "sent":
 				return EDucStatusEnum.sent;
 			case "delivered":

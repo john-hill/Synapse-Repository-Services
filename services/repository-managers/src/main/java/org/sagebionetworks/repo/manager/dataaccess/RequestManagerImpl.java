@@ -351,26 +351,8 @@ public class RequestManagerImpl implements RequestManager{
 	}
 
 	static AccessRequestStatusEnum toAccessRequestStatusFromEnvelope(String envelopeStatus) {
-		if (envelopeStatus == null) {
-			throw new IllegalArgumentException("Unexpected envelope status: null");
-		}
-		switch (envelopeStatus.toLowerCase()) {
-			case "sent":
-				return AccessRequestStatusEnum.sent;
-			case "delivered":
-				return AccessRequestStatusEnum.delivered;
-			case "completed":
-			case "signed":
-				return AccessRequestStatusEnum.completed;
-			case "declined":
-				return AccessRequestStatusEnum.declined;
-			case "voided":
-				return AccessRequestStatusEnum.voided;
-			case "correct":
-				return AccessRequestStatusEnum.correct;
-			default:
-				throw new IllegalArgumentException("Unexpected envelope status: " + envelopeStatus);
-		}
+		EDucStatusEnum ducStatus = DocuSignClient.toEDucStatusEnum(envelopeStatus);
+		return AccessRequestStatusEnum.valueOf(ducStatus.name());
 	}
 
 	@Override

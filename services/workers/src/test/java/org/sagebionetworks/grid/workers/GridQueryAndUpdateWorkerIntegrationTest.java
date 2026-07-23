@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.json.JSONArray;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,8 @@ import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
 import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
+import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
+import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
 import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
@@ -45,6 +48,7 @@ import org.sagebionetworks.repo.model.grid.update.Update;
 import org.sagebionetworks.repo.model.grid.update.UpdateBatch;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.service.EntityService;
+import org.sagebionetworks.schema.adapter.org.json.JSONArrayAdapterImpl;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.csv.CSVWriterProviderImpl;
@@ -63,6 +67,7 @@ public class GridQueryAndUpdateWorkerIntegrationTest {
 
 	private static final String COL_NAME = "name";
 	private static final String COL_VALUE = "value";
+	private static final String COL_CATEGORY = "category";
 
 	@Autowired
 	private EntityService entityService;
@@ -147,6 +152,62 @@ public class GridQueryAndUpdateWorkerIntegrationTest {
 		return new SessionAndReplica(session, replica);
 	}
 
+	/**
+	 * Creates a RecordSet-based grid session seeded with four rows split evenly across two
+	 * {@code category} values ("A" and "B"). Two categories with multiple rows each let a filter
+	 * test verify that the correct subset is returned. Waits for all rows to load and returns the
+	 * session and a newly created user replica.
+	 */
+	private SessionAndReplica createGridWithCategoryData() throws Exception {
+		File temp = File.createTempFile("GridQueryUpdateIntegrationTestCategory", ".csv");
+		CsvTableDescriptor csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+		try (CSVWriter writer = new CSVWriterProviderImpl().createWriter(new FileWriter(temp), csvDescriptor)) {
+			writer.writeNext(new String[] { COL_NAME, COL_CATEGORY });
+			writer.writeNext(new String[] { "r1", "A" });
+			writer.writeNext(new String[] { "r2", "A" });
+			writer.writeNext(new String[] { "r3", "B" });
+			writer.writeNext(new String[] { "r4", "B" });
+		}
+
+		S3FileHandle fh = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest()
+				.withFileToUpload(temp).withContentType("text/csv").withFileName(temp.getName())
+				.withUserId(admin.getId().toString()));
+		temp.delete();
+
+		Project project = entityService.createEntity(admin.getId(),
+				new Project().setName("GridQueryCategoryTest"), null);
+
+		RecordSet recordSet = entityService.createEntity(admin.getId(),
+				new RecordSet().setName("test-recordset-category").setParentId(project.getId())
+						.setDataFileHandleId(fh.getId()).setUpsertKey(List.of(COL_NAME)),
+				null);
+
+		GridSession session = asynchronousJobWorkerHelper
+				.assertJobResponse(admin,
+						new CreateGridRequest().setRecordSetId(recordSet.getId()),
+						(CreateGridResponse response) -> {
+							assertNotNull(response.getGridSession());
+						}, MAX_WAIT_MS)
+				.getResponse().getGridSession();
+		assertNotNull(session);
+
+		// Wait for the four rows to be loaded into the grid
+		TimeUtils.waitFor(MAX_WAIT_MS, 1_000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 10L, 0L);
+			return Pair.create(rows.size() == 4, null);
+		});
+
+		GridReplica replica = gridManager
+				.createReplica(admin, new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+
+		return new SessionAndReplica(session, replica);
+	}
+
 	private static class SessionAndReplica {
 		final GridSession session;
 		final GridReplica replica;
@@ -185,6 +246,59 @@ public class GridQueryAndUpdateWorkerIntegrationTest {
 		assertTrue(columnNames.contains(COL_NAME));
 		assertTrue(columnNames.contains(COL_VALUE));
 		assertEquals(3, response.getQueryResult().getRows().size());
+	}
+
+	/**
+	 * Reproduces PLFM-9831: the CellValueFilter EQUALS operator must return the same rows whether
+	 * its value is a scalar or a single-element array. The scalar-EQUALS and IN cases already
+	 * work; the array-wrapped EQUALS case (value = ["A"]) currently returns 0 rows.
+	 */
+	@Test
+	public void testGridQueryWithCellValueFilterEqualsArrayValue() throws Exception {
+		SessionAndReplica setup = createGridWithCategoryData();
+		GridSession session = setup.session;
+		GridReplica replica = setup.replica;
+
+		// Control: EQUALS with a scalar value matches the two rows in category "A".
+		assertJobResponseRowCount(session, replica,
+				new CellValueFilter().setColumnName(COL_CATEGORY).setOperator(CellValueOperator.EQUALS).setValue("A"),
+				2);
+
+		// call under test: EQUALS with a single-element array must match the same two rows.
+		// The value is wrapped in a JSONArrayAdapterImpl so it serializes as a JSON array over the
+		// async job payload, matching how a client sends an array-wrapped value.
+		assertJobResponseRowCount(session, replica,
+				new CellValueFilter().setColumnName(COL_CATEGORY).setOperator(CellValueOperator.EQUALS)
+						.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("A")))),
+				2);
+
+		// Control: IN with an array matches all four rows across both categories.
+		assertJobResponseRowCount(session, replica,
+				new CellValueFilter().setColumnName(COL_CATEGORY).setOperator(CellValueOperator.IN)
+						.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("A", "B")))),
+				4);
+	}
+
+	/**
+	 * Runs a grid query filtered by the given filter and asserts the number of rows returned.
+	 */
+	private void assertJobResponseRowCount(GridSession session, GridReplica replica, CellValueFilter filter,
+			int expectedRowCount) throws Exception {
+		GridQueryJobRequest request = new GridQueryJobRequest()
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setQueryRequest(new QueryRequest()
+						.setQuery(new org.sagebionetworks.repo.model.grid.query.Query()
+								.setColumnSelection(List.of(new SelectAll()))
+								.setFilters(List.of(filter))
+								.setLimit(10L)));
+
+		asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridQueryJobResponse r) -> {
+			assertNotNull(r.getQueryResult());
+			assertNotNull(r.getQueryResult().getRows());
+			assertEquals(expectedRowCount, r.getQueryResult().getRows().size(),
+					filter + " should return " + expectedRowCount + " rows (PLFM-9831)");
+		}, MAX_WAIT_MS);
 	}
 
 	@Test

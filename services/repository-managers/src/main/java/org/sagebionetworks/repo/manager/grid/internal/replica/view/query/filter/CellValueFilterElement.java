@@ -126,18 +126,27 @@ public class CellValueFilterElement implements FilterElement {
 			throw new IllegalArgumentException("Expected exactly one value for operation: " + operator);
 		}
 
+		// A single-value operator (e.g. EQUALS) may receive its value wrapped in a length-one array
+		// (e.g. ["A"]), which is how clients send scalar filter values. Unwrap it so the comparison
+		// is against the scalar cell value. Arrays with more than one element are left as-is so they
+		// can still match a JSON array cell (e.g. a multi-value LIST column).
+		Object singleValue = value;
+		if (singleValue instanceof JSONArray && ((JSONArray) singleValue).length() == 1) {
+			singleValue = ((JSONArray) singleValue).get(0);
+		}
+
 		sqlBuilder.append("(");
 		appendJsonLengthCheck(sqlBuilder, columnIndex);
 
-		String function = isString(value) ? "->>" : "->";
+		String function = isString(singleValue) ? "->>" : "->";
 		sqlBuilder.append(" VALS").append(function).append("'$[").append(columnIndex).append("].v[0]' ").append(operator.toSql());
 
-		if (isJsonType(value)) {
+		if (isJsonType(singleValue)) {
 			sqlBuilder.append(" CAST(:").append(bind).append(" AS JSON)");
-			params.put(bind, value.toString());
+			params.put(bind, singleValue.toString());
 		} else {
 			sqlBuilder.append(" :").append(bind);
-			params.put(bind, value);
+			params.put(bind, singleValue);
 		}
 		sqlBuilder.append(")");
 	}

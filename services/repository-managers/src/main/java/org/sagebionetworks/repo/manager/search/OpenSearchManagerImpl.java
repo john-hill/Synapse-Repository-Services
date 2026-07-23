@@ -110,18 +110,18 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static long VALIDATE_INITIAL_BACKOFF_MS = 1000L;
 
 	// Retry budget for the createIndex transport call. A create-index request against the
-	// managed domain can hit a transient read timeout or other IOException before the domain
-	// acknowledges; absorb those before failing the build so a single network blip doesn't
-	// turn into a hard failure. OpenSearchException (including resource_already_exists) is
-	// permanent and not retried.
-	static int CREATE_INDEX_MAX_RETRIES = 3;
+	// managed domain can hit a transient read timeout / IOException, or a 429/402/5xx (e.g. a
+	// 504 gateway timeout while the domain is busy), before it acknowledges; those are retried
+	// so a single blip doesn't fail the build. resource_already_exists and other 4xx are permanent.
+	static int CREATE_INDEX_MAX_RETRIES = 10;
 	static long CREATE_INDEX_INITIAL_BACKOFF_MS = 1000L;
 
 	// Retry budget for the getAliasTarget transport call. Resolving the alias is the first
 	// transport call on the build path and can hit the same transient read timeout / IOException
-	// as createIndex; a single blip here otherwise marks the SearchIndex terminally FAILED.
-	// A missing alias (404) is a normal first-build condition and returned as empty, not retried.
-	static int GET_ALIAS_MAX_RETRIES = 3;
+	// or 429/402/5xx as createIndex; those are retried so a single blip doesn't mark the
+	// SearchIndex terminally FAILED. A missing alias (404) is a normal first-build condition
+	// returned as empty; other 4xx are permanent.
+	static int GET_ALIAS_MAX_RETRIES = 10;
 	static long GET_ALIAS_INITIAL_BACKOFF_MS = 1000L;
 
 	// Cleanup retry for the readiness-probe sentinel. AOSS doesn't honor refresh=wait_for,
@@ -241,6 +241,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				} catch (OpenSearchException e) {
 					if ("resource_already_exists_exception".equals(e.error().type())) {
 						return Optional.<String>empty();
+					}
+					if (isRetryableItemStatus(e.status())) {
+						throw new RetryException(e);
 					}
 					throw new RuntimeException("Failed to create search index: " + indexName
 							+ " (" + describeError(e.error()) + ")", e);
@@ -534,6 +537,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type()) || Integer.valueOf(404).equals(e.status())) {
 						return Optional.<String>empty();
 					}
+					if (isRetryableItemStatus(e.status())) {
+						throw new RetryException(e);
+					}
 					throw new RuntimeException("Failed to resolve alias: " + aliasName
 							+ " (" + describeError(e.error()) + ")", e);
 				} catch (IOException e) {
@@ -786,15 +792,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String detail = "Failed to bulk index to search index: " + indexName
 					+ " (" + describeError(e.error()) + ")";
 			String type = e.error() == null ? null : e.error().type();
-			// status() == 0 indicates the transport never produced an HTTP response (e.g.
-			// the AWS SDK 2 transport surfaced a connection-level failure as
-			// OpenSearchException rather than IOException). Treat the same as a 5xx —
-			// transient, retryable. index_not_found_exception is AOSS's eventual-consistency
-			// window: createIndex is acknowledged and the alias is queryable before its
-			// backing shards resolve on every node, so a bulk write immediately after can
-			// see a 404. Treat it as transient and retryable, consistent with
-			// waitForIndexWritable.
-			if (e.status() == 0 || isRetryableItemStatus(e.status())
+			// index_not_found_exception is AOSS's eventual-consistency window: createIndex is
+			// acknowledged and the alias is queryable before its backing shards resolve on every
+			// node, so a bulk write immediately after can see a 404.
+			if (isRetryableItemStatus(e.status())
 					|| INDEX_NOT_FOUND_EXCEPTION.equals(type)) {
 				throw new RetryException(detail, e);
 			}
@@ -817,7 +818,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	static boolean isRetryableItemStatus(int status) {
-		return status == HTTP_TOO_MANY_REQUESTS
+		// status==0 means the transport never produced an HTTP response (e.g. the AWS SDK 2
+		// transport surfaced a connection-level failure as OpenSearchException rather than
+		// IOException) — transient, treated the same as a 5xx.
+		return status == 0
+				|| status == HTTP_TOO_MANY_REQUESTS
 				|| status == HTTP_PAYMENT_REQUIRED
 				|| (status >= HTTP_INTERNAL_SERVER_ERROR && status <= HTTP_MAX_SERVER_ERROR);
 	}

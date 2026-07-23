@@ -1048,6 +1048,26 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testCreateIndexWithTransient504RetriesThenSucceeds() throws IOException {
+		String indexName = "search-index-syn1";
+		OpenSearchException gatewayTimeout = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(ErrorCause.of(c -> c.type("http_exception")
+						.reason("server returned 504"))).status(504)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenThrow(gatewayTimeout)
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(
+						r -> r.acknowledged(true).shardsAcknowledged(true).index(indexName)));
+
+		// call under test
+		Optional<String> result = manager.createIndex(indexName, Collections.emptyList(), null,
+				Collections.emptyList(), Collections.emptyMap(), 0, 1, 0);
+
+		assertTrue(result.isPresent());
+		verify(indicesClient, times(2)).create(any(CreateIndexRequest.class));
+	}
+
+	@Test
 	public void testCreateIndexWithDuplicateColumnNamesUsesFirst() throws IOException {
 		// Two columns share a name: the nameToId toMap merge function keeps the first id and
 		// must not throw on the duplicate key.
@@ -1224,6 +1244,23 @@ public class OpenSearchManagerImplTest {
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any()))
 				.thenThrow(new IOException("read timed out"))
+				.thenReturn(response);
+
+		// call under test
+		assertEquals(Optional.of("search-index-syn1-a"), manager.getAliasTarget("search-index-syn1"));
+		verify(indicesClient, times(2)).getAlias(ArgumentMatchers.<java.util.function.Function>any());
+	}
+
+	@Test
+	public void testGetAliasTargetWithTransient504RetriesThenSucceeds() throws IOException {
+		GetAliasResponse response = GetAliasResponse.of(r -> r
+				.putResult("search-index-syn1-a", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap()))));
+		OpenSearchException gatewayTimeout = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(ErrorCause.of(c -> c.type("http_exception")
+						.reason("server returned 504"))).status(504)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any()))
+				.thenThrow(gatewayTimeout)
 				.thenReturn(response);
 
 		// call under test
@@ -2508,8 +2545,9 @@ assertNull(request.collapse(), "collapse must be null when not supplied");
 
 	@Test
 	public void testIsRetryableItemStatusZero() {
-		// 0 isn't a real HTTP status; the bulk path handles 0 separately, so this returns false.
-		assertFalse(OpenSearchManagerImpl.isRetryableItemStatus(0));
+		// status()==0 means the transport produced no HTTP response (a connection-level failure);
+		// it is treated as transient and retryable, the same as a 5xx.
+		assertTrue(OpenSearchManagerImpl.isRetryableItemStatus(0));
 	}
 
 	// ===================== branch coverage: describeError / appendErrorCauseDetail =====================

@@ -37,6 +37,11 @@ public class EDucService {
 		return eDucManager.routeForSignature(userInfo, requestId);
 	}
 
+	public EDucFileHandleId previewEDuc(Long userId, String requestId) {
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		return eDucManager.previewEDuc(userInfo, requestId);
+	}
+
 	public EDucSignatureStatus getSignatureStatus(Long userId, String requestId) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return eDucManager.getSignatureStatus(userInfo, requestId);

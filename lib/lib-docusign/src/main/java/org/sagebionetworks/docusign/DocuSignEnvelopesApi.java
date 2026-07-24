@@ -12,6 +12,8 @@ interface DocuSignEnvelopesApi {
 
 	void voidEnvelope(String envelopeId, String reason);
 
+	void updateEnvelope(String envelopeId, Envelope envelope);
+
 	Envelope getEnvelope(String envelopeId);
 
 	List<Envelope> listStatus(List<String> envelopeIds);

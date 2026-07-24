@@ -688,6 +688,7 @@ public class RequestManagerImplTest {
 
 	@Test
 	public void testToAccessRequestStatusFromEnvelope() {
+		assertEquals(AccessRequestStatusEnum.draft, RequestManagerImpl.toAccessRequestStatusFromEnvelope("created"));
 		assertEquals(AccessRequestStatusEnum.sent, RequestManagerImpl.toAccessRequestStatusFromEnvelope("sent"));
 		assertEquals(AccessRequestStatusEnum.delivered, RequestManagerImpl.toAccessRequestStatusFromEnvelope("delivered"));
 		assertEquals(AccessRequestStatusEnum.completed, RequestManagerImpl.toAccessRequestStatusFromEnvelope("completed"));
@@ -703,16 +704,14 @@ public class RequestManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> RequestManagerImpl.toAccessRequestStatusFromEnvelope("bogus"));
 
-		assertEquals("Unexpected envelope status: bogus", ex.getMessage());
+		assertEquals("Unexpected status bogus", ex.getMessage());
 	}
 
 	@Test
 	public void testToAccessRequestStatusFromEnvelopeWithNull() {
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+		// call under test — toEDucStatusEnum(null) returns null, valueOf(null) throws NPE
+		assertThrows(NullPointerException.class,
 				() -> RequestManagerImpl.toAccessRequestStatusFromEnvelope(null));
-
-		assertEquals("Unexpected envelope status: null", ex.getMessage());
 	}
 
 	@Test

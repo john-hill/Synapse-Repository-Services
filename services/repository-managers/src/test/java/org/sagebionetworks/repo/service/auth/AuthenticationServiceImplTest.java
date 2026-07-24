@@ -11,7 +11,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
@@ -337,12 +336,8 @@ public class AuthenticationServiceImplTest {
 		
 		when(mockUserManager.lookupOidcBindingBySubject(any(), any())).thenReturn(Optional.of(oidcBinding));
 		when(mockUserManager.lookupUserByUsernameOrEmail(any())).thenThrow(NotFoundException.class);
-		LoginResponse authMgrLoginResponse = new LoginResponse();
-		authMgrLoginResponse.setAcceptsTermsOfUse(true);
-		authMgrLoginResponse.setAccessToken(ACCESS_TOKEN);
-		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 		
-		String result = assertThrows(NotFoundException.class, () -> {			
+		String result = assertThrows(NotFoundException.class, () -> {
 			//call under test
 			service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
 		}).getMessage();
@@ -355,6 +350,40 @@ public class AuthenticationServiceImplTest {
 		verify(mockUserManager).deleteOidcBinding(oidcBinding.getBindingId());
 		verifyNoMoreInteractions(mockUserManager);
 		verifyNoMoreInteractions(mockAuthenticationManager);
+	}
+	
+	@Test
+	public void testValidateOAuthAuthenticationCodeWithNoBoundAliasAndNoAliasFoundNonAliasProvider() throws NotFoundException{
+		OAuthValidationRequest request = new OAuthValidationRequest();
+		request.setAuthenticationCode("some code");
+		request.setProvider(OAuthProvider.NIH_RESEARCHER_AUTH_SERVICE);
+		request.setRedirectUrl("https://domain.com");
+		ProvidedUserInfo info = new ProvidedUserInfo();
+		long userId = 123L;
+		info.setUsersVerifiedEmail("first.last@domain.com");
+		info.setSubject("abcd");
+		when(mockOAuthManager.validateUserWithProvider(request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl())).thenReturn(info);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		
+		PrincipalOidcBinding oidcBinding = new PrincipalOidcBinding().setBindingId(12345L).setUserId(123L).setAliasId(null);
+		
+		when(mockUserManager.lookupOidcBindingBySubject(any(), any())).thenReturn(Optional.of(oidcBinding));
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
+		LoginResponse authMgrLoginResponse = new LoginResponse();
+		authMgrLoginResponse.setAcceptsTermsOfUse(true);
+		authMgrLoginResponse.setAccessToken(ACCESS_TOKEN);
+		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
+		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
+		
+		//call under test
+		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
+		
+		assertEquals(authMgrLoginResponse, result);
+		
+		verify(mockOAuthManager).validateUserWithProvider(request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl());
+		verify(mockUserManager).lookupOidcBindingBySubject(request.getProvider(), info.getSubject());
+		verifyNoMoreInteractions(mockUserManager);
+		verify(mockAuthenticationManager).loginWithNoPasswordCheck(userId, ISSUER);
 	}
 	
 	@Test

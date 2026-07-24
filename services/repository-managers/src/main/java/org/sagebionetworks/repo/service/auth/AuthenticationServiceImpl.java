@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.service.auth;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
@@ -52,7 +51,6 @@ import org.sagebionetworks.repo.model.oauth.OAuthUrlResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthValidationRequest;
 import org.sagebionetworks.repo.model.principal.AliasType;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
-import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -182,8 +180,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		
 		Long loggedInUserId = oidcBinding.getUserId();
 		
-		// In https://sagebionetworks.jira.com/browse/PLFM-8198 we added the alias FK and we need to backfill	
-		if (oidcBinding.getAliasId() == null) {
+		// In https://sagebionetworks.jira.com/browse/PLFM-8198 we added the alias FK and we need to backfill
+		// but the following should only be done for the special cases of Google and ORCiD alias types
+		if ((OAuthProvider.GOOGLE_OAUTH_2_0.equals(request.getProvider()) || OAuthProvider.ORCID.equals(request.getProvider())) && 
+				oidcBinding.getAliasId() == null) {
 						
 			PrincipalAlias alias = findPrincipalAlias(request.getProvider(), providedInfo).orElseThrow(() -> {
 				// If an alias is not found the user deleted the associated alias and the binding is not valid anymore

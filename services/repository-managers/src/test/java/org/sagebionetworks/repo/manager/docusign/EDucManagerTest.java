@@ -280,7 +280,7 @@ public class EDucManagerTest {
 		profile2.setFirstName("Bob");
 		profile2.setLastName("Brown");
 		when(mockUserProfileDao.get("302")).thenReturn(profile2);
-		when(mockDocuSignClient.createAndSendEnvelope(eq("tpl-abc"), any(), any())).thenReturn("env-xyz");
+		when(mockDocuSignClient.createEnvelope(eq("tpl-abc"), any(), any())).thenReturn("env-xyz");
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
@@ -295,7 +295,7 @@ public class EDucManagerTest {
 		ArgumentCaptor<Map<String, String>> emailsCaptor = ArgumentCaptor.forClass(Map.class);
 		@SuppressWarnings("unchecked")
 		ArgumentCaptor<Map<RoleLabelKey, String>> tabsCaptor = ArgumentCaptor.forClass(Map.class);
-		verify(mockDocuSignClient).createAndSendEnvelope(eq("tpl-abc"), emailsCaptor.capture(), tabsCaptor.capture());
+		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), emailsCaptor.capture(), tabsCaptor.capture());
 
 		// Collaborators: createdBy=100 first, then 301, 302 from accessorChanges (PI 200 excluded)
 		Map<String, String> roleEmails = emailsCaptor.getValue();
@@ -350,7 +350,7 @@ public class EDucManagerTest {
 		profile.setFirstName("A");
 		profile.setLastName("B");
 		when(mockUserProfileDao.get(any(String.class))).thenReturn(profile);
-		when(mockDocuSignClient.createAndSendEnvelope(any(), any(), any())).thenReturn("env-1");
+		when(mockDocuSignClient.createEnvelope(any(), any(), any())).thenReturn("env-1");
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
@@ -361,18 +361,21 @@ public class EDucManagerTest {
 	}
 
 	@Test
-	public void testRouteForSignatureWithExistingEnvelope() {
+	public void testRouteForSignatureWithExistingDraft() {
 		Request request = buildValidRequest();
 		request.setEDucSignatureEnvelopeId("existing-env");
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(0L);
 
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> eDucManager.routeForSignature(user, "req-1"));
+		// call under test — sends the existing draft
+		EDucSignatureQuota result = eDucManager.routeForSignature(user, "req-1");
 
-		assertEquals("This request already has a signature envelope: existing-env", ex.getMessage());
-		verifyNoInteractions(mockDocuSignClient);
+		verify(mockDocuSignClient).sendEnvelope("existing-env");
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(9), result.getRemaining());
 	}
 
 	@Test
@@ -506,7 +509,7 @@ public class EDucManagerTest {
 		creatorProfile.setFirstName("Creator");
 		creatorProfile.setLastName("User");
 		when(mockUserProfileDao.get("100")).thenReturn(creatorProfile);
-		when(mockDocuSignClient.createAndSendEnvelope(eq("tpl-abc"), any(), any())).thenReturn("env-no-collabs");
+		when(mockDocuSignClient.createEnvelope(eq("tpl-abc"), any(), any())).thenReturn("env-no-collabs");
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
@@ -517,7 +520,7 @@ public class EDucManagerTest {
 
 		@SuppressWarnings("unchecked")
 		ArgumentCaptor<Map<String, String>> emailsCaptor = ArgumentCaptor.forClass(Map.class);
-		verify(mockDocuSignClient).createAndSendEnvelope(eq("tpl-abc"), emailsCaptor.capture(), any());
+		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), emailsCaptor.capture(), any());
 		// PI + SO + createdBy as collaborator_1
 		assertEquals(3, emailsCaptor.getValue().size());
 		assertEquals("creator@example.com", emailsCaptor.getValue().get("collaborator_1"));
@@ -528,7 +531,6 @@ public class EDucManagerTest {
 		Request request = buildValidRequest();
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
 		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
 		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(10L);
 
@@ -545,7 +547,6 @@ public class EDucManagerTest {
 		Request request = buildValidRequest();
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		when(mockRequestDao.get("req-1")).thenReturn(request);
-		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
 		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
 		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
 		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(100L);
@@ -573,7 +574,7 @@ public class EDucManagerTest {
 		profile.setFirstName("A");
 		profile.setLastName("B");
 		when(mockUserProfileDao.get(any(String.class))).thenReturn(profile);
-		when(mockDocuSignClient.createAndSendEnvelope(any(), any(), any())).thenReturn("env-partial");
+		when(mockDocuSignClient.createEnvelope(any(), any(), any())).thenReturn("env-partial");
 		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
 
 		// call under test
@@ -816,6 +817,67 @@ public class EDucManagerTest {
 		assertEquals("Alice", EDucManager.buildFullName("Alice", null));
 		assertEquals("Smith", EDucManager.buildFullName(null, "Smith"));
 		assertNull(EDucManager.buildFullName(null, null));
+	}
+
+	// --- previewEDuc tests ---
+
+	@Test
+	public void testPreviewEDucSuccess() throws Exception {
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockPrincipalAliasDao.getUserName(any(Long.class))).thenReturn("someuser");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(any(Long.class))).thenReturn("x@y.com");
+		UserProfile profile = new UserProfile();
+		profile.setFirstName("A");
+		profile.setLastName("B");
+		when(mockUserProfileDao.get(any(String.class))).thenReturn(profile);
+		when(mockDocuSignClient.createEnvelope(any(), any(), any())).thenReturn("env-draft");
+		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
+		when(mockDocuSignClient.getDocument("env-draft")).thenReturn(new byte[]{1, 2, 3});
+		S3FileHandle fileHandle = new S3FileHandle();
+		fileHandle.setId("fh-preview");
+		when(mockFileHandleManager.createFileFromByteArray(any(), any(), any(), any(), any(), any()))
+				.thenReturn(fileHandle);
+
+		// call under test
+		EDucFileHandleId result = eDucManager.previewEDuc(user, "req-1");
+
+		assertEquals("fh-preview", result.getFileHandleId());
+		verify(mockDocuSignClient).getDocument("env-draft");
+	}
+
+	@Test
+	public void testPreviewEDucWithExistingDraft() throws Exception {
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		Request request = buildValidRequest();
+		request.setEDucSignatureEnvelopeId("env-existing");
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockDocuSignClient.getDocument("env-existing")).thenReturn(new byte[]{4, 5});
+		S3FileHandle fileHandle = new S3FileHandle();
+		fileHandle.setId("fh-existing");
+		when(mockFileHandleManager.createFileFromByteArray(any(), any(), any(), any(), any(), any()))
+				.thenReturn(fileHandle);
+
+		// call under test
+		EDucFileHandleId result = eDucManager.previewEDuc(user, "req-1");
+
+		assertEquals("fh-existing", result.getFileHandleId());
+		verify(mockDocuSignClient).getDocument("env-existing");
+	}
+
+	@Test
+	public void testPreviewEDucWithUnauthorizedUser() {
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+
+		// call under test
+		UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+				() -> eDucManager.previewEDuc(regularUser, "req-1"));
+
+		assertEquals("Only the request creator or an administrator can preview the eDUC.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
 	}
 
 	// --- validateTemplate tests ---

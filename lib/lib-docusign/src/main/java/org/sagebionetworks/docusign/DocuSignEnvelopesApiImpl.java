@@ -48,6 +48,16 @@ class DocuSignEnvelopesApiImpl implements DocuSignEnvelopesApi {
 	}
 
 	@Override
+	public void updateEnvelope(String envelopeId, Envelope envelope) {
+		retryHelper.executeWithRetry(accessToken -> {
+			ApiClient apiClient = new ApiClient(config.getBasePath());
+			apiClient.addDefaultHeader("Authorization", "Bearer " + accessToken);
+			EnvelopesApi envelopesApi = new EnvelopesApi(apiClient);
+			return envelopesApi.update(config.getAccountId(), envelopeId, envelope);
+		});
+	}
+
+	@Override
 	public Envelope getEnvelope(String envelopeId) {
 		return retryHelper.executeWithRetry(accessToken -> {
 			ApiClient apiClient = new ApiClient(config.getBasePath());

@@ -252,11 +252,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						return Optional.<String>empty();
 					}
 					if (isRetryableItemStatus(e.status())) {
+						LOG.warn("createIndex attempt failed for {} ({}), retrying", indexName, describeError(e.error()));
 						throw new RetryException(e);
 					}
 					throw new RuntimeException("Failed to create search index: " + indexName
 							+ " (" + describeError(e.error()) + ")", e);
 				} catch (IOException e) {
+					LOG.warn("createIndex attempt failed for {} ({}), retrying", indexName, e.getMessage());
 					throw new RetryException(e);
 				}
 			});
@@ -520,11 +522,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						throw e;
 					}
 					if (isRetryableItemStatus(e.status())) {
+						LOG.warn("deleteIndex attempt failed for {} ({}), retrying", indexName, describeError(e.error()));
 						throw new RetryException(e);
 					}
 					throw new RuntimeException("Failed to delete search index: " + indexName
 							+ " (" + describeError(e.error()) + ")", e);
 				} catch (IOException e) {
+					LOG.warn("deleteIndex attempt failed for {} ({}), retrying", indexName, e.getMessage());
 					throw new RetryException(e);
 				}
 			});
@@ -562,11 +566,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						return Optional.<String>empty();
 					}
 					if (isRetryableItemStatus(e.status())) {
+						LOG.warn("getAliasTarget attempt failed for {} ({}), retrying", aliasName, describeError(e.error()));
 						throw new RetryException(e);
 					}
 					throw new RuntimeException("Failed to resolve alias: " + aliasName
 							+ " (" + describeError(e.error()) + ")", e);
 				} catch (IOException e) {
+					LOG.warn("getAliasTarget attempt failed for {} ({}), retrying", aliasName, e.getMessage());
 					throw new RetryException(e);
 				}
 			});

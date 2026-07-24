@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaConnectionManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.validation.GridRowValidator;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -54,11 +55,13 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final GridAuthorizationManager gridAuthorizationManager;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
+	private final GridReplicaConnectionManager gridReplicaConnectionManager;
 
 	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager,
 								  GridRowValidator gridRowValidator,
 								  GridAuthorizationManager gridAuthorizationManager, FileProvider fileProvider,
-								  IndexedModelEncoderProvider encoderProvider) {
+								  IndexedModelEncoderProvider encoderProvider,
+								  GridReplicaConnectionManager gridReplicaConnectionManager) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -67,6 +70,7 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 		this.gridAuthorizationManager = gridAuthorizationManager;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
+		this.gridReplicaConnectionManager = gridReplicaConnectionManager;
 	}
 
 	@Override
@@ -95,7 +99,7 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 			GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
 					.setSourceId(tableId).setSchemaId(schemaIdOp.orElse(null)).setOwner(request.getOwnerPrincipalId())
 					.setAuthorizationMode(request.getAuthorizationMode()));
-			GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false,
+			GridReplica replica = gridReplicaConnectionManager.createReplicaAndConnect(user.getId(), session.getSessionId(), false,
 					EventSource.INTERNAL);
 
 			// Always include the entity etag so it is included in the grid metadata. The

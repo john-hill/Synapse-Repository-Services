@@ -6,17 +6,25 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import org.sagebionetworks.repo.model.educ.EDucSignatureStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignerStatus;
+import org.sagebionetworks.repo.model.educ.EDucSignerStatusEnum;
+import org.sagebionetworks.repo.model.educ.EDucStatusEnum;
 import org.sagebionetworks.repo.model.educ.EDucTemplate;
 import org.sagebionetworks.repo.model.educ.EDucTemplatePage;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
+import com.docusign.esign.model.Envelope;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
+import com.docusign.esign.model.Signer;
 import com.docusign.esign.model.Tabs;
 import com.docusign.esign.model.TemplateRole;
+
+import io.jsonwebtoken.lang.Collections;
 
 /**
  * Client for the DocuSign REST API. Authenticates headlessly via the JWT Bearer
@@ -59,14 +67,14 @@ public class DocuSignClient {
 	}
 
 	/**
-	 * Creates and immediately sends an envelope from the specified template.
+	 * Creates a draft envelope from the specified template without sending it.
 	 *
 	 * @param templateId the DocuSign template ID
 	 * @param roleEmails map from role name to the signer's email address
 	 * @param tabValues map from (roleName, tabLabel) to the text value to pre-fill
-	 * @return the envelope ID of the created envelope
+	 * @return the envelope ID of the created draft envelope
 	 */
-	public String createAndSendEnvelope(String templateId, Map<String, String> roleEmails,
+	public String createEnvelope(String templateId, Map<String, String> roleEmails,
 			Map<RoleLabelKey, String> tabValues) {
 		ValidateArgument.required(templateId, "templateId");
 		ValidateArgument.required(roleEmails, "roleEmails");
@@ -79,10 +87,22 @@ public class DocuSignClient {
 		EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
 		envelopeDefinition.setTemplateId(templateId);
 		envelopeDefinition.setTemplateRoles(templateRoles);
-		envelopeDefinition.setStatus("sent");
+		envelopeDefinition.setStatus("created");
 
 		EnvelopeSummary summary = envelopesApi.createEnvelope(envelopeDefinition);
 		return summary.getEnvelopeId();
+	}
+
+	/**
+	 * Sends an existing draft envelope.
+	 *
+	 * @param envelopeId the ID of the draft envelope to send
+	 */
+	public void sendEnvelope(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		Envelope envelope = new Envelope();
+		envelope.setStatus("sent");
+		envelopesApi.updateEnvelope(envelopeId, envelope);
 	}
 
 	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
@@ -117,6 +137,113 @@ public class DocuSignClient {
 		return roles;
 	}
 
+	public void voidEnvelope(String envelopeId, String reason) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		ValidateArgument.required(reason, "reason");
+		envelopesApi.voidEnvelope(envelopeId, reason);
+	}
+
+	/*
+	 * Return the status for the given envelope.
+	 * Note, email addresses are omitted from the EDucSignatureStatus DTO though
+	 * they are needed by the caller to determine which (if any) Synapse
+	 * user the signer is, so this method returns the list of email
+	 * addresses alongside the EDucSignatureStatus object.
+	 */
+	public EnvelopeStatusResult getEnvelopeStatus(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
+
+		EDucSignatureStatus status = new EDucSignatureStatus();
+		status.setCreatedOn(parseDate(envelope.getCreatedDateTime()));
+		status.setModifiedOn(parseDate(envelope.getLastModifiedDateTime()));
+		status.setDucStatus(toEDucStatusEnum(envelope.getStatus()));
+
+		List<EDucSignerStatus> signerStatuses = new ArrayList<>();
+		List<String> signerEmails = new ArrayList<>();
+		if (envelope.getRecipients() != null && envelope.getRecipients().getSigners() != null) {
+			for (Signer signer : envelope.getRecipients().getSigners()) {
+				EDucSignerStatus signerStatus = new EDucSignerStatus();
+				signerStatus.setName(signer.getName());
+				signerStatus.setStatus(toEDucSignerStatusEnum(signer.getStatus()));
+				signerStatuses.add(signerStatus);
+				signerEmails.add(signer.getEmail());
+			}
+		}
+		status.setSignerStatus(signerStatuses);
+
+		return new EnvelopeStatusResult(status, signerEmails);
+	}
+
+	public List<Envelope> listEnvelopeStatuses(List<String> envelopeIds) {
+		if (Collections.isEmpty(envelopeIds)) {
+			return List.of();
+		}
+		return envelopesApi.listStatus(envelopeIds);
+	}
+
+	public byte[] getDocument(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		return envelopesApi.getDocument(envelopeId, "combined");
+	}
+	
+	public byte[] getSignedDocument(String envelopeId) {
+		ValidateArgument.required(envelopeId, "envelopeId");
+		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
+		String status = envelope.getStatus();
+		if (!"completed".equalsIgnoreCase(status)) {
+			throw new IllegalArgumentException("Cannot retrieve signed document: envelope status is " + status + ".");
+		}
+		return envelopesApi.getDocument(envelopeId, "combined");
+	}
+
+	public static EDucStatusEnum toEDucStatusEnum(String docuSignStatus) {
+		if (docuSignStatus == null) {
+			return null;
+		}
+		switch (docuSignStatus.toLowerCase()) {
+			case "created":
+				return EDucStatusEnum.draft;
+			case "sent":
+				return EDucStatusEnum.sent;
+			case "delivered":
+				return EDucStatusEnum.delivered;
+			case "completed":
+			case "signed":
+				return EDucStatusEnum.completed;
+			case "declined":
+				return EDucStatusEnum.declined;
+			case "voided":
+				return EDucStatusEnum.voided;
+			case "correct":
+				return EDucStatusEnum.correct;
+			default:
+				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
+		}
+	}
+
+	static EDucSignerStatusEnum toEDucSignerStatusEnum(String docuSignStatus) {
+		if (docuSignStatus == null) {
+			return EDucSignerStatusEnum.pending;
+		}
+		switch (docuSignStatus.toLowerCase()) {
+			case "sent":
+			case "delivered":
+			case "created":
+			case "faxpending":
+				return EDucSignerStatusEnum.pending;
+			case "completed":
+			case "signed":
+				return EDucSignerStatusEnum.done;
+			case "declined":
+				return EDucSignerStatusEnum.declined;
+			case "autoresponded":
+				return EDucSignerStatusEnum.bounced;
+			default:
+				throw new IllegalArgumentException("Unexpected status " + docuSignStatus);
+		}
+	}
+
 	static EDucTemplatePage toEDucTemplatePage(EnvelopeTemplateResults results) {
 		EDucTemplatePage page = new EDucTemplatePage();
 		List<EnvelopeTemplate> templates = results == null ? null : results.getEnvelopeTemplates();
@@ -137,12 +264,12 @@ public class DocuSignClient {
 		out.setTemplateId(t.getTemplateId());
 		out.setName(t.getName());
 		out.setDescription(t.getDescription());
-		out.setCreatedOn(parseDate(t.getCreatedDateTime()));
-		out.setModifiedOn(parseDate(t.getLastModifiedDateTime()));
+		out.setCreatedOn(parseDate(t.getCreated()));
+		out.setModifiedOn(parseDate(t.getLastModified()));
 		return out;
 	}
 
-	static Date parseDate(String iso8601) {
+	public static Date parseDate(String iso8601) {
 		if (iso8601 == null || iso8601.isEmpty()) {
 			return null;
 		}

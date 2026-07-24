@@ -50,6 +50,8 @@ import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.TaskBundle;
 import org.sagebionetworks.repo.model.curation.TaskState;
 import org.sagebionetworks.repo.model.curation.TaskStatus;
+import org.sagebionetworks.repo.model.curation.execution.RecordSetGenerationExecutionProperties;
+import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionProperties;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dbo.curation.CurationTaskDao;
@@ -89,6 +91,8 @@ public class CurationTaskManagerImplUnitTest {
     String fileViewId = "syn456";
     String recordSetId = "syn789";
     String uploadFolderId = "syn1000";
+    Long inputTaskId = 111L;
+    Long destinationTaskId = 222L;
 
     @BeforeEach
     public void setup() {
@@ -746,6 +750,163 @@ public class CurationTaskManagerImplUnitTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
         assertTrue(ex.getMessage().contains("The recordSetId must be a RecordSet."));
+    }
+
+    @Test
+    public void testCreateCurationTaskWithSampleSheetGenerationProperties() {
+        CurationTask task = createSampleSheetGenerationTask();
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.CREATE))).thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getCurationTask(inputTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(inputTaskId).setProjectId(projectId).setTaskProperties(new FileBasedMetadataTaskProperties())));
+        when(mockCurationTaskDao.getCurationTask(destinationTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(destinationTaskId).setProjectId(projectId).setTaskProperties(new RecordBasedMetadataTaskProperties())));
+        CurationTask createdByDao = new CurationTask().setTaskId(999L);
+        when(mockCurationTaskDao.createCurationTask(eq(userId), eq(task))).thenReturn(createdByDao);
+
+        // call under test
+        CurationTask result = curationTaskManager.createCurationTask(userInfo, task);
+
+        assertSame(createdByDao, result);
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithSampleSheetMissingInputTaskId() {
+        CurationTask task = createSampleSheetGenerationTask();
+        ((SampleSheetGenerationExecutionProperties) task.getTaskProperties()).setInputTaskId(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("inputTaskId"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithSampleSheetInputTaskNotFileBased() {
+        CurationTask task = createSampleSheetGenerationTask();
+        // The referenced input task is record-based instead of file-based.
+        when(mockCurationTaskDao.getCurationTask(inputTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(inputTaskId).setTaskProperties(new RecordBasedMetadataTaskProperties())));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("inputTaskId must reference a task with FileBasedMetadataTaskProperties"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithSampleSheetInputTaskNotFound() {
+        CurationTask task = createSampleSheetGenerationTask();
+        when(mockCurationTaskDao.getCurationTask(inputTaskId)).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("inputTaskId task does not exist"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithSampleSheetDestinationTaskNotRecordBased() {
+        CurationTask task = createSampleSheetGenerationTask();
+        when(mockCurationTaskDao.getCurationTask(inputTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(inputTaskId).setProjectId(projectId).setTaskProperties(new FileBasedMetadataTaskProperties())));
+        // The referenced destination task is file-based instead of record-based.
+        when(mockCurationTaskDao.getCurationTask(destinationTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(destinationTaskId).setProjectId(projectId).setTaskProperties(new FileBasedMetadataTaskProperties())));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("destinationTaskId must reference a task with RecordBasedMetadataTaskProperties"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithSampleSheetInputTaskInDifferentProject() {
+        CurationTask task = createSampleSheetGenerationTask();
+        // The referenced input task is the right type but lives in a different project.
+        when(mockCurationTaskDao.getCurationTask(inputTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(inputTaskId).setProjectId("syn999").setTaskProperties(new FileBasedMetadataTaskProperties())));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("inputTaskId must reference a task in the same project"));
+    }
+
+    private CurationTask createSampleSheetGenerationTask() {
+        return new CurationTask()
+                .setProjectId(projectId)
+                .setDataType("sample sheet")
+                .setTaskProperties(new SampleSheetGenerationExecutionProperties()
+                        .setInputTaskId(inputTaskId)
+                        .setDestinationTaskId(destinationTaskId));
+    }
+
+    @Test
+    public void testCreateCurationTaskWithRecordSetGenerationProperties() {
+        CurationTask task = createRecordSetGenerationTask();
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.CREATE))).thenReturn(mockAuthorizationStatus);
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
+        when(mockCurationTaskDao.getCurationTask(destinationTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(destinationTaskId).setProjectId(projectId).setTaskProperties(new RecordBasedMetadataTaskProperties())));
+        CurationTask createdByDao = new CurationTask().setTaskId(999L);
+        when(mockCurationTaskDao.createCurationTask(eq(userId), eq(task))).thenReturn(createdByDao);
+
+        // call under test
+        CurationTask result = curationTaskManager.createCurationTask(userInfo, task);
+
+        assertSame(createdByDao, result);
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithRecordSetGenMissingFolderId() {
+        CurationTask task = createRecordSetGenerationTask();
+        ((RecordSetGenerationExecutionProperties) task.getTaskProperties()).setFolderId(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("folderId"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithRecordSetGenMissingInstructions() {
+        CurationTask task = createRecordSetGenerationTask();
+        ((RecordSetGenerationExecutionProperties) task.getTaskProperties()).setInstructions(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("instructions"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithRecordSetGenFolderIdNotFolder() {
+        CurationTask task = createRecordSetGenerationTask();
+        // The folderId points at an EntityView instead of a Folder.
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.entityview);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("The folderId must be a Folder."));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithRecordSetGenDestinationTaskNotRecordBased() {
+        CurationTask task = createRecordSetGenerationTask();
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
+        // The referenced destination task is file-based instead of record-based.
+        when(mockCurationTaskDao.getCurationTask(destinationTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(destinationTaskId).setProjectId(projectId).setTaskProperties(new FileBasedMetadataTaskProperties())));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("destinationTaskId must reference a task with RecordBasedMetadataTaskProperties"));
+    }
+
+    @Test
+    public void testCreateCurationTaskFailsWithRecordSetGenDestinationTaskInDifferentProject() {
+        CurationTask task = createRecordSetGenerationTask();
+        when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
+        // The referenced destination task is the right type but lives in a different project.
+        when(mockCurationTaskDao.getCurationTask(destinationTaskId)).thenReturn(Optional.of(
+                new CurationTask().setTaskId(destinationTaskId).setProjectId("syn999").setTaskProperties(new RecordBasedMetadataTaskProperties())));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
+        assertTrue(ex.getMessage().contains("destinationTaskId must reference a task in the same project"));
+    }
+
+    private CurationTask createRecordSetGenerationTask() {
+        return new CurationTask()
+                .setProjectId(projectId)
+                .setDataType("recordset")
+                .setTaskProperties(new RecordSetGenerationExecutionProperties()
+                        .setFolderId(uploadFolderId)
+                        .setInstructions("One row per file; sample = file name without extension.")
+                        .setDestinationTaskId(destinationTaskId));
     }
 
     private CurationTask createCurationTask() {

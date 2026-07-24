@@ -74,6 +74,32 @@ public interface OpenSearchManager {
 	void deleteIndex(String indexName);
 
 	/**
+	 * Resolve the concrete index a query alias currently points at. Blue-green rebuilds query
+	 * a stable alias while documents are streamed into an inactive physical index, so this is
+	 * how a build discovers which physical index is currently live (and therefore which slot to
+	 * build into and repoint away from).
+	 *
+	 * @param aliasName The alias name.
+	 * @return The single concrete index the alias resolves to, or empty when the alias does not
+	 *         exist yet (the first build).
+	 * @throws IllegalStateException when the alias resolves to more than one concrete index — the
+	 *         blue-green invariant is exactly one live index per alias.
+	 */
+	Optional<String> getAliasTarget(String aliasName);
+
+	/**
+	 * Atomically repoint a query alias from its current concrete index to a newly-built one.
+	 * The remove of {@code oldPhysicalIndex} (when present) and the add of {@code newPhysicalIndex}
+	 * are submitted as a single update-aliases action list so queries never observe an alias that
+	 * points at zero indices.
+	 *
+	 * @param aliasName        The alias name queries target.
+	 * @param newPhysicalIndex The freshly-built, writable index the alias should point at.
+	 * @param oldPhysicalIndex The currently-live index to detach, or empty on the first build.
+	 */
+	void swapAlias(String aliasName, String newPhysicalIndex, Optional<String> oldPhysicalIndex);
+
+	/**
 	 * Bulk index a batch of documents into the OpenSearch index.
 	 *
 	 * <p><b>Idempotency requirement:</b> every {@link BulkOperation} passed to this method

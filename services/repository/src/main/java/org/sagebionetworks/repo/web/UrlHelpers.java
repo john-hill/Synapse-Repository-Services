@@ -1180,7 +1180,11 @@ public class UrlHelpers {
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID +"/dataAccessRequestForUpdate";
 
 	public static final String DATA_ACCESS_REQUEST_ID_SUBMISSION = DATA_ACCESS_REQUEST+"/{requestId}/submission";
+	public static final String DATA_ACCESS_REQUEST_LIST = DATA_ACCESS_REQUEST + "/list";
+	public static final String DATA_ACCESS_REQUEST_ID_PREVIEW = DATA_ACCESS_REQUEST + "/{requestId}/preview";
 	public static final String DATA_ACCESS_REQUEST_ID_SIGNATURE = DATA_ACCESS_REQUEST + "/{requestId}/signature";
+	public static final String DATA_ACCESS_REQUEST_ID_SIGNATURE_STATUS = DATA_ACCESS_REQUEST_ID_SIGNATURE + "/status";
+	public static final String DATA_ACCESS_REQUEST_ID_SIGNATURE_FILE_HANDLE = DATA_ACCESS_REQUEST_ID_SIGNATURE + "/filehandleId";
 	public static final String DATA_ACCESS_SUBMISSION = "/dataAccessSubmission";
 	public static final String DATA_ACCESS_SUBMISSION_ID = DATA_ACCESS_SUBMISSION + "/{submissionId}";
 	public static final String USER_ACCESS_APPROVAL_FOR_SUBMISSION = DATA_ACCESS_SUBMISSION_ID + "/userAccessApproval";
@@ -1200,7 +1204,8 @@ public class UrlHelpers {
 
 	// Electronic Data Use Certificate (eDUC) services
 	public static final String EDUC_TEMPLATE = "/eDuc/template";
-	
+	public static final String EDUC_TEMPLATE_VALIDATE = "/eDuc/template/{templateId}/validation";
+
 	// Statistics Services
 	public static final String STATISTICS = "/statistics";
 

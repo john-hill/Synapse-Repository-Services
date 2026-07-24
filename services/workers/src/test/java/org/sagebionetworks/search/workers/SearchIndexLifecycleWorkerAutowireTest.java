@@ -17,7 +17,6 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import org.junit.jupiter.api.Disabled;
 import org.sagebionetworks.repo.model.search.dsl.MatchAllQuery;
 import org.sagebionetworks.repo.model.search.dsl.Query;
 import org.junit.jupiter.api.AfterEach;
@@ -79,7 +78,6 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
  *
  * <p>Live against the Tomcat + MySQL + AOSS stack via {@code test-context.xml}.
  */
-@Disabled("Disabled because OpenSearch returns 504 sporadically")
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = {"classpath:test-context.xml"})
 public class SearchIndexLifecycleWorkerAutowireTest {

@@ -124,6 +124,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static int GET_ALIAS_MAX_RETRIES = 10;
 	static long GET_ALIAS_INITIAL_BACKOFF_MS = 1000L;
 
+	// Retry budget for the deleteIndex transport call. Deletion runs on both the build's
+	// demoted-slot cleanup and the lifecycle delete path, and can hit the same transient
+	// read timeout / IOException or 429/402/5xx as createIndex; those are retried so a
+	// single blip doesn't leave an index orphaned or fail the caller outright. A missing
+	// index (404) is treated as already-deleted; a concurrent-delete conflict is rethrown
+	// unwrapped for the caller to translate into a recoverable retry.
+	static int DELETE_INDEX_MAX_RETRIES = 10;
+	static long DELETE_INDEX_INITIAL_BACKOFF_MS = 1000L;
+
 	// Cleanup retry for the readiness-probe sentinel. AOSS doesn't honor refresh=wait_for,
 	// so a single delete that fails on a transient network blip would orphan the sentinel
 	// (visible only to MATCH_ALL queries since _row_id = -1 cannot collide with real ids,
@@ -495,20 +504,35 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@Override
 	public void deleteIndex(String indexName) {
 		try {
-			openSearchClient.indices().delete(req -> req.index(indexName));
-		} catch (OpenSearchException e) {
-			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
-				return;
-			}
-			// Concurrent deletes: rethrow the OpenSearchException (a RuntimeException)
-			// unwrapped so callers can recognize this case via isConcurrentDeleteError
-			// and translate to a recoverable SQS retry.
-			if (isConcurrentDeleteError(e)) {
-				throw e;
-			}
-			throw new RuntimeException("Failed to delete search index: " + indexName
-					+ " (" + describeError(e.error()) + ")", e);
-		} catch (IOException e) {
+			TimeUtils.waitForExponentialMaxRetry(DELETE_INDEX_MAX_RETRIES,
+					DELETE_INDEX_INITIAL_BACKOFF_MS, () -> {
+				try {
+					openSearchClient.indices().delete(req -> req.index(indexName));
+					return Boolean.TRUE;
+				} catch (OpenSearchException e) {
+					if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
+						return Boolean.TRUE;
+					}
+					// Concurrent deletes: rethrow the OpenSearchException (a RuntimeException)
+					// unwrapped so callers can recognize this case via isConcurrentDeleteError
+					// and translate to a recoverable SQS retry.
+					if (isConcurrentDeleteError(e)) {
+						throw e;
+					}
+					if (isRetryableItemStatus(e.status())) {
+						throw new RetryException(e);
+					}
+					throw new RuntimeException("Failed to delete search index: " + indexName
+							+ " (" + describeError(e.error()) + ")", e);
+				} catch (IOException e) {
+					throw new RetryException(e);
+				}
+			});
+		} catch (RetryException e) {
+			throw new RuntimeException("Failed to delete search index: " + indexName, e.getCause());
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
 			throw new RuntimeException("Failed to delete search index: " + indexName, e);
 		}
 	}

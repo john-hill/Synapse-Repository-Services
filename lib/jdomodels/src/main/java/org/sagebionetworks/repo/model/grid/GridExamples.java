@@ -105,7 +105,7 @@ public class GridExamples {
 								.setFilters(List.of(new CellValueFilter().setColumnName("color")
 										.setOperator(CellValueOperator.IN)
 										.setValue(new JSONArray(List.of("red", "green")))))
-								.setLimit(50L))),
+								.setLimit(5L))),
 
 				query("Count the currently selected rows whose validation error message contains 'expected type' "
 						+ "(SQL LIKE pattern using % wildcards).",
@@ -198,7 +198,7 @@ public class GridExamples {
 						+ "strings (which won't match the pattern).",
 						new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
 								.setSet(List.of(new TemplateSetValue().setColumnName("domain")
-										.setSourceTemplate("{email}").setPattern("@(.+)$")
+										.setSourceTemplate("{email}").setPattern("^.*@(.+)$")
 										.setOnMatchFailure(OnMatchFailure.SET_NULL)
 										.setOnMissingValue(OnMissingValue.USE_EMPTY_STRING)))
 								.setFilters(List.of(new CellValueFilter().setColumnName("email")

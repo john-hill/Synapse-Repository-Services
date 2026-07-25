@@ -96,6 +96,7 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
+import org.sagebionetworks.repo.model.grid.query.result.Row;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
 import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
@@ -1970,9 +1971,13 @@ public class GridManagerUnitTest {
 	}
 
 	private RowView buildRowView(long rep, long seq) {
+		return buildRowView(rep, seq, new JSONObject());
+	}
+
+	private RowView buildRowView(long rep, long seq, JSONObject rowJsonDocument) {
 		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(rep).setSequenceNumber(seq);
 		return new RowView().setRowObject(
-				new RowObject().setData(new RowData().setVectorId(vectorId).setRowJsonDocument(new JSONObject())));
+				new RowObject().setData(new RowData().setVectorId(vectorId).setRowJsonDocument(rowJsonDocument)));
 	}
 
 	private JSONObject buildRawUpdate(String columnName, Object value) {
@@ -2090,6 +2095,182 @@ public class GridManagerUnitTest {
 
 		assertEquals(0L, count);
 		verify(mockPatchBuilderPublisher, never()).sendChangesToPatchBuilder(any());
+	}
+
+	// ─── executeGridUpdatePreview ─────────────────────────────────────────────────
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithValidUpdate() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("colA", "newValue");
+		List<RowView> rows = List.of(buildRowView(1L, 1L), buildRowView(1L, 2L));
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(rows.iterator());
+		when(mockSetValueProcessorFactory.createConValue(any(), any(), any()))
+				.thenReturn(Optional.of(new ConValue(ConType.STRING, "newValue")));
+
+		// call under test
+		List<Row> preview = gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		assertEquals(2, preview.size());
+		assertEquals("1.1", preview.get(0).getRowId());
+		assertEquals("newValue", ((JSONObject) preview.get(0).getData()).get("colA"));
+		assertEquals("1.2", preview.get(1).getRowId());
+		assertEquals("newValue", ((JSONObject) preview.get(1).getData()).get("colA"));
+		// A preview must never publish a change.
+		verify(mockPatchBuilderPublisher, never()).sendChangesToPatchBuilder(any());
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewPrePopulatesUnchangedCells() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("colA", "newValue");
+		// The row already has a value in the untouched column colB.
+		JSONObject currentRow = new JSONObject().put("colA", "oldValue").put("colB", "keepMe");
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(List.of(buildRowView(1L, 1L, currentRow)).iterator());
+		when(mockSetValueProcessorFactory.createConValue(any(), any(), any()))
+				.thenReturn(Optional.of(new ConValue(ConType.STRING, "newValue")));
+
+		// call under test
+		List<Row> preview = gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		assertEquals(1, preview.size());
+		JSONObject data = (JSONObject) preview.get(0).getData();
+		assertEquals("newValue", data.get("colA"));
+		// The untouched column is carried through so the preview shows the whole resulting row.
+		assertEquals("keepMe", data.get("colB"));
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithNullValue() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("colA", "ignored");
+		JSONObject currentRow = new JSONObject().put("colA", "oldValue");
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(List.of(buildRowView(1L, 1L, currentRow)).iterator());
+		when(mockSetValueProcessorFactory.createConValue(any(), any(), any()))
+				.thenReturn(Optional.of(new ConValue(ConType.NULL, JSONObject.NULL)));
+
+		// call under test
+		List<Row> preview = gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		assertEquals(1, preview.size());
+		JSONObject data = (JSONObject) preview.get(0).getData();
+		// A NULL set value renders as an explicit JSON null, overwriting the current value.
+		assertTrue(data.has("colA"));
+		assertTrue(data.isNull("colA"));
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithUndefinedValue() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("colA", "ignored");
+		JSONObject currentRow = new JSONObject().put("colA", "oldValue").put("colB", "keepMe");
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(List.of(buildRowView(1L, 1L, currentRow)).iterator());
+		when(mockSetValueProcessorFactory.createConValue(any(), any(), any()))
+				.thenReturn(Optional.of(new ConValue(ConType.UNDEFINED, null)));
+
+		// call under test
+		List<Row> preview = gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		assertEquals(1, preview.size());
+		JSONObject data = (JSONObject) preview.get(0).getData();
+		// An UNDEFINED set value removes the cell entirely (undefined == key absent).
+		assertFalse(data.has("colA"));
+		// Other columns are untouched.
+		assertEquals("keepMe", data.get("colB"));
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithSkippedRow() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("colA", "newValue");
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(List.of(buildRowView(1L, 1L), buildRowView(1L, 2L)).iterator());
+		when(mockSetValueProcessorFactory.createConValue(any(), any(), any()))
+				.thenReturn(Optional.of(new ConValue(ConType.STRING, "newValue")))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		List<Row> preview = gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		// The skipped row is excluded from the preview.
+		assertEquals(1, preview.size());
+		assertEquals("1.1", preview.get(0).getRowId());
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithNoLimitCapsAtTen() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("colA", "newValue"); // no limit set
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(Collections.emptyIterator());
+
+		// call under test
+		gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		ArgumentCaptor<QueryElement> queryCaptor = ArgumentCaptor.forClass(QueryElement.class);
+		verify(mockGridReplicaViewManager).getQueryIterator(eq(header), queryCaptor.capture());
+		assertEquals(10L, (long) queryCaptor.getValue().getLimit());
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithSmallerLimitHonored() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = JDOSecondaryPropertyUtils.createJSONObjectForEntity(new Update()
+				.setSet(List.of(new LiteralSetValue().setColumnName("colA").setValue("newValue"))).setLimit(5L));
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(Collections.emptyIterator());
+
+		// call under test
+		gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		ArgumentCaptor<QueryElement> queryCaptor = ArgumentCaptor.forClass(QueryElement.class);
+		verify(mockGridReplicaViewManager).getQueryIterator(eq(header), queryCaptor.capture());
+		// A caller limit below the preview cap is honored as-is.
+		assertEquals(5L, (long) queryCaptor.getValue().getLimit());
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithLargeLimitCappedAtTen() throws Exception {
+		GridHeader header = buildUpdateHeader();
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = JDOSecondaryPropertyUtils.createJSONObjectForEntity(new Update()
+				.setSet(List.of(new LiteralSetValue().setColumnName("colA").setValue("newValue"))).setLimit(50L));
+		when(mockGridReplicaViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
+				.thenReturn(Collections.emptyIterator());
+
+		// call under test
+		gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+
+		ArgumentCaptor<QueryElement> queryCaptor = ArgumentCaptor.forClass(QueryElement.class);
+		verify(mockGridReplicaViewManager).getQueryIterator(eq(header), queryCaptor.capture());
+		// A caller limit above the preview cap is clamped down to 10.
+		assertEquals(10L, (long) queryCaptor.getValue().getLimit());
+	}
+
+	@Test
+	public void testExecuteGridUpdatePreviewWithUnknownColumnName() throws Exception {
+		GridHeader header = buildUpdateHeader(); // has colA and colB
+		GridConnectionInfo connection = new GridConnectionInfo().setReplicaId(replicaId).setConnectionId("conn1");
+		JSONObject rawUpdate = buildRawUpdate("unknownCol", "value");
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.executeGridUpdatePreview(header, connection, rawUpdate);
+		}).getMessage();
+
+		assertEquals("Column name: unknownCol not found.", message);
+		verify(mockGridReplicaViewManager, never()).getQueryIterator(any(), any(QueryElement.class));
 	}
 
 	// ─── updateGrid ──────────────────────────────────────────────────────────────

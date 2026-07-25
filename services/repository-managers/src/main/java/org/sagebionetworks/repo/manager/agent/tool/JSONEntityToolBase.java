@@ -74,7 +74,7 @@ public abstract class JSONEntityToolBase {
 		}
 	}
 
-	public final List<ToolCallback> getToolCallbacks() {
+	public List<ToolCallback> getToolCallbacks() {
 		return callbacks;
 	}
 

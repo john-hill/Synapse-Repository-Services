@@ -147,6 +147,7 @@ public class OpenSearchManagerImplTest {
 	private long originalSentinelCleanupInitialBackoffMs;
 	private long originalCreateIndexInitialBackoffMs;
 	private long originalGetAliasInitialBackoffMs;
+	private long originalDeleteIndexInitialBackoffMs;
 
 	@BeforeEach
 	public void setUp() {
@@ -162,6 +163,8 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS = 1L;
 		originalGetAliasInitialBackoffMs = OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS = 1L;
+		originalDeleteIndexInitialBackoffMs = OpenSearchManagerImpl.DELETE_INDEX_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.DELETE_INDEX_INITIAL_BACKOFF_MS = 1L;
 	}
 
 	@AfterEach
@@ -171,6 +174,7 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
 		OpenSearchManagerImpl.CREATE_INDEX_INITIAL_BACKOFF_MS = originalCreateIndexInitialBackoffMs;
 		OpenSearchManagerImpl.GET_ALIAS_INITIAL_BACKOFF_MS = originalGetAliasInitialBackoffMs;
+		OpenSearchManagerImpl.DELETE_INDEX_INITIAL_BACKOFF_MS = originalDeleteIndexInitialBackoffMs;
 	}
 
 	/**
@@ -1048,6 +1052,26 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testCreateIndexWithTransient504RetriesThenSucceeds() throws IOException {
+		String indexName = "search-index-syn1";
+		OpenSearchException gatewayTimeout = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(ErrorCause.of(c -> c.type("http_exception")
+						.reason("server returned 504"))).status(504)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(argThat((CreateIndexRequest req) -> indexName.equals(req.index()))))
+				.thenThrow(gatewayTimeout)
+				.thenReturn(org.opensearch.client.opensearch.indices.CreateIndexResponse.of(
+						r -> r.acknowledged(true).shardsAcknowledged(true).index(indexName)));
+
+		// call under test
+		Optional<String> result = manager.createIndex(indexName, Collections.emptyList(), null,
+				Collections.emptyList(), Collections.emptyMap(), 0, 1, 0);
+
+		assertTrue(result.isPresent());
+		verify(indicesClient, times(2)).create(any(CreateIndexRequest.class));
+	}
+
+	@Test
 	public void testCreateIndexWithDuplicateColumnNamesUsesFirst() throws IOException {
 		// Two columns share a name: the nameToId toMap merge function keeps the first id and
 		// must not throw on the duplicate key.
@@ -1139,9 +1163,9 @@ public class OpenSearchManagerImplTest {
 	@Test
 	public void testDeleteIndexWithOpenSearchExceptionThrowsRuntime() throws IOException {
 		String indexName = "search-index-syn1";
-		ErrorCause cause = ErrorCause.of(c -> c.type("internal_server_error").reason("boom"));
+		ErrorCause cause = ErrorCause.of(c -> c.type("illegal_argument_exception").reason("boom"));
 		OpenSearchException openSearchException = new OpenSearchException(
-				ErrorResponse.of(er -> er.error(cause).status(500)));
+				ErrorResponse.of(er -> er.error(cause).status(400)));
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		when(indicesClient.delete(ArgumentMatchers.<java.util.function.Function>any())).thenThrow(openSearchException);
 
@@ -1152,6 +1176,24 @@ public class OpenSearchManagerImplTest {
 		assertEquals(openSearchException, ex.getCause());
 		assertEquals("Failed to delete search index: " + indexName
 				+ " (" + OpenSearchManagerImpl.describeError(cause) + ")", ex.getMessage());
+	}
+
+	@Test
+	public void testDeleteIndexWithTransient504RetriesThenSucceeds() throws IOException {
+		String indexName = "search-index-syn1";
+		OpenSearchException gatewayTimeout = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(ErrorCause.of(c -> c.type("http_exception")
+						.reason("server returned 504"))).status(504)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.delete(ArgumentMatchers.<java.util.function.Function>any()))
+				.thenThrow(gatewayTimeout)
+				.thenReturn(org.opensearch.client.opensearch.indices.DeleteIndexResponse.of(
+						r -> r.acknowledged(true)));
+
+		// call under test
+		manager.deleteIndex(indexName);
+
+		verify(indicesClient, times(2)).delete(ArgumentMatchers.<java.util.function.Function>any());
 	}
 
 	@Test
@@ -1224,6 +1266,23 @@ public class OpenSearchManagerImplTest {
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any()))
 				.thenThrow(new IOException("read timed out"))
+				.thenReturn(response);
+
+		// call under test
+		assertEquals(Optional.of("search-index-syn1-a"), manager.getAliasTarget("search-index-syn1"));
+		verify(indicesClient, times(2)).getAlias(ArgumentMatchers.<java.util.function.Function>any());
+	}
+
+	@Test
+	public void testGetAliasTargetWithTransient504RetriesThenSucceeds() throws IOException {
+		GetAliasResponse response = GetAliasResponse.of(r -> r
+				.putResult("search-index-syn1-a", IndexAliases.of(ia -> ia.aliases(Collections.emptyMap()))));
+		OpenSearchException gatewayTimeout = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(ErrorCause.of(c -> c.type("http_exception")
+						.reason("server returned 504"))).status(504)));
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.getAlias(ArgumentMatchers.<java.util.function.Function>any()))
+				.thenThrow(gatewayTimeout)
 				.thenReturn(response);
 
 		// call under test
@@ -2508,8 +2567,9 @@ assertNull(request.collapse(), "collapse must be null when not supplied");
 
 	@Test
 	public void testIsRetryableItemStatusZero() {
-		// 0 isn't a real HTTP status; the bulk path handles 0 separately, so this returns false.
-		assertFalse(OpenSearchManagerImpl.isRetryableItemStatus(0));
+		// status()==0 means the transport produced no HTTP response (a connection-level failure);
+		// it is treated as transient and retryable, the same as a 5xx.
+		assertTrue(OpenSearchManagerImpl.isRetryableItemStatus(0));
 	}
 
 	// ===================== branch coverage: describeError / appendErrorCauseDetail =====================

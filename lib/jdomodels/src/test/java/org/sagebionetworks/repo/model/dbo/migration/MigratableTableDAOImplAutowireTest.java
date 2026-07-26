@@ -427,6 +427,37 @@ public class MigratableTableDAOImplAutowireTest {
 		count = migratableTableDAO.deleteByRange(typeData, minId, maxId+1);
 		assertEquals(1, count);
 	}
+
+	/**
+	 * PLFM-9844: a backup manifest produced before a backup-id column rename carries the source
+	 * stack's old column name. The delete must run against this stack's live column, not the
+	 * name supplied in the manifest's TypeData.
+	 */
+	@Test
+	public void testDeleteByRangeWithRenamedBackupIdColumn() {
+		List<Long> ids = new LinkedList<>();
+		ColumnModel one = new ColumnModel();
+		one.setColumnType(ColumnType.INTEGER);
+		one.setName("one");
+		one = columnModelDao.createColumnModel(one);
+		ids.add(Long.parseLong(one.getId()));
+
+		ColumnModel two = new ColumnModel();
+		two.setColumnType(ColumnType.INTEGER);
+		two.setName("two");
+		two = columnModelDao.createColumnModel(two);
+		ids.add(Long.parseLong(two.getId()));
+
+		long minId = ids.get(0);
+		long maxId = ids.get(1);
+		// A stale/renamed backup-id column name, as it would arrive in a source stack's manifest.
+		TypeData staleTypeData = new TypeData().setMigrationType(MigrationType.COLUMN_MODEL.name())
+				.setBackupIdColumnName("MATERIALIZED_VIEW_ID");
+		// call under test
+		int count = migratableTableDAO.deleteByRange(staleTypeData, minId, maxId);
+		// The delete targeted the live ID column despite the stale name in the TypeData.
+		assertEquals(2, count);
+	}
 	
 	@Test
 	public void testCreateOrUpdate() {

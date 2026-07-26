@@ -491,7 +491,6 @@ public class GridReplicaViewManagerImplAutowireTest {
 				assertEquals(expected, filtered, String.format("For: columnName: '%s', type: '%s',  value: %s",
 						cm.getName(), cm.getColumnType().name(), value));
 			}
-
 		}
 	}
 

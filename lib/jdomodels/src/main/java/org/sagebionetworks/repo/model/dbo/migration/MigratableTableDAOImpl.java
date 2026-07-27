@@ -601,8 +601,9 @@ public class MigratableTableDAOImpl implements MigratableTableDAO {
 		ValidateArgument.required(type, "MigrationType");
 		// Foreign Keys must be ignored for this operation.
 		return this.runWithKeyChecksIgnored(() -> {
-			String deleteSQLTemplate = this.deleteByRangeMap.get(MigrationType.valueOf(type.getMigrationType()));
-			String sql = String.format(deleteSQLTemplate, type.getBackupIdColumnName());
+			// The MigrationType key is stable across stacks; the SQL (including the backup-id column)
+			// is built from this stack's live table mapping, so a renamed column restores correctly.
+			String sql = this.deleteByRangeMap.get(MigrationType.valueOf(type.getMigrationType()));
 			NamedParameterJdbcTemplate namedTemplate = new NamedParameterJdbcTemplate(jdbcTemplate);
 			Map<String, Object> parameters = new HashMap<>(2);
 			parameters.put(DMLUtils.BIND_MIN_ID, minimumId);

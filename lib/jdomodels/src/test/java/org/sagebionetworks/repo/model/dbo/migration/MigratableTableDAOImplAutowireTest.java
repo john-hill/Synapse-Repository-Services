@@ -435,27 +435,24 @@ public class MigratableTableDAOImplAutowireTest {
 	 */
 	@Test
 	public void testDeleteByRangeWithRenamedBackupIdColumn() {
+		// FILE_HANDLE is truncated before/after each test, so its ids are isolated and predictable.
+		idGenerator.reserveId(10L, IdType.FILE_IDS);
+		fileHandleDao.truncateTable();
 		List<Long> ids = new LinkedList<>();
-		ColumnModel one = new ColumnModel();
-		one.setColumnType(ColumnType.INTEGER);
-		one.setName("one");
-		one = columnModelDao.createColumnModel(one);
-		ids.add(Long.parseLong(one.getId()));
+		for (int i = 0; i < 3; i++) {
+			S3FileHandle file = TestUtils.createS3FileHandle(creatorUserGroupId, "" + i);
+			file = (S3FileHandle) fileHandleDao.createFile(file);
+			ids.add(Long.parseLong(file.getId()));
+		}
 
-		ColumnModel two = new ColumnModel();
-		two.setColumnType(ColumnType.INTEGER);
-		two.setName("two");
-		two = columnModelDao.createColumnModel(two);
-		ids.add(Long.parseLong(two.getId()));
-
-		long minId = ids.get(0);
-		long maxId = ids.get(1);
 		// A stale/renamed backup-id column name, as it would arrive in a source stack's manifest.
-		TypeData staleTypeData = new TypeData().setMigrationType(MigrationType.COLUMN_MODEL.name())
+		// Before the fix this drove the DELETE column name, producing a BadSqlGrammarException against
+		// the live FILES table; now the column is derived from this stack's live mapping (ID).
+		TypeData staleTypeData = new TypeData().setMigrationType(MigrationType.FILE_HANDLE.name())
 				.setBackupIdColumnName("MATERIALIZED_VIEW_ID");
 		// call under test
-		int count = migratableTableDAO.deleteByRange(staleTypeData, minId, maxId);
-		// The delete targeted the live ID column despite the stale name in the TypeData.
+		int count = migratableTableDAO.deleteByRange(staleTypeData, ids.get(0), ids.get(1));
+		// The delete ran against the live ID column: the first two rows fall in the range, the third does not.
 		assertEquals(2, count);
 	}
 	

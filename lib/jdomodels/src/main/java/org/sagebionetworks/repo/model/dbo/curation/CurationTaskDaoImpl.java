@@ -63,20 +63,24 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
         this.idGenerator = idGenerator;
     }
 
-    private static final RowMapper<CurationTask> CURATION_TASK_ROW_MAPPER = (rs, rowNum) ->
-            new CurationTask().setTaskId(rs.getLong(COL_CURATION_TASK_ID))
-                    .setDataType(rs.getString(COL_CURATION_TASK_DATA_TYPE))
-                    .setProjectId(KeyFactory.keyToString(rs.getLong(COL_CURATION_TASK_PROJECT_ID)))
-                    .setInstructions(rs.getString(COL_CURATION_TASK_INSTRUCTIONS))
-                    .setEtag(rs.getString(COL_CURATION_TASK_ETAG))
-                    .setCreatedBy(rs.getString(COL_CURATION_TASK_CREATED_BY))
-                    .setCreatedOn(new Date(rs.getTimestamp(COL_CURATION_TASK_CREATED_ON).getTime()))
-                    .setModifiedBy(rs.getString(COL_CURATION_TASK_MODIFIED_BY))
-                    .setModifiedOn(new Date(rs.getTimestamp(COL_CURATION_TASK_MODIFIED_ON).getTime()))
-                    .setTaskProperties(
-                            JDOSecondaryPropertyUtils.createObjectFromJSON(CurationTaskProperties.class, rs.getString(COL_CURATION_TASK_TASK_PROPERTIES))
-                    )
-                    .setAssigneePrincipalId(rs.getString(COL_CURATION_TASK_ASSIGNEE));
+    private static final RowMapper<CurationTask> CURATION_TASK_ROW_MAPPER = (rs, rowNum) -> {
+        CurationTaskProperties taskProperties = JDOSecondaryPropertyUtils.createObjectFromJSON(
+                CurationTaskProperties.class, rs.getString(COL_CURATION_TASK_TASK_PROPERTIES));
+        Timestamp dueDate = rs.getTimestamp(COL_CURATION_TASK_DUE_DATE);
+        taskProperties.setDueDate(dueDate != null ? new Date(dueDate.getTime()) : null);
+        return new CurationTask()
+                .setTaskId(rs.getLong(COL_CURATION_TASK_ID))
+                .setDataType(rs.getString(COL_CURATION_TASK_DATA_TYPE))
+                .setProjectId(KeyFactory.keyToString(rs.getLong(COL_CURATION_TASK_PROJECT_ID)))
+                .setInstructions(rs.getString(COL_CURATION_TASK_INSTRUCTIONS))
+                .setEtag(rs.getString(COL_CURATION_TASK_ETAG))
+                .setCreatedBy(rs.getString(COL_CURATION_TASK_CREATED_BY))
+                .setCreatedOn(new Date(rs.getTimestamp(COL_CURATION_TASK_CREATED_ON).getTime()))
+                .setModifiedBy(rs.getString(COL_CURATION_TASK_MODIFIED_BY))
+                .setModifiedOn(new Date(rs.getTimestamp(COL_CURATION_TASK_MODIFIED_ON).getTime()))
+                .setTaskProperties(taskProperties)
+                .setAssigneePrincipalId(rs.getString(COL_CURATION_TASK_ASSIGNEE));
+    };
 
     private static final RowMapper<TaskStatus> TASK_STATUS_ROW_MAPPER = (rs, rowNum) -> {
         String executionDetailsJson = rs.getString(COL_CURATION_TASK_EXECUTION_DETAILS);
@@ -85,14 +89,12 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 : null;
         Long stateUpdatedBy = rs.getObject(COL_CURATION_TASK_STATE_UPDATED_BY, Long.class);
         Timestamp stateUpdatedOn = rs.getTimestamp(COL_CURATION_TASK_STATE_UPDATED_ON);
-        Timestamp dueDate = rs.getTimestamp(COL_CURATION_TASK_DUE_DATE);
         return new TaskStatus()
                 .setTaskId(rs.getLong(COL_CURATION_TASK_ID))
                 .setState(TaskState.valueOf(rs.getString(COL_CURATION_TASK_STATE)))
                 .setExecutionDetails(executionDetails)
                 .setLastUpdatedBy(stateUpdatedBy != null ? stateUpdatedBy.toString() : null)
                 .setLastUpdatedOn(stateUpdatedOn != null ? new Date(stateUpdatedOn.getTime()) : null)
-                .setDueDate(dueDate != null ? new Date(dueDate.getTime()) : null)
                 .setEtag(rs.getString(COL_CURATION_TASK_ETAG));
     };
 
@@ -114,10 +116,11 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 + COL_CURATION_TASK_INSTRUCTIONS + ", "
                 + COL_CURATION_TASK_TASK_PROPERTIES + ", "
                 + COL_CURATION_TASK_ASSIGNEE + ", "
+                + COL_CURATION_TASK_DUE_DATE + ", "
                 + COL_CURATION_TASK_CREATED_ON + ", "
                 + COL_CURATION_TASK_MODIFIED_ON + ", "
                 + COL_CURATION_TASK_ETAG
-                + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), UUID())";
+                + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), UUID())";
 
         Long id = idGenerator.generateNewId(IdType.CURATION_TASK_ID);
 
@@ -132,7 +135,8 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                     dbo.getProjectId(),
                     dbo.getInstructions(),
                     dbo.getTaskPropertiesJson(),
-                    dbo.getAssigneeId()
+                    dbo.getAssigneeId(),
+                    dbo.getDueDate()
             );
         } catch (DuplicateKeyException e) {
             handleUniquenessConstraintViolation(e);
@@ -158,7 +162,8 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 + COL_CURATION_TASK_DATA_TYPE + " = ?, "
                 + COL_CURATION_TASK_INSTRUCTIONS + " = ?, "
                 + COL_CURATION_TASK_TASK_PROPERTIES + " = ?, "
-                + COL_CURATION_TASK_ASSIGNEE + " = ? "
+                + COL_CURATION_TASK_ASSIGNEE + " = ?, "
+                + COL_CURATION_TASK_DUE_DATE + " = ? "
                 + "WHERE " + COL_CURATION_TASK_ID + " = ? ";
 
         try {
@@ -169,6 +174,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                     dbo.getInstructions(),
                     dbo.getTaskPropertiesJson(),
                     dbo.getAssigneeId(),
+                    dbo.getDueDate(),
                     dbo.getId());
         } catch (DuplicateKeyException e) {
             handleUniquenessConstraintViolation(e);
@@ -206,7 +212,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     public TaskStatus getTaskStatus(Long taskId) {
         try {
             return jdbcTemplate.queryForObject(
-                    "SELECT ID, STATE, EXECUTION_DETAILS, STATE_UPDATED_BY, STATE_UPDATED_ON, DUE_DATE, ETAG"
+                    "SELECT ID, STATE, EXECUTION_DETAILS, STATE_UPDATED_BY, STATE_UPDATED_ON, ETAG"
                             + " FROM CURATION_TASK WHERE ID = ?",
                     TASK_STATUS_ROW_MAPPER, taskId);
         } catch (EmptyResultDataAccessException e) {
@@ -228,17 +234,12 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 ? JDOSecondaryPropertyUtils.createJSONFromObject(statusUpdate.getExecutionDetails())
                 : null;
 
-        Timestamp dueDate = statusUpdate.getDueDate() != null
-                ? new Timestamp(statusUpdate.getDueDate().getTime())
-                : null;
-
         jdbcTemplate.update(
-                "UPDATE CURATION_TASK SET STATE = ?, EXECUTION_DETAILS = ?, DUE_DATE = ?,"
+                "UPDATE CURATION_TASK SET STATE = ?, EXECUTION_DETAILS = ?,"
                         + " STATE_UPDATED_BY = ?, STATE_UPDATED_ON = NOW(3), ETAG = UUID()"
                         + " WHERE ID = ?",
                 statusUpdate.getState().name(),
                 executionDetailsJson,
-                dueDate,
                 userId,
                 taskId);
 
@@ -313,15 +314,26 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     }
 
     private static DBOCurationTask mapToDbo(CurationTask dto) {
+        CurationTaskProperties props = dto.getTaskProperties();
+        // Strip dueDate before JSON serialization; it is stored in its own column, not in the JSON blob.
+        Date dueDate = props != null ? props.getDueDate() : null;
+        if (dueDate != null) {
+            props.setDueDate(null);
+        }
+        String taskPropertiesJson = JDOSecondaryPropertyUtils.createJSONFromObject(props);
+        if (dueDate != null) {
+            props.setDueDate(dueDate);
+        }
+
         DBOCurationTask dbo = new DBOCurationTask()
                 .setId(dto.getTaskId())
                 .setDataType(dto.getDataType())
                 .setProjectId(KeyFactory.stringToKey(dto.getProjectId()))
                 .setInstructions(dto.getInstructions())
                 .setEtag(dto.getEtag())
-                .setTaskPropertiesJson(JDOSecondaryPropertyUtils.createJSONFromObject(dto.getTaskProperties()))
-                .setAssigneeId(dto.getAssigneePrincipalId() != null? Long.parseLong(dto.getAssigneePrincipalId()):null)
-                ;
+                .setTaskPropertiesJson(taskPropertiesJson)
+                .setAssigneeId(dto.getAssigneePrincipalId() != null ? Long.parseLong(dto.getAssigneePrincipalId()) : null)
+                .setDueDate(dueDate != null ? new Timestamp(dueDate.getTime()) : null);
         if (dto.getCreatedBy() != null) {
             dbo.setCreatedBy(Long.parseLong(dto.getCreatedBy()));
         }

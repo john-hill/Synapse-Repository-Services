@@ -2,9 +2,12 @@ package org.sagebionetworks.repo.manager.agent.supervisor;
 
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySpecialistFactory;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -24,15 +27,21 @@ public class SupervisorTools {
 	private final JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory;
 	private final FileSummarySpecialistFactory fileSummarySpecialistFactory;
 	private final EntityMetadataSpecialistFactory entityMetadataSpecialistFactory;
+	private final GridQuerySpecialistFactory gridQuerySpecialistFactory;
+	private final GridUpdateSpecialistFactory gridUpdateSpecialistFactory;
 
 	public SupervisorTools(TableQuerySpecialistFactory tableQuerySpecialistFactory,
 			JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory,
 			FileSummarySpecialistFactory fileSummarySpecialistFactory,
-			EntityMetadataSpecialistFactory entityMetadataSpecialistFactory) {
+			EntityMetadataSpecialistFactory entityMetadataSpecialistFactory,
+			GridQuerySpecialistFactory gridQuerySpecialistFactory,
+			GridUpdateSpecialistFactory gridUpdateSpecialistFactory) {
 		this.tableQuerySpecialistFactory = tableQuerySpecialistFactory;
 		this.jsonSchemaSpecialistFactory = jsonSchemaSpecialistFactory;
 		this.fileSummarySpecialistFactory = fileSummarySpecialistFactory;
 		this.entityMetadataSpecialistFactory = entityMetadataSpecialistFactory;
+		this.gridQuerySpecialistFactory = gridQuerySpecialistFactory;
+		this.gridUpdateSpecialistFactory = gridUpdateSpecialistFactory;
 	}
 
 	@Tool(description = "Delegate a task about a Synapse table or view to the table query specialist. "
@@ -75,11 +84,37 @@ public class SupervisorTools {
 		return entityMetadataSpecialistFactory.create().chat(message, extractUserInfo(toolContext), extractSessionId(toolContext));
 	}
 
+	@Tool(description = "Delegate a task about the current grid session to the grid query specialist. "
+			+ "The specialist runs structured queries (using JSON SelectItems and Filters, not SQL) to read and "
+			+ "summarize grid data, including validation state, and can filter to the user's selection. Provide a "
+			+ "complete, self-contained instruction; the specialist has no memory of this conversation.")
+	public String askGridQuerySpecialist(
+			@ToolParam(description = "A complete, self-contained instruction for the grid query specialist", required = true) String message,
+			ToolContext toolContext) {
+		return gridQuerySpecialistFactory.create().chat(message, extractUserInfo(toolContext),
+				extractSessionId(toolContext), extractGridContext(toolContext));
+	}
+
+	@Tool(description = "Delegate a task about the current grid session to the grid update specialist. "
+			+ "The specialist applies structured updates (using JSON SetValues and Filters, not SQL) to change grid "
+			+ "cell values, including literal and template-based transformations, restricted by filters. Provide a "
+			+ "complete, self-contained instruction; the specialist has no memory of this conversation.")
+	public String askGridUpdateSpecialist(
+			@ToolParam(description = "A complete, self-contained instruction for the grid update specialist", required = true) String message,
+			ToolContext toolContext) {
+		return gridUpdateSpecialistFactory.create().chat(message, extractUserInfo(toolContext),
+				extractSessionId(toolContext), extractGridContext(toolContext));
+	}
+
 	private UserInfo extractUserInfo(ToolContext toolContext) {
 		return (UserInfo) toolContext.getContext().get("userInfo");
 	}
 
 	private String extractSessionId(ToolContext toolContext) {
 		return (String) toolContext.getContext().get("sessionId");
+	}
+
+	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
+		return (GridAgentSessionContext) toolContext.getContext().get("gridAgentSessionContext");
 	}
 }

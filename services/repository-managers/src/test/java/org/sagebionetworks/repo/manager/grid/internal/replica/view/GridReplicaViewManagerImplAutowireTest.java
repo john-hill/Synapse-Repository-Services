@@ -83,6 +83,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+/**
+ * 
+ */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class GridReplicaViewManagerImplAutowireTest {
@@ -491,7 +494,6 @@ public class GridReplicaViewManagerImplAutowireTest {
 				assertEquals(expected, filtered, String.format("For: columnName: '%s', type: '%s',  value: %s",
 						cm.getName(), cm.getColumnType().name(), value));
 			}
-
 		}
 	}
 
@@ -1463,6 +1465,50 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// The row should have the JSON array as its value
 		String actualValue = ((JSONObject) result.getRows().get(0).getData()).getString("a");
 		assertEquals("[\"alpha\",\"beta\"]", actualValue);
+	}
+
+	/**
+	 * PLFM-9831: EQUALS with a single-element array wrapped in a JSONArrayAdapterImpl (as a client
+	 * value deserializes) must match a scalar cell equal to that element. A single-element array is
+	 * ambiguous — it could be a wrapped scalar or a genuine single-element LIST value — so equality
+	 * matches either form; here the column is scalar, so it resolves to the scalar "A".
+	 */
+	@Test
+	public void testQueryWithEqualsOperatorAndSingleElementArrayFromJSON()
+			throws IOException, JSONObjectAdapterException {
+		schema = List.of(new ColumnModel().setName("a").setColumnType(ColumnType.STRING).setMaximumSize(100L),
+				new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER));
+		// Two rows in each category so a correct EQUALS filter returns exactly the "A" subset.
+		rows = List.of(
+				new Row().setValues(List.of("A", "1")),
+				new Row().setValues(List.of("A", "2")),
+				new Row().setValues(List.of("B", "3")),
+				new Row().setValues(List.of("B", "4")));
+
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		Query query = new Query()
+				.setColumnSelection(List.of(new SelectAll()))
+				.setFilters(List.of(new CellValueFilter()
+						.setColumnName("a")
+						.setOperator(CellValueOperator.EQUALS)
+						.setValue(new JSONArrayAdapterImpl(new JSONArray(List.of("A"))))))
+				.setLimit(10L)
+				.setOffset(0L);
+
+		// call under test
+		QueryResult result = gridViewManager.querySinglePageAsQueryResult(header, new QueryElement(query));
+
+		assertNotNull(result);
+		assertEquals(2, result.getRows().size());
+		result.getRows().forEach(r -> {
+			try {
+				assertEquals("A", ((JSONObject) r.getData()).getString("a"));
+			} catch (JSONException e) {
+				throw new RuntimeException(e);
+			}
+		});
 	}
 
 }

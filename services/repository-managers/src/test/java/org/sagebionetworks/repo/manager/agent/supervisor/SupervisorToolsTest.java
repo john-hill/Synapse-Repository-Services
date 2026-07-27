@@ -15,11 +15,16 @@ import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMe
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialist;
+import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialist;
+import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySpecialistFactory;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +38,10 @@ public class SupervisorToolsTest {
 	private FileSummarySpecialistFactory fileSummarySpecialistFactory;
 	@Mock
 	private EntityMetadataSpecialistFactory entityMetadataSpecialistFactory;
+	@Mock
+	private GridQuerySpecialistFactory gridQuerySpecialistFactory;
+	@Mock
+	private GridUpdateSpecialistFactory gridUpdateSpecialistFactory;
 
 	@Mock
 	private TableQuerySpecialist tableQuerySpecialist;
@@ -42,17 +51,25 @@ public class SupervisorToolsTest {
 	private FileSummarySpecialist fileSummarySpecialist;
 	@Mock
 	private EntityMetadataSpecialist entityMetadataSpecialist;
+	@Mock
+	private GridQuerySpecialist gridQuerySpecialist;
+	@Mock
+	private GridUpdateSpecialist gridUpdateSpecialist;
 
 	private SupervisorTools tools;
 	private UserInfo userInfo;
+	private GridAgentSessionContext gridContext;
 	private ToolContext toolContext;
 
 	@BeforeEach
 	public void setup() {
 		tools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory, fileSummarySpecialistFactory,
-				entityMetadataSpecialistFactory);
+				entityMetadataSpecialistFactory, gridQuerySpecialistFactory, gridUpdateSpecialistFactory);
 		userInfo = new UserInfo(false, 101L);
-		toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "session-123"));
+		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L)
+				.setAgentsReplicaId(2L);
+		toolContext = new ToolContext(
+				Map.of("userInfo", userInfo, "sessionId", "session-123", "gridAgentSessionContext", gridContext));
 	}
 
 	@Test
@@ -106,6 +123,35 @@ public class SupervisorToolsTest {
 		assertEquals("annotations described", result);
 		verify(entityMetadataSpecialistFactory).create();
 		verify(entityMetadataSpecialist).chat("annotations of syn1", userInfo, "session-123");
+	}
+
+	@Test
+	public void testAskGridQuerySpecialist() {
+		when(gridQuerySpecialistFactory.create()).thenReturn(gridQuerySpecialist);
+		when(gridQuerySpecialist.chat("count the rows", userInfo, "session-123", gridContext))
+				.thenReturn("grid queried");
+
+		// call under test
+		String result = tools.askGridQuerySpecialist("count the rows", toolContext);
+
+		assertEquals("grid queried", result);
+		// A fresh specialist is created and given the propagated user, session, and grid context.
+		verify(gridQuerySpecialistFactory).create();
+		verify(gridQuerySpecialist).chat("count the rows", userInfo, "session-123", gridContext);
+	}
+
+	@Test
+	public void testAskGridUpdateSpecialist() {
+		when(gridUpdateSpecialistFactory.create()).thenReturn(gridUpdateSpecialist);
+		when(gridUpdateSpecialist.chat("set age to 25", userInfo, "session-123", gridContext))
+				.thenReturn("grid updated");
+
+		// call under test
+		String result = tools.askGridUpdateSpecialist("set age to 25", toolContext);
+
+		assertEquals("grid updated", result);
+		verify(gridUpdateSpecialistFactory).create();
+		verify(gridUpdateSpecialist).chat("set age to 25", userInfo, "session-123", gridContext);
 	}
 
 	@Test

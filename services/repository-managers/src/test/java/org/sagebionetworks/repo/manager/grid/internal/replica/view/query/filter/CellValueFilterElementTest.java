@@ -83,9 +83,9 @@ public class CellValueFilterElementTest {
 	}
 
 	/**
-	 * PLFM-9831/PLFM-9832: a single-element array is ambiguous — it may be a scalar value the caller
-	 * wrapped in an array (matching a scalar cell) or the value of a single-element LIST cell. Since
-	 * the grid stores no column type, EQUALS must match either form: the scalar OR the JSON array.
+	 * PLFM-9831: a value is matched strictly by its JSON type. A single-element array value is a genuine
+	 * JSON array, so EQUALS compares it against a LIST cell (CAST to JSON) and does not match a scalar
+	 * cell. To match a scalar cell the caller sends a scalar value instead.
 	 */
 	@Test
 	public void testToSqlWithEqualsSingleElementArrayValue() {
@@ -97,15 +97,14 @@ public class CellValueFilterElementTest {
 		// call under test
 		element.toSql(sqlBuilder, params, contextWithColumn("c1"));
 
-		assertEquals(
-				"( JSON_LENGTH(VALS, '$[0].v') = 1 AND (VALS->>'$[0].v[0]' = :val0 OR VALS->'$[0].v[0]' = CAST(:val0b AS JSON)))",
+		assertEquals("( JSON_LENGTH(VALS, '$[0].v') = 1 AND VALS->'$[0].v[0]' = CAST(:val0 AS JSON))",
 				sqlBuilder.toString());
-		assertEquals(Map.of("val0", "A", "val0b", "[\"A\"]"), params);
+		assertEquals(Map.of("val0", "[\"A\"]"), params);
 	}
 
 	/**
-	 * NOT_EQUALS with a single-element array is ambiguous the same way as EQUALS, but must EXCLUDE
-	 * both forms: the cell differs only when it matches neither the scalar nor the JSON array.
+	 * NOT_EQUALS with a single-element array value is matched by type the same way as EQUALS: the cell
+	 * differs when it is not the JSON array [A] (a scalar cell inherently differs from the array).
 	 */
 	@Test
 	public void testToSqlWithNotEqualsSingleElementArrayValue() {
@@ -117,10 +116,27 @@ public class CellValueFilterElementTest {
 		// call under test
 		element.toSql(sqlBuilder, params, contextWithColumn("c1"));
 
-		assertEquals(
-				"( JSON_LENGTH(VALS, '$[0].v') != 1 OR (VALS->>'$[0].v[0]' <> :val0 AND VALS->'$[0].v[0]' <> CAST(:val0b AS JSON)))",
+		assertEquals("( JSON_LENGTH(VALS, '$[0].v') != 1 OR VALS->'$[0].v[0]' <> CAST(:val0 AS JSON))",
 				sqlBuilder.toString());
-		assertEquals(Map.of("val0", "A", "val0b", "[\"A\"]"), params);
+		assertEquals(Map.of("val0", "[\"A\"]"), params);
+	}
+
+	/**
+	 * For ordering and text operators, comparing against a JSON array is not meaningful, so a
+	 * single-element array value is unwrapped to its scalar element.
+	 */
+	@Test
+	public void testToSqlWithLikeSingleElementArrayValue() {
+		CellValueFilterElement element = new CellValueFilterElement(new CellValueFilter().setColumnName("c1")
+				.setOperator(CellValueOperator.LIKE).setValue(new JSONArray(List.of("A%"))));
+		StringBuilder sqlBuilder = new StringBuilder();
+		Map<String, Object> params = new HashMap<>();
+
+		// call under test
+		element.toSql(sqlBuilder, params, contextWithColumn("c1"));
+
+		assertEquals("( JSON_LENGTH(VALS, '$[0].v') = 1 AND VALS->>'$[0].v[0]' LIKE :val0)", sqlBuilder.toString());
+		assertEquals(Map.of("val0", "A%"), params);
 	}
 
 	/**

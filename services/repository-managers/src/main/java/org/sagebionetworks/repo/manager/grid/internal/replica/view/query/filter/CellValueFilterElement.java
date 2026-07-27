@@ -130,34 +130,21 @@ public class CellValueFilterElement implements FilterElement {
 		appendJsonLengthCheck(sqlBuilder, columnIndex);
 		sqlBuilder.append(" ");
 
+		// The value is matched strictly by its JSON type: a scalar value compares against a scalar cell
+		// (VALS->>'...v[0]'), while a JSON array value compares against a LIST cell (VALS->'...v[0]' cast
+		// to JSON). The grid stores no column type, so this literal-type match is the only way to avoid
+		// ambiguity: a wrapped scalar ["A"] does not match a scalar cell "A", and does not match both a
+		// scalar and a list cell in a mixed column.
+		Object comparisonValue = value;
 		boolean singleElementArray = value instanceof JSONArray && ((JSONArray) value).length() == 1;
 		boolean equalityOperator = CellValueOperatorElement.EQUALS.equals(operator)
 				|| CellValueOperatorElement.NOT_EQUALS.equals(operator);
-
-		if (singleElementArray && equalityOperator) {
-			// A single-element array is ambiguous: it can be a scalar filter value the caller wrapped in
-			// an array (e.g. ["A"], meant to match a scalar cell "A") or the genuine value of a
-			// single-element LIST cell (e.g. [1] stored as a JSON array). The grid stores no column type
-			// to disambiguate, but a column's cells are uniformly typed, so at most one form can match.
-			// Equality therefore considers both: EQUALS matches the scalar OR the array, while NOT_EQUALS
-			// must differ from both.
-			Object scalar = ((JSONArray) value).get(0);
-			String joiner = CellValueOperatorElement.NOT_EQUALS.equals(operator) ? " AND " : " OR ";
-			sqlBuilder.append("(");
-			appendComparison(sqlBuilder, params, bind, columnIndex, scalar);
-			sqlBuilder.append(joiner);
-			appendComparison(sqlBuilder, params, bind + "b", columnIndex, value);
-			sqlBuilder.append(")");
-		} else {
-			// For ordering and text operators a single-element array unambiguously means the scalar
-			// element, since comparing against an array is not meaningful. Unwrap it. Arrays with more
-			// than one element are left as-is so they can still match a JSON array cell (a LIST column).
-			Object singleValue = value;
-			if (singleElementArray) {
-				singleValue = ((JSONArray) value).get(0);
-			}
-			appendComparison(sqlBuilder, params, bind, columnIndex, singleValue);
+		if (singleElementArray && !equalityOperator) {
+			// Ordering and text operators (>, <, LIKE, ...) against a JSON array are not meaningful, so a
+			// single-element array unambiguously refers to its scalar element. Unwrap it.
+			comparisonValue = ((JSONArray) value).get(0);
 		}
+		appendComparison(sqlBuilder, params, bind, columnIndex, comparisonValue);
 		sqlBuilder.append(")");
 	}
 

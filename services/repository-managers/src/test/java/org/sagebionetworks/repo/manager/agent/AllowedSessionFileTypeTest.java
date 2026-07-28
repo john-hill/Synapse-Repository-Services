@@ -16,6 +16,8 @@ public class AllowedSessionFileTypeTest {
 		assertEquals(Optional.of(AllowedSessionFileType.PDF), AllowedSessionFileType.match("application/pdf", null));
 		assertEquals(Optional.of(AllowedSessionFileType.TXT), AllowedSessionFileType.match("text/plain", null));
 		assertEquals(Optional.of(AllowedSessionFileType.JSON), AllowedSessionFileType.match("application/json", null));
+		assertEquals(Optional.of(AllowedSessionFileType.TSV),
+				AllowedSessionFileType.match("text/tab-separated-values", null));
 	}
 
 	@Test
@@ -32,6 +34,10 @@ public class AllowedSessionFileTypeTest {
 				AllowedSessionFileType.match("application/octet-stream", "data.csv"));
 		assertEquals(Optional.of(AllowedSessionFileType.PDF),
 				AllowedSessionFileType.match(null, "report.PDF"));
+		assertEquals(Optional.of(AllowedSessionFileType.TSV),
+				AllowedSessionFileType.match("application/octet-stream", "data.tsv"));
+		assertEquals(Optional.of(AllowedSessionFileType.MAF),
+				AllowedSessionFileType.match("application/octet-stream", "variants.maf"));
 	}
 
 	@Test
@@ -49,6 +55,8 @@ public class AllowedSessionFileTypeTest {
 		assertTrue(description.contains("CSV"));
 		assertTrue(description.contains("TXT"));
 		assertTrue(description.contains("JSON"));
+		assertTrue(description.contains("TSV"));
+		assertTrue(description.contains("MAF"));
 	}
 
 	@Test

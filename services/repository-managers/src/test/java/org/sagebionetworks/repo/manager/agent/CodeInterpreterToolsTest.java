@@ -1,11 +1,13 @@
 package org.sagebionetworks.repo.manager.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,9 +16,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.RunPythonRequest;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class CodeInterpreterToolsTest {
@@ -47,7 +51,7 @@ public class CodeInterpreterToolsTest {
 		when(codeExecutionResult.textOutput()).thenReturn("4\n");
 
 		// call under test
-		String result = tools.runPython(script, toolContext);
+		String result = tools.runPython(new RunPythonRequest().setScript(script), toolContext);
 
 		assertEquals("4\n", result);
 		verify(codeInterpreterClient).executeCode(sessionId, "python", script);
@@ -64,7 +68,7 @@ public class CodeInterpreterToolsTest {
 		when(codeExecutionResult.textOutput()).thenReturn("ValueError: bad");
 
 		// call under test
-		String result = tools.runPython(script, toolContext);
+		String result = tools.runPython(new RunPythonRequest().setScript(script), toolContext);
 
 		assertTrue(result.startsWith("Error: "));
 		assertTrue(result.contains("ValueError: bad"));
@@ -76,7 +80,7 @@ public class CodeInterpreterToolsTest {
 		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo));
 
 		// call under test
-		String result = tools.runPython(script, toolContext);
+		String result = tools.runPython(new RunPythonRequest().setScript(script), toolContext);
 
 		assertEquals("Error: No code interpreter session ID available", result);
 		verifyNoInteractions(codeInterpreterClient);
@@ -94,7 +98,7 @@ public class CodeInterpreterToolsTest {
 		when(codeExecutionResult.textOutput()).thenReturn(longOutput);
 
 		// call under test
-		String result = tools.runPython(script, toolContext);
+		String result = tools.runPython(new RunPythonRequest().setScript(script), toolContext);
 
 		assertEquals(CodeInterpreterTools.MAX_RESPONSE_CHARS, result.substring(0, result.indexOf("\n...")).length());
 		assertTrue(result.endsWith("... [truncated at " + CodeInterpreterTools.MAX_RESPONSE_CHARS + " chars]"));
@@ -113,5 +117,52 @@ public class CodeInterpreterToolsTest {
 
 		// call under test
 		assertEquals(shortOutput, tools.truncateOutput(shortOutput));
+	}
+
+	@Test
+	public void testGetToolCallbacksExposesRunPython() {
+		// call under test
+		List<ToolCallback> callbacks = tools.getToolCallbacks();
+
+		assertEquals(1, callbacks.size());
+		assertEquals("runPython", callbacks.get(0).getToolDefinition().name());
+	}
+
+	@Test
+	public void testRunPythonCallbackWithValidJson() {
+		String sessionId = "testSession123";
+		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		when(codeInterpreterClient.executeCode(sessionId, "python", "print(2 + 2)")).thenReturn(codeExecutionResult);
+		when(codeExecutionResult.isError()).thenReturn(false);
+		when(codeExecutionResult.textOutput()).thenReturn("4\n");
+
+		// call under test -- drive the tool through the ToolCallback the model actually invokes.
+		String result = runPythonCallback().call("{\"script\":\"print(2 + 2)\"}", toolContext);
+
+		assertEquals("4\n", result);
+		verify(codeInterpreterClient).executeCode(sessionId, "python", "print(2 + 2)");
+	}
+
+	@Test
+	public void testRunPythonCallbackWithUnescapedControlCharacter() {
+		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "testSession123"));
+		// A raw (unescaped) newline inside the JSON string value is invalid JSON -- the exact case
+		// that used to hard-fail Spring AI's strict parser.
+		String malformed = "{\"script\":\"line1\nline2\"}";
+
+		// call under test
+		String result = runPythonCallback().call(malformed, toolContext);
+
+		// Instead of throwing, the tool returns a model-visible correction so the model can retry.
+		assertTrue(result.contains("was not valid JSON for its input schema"));
+		assertTrue(result.contains("Resubmit the call with a corrected argument"));
+		verifyNoInteractions(codeInterpreterClient);
+	}
+
+	private ToolCallback runPythonCallback() {
+		ToolCallback callback = tools.getToolCallbacks().stream()
+				.filter(c -> "runPython".equals(c.getToolDefinition().name())).findFirst().orElse(null);
+		assertNotNull(callback);
+		return callback;
 	}
 }

@@ -38,7 +38,7 @@ public class CurieSupervisor {
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
 				.defaultToolCallbacks(specialistTools)
-				.defaultTools(codeInterpreterTools)
+				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeSonnet())

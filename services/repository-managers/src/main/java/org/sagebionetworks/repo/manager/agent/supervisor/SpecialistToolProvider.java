@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.sagebionetworks.repo.manager.agent.tool.LoggingToolCallback;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.stereotype.Service;
@@ -13,7 +14,8 @@ import org.springframework.stereotype.Service;
  * Provides the specialist delegation tools by name so that each supervisor is given only the
  * specialists it needs, instead of the full set. The delegation tools themselves are defined
  * once in {@link SupervisorTools}; this provider indexes them so a supervisor can select a
- * focused subset without duplicating tool definitions.
+ * focused subset without duplicating tool definitions. Each tool is wrapped in a
+ * {@link LoggingToolCallback} so that every supervisor-to-specialist delegation is logged.
  */
 @Service
 public class SpecialistToolProvider {
@@ -23,7 +25,9 @@ public class SpecialistToolProvider {
 	public SpecialistToolProvider(SupervisorTools supervisorTools) {
 		Map<String, ToolCallback> index = new HashMap<>();
 		for (ToolCallback tool : MethodToolCallbackProvider.builder().toolObjects(supervisorTools).build().getToolCallbacks()) {
-			index.put(tool.getToolDefinition().name(), tool);
+			// Wrap each delegation tool so every supervisor drawing tools from this provider logs
+			// its specialist interactions.
+			index.put(tool.getToolDefinition().name(), new LoggingToolCallback(tool));
 		}
 		this.toolsByName = index;
 	}

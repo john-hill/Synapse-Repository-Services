@@ -30,7 +30,8 @@ public class TableQuerySpecialist {
 		ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(20).build();
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
-				.defaultTools(tableQueryTools, codeInterpreterTools)
+				.defaultTools(tableQueryTools)
+				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())

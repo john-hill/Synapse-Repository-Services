@@ -32,7 +32,7 @@ public class GridUpdateSpecialist {
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
 				.defaultToolCallbacks(gridUpdateTools.getToolCallbacks())
-				.defaultTools(codeInterpreterTools)
+				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())

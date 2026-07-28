@@ -31,7 +31,8 @@ public class FileSummarySpecialist {
 		ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(20).build();
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
-				.defaultTools(fileSummaryTools, codeInterpreterTools)
+				.defaultTools(fileSummaryTools)
+				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())

@@ -61,11 +61,12 @@ public abstract class JSONEntityToolBase {
 
 					String name = toolAnno.name().isBlank() ? method.getName() : toolAnno.name();
 
-					callbacks.add(new Builder().setToolObject(this)
+					// Wrap each callback so every invocation of a base-derived tool is logged.
+					callbacks.add(new LoggingToolCallback(new Builder().setToolObject(this)
 							.setToolDefinition(DefaultToolDefinition.builder().name(name)
 									.description(toolAnno.description()).inputSchema(generateInputSchema(method)).build())
 							.setToolMetadata(ToolMetadata.builder().returnDirect(toolAnno.returnDirect()).build())
-							.setToolMethod(method).build());
+							.setToolMethod(method).build()));
 				}
 			}
 		}

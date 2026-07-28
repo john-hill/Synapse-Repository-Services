@@ -33,7 +33,8 @@ public class SampleSheetSupervisor {
 		ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(40).build();
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
-				.defaultTools(supervisorTools, codeInterpreterTools)
+				.defaultTools(supervisorTools)
+				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeSonnet())

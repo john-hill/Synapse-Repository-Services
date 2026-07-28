@@ -447,13 +447,13 @@ class CurationTaskDaoAutowireTest {
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
         Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
-        created.getTaskProperties().setDueDate(dueDate);
+        created.setDueDate(dueDate);
 
         // call under test
         CurationTask updated = dao.updateCurationTask(userId, created);
 
-        assertEquals(dueDate, updated.getTaskProperties().getDueDate());
-        assertEquals(dueDate, dao.getCurationTask(created.getTaskId()).orElseThrow().getTaskProperties().getDueDate());
+        assertEquals(dueDate, updated.getDueDate());
+        assertEquals(dueDate, dao.getCurationTask(created.getTaskId()).orElseThrow().getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }
@@ -467,18 +467,18 @@ class CurationTaskDaoAutowireTest {
 
         // Set a due date
         Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
-        created.getTaskProperties().setDueDate(dueDate);
+        created.setDueDate(dueDate);
         CurationTask withDueDateResult = dao.updateCurationTask(userId, created);
-        assertEquals(dueDate, withDueDateResult.getTaskProperties().getDueDate());
+        assertEquals(dueDate, withDueDateResult.getDueDate());
 
         // Clear it by setting dueDate to null
-        withDueDateResult.getTaskProperties().setDueDate(null);
+        withDueDateResult.setDueDate(null);
 
         // call under test
         CurationTask result = dao.updateCurationTask(userId, withDueDateResult);
 
-        assertNull(result.getTaskProperties().getDueDate());
-        assertNull(dao.getCurationTask(created.getTaskId()).orElseThrow().getTaskProperties().getDueDate());
+        assertNull(result.getDueDate());
+        assertNull(dao.getCurationTask(created.getTaskId()).orElseThrow().getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }

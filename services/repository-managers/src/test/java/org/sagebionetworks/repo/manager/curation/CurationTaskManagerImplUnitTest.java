@@ -20,7 +20,6 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -943,16 +942,6 @@ public class CurationTaskManagerImplUnitTest {
 
         @Override
         public CurationTaskProperties setConcreteType(String concreteType) {
-            return null;
-        }
-
-        @Override
-        public Date getDueDate() {
-            return null;
-        }
-
-        @Override
-        public CurationTaskProperties setDueDate(Date dueDate) {
             return null;
         }
 

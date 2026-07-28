@@ -201,9 +201,9 @@ public class ITCurationTaskControllerTest {
 
             // Set due date via task update
             Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
-            task.getTaskProperties().setDueDate(dueDate);
+            task.setDueDate(dueDate);
             task = synapse.updateMetadataTask(task);
-            assertEquals(dueDate, task.getTaskProperties().getDueDate());
+            assertEquals(dueDate, task.getDueDate());
 
             // Update status to IN_PROGRESS using the updated task's etag
             TaskStatus statusUpdate = new TaskStatus()

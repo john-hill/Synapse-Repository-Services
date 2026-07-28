@@ -18,7 +18,9 @@ public enum AllowedSessionFileType {
 	PDF("pdf", "application/pdf"),
 	CSV("csv", "text/csv", "application/csv"),
 	TXT("txt", "text/plain"),
-	JSON("json", "application/json", "text/json");
+	JSON("json", "application/json", "text/json"),
+	TSV("tsv", "text/tab-separated-values"),
+	MAF("maf", "text/tab-separated-values");
 
 	private final String extension;
 	private final Set<String> contentTypes;

@@ -5,11 +5,6 @@
     "concreteType": {
       "type": "string",
       "description": "Indicates which implementation of CurationTaskProperties this object represents. Possible values include: 'org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties' and 'org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties'."
-    },
-    "dueDate": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Timestamp by which the task should be completed. Null if no due date has been set."
     }
   }
 }

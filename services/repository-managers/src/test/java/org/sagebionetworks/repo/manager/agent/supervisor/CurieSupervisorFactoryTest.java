@@ -41,7 +41,7 @@ public class CurieSupervisorFactoryTest {
 	public void setup() {
 		// The factory selects its specialist subset in the constructor.
 		when(mockSpecialistToolProvider.getTools(SupervisorTools.TOOL_JSON_SCHEMA, SupervisorTools.TOOL_GRID_QUERY,
-				SupervisorTools.TOOL_GRID_UPDATE)).thenReturn(List.of(mockToolCallback));
+				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA)).thenReturn(List.of(mockToolCallback));
 		factory = new CurieSupervisorFactory(mockChatModel, mockStackConfig, mockSpecialistToolProvider,
 				mockCodeInterpreterTools);
 	}
@@ -58,7 +58,7 @@ public class CurieSupervisorFactoryTest {
 	public void testSelectsOnlyCurationSpecialists() {
 		// The factory must request exactly the JSON schema and grid specialists, not the full set.
 		verify(mockSpecialistToolProvider).getTools(SupervisorTools.TOOL_JSON_SCHEMA, SupervisorTools.TOOL_GRID_QUERY,
-				SupervisorTools.TOOL_GRID_UPDATE);
+				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA);
 	}
 
 	@Test
@@ -71,6 +71,7 @@ public class CurieSupervisorFactoryTest {
 		assertTrue(prompt.contains(SupervisorTools.TOOL_JSON_SCHEMA));
 		assertTrue(prompt.contains(SupervisorTools.TOOL_GRID_QUERY));
 		assertTrue(prompt.contains(SupervisorTools.TOOL_GRID_UPDATE));
+		assertTrue(prompt.contains(SupervisorTools.TOOL_GRID_METADATA));
 		assertTrue(prompt.contains("PREVIEW"));
 		assertTrue(prompt.contains("Confirm before committing"));
 	}

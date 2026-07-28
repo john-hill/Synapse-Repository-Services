@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.agent.supervisor;
 
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialistFactory;
@@ -29,6 +30,7 @@ public class SupervisorTools {
 	public static final String TOOL_ENTITY_METADATA = "askEntityMetadataSpecialist";
 	public static final String TOOL_GRID_QUERY = "askGridQuerySpecialist";
 	public static final String TOOL_GRID_UPDATE = "askGridUpdateSpecialist";
+	public static final String TOOL_GRID_METADATA = "askGridMetadataSpecialist";
 
 	private final TableQuerySpecialistFactory tableQuerySpecialistFactory;
 	private final JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory;
@@ -36,19 +38,22 @@ public class SupervisorTools {
 	private final EntityMetadataSpecialistFactory entityMetadataSpecialistFactory;
 	private final GridQuerySpecialistFactory gridQuerySpecialistFactory;
 	private final GridUpdateSpecialistFactory gridUpdateSpecialistFactory;
+	private final GridMetadataSpecialistFactory gridMetadataSpecialistFactory;
 
 	public SupervisorTools(TableQuerySpecialistFactory tableQuerySpecialistFactory,
 			JsonSchemaSpecialistFactory jsonSchemaSpecialistFactory,
 			FileSummarySpecialistFactory fileSummarySpecialistFactory,
 			EntityMetadataSpecialistFactory entityMetadataSpecialistFactory,
 			GridQuerySpecialistFactory gridQuerySpecialistFactory,
-			GridUpdateSpecialistFactory gridUpdateSpecialistFactory) {
+			GridUpdateSpecialistFactory gridUpdateSpecialistFactory,
+			GridMetadataSpecialistFactory gridMetadataSpecialistFactory) {
 		this.tableQuerySpecialistFactory = tableQuerySpecialistFactory;
 		this.jsonSchemaSpecialistFactory = jsonSchemaSpecialistFactory;
 		this.fileSummarySpecialistFactory = fileSummarySpecialistFactory;
 		this.entityMetadataSpecialistFactory = entityMetadataSpecialistFactory;
 		this.gridQuerySpecialistFactory = gridQuerySpecialistFactory;
 		this.gridUpdateSpecialistFactory = gridUpdateSpecialistFactory;
+		this.gridMetadataSpecialistFactory = gridMetadataSpecialistFactory;
 	}
 
 	@Tool(name = TOOL_TABLE_QUERY, description = "Delegate a task about a Synapse table or view to the table query specialist. "
@@ -110,6 +115,18 @@ public class SupervisorTools {
 			@ToolParam(description = "A complete, self-contained instruction for the grid update specialist", required = true) String message,
 			ToolContext toolContext) {
 		return gridUpdateSpecialistFactory.create().chat(message, extractUserInfo(toolContext),
+				extractSessionId(toolContext), extractGridContext(toolContext));
+	}
+
+	@Tool(name = TOOL_GRID_METADATA, description = "Delegate a task about the current grid session's metadata to the grid metadata specialist. "
+			+ "The specialist describes the grid session (including its source and bound JSON schema $id) and the "
+			+ "replicas participating in it, so it can explain the replicaIds that appear in query results — who last "
+			+ "changed a cell or row (a user, an agent, or the system), and who else is working on the session. Provide "
+			+ "a complete, self-contained instruction; the specialist has no memory of this conversation.")
+	public String askGridMetadataSpecialist(
+			@ToolParam(description = "A complete, self-contained instruction for the grid metadata specialist", required = true) String message,
+			ToolContext toolContext) {
+		return gridMetadataSpecialistFactory.create().chat(message, extractUserInfo(toolContext),
 				extractSessionId(toolContext), extractGridContext(toolContext));
 	}
 

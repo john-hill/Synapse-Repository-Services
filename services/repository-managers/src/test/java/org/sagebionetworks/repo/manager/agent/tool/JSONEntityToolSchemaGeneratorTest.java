@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.agent.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -123,6 +124,49 @@ public class JSONEntityToolSchemaGeneratorTest {
 		for (String key : defs.keySet()) {
 			assertTrue(referenced.contains(key), "Unreferenced $defs entry: " + key);
 		}
+	}
+
+	@Test
+	public void testGenerateScalarSchema() {
+		String schema = JSONEntityToolSchemaGenerator.generateScalarSchema(List.of(
+				new JSONEntityToolSchemaGenerator.ScalarParameter("count", Long.class, "how many", true),
+				new JSONEntityToolSchemaGenerator.ScalarParameter("label", String.class, "an optional label", false),
+				new JSONEntityToolSchemaGenerator.ScalarParameter("enabled", Boolean.class, "a flag", false),
+				new JSONEntityToolSchemaGenerator.ScalarParameter("ratio", Double.class, "a ratio", false)),
+				"scalar args");
+		JSONObject object = new JSONObject(schema);
+
+		assertEquals("object", object.getString("type"));
+		assertEquals("scalar args", object.getString("description"));
+		JSONObject properties = object.getJSONObject("properties");
+		assertEquals("integer", properties.getJSONObject("count").getString("type"));
+		assertEquals("how many", properties.getJSONObject("count").getString("description"));
+		assertEquals("string", properties.getJSONObject("label").getString("type"));
+		assertEquals("boolean", properties.getJSONObject("enabled").getString("type"));
+		assertEquals("number", properties.getJSONObject("ratio").getString("type"));
+
+		// Only the required parameter is listed.
+		assertEquals(List.of("count"), object.getJSONArray("required").toList());
+	}
+
+	@Test
+	public void testGenerateScalarSchemaWithNoParameters() {
+		String schema = JSONEntityToolSchemaGenerator.generateScalarSchema(List.of(), null);
+		JSONObject object = new JSONObject(schema);
+
+		// A no-argument tool still advertises a valid object schema with no properties and no required list.
+		assertEquals("object", object.getString("type"));
+		assertEquals(0, object.getJSONObject("properties").length());
+		assertFalse(object.has("required"));
+		assertFalse(object.has("description"));
+	}
+
+	@Test
+	public void testGenerateScalarSchemaRejectsUnsupportedType() {
+		// A non-scalar argument belongs in a JSONEntity request POJO, not as a top-level scalar property.
+		assertThrows(IllegalStateException.class, () -> JSONEntityToolSchemaGenerator.generateScalarSchema(
+				List.of(new JSONEntityToolSchemaGenerator.ScalarParameter("when", java.util.Date.class, "a date", true)),
+				null));
 	}
 
 	/**

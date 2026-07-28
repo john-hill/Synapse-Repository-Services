@@ -15,6 +15,8 @@ import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMe
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialist;
+import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialist;
@@ -42,6 +44,8 @@ public class SupervisorToolsTest {
 	private GridQuerySpecialistFactory gridQuerySpecialistFactory;
 	@Mock
 	private GridUpdateSpecialistFactory gridUpdateSpecialistFactory;
+	@Mock
+	private GridMetadataSpecialistFactory gridMetadataSpecialistFactory;
 
 	@Mock
 	private TableQuerySpecialist tableQuerySpecialist;
@@ -55,6 +59,8 @@ public class SupervisorToolsTest {
 	private GridQuerySpecialist gridQuerySpecialist;
 	@Mock
 	private GridUpdateSpecialist gridUpdateSpecialist;
+	@Mock
+	private GridMetadataSpecialist gridMetadataSpecialist;
 
 	private SupervisorTools tools;
 	private UserInfo userInfo;
@@ -64,7 +70,8 @@ public class SupervisorToolsTest {
 	@BeforeEach
 	public void setup() {
 		tools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory, fileSummarySpecialistFactory,
-				entityMetadataSpecialistFactory, gridQuerySpecialistFactory, gridUpdateSpecialistFactory);
+				entityMetadataSpecialistFactory, gridQuerySpecialistFactory, gridUpdateSpecialistFactory,
+				gridMetadataSpecialistFactory);
 		userInfo = new UserInfo(false, 101L);
 		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L)
 				.setAgentsReplicaId(2L);
@@ -152,6 +159,21 @@ public class SupervisorToolsTest {
 		assertEquals("grid updated", result);
 		verify(gridUpdateSpecialistFactory).create();
 		verify(gridUpdateSpecialist).chat("set age to 25", userInfo, "session-123", gridContext);
+	}
+
+	@Test
+	public void testAskGridMetadataSpecialist() {
+		when(gridMetadataSpecialistFactory.create()).thenReturn(gridMetadataSpecialist);
+		when(gridMetadataSpecialist.chat("who changed row 5", userInfo, "session-123", gridContext))
+				.thenReturn("replica described");
+
+		// call under test
+		String result = tools.askGridMetadataSpecialist("who changed row 5", toolContext);
+
+		assertEquals("replica described", result);
+		// A fresh specialist is created and given the propagated user, session, and grid context.
+		verify(gridMetadataSpecialistFactory).create();
+		verify(gridMetadataSpecialist).chat("who changed row 5", userInfo, "session-123", gridContext);
 	}
 
 	@Test

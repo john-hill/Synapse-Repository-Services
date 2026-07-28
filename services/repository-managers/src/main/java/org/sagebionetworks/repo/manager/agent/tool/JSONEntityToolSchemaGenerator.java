@@ -67,6 +67,77 @@ public class JSONEntityToolSchemaGenerator {
 	}
 
 	/**
+	 * A single scalar tool argument to advertise as a top-level property of a {@code type: object}
+	 * input schema. Used by the base for tools whose arguments are plain scalars (or that take no
+	 * argument at all) rather than a single {@link org.sagebionetworks.schema.adapter.JSONEntity}
+	 * request POJO.
+	 *
+	 * @param name        the argument name (the JSON property key the model must use).
+	 * @param type        the Java type of the argument; mapped to a JSON Schema {@code type}.
+	 * @param description the argument description shown to the model; ignored when blank.
+	 * @param required    whether the model must supply the argument.
+	 */
+	public record ScalarParameter(String name, Class<?> type, String description, boolean required) {
+	}
+
+	/**
+	 * Generate a self-contained {@code type: object} input schema whose properties are the supplied
+	 * scalar arguments. An empty list yields a valid no-argument schema (empty {@code properties}),
+	 * which is how a tool that takes only a {@code ToolContext} advertises itself.
+	 *
+	 * @param scalarParameters the scalar arguments, in declaration order.
+	 * @param description      the tool-argument description to place on the root schema; ignored when
+	 *                         {@code null} or blank.
+	 * @return a pretty-printed, self-contained JSON Schema document.
+	 */
+	public static String generateScalarSchema(java.util.List<ScalarParameter> scalarParameters, String description) {
+		JSONObject schema = new JSONObject();
+		schema.put("type", "object");
+		if (description != null && !description.isBlank()) {
+			schema.put(KEY_DESCRIPTION, description);
+		}
+		JSONObject properties = new JSONObject();
+		JSONArray required = new JSONArray();
+		for (ScalarParameter parameter : scalarParameters) {
+			JSONObject property = new JSONObject();
+			property.put("type", jsonScalarType(parameter.type()));
+			if (parameter.description() != null && !parameter.description().isBlank()) {
+				property.put(KEY_DESCRIPTION, parameter.description());
+			}
+			properties.put(parameter.name(), property);
+			if (parameter.required()) {
+				required.put(parameter.name());
+			}
+		}
+		schema.put("properties", properties);
+		if (required.length() > 0) {
+			schema.put("required", required);
+		}
+		return schema.toString(2);
+	}
+
+	/**
+	 * Map a scalar Java type to its JSON Schema {@code type}. A type that is not a supported scalar is
+	 * rejected: such an argument belongs in a {@code JSONEntity} request POJO (the schema-from-type
+	 * path), not as a top-level scalar property.
+	 */
+	private static String jsonScalarType(Class<?> type) {
+		if (String.class.equals(type)) {
+			return "string";
+		} else if (Long.class.equals(type) || Integer.class.equals(type) || long.class.equals(type)
+				|| int.class.equals(type)) {
+			return "integer";
+		} else if (Double.class.equals(type) || Float.class.equals(type) || double.class.equals(type)
+				|| float.class.equals(type)) {
+			return "number";
+		} else if (Boolean.class.equals(type) || boolean.class.equals(type)) {
+			return "boolean";
+		}
+		throw new IllegalStateException("Unsupported scalar tool argument type: " + type.getName()
+				+ ". Declare a JSONEntity request parameter for structured arguments.");
+	}
+
+	/**
 	 * Generate the self-contained {@code $defs}-envelope schema for a request type.
 	 * <p>
 	 * Because the request POJO is itself the tool's argument (there is no synthetic parameter-name

@@ -1,7 +1,6 @@
-package org.sagebionetworks.repo.manager.agent.supervisor;
+package org.sagebionetworks.repo.manager.agent.specialist.gridmetadata;
 
 import java.io.StringWriter;
-import java.util.List;
 
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
@@ -11,38 +10,35 @@ import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 
 /**
- * Factory for creating {@link CurieSupervisor} instances. Each instance gets a fresh conversation
- * memory and a pre-rendered system prompt. Curie delegates to a focused subset of specialists
- * (JSON schema + grid query + grid update), selected by name from {@link SpecialistToolProvider}.
+ * Factory for creating {@link GridMetadataSpecialist} instances. Each instance gets a fresh
+ * conversation memory and a pre-rendered system prompt.
  */
 @Service
-public class CurieSupervisorFactory {
+public class GridMetadataSpecialistFactory {
 
-	static final String PROMPT_TEMPLATE = "prompts/curie-supervisor.vtp";
+	static final String PROMPT_TEMPLATE = "prompts/grid-metadata-specialist.vtp";
 
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
+	private final GridMetadataSpecialistTools gridMetadataSpecialistTools;
 	private final CodeInterpreterTools codeInterpreterTools;
-	private final List<ToolCallback> specialistTools;
 	private final String renderedSystemPrompt;
 
-	public CurieSupervisorFactory(ChatModel chatModel, StackConfiguration stackConfig,
-			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools) {
+	public GridMetadataSpecialistFactory(ChatModel chatModel, StackConfiguration stackConfig,
+			GridMetadataSpecialistTools gridMetadataSpecialistTools, CodeInterpreterTools codeInterpreterTools) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
+		this.gridMetadataSpecialistTools = gridMetadataSpecialistTools;
 		this.codeInterpreterTools = codeInterpreterTools;
-		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_JSON_SCHEMA,
-				SupervisorTools.TOOL_GRID_QUERY, SupervisorTools.TOOL_GRID_UPDATE,
-				SupervisorTools.TOOL_GRID_METADATA);
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public CurieSupervisor create() {
-		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, renderedSystemPrompt);
+	public GridMetadataSpecialist create() {
+		return new GridMetadataSpecialist(chatModel, stackConfig, gridMetadataSpecialistTools, codeInterpreterTools,
+				renderedSystemPrompt);
 	}
 
 	String renderSystemPrompt() {

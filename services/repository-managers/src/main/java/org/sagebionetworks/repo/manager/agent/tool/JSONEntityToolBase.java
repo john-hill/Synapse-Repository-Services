@@ -92,24 +92,74 @@ public abstract class JSONEntityToolBase {
 	}
 
 	/**
-	 * Build the {@code inputSchema} for a tool method from its request parameter — the schema type is
-	 * either {@link JSONEntityToolParam#schemaType()} when set, or the parameter's own declared type.
+	 * Build the {@code inputSchema} for a tool method. Two shapes are supported:
+	 * <ul>
+	 * <li><b>request-body</b>: a single {@link JSONEntity} request parameter (or a raw
+	 * {@code String}/{@code JSONObject} carrier whose {@link JSONEntityToolParam#schemaType()} is set)
+	 * carries the entire tool input; the schema is generated from that type;</li>
+	 * <li><b>scalar</b>: zero or more scalar parameters ({@code String}/{@code Long}/{@code Integer}/
+	 * {@code Boolean}/{@code Double}) each become a top-level property. A method that takes only a
+	 * {@link ToolContext} (or nothing) yields a valid no-argument schema.</li>
+	 * </ul>
 	 */
 	private String generateInputSchema(Method method) {
+		Parameter bodyParameter = findBodyParameter(method);
+		if (bodyParameter != null) {
+			JSONEntityToolParam paramAnno = bodyParameter.getDeclaredAnnotation(JSONEntityToolParam.class);
+			Class<? extends JSONEntity> schemaType = paramAnno.schemaType();
+			if (JSONEntity.class.equals(schemaType)) {
+				// The parameter is itself the request POJO; use its declared type as the schema source.
+				schemaType = bodyParameter.getType().asSubclass(JSONEntity.class);
+			}
+			return JSONEntityToolSchemaGenerator.generateSchema(schemaType.getName(),
+					getPolymorphicImplementerSeeds(), paramAnno.description());
+		}
+		return JSONEntityToolSchemaGenerator.generateScalarSchema(collectScalarParameters(method), null);
+	}
+
+	/**
+	 * The single request-body parameter of a tool method, or {@code null} when the method uses scalar
+	 * arguments. A parameter is the body when it is annotated and either its declared type is a
+	 * {@link JSONEntity} or its {@link JSONEntityToolParam#schemaType()} is set (a raw carrier).
+	 */
+	private static Parameter findBodyParameter(Method method) {
 		for (Parameter parameter : method.getParameters()) {
-			JSONEntityToolParam paramAnno = parameter.getDeclaredAnnotation(JSONEntityToolParam.class);
-			if (paramAnno != null) {
-				Class<? extends JSONEntity> schemaType = paramAnno.schemaType();
-				if (JSONEntity.class.equals(schemaType)) {
-					// The parameter is itself the request POJO; use its declared type as the schema source.
-					schemaType = parameter.getType().asSubclass(JSONEntity.class);
-				}
-				return JSONEntityToolSchemaGenerator.generateSchema(schemaType.getName(),
-						getPolymorphicImplementerSeeds(), paramAnno.description());
+			if (isBodyParameter(parameter)) {
+				return parameter;
 			}
 		}
-		throw new IllegalStateException(
-				"Tool method must declare a @JSONEntityToolParam request parameter: " + method.getName());
+		return null;
+	}
+
+	private static boolean isBodyParameter(Parameter parameter) {
+		JSONEntityToolParam anno = parameter.getDeclaredAnnotation(JSONEntityToolParam.class);
+		if (anno == null) {
+			return false;
+		}
+		return JSONEntity.class.isAssignableFrom(parameter.getType())
+				|| !JSONEntity.class.equals(anno.schemaType());
+	}
+
+	/**
+	 * Collect the scalar arguments of a tool method (everything but the {@link ToolContext}). Each must
+	 * be annotated with {@link JSONEntityToolParam} so it carries a name-backed description and its
+	 * required flag.
+	 */
+	private static List<JSONEntityToolSchemaGenerator.ScalarParameter> collectScalarParameters(Method method) {
+		List<JSONEntityToolSchemaGenerator.ScalarParameter> scalars = new ArrayList<>();
+		for (Parameter parameter : method.getParameters()) {
+			if (ToolContext.class.equals(parameter.getType())) {
+				continue;
+			}
+			JSONEntityToolParam anno = parameter.getDeclaredAnnotation(JSONEntityToolParam.class);
+			if (anno == null) {
+				throw new IllegalStateException("Tool method '" + method.getName() + "' parameter '"
+						+ parameter.getName() + "' must be annotated with @JSONEntityToolParam");
+			}
+			scalars.add(new JSONEntityToolSchemaGenerator.ScalarParameter(parameter.getName(), parameter.getType(),
+					anno.description(), anno.required()));
+		}
+		return scalars;
 	}
 
 	private class Builder {
@@ -172,20 +222,79 @@ public abstract class JSONEntityToolBase {
 		private Object[] marshalArguments(String toolInput, @Nullable ToolContext toolContext) {
 			Parameter[] parameters = toolMethod.getParameters();
 			Object[] arguments = new Object[parameters.length];
+			boolean hasBody = findBodyParameter(toolMethod) != null;
+			// In scalar mode the input is a JSON object of named arguments; parse it once up front.
+			JSONObject namedArguments = hasBody ? null : parseNamedArguments(toolInput);
 			for (int i = 0; i < parameters.length; i++) {
-				Class<?> parameterType = parameters[i].getType();
+				Parameter parameter = parameters[i];
+				Class<?> parameterType = parameter.getType();
 				if (ToolContext.class.equals(parameterType)) {
 					arguments[i] = toolContext;
-				} else if (JSONEntity.class.isAssignableFrom(parameterType)) {
-					arguments[i] = deserialize(parameterType.asSubclass(JSONEntity.class), toolInput);
-				} else if (JSONObject.class.equals(parameterType)) {
-					arguments[i] = parseRawObject(toolInput);
+				} else if (hasBody) {
+					arguments[i] = marshalBodyArgument(parameterType, toolInput);
 				} else {
-					// A raw carrier (String): the tool consumes the untouched payload with no parsing.
-					arguments[i] = toolInput;
+					arguments[i] = extractScalarArgument(namedArguments, parameter);
 				}
 			}
 			return arguments;
+		}
+
+		/**
+		 * Bind the entire tool input to the single request-body parameter: a typed {@link JSONEntity} is
+		 * deserialized via the {@code concreteType}-aware path; a {@link JSONObject} receives the
+		 * parsed-but-untyped payload (well-formedness validated, undefined-vs-null preserved); a raw
+		 * {@link String} carrier receives the untouched payload.
+		 */
+		private Object marshalBodyArgument(Class<?> parameterType, String toolInput) {
+			if (JSONEntity.class.isAssignableFrom(parameterType)) {
+				return deserialize(parameterType.asSubclass(JSONEntity.class), toolInput);
+			} else if (JSONObject.class.equals(parameterType)) {
+				return parseRawObject(toolInput);
+			}
+			return toolInput;
+		}
+
+		private JSONObject parseNamedArguments(String toolInput) {
+			if (toolInput == null || toolInput.isBlank()) {
+				return new JSONObject();
+			}
+			return parseRawObject(toolInput);
+		}
+
+		/**
+		 * Read one named scalar argument from the parsed input and coerce it to the parameter's type. A
+		 * missing required argument, or a value that cannot be read as the declared type, is reported as
+		 * {@link IllegalArgumentException} so {@code call(...)} can feed corrective guidance to the model.
+		 */
+		private Object extractScalarArgument(JSONObject namedArguments, Parameter parameter) {
+			String name = parameter.getName();
+			JSONEntityToolParam anno = parameter.getDeclaredAnnotation(JSONEntityToolParam.class);
+			if (!namedArguments.has(name) || namedArguments.isNull(name)) {
+				if (anno != null && anno.required()) {
+					throw new IllegalArgumentException("missing required argument '" + name + "'");
+				}
+				return null;
+			}
+			Class<?> type = parameter.getType();
+			try {
+				if (String.class.equals(type)) {
+					return namedArguments.getString(name);
+				} else if (Long.class.equals(type) || long.class.equals(type)) {
+					return namedArguments.getLong(name);
+				} else if (Integer.class.equals(type) || int.class.equals(type)) {
+					return namedArguments.getInt(name);
+				} else if (Double.class.equals(type) || double.class.equals(type)) {
+					return namedArguments.getDouble(name);
+				} else if (Float.class.equals(type) || float.class.equals(type)) {
+					return (float) namedArguments.getDouble(name);
+				} else if (Boolean.class.equals(type) || boolean.class.equals(type)) {
+					return namedArguments.getBoolean(name);
+				}
+			} catch (RuntimeException e) {
+				throw new IllegalArgumentException("argument '" + name + "' could not be read as "
+						+ type.getSimpleName() + ": " + e.getMessage(), e);
+			}
+			throw new IllegalStateException("Unsupported scalar tool argument type: " + type.getName());
 		}
 
 		private JSONEntity deserialize(Class<? extends JSONEntity> type, String toolInput) {

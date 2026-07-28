@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialistFactory;
@@ -35,6 +36,8 @@ public class SpecialistToolProviderTest {
 	private GridQuerySpecialistFactory gridQuerySpecialistFactory;
 	@Mock
 	private GridUpdateSpecialistFactory gridUpdateSpecialistFactory;
+	@Mock
+	private GridMetadataSpecialistFactory gridMetadataSpecialistFactory;
 
 	private SpecialistToolProvider provider;
 
@@ -43,7 +46,7 @@ public class SpecialistToolProviderTest {
 		// The tools are never invoked here; the provider only reflects over their @Tool annotations.
 		SupervisorTools supervisorTools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory,
 				fileSummarySpecialistFactory, entityMetadataSpecialistFactory, gridQuerySpecialistFactory,
-				gridUpdateSpecialistFactory);
+				gridUpdateSpecialistFactory, gridMetadataSpecialistFactory);
 		provider = new SpecialistToolProvider(supervisorTools);
 	}
 
@@ -63,7 +66,7 @@ public class SpecialistToolProviderTest {
 		// Every declared specialist tool name must resolve to a callback.
 		for (String name : List.of(SupervisorTools.TOOL_TABLE_QUERY, SupervisorTools.TOOL_JSON_SCHEMA,
 				SupervisorTools.TOOL_FILE_SUMMARY, SupervisorTools.TOOL_ENTITY_METADATA, SupervisorTools.TOOL_GRID_QUERY,
-				SupervisorTools.TOOL_GRID_UPDATE)) {
+				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA)) {
 			// call under test
 			List<ToolCallback> tools = provider.getTools(name);
 			assertEquals(1, tools.size());

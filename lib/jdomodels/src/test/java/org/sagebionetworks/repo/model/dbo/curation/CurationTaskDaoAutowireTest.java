@@ -376,7 +376,6 @@ class CurationTaskDaoAutowireTest {
         assertNull(status.getExecutionDetails());
         assertNull(status.getLastUpdatedBy());
         assertNull(status.getLastUpdatedOn());
-        assertNull(status.getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }
@@ -441,29 +440,26 @@ class CurationTaskDaoAutowireTest {
     }
 
     @Test
-    public void testUpdateTaskStatusWithDueDate() {
+    public void testUpdateCurationTaskWithDueDate() {
         CurationTask created = dao.createCurationTask(userId, new CurationTask()
                 .setProjectId(project1.getId())
                 .setDataType("fastq")
                 .setTaskProperties(createTaskProperties(CurationTaskPropertiesType.FILE_BASED)));
 
         Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
-        TaskStatus statusUpdate = new TaskStatus()
-                .setState(TaskState.IN_PROGRESS)
-                .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())
-                .setDueDate(dueDate);
+        created.setDueDate(dueDate);
 
         // call under test
-        TaskStatus updated = dao.updateTaskStatus(userId, created.getTaskId(), statusUpdate);
+        CurationTask updated = dao.updateCurationTask(userId, created);
 
         assertEquals(dueDate, updated.getDueDate());
-        assertEquals(dueDate, dao.getTaskStatus(created.getTaskId()).getDueDate());
+        assertEquals(dueDate, dao.getCurationTask(created.getTaskId()).orElseThrow().getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }
 
     @Test
-    public void testClearDueDate() {
+    public void testUpdateCurationTaskWithClearedDueDate() {
         CurationTask created = dao.createCurationTask(userId, new CurationTask()
                 .setProjectId(project1.getId())
                 .setDataType("fastq")
@@ -471,25 +467,18 @@ class CurationTaskDaoAutowireTest {
 
         // Set a due date
         Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
-        TaskStatus withDueDate = new TaskStatus()
-                .setState(TaskState.IN_PROGRESS)
-                .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag())
-                .setDueDate(dueDate);
-
-        TaskStatus withDueDateResult = dao.updateTaskStatus(userId, created.getTaskId(), withDueDate);
+        created.setDueDate(dueDate);
+        CurationTask withDueDateResult = dao.updateCurationTask(userId, created);
         assertEquals(dueDate, withDueDateResult.getDueDate());
 
-        // Now clear it by omitting dueDate from the update
-        TaskStatus clearUpdate = new TaskStatus()
-                .setState(TaskState.COMPLETED)
-                .setEtag(dao.getTaskStatus(created.getTaskId()).getEtag());
-        // Note: dueDate is NOT set in clearUpdate, so it will be cleared
+        // Clear it by setting dueDate to null
+        withDueDateResult.setDueDate(null);
 
         // call under test
-        TaskStatus result = dao.updateTaskStatus(userId, created.getTaskId(), clearUpdate);
+        CurationTask result = dao.updateCurationTask(userId, withDueDateResult);
 
         assertNull(result.getDueDate());
-        assertNull(dao.getTaskStatus(created.getTaskId()).getDueDate());
+        assertNull(dao.getCurationTask(created.getTaskId()).orElseThrow().getDueDate());
 
         dao.deleteCurationTask(created.getTaskId());
     }

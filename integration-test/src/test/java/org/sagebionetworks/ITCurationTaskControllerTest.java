@@ -165,7 +165,6 @@ public class ITCurationTaskControllerTest {
             assertNull(status.getExecutionDetails());
             assertNull(status.getLastUpdatedBy());
             assertNull(status.getLastUpdatedOn());
-            assertNull(status.getDueDate());
         } finally {
             synapse.deleteMetadataTask(task.getTaskId());
         }
@@ -200,14 +199,16 @@ public class ITCurationTaskControllerTest {
             assertEquals(TaskState.NOT_STARTED, bundle.getStatus().getState());
             assertEquals(task.getEtag(), bundle.getStatus().getEtag());
 
-            // Set due date to 2 days in the future
+            // Set due date via task update
             Date dueDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
+            task.setDueDate(dueDate);
+            task = synapse.updateMetadataTask(task);
+            assertEquals(dueDate, task.getDueDate());
 
-            // Update status to IN_PROGRESS
+            // Update status to IN_PROGRESS using the updated task's etag
             TaskStatus statusUpdate = new TaskStatus()
                     .setState(TaskState.IN_PROGRESS)
-                    .setEtag(task.getEtag())
-                    .setDueDate(dueDate);
+                    .setEtag(task.getEtag());
 
             TaskStatus updatedStatus = synapse.updateTaskStatus(task.getTaskId(), statusUpdate);
 
@@ -216,7 +217,6 @@ public class ITCurationTaskControllerTest {
             assertNotEquals(task.getEtag(), updatedStatus.getEtag());
             assertNotNull(updatedStatus.getLastUpdatedBy());
             assertNotNull(updatedStatus.getLastUpdatedOn());
-            assertEquals(dueDate, updatedStatus.getDueDate());
 
             String inProgressEtag = updatedStatus.getEtag();
 

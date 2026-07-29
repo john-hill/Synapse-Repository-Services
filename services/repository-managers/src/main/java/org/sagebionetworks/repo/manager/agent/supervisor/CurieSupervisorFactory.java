@@ -17,7 +17,8 @@ import org.springframework.stereotype.Service;
 /**
  * Factory for creating {@link CurieSupervisor} instances. Each instance gets a fresh conversation
  * memory and a pre-rendered system prompt. Curie delegates to a focused subset of specialists
- * (JSON schema + grid query + grid update), selected by name from {@link SpecialistToolProvider}.
+ * (JSON schema + grid query + grid update + grid metadata + file summary), selected by name from
+ * {@link SpecialistToolProvider}.
  */
 @Service
 public class CurieSupervisorFactory {
@@ -37,7 +38,7 @@ public class CurieSupervisorFactory {
 		this.codeInterpreterTools = codeInterpreterTools;
 		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_JSON_SCHEMA,
 				SupervisorTools.TOOL_GRID_QUERY, SupervisorTools.TOOL_GRID_UPDATE,
-				SupervisorTools.TOOL_GRID_METADATA);
+				SupervisorTools.TOOL_GRID_METADATA, SupervisorTools.TOOL_FILE_SUMMARY);
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 

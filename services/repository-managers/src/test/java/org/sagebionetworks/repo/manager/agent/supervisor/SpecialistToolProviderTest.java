@@ -43,7 +43,7 @@ public class SpecialistToolProviderTest {
 
 	@BeforeEach
 	public void setup() {
-		// The tools are never invoked here; the provider only reflects over their @Tool annotations.
+		// The tools are never invoked here; the provider only reflects over their @JSONEntityTool annotations.
 		SupervisorTools supervisorTools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory,
 				fileSummarySpecialistFactory, entityMetadataSpecialistFactory, gridQuerySpecialistFactory,
 				gridUpdateSpecialistFactory, gridMetadataSpecialistFactory);

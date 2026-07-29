@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.supervisor;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -13,16 +14,17 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.tool.ToolCallback;
 
 /**
  * A conversational supervisor agent that orchestrates the specialist agents to generate a RecordSet
  * CSV from a folder of source FileEntities, following the data manager's transformation instructions
  * and conforming to a target JSON Schema. It runs on a stronger model than the Haiku specialists
- * because it must plan a multi-step workflow and delegate focused sub-tasks. It delegates through
- * {@link SupervisorTools} (one tool per specialist) and can also run Python directly on the shared
- * code interpreter session via {@link CodeInterpreterTools}. Each instance maintains its own chat
- * memory and is intended for a single task delegation (multi-turn within that task, but discarded
- * after).
+ * because it must plan a multi-step workflow and delegate focused sub-tasks. It is given only the
+ * focused subset of specialist delegation tools it needs (selected by its factory) and can also run
+ * Python directly on the shared code interpreter session via {@link CodeInterpreterTools}. Each
+ * instance maintains its own chat memory and is intended for a single task delegation (multi-turn
+ * within that task, but discarded after).
  */
 public class RecordSetGenerationSupervisor {
 
@@ -30,12 +32,12 @@ public class RecordSetGenerationSupervisor {
 	private final String conversationId;
 
 	RecordSetGenerationSupervisor(ChatModel chatModel, StackConfiguration stackConfig,
-			SupervisorTools supervisorTools, CodeInterpreterTools codeInterpreterTools, String systemPrompt) {
+			List<ToolCallback> specialistTools, CodeInterpreterTools codeInterpreterTools, String systemPrompt) {
 		this.conversationId = UUID.randomUUID().toString();
 		ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(40).build();
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
-				.defaultTools(supervisorTools)
+				.defaultToolCallbacks(specialistTools)
 				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()

@@ -4,15 +4,15 @@ import java.io.File;
 import java.io.FileWriter;
 
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
-import org.sagebionetworks.repo.manager.agent.specialist.JSONEntityResultConverter;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolParam;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,23 +22,23 @@ import org.springframework.stereotype.Service;
  * definition (see {@link JsonSchemaManager#getValidationSchema(String)}).
  */
 @Service
-public class JsonSchemaTools {
+public class JsonSchemaTools extends JSONEntityToolBase {
 
 	private final JsonSchemaManager jsonSchemaManager;
 	private final CodeInterpreterFileManager codeInterpreterFileManager;
 
 	public JsonSchemaTools(JsonSchemaManager jsonSchemaManager, CodeInterpreterFileManager codeInterpreterFileManager) {
+		super();
 		this.jsonSchemaManager = jsonSchemaManager;
 		this.codeInterpreterFileManager = codeInterpreterFileManager;
 	}
 
-	@Tool(description = "Get the fully-resolved validation schema for a Synapse JSON schema $id. "
+	@JSONEntityTool(description = "Get the fully-resolved validation schema for a Synapse JSON schema $id. "
 			+ "All external $ref references are resolved into the local 'definitions' section, and each $ref "
 			+ "is rewritten to a local pointer such as '#/definitions/org.name-SchemaName-1.0.0'. Use this to "
-			+ "answer questions about a schema's structure, properties, required fields, and referenced types.",
-			resultConverter = JSONEntityResultConverter.class)
+			+ "answer questions about a schema's structure, properties, required fields, and referenced types.")
 	public ToolResponse<JsonSchema> describeSchema(
-			@ToolParam(description = "A JSON schema $id such as 'my.org-MySchema' or 'my.org-MySchema-1.0.0' for a specific version", required = true) String schemaId,
+			@JSONEntityToolParam(description = "A JSON schema $id such as 'my.org-MySchema' or 'my.org-MySchema-1.0.0' for a specific version", required = true) String schemaId,
 			ToolContext toolContext) {
 		try {
 			JsonSchema schema = jsonSchemaManager.getValidationSchema(schemaId);
@@ -48,13 +48,12 @@ public class JsonSchemaTools {
 		}
 	}
 
-	@Tool(description = "Write the fully-resolved validation schema for a Synapse JSON schema $id as a JSON file "
+	@JSONEntityTool(description = "Write the fully-resolved validation schema for a Synapse JSON schema $id as a JSON file "
 			+ "to the code interpreter session. All external $ref references are resolved into the local 'definitions' "
-			+ "section. Use this to make a schema available on the session filesystem for further processing.",
-			resultConverter = JSONEntityResultConverter.class)
+			+ "section. Use this to make a schema available on the session filesystem for further processing.")
 	public ToolResponse<JsonSchema> writeSchemaToSession(
-			@ToolParam(description = "A JSON schema $id such as 'my.org-MySchema' or 'my.org-MySchema-1.0.0' for a specific version", required = true) String schemaId,
-			@ToolParam(description = "File path in the session, e.g. 'schema_specialist/my_schema.json'", required = true) String filePath,
+			@JSONEntityToolParam(description = "A JSON schema $id such as 'my.org-MySchema' or 'my.org-MySchema-1.0.0' for a specific version", required = true) String schemaId,
+			@JSONEntityToolParam(description = "File path in the session, e.g. 'schema_specialist/my_schema.json'", required = true) String filePath,
 			ToolContext toolContext) {
 		String sessionId = extractSessionId(toolContext);
 		if (sessionId == null) {

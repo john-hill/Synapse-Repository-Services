@@ -15,7 +15,10 @@ import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,10 +28,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.Type;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class JsonSchemaToolsTest {
@@ -48,6 +53,51 @@ public class JsonSchemaToolsTest {
 		tools = new JsonSchemaTools(mockJsonSchemaManager, mockCodeInterpreterFileManager);
 		toolContext = new ToolContext(Map.of());
 		toolContextWithSession = new ToolContext(Map.of("sessionId", "session-123"));
+	}
+
+	private ToolCallback callback(String name) {
+		return tools.getToolCallbacks().stream()
+				.filter(c -> name.equals(c.getToolDefinition().name())).findFirst().orElseThrow();
+	}
+
+	@Test
+	public void testToolCallbackNamesAndSchemas() {
+		Set<String> names = tools.getToolCallbacks().stream().map(c -> c.getToolDefinition().name())
+				.collect(Collectors.toSet());
+
+		assertEquals(Set.of("describeSchema", "writeSchemaToSession"), names);
+
+		// A required scalar becomes a typed, required top-level property.
+		JSONObject describeSchema = new JSONObject(callback("describeSchema").getToolDefinition().inputSchema());
+		assertEquals("string", describeSchema.getJSONObject("properties").getJSONObject("schemaId").getString("type"));
+		assertTrue(describeSchema.getJSONArray("required").toList().contains("schemaId"));
+
+		// Both parameters of the two-argument tool are required top-level properties.
+		JSONObject writeSchema = new JSONObject(callback("writeSchemaToSession").getToolDefinition().inputSchema());
+		assertEquals("string", writeSchema.getJSONObject("properties").getJSONObject("filePath").getString("type"));
+		assertTrue(writeSchema.getJSONArray("required").toList().contains("schemaId"));
+		assertTrue(writeSchema.getJSONArray("required").toList().contains("filePath"));
+	}
+
+	@Test
+	public void testDescribeSchemaThroughCallback() {
+		JsonSchema schema = createSchemaWithDefinition();
+		when(mockJsonSchemaManager.getValidationSchema("my.org-MySchema-1.0.0")).thenReturn(schema);
+
+		// call under test — the model supplies schemaId as a named JSON property.
+		String response = callback("describeSchema").call("{\"schemaId\": \"my.org-MySchema-1.0.0\"}", toolContext);
+
+		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(new ToolResponse<>(schema)), response);
+		verify(mockJsonSchemaManager).getValidationSchema("my.org-MySchema-1.0.0");
+	}
+
+	@Test
+	public void testDescribeSchemaThroughCallbackMissingRequired() {
+		// call under test — a missing required scalar is fed back as corrective guidance, not thrown.
+		String response = callback("describeSchema").call("{}", toolContext);
+
+		assertTrue(response.contains("missing required argument 'schemaId'"), response);
+		verifyNoInteractions(mockJsonSchemaManager);
 	}
 
 	private JsonSchema createSchemaWithDefinition() {

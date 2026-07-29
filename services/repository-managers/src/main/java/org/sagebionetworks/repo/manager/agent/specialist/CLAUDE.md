@@ -42,7 +42,9 @@ public class GridMetadataSpecialistTools extends JSONEntityToolBase {   // scala
 
 Wire these into a specialist's `ChatClient` via `.defaultToolCallbacks(tools.getToolCallbacks())` (NOT `.defaultTools(...)`). When a request type contains `oneOf` interface unions, override `getPolymorphicImplementerSeeds()` to feed the schema generator each interface's `InstanceFactory.singleton().getKeySetIterator()`.
 
-> **Legacy only:** `EntityMetadataSpecialistTools` and other older `@Tool`-based classes predate this rule. Do not copy them for new tools; migrate them onto `JSONEntityToolBase` when touched (PLFM-9801).
+Add a `List` argument or body as a request POJO with a single array property (the standard Synapse shape — see the list-of-objects convention in `lib/lib-auto-generated/CLAUDE.md`), then take that POJO as the tool's single `@JSONEntityToolParam` structured request body. Do not declare a bare `List<T>` tool parameter.
+
+> **Legacy only:** `SupervisorTools` and other older `@Tool`-based classes predate this rule. Do not copy them for new tools; migrate them onto `JSONEntityToolBase` when touched (PLFM-9801).
 
 ### `JSONEntityResultConverter` for rich return types
 

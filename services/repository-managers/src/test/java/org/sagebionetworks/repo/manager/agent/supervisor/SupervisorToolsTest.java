@@ -1,11 +1,16 @@
 package org.sagebionetworks.repo.manager.agent.supervisor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +33,7 @@ import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySp
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class SupervisorToolsTest {
@@ -77,6 +83,47 @@ public class SupervisorToolsTest {
 				.setAgentsReplicaId(2L);
 		toolContext = new ToolContext(
 				Map.of("userInfo", userInfo, "sessionId", "session-123", "gridAgentSessionContext", gridContext));
+	}
+
+	private ToolCallback callback(String name) {
+		return tools.getToolCallbacks().stream()
+				.filter(c -> name.equals(c.getToolDefinition().name())).findFirst().orElseThrow();
+	}
+
+	@Test
+	public void testToolCallbackNamesAndSchemas() {
+		Set<String> names = tools.getToolCallbacks().stream().map(c -> c.getToolDefinition().name())
+				.collect(Collectors.toSet());
+
+		assertEquals(Set.of(SupervisorTools.TOOL_TABLE_QUERY, SupervisorTools.TOOL_JSON_SCHEMA,
+				SupervisorTools.TOOL_FILE_SUMMARY, SupervisorTools.TOOL_ENTITY_METADATA, SupervisorTools.TOOL_GRID_QUERY,
+				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA), names);
+
+		// The required message scalar becomes a typed, required top-level property.
+		JSONObject schema = new JSONObject(callback(SupervisorTools.TOOL_TABLE_QUERY).getToolDefinition().inputSchema());
+		assertEquals("string", schema.getJSONObject("properties").getJSONObject("message").getString("type"));
+		assertTrue(schema.getJSONArray("required").toList().contains("message"));
+	}
+
+	@Test
+	public void testAskTableQuerySpecialistThroughCallback() {
+		when(tableQuerySpecialistFactory.create()).thenReturn(tableQuerySpecialist);
+		when(tableQuerySpecialist.chat("describe syn1", userInfo, "session-123")).thenReturn("table described");
+
+		// call under test — the supervisor supplies message as a named JSON property.
+		String result = callback(SupervisorTools.TOOL_TABLE_QUERY).call("{\"message\": \"describe syn1\"}", toolContext);
+
+		assertEquals("table described", result);
+		verify(tableQuerySpecialist).chat("describe syn1", userInfo, "session-123");
+	}
+
+	@Test
+	public void testAskTableQuerySpecialistThroughCallbackMissingRequired() {
+		// call under test — a missing required scalar is fed back as corrective guidance, not thrown.
+		String result = callback(SupervisorTools.TOOL_TABLE_QUERY).call("{}", toolContext);
+
+		assertTrue(result.contains("missing required argument 'message'"), result);
+		verifyNoInteractions(tableQuerySpecialistFactory);
 	}
 
 	@Test

@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 
@@ -33,6 +34,9 @@ public class CurieSupervisorFactoryTest {
 	private CodeInterpreterTools mockCodeInterpreterTools;
 
 	@Mock
+	private ChatMemoryRepository mockMemoryRepository;
+
+	@Mock
 	private ToolCallback mockToolCallback;
 
 	private CurieSupervisorFactory factory;
@@ -44,7 +48,7 @@ public class CurieSupervisorFactoryTest {
 				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA, SupervisorTools.TOOL_FILE_SUMMARY))
 				.thenReturn(List.of(mockToolCallback));
 		factory = new CurieSupervisorFactory(mockChatModel, mockStackConfig, mockSpecialistToolProvider,
-				mockCodeInterpreterTools);
+				mockCodeInterpreterTools, mockMemoryRepository);
 	}
 
 	@Test

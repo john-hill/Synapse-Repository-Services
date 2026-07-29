@@ -70,12 +70,14 @@ public class SupervisorTools extends JSONEntityToolBase {
 
 	@JSONEntityTool(name = TOOL_JSON_SCHEMA, description = "Delegate a task about a Synapse JSON schema to the JSON schema specialist. "
 			+ "The specialist can describe a schema (with all $ref references resolved into definitions) and write "
-			+ "the resolved schema as a JSON file to the shared session. Provide a complete, self-contained "
-			+ "instruction; the specialist has no memory of this conversation.")
+			+ "the resolved schema as a JSON file to the shared session. Within a grid session it can also describe the "
+			+ "grid's currently-bound schema directly, resolving the $id itself — you do not need to look it up first. "
+			+ "Provide a complete, self-contained instruction; the specialist has no memory of this conversation.")
 	public String askJsonSchemaSpecialist(
 			@JSONEntityToolParam(description = "A complete, self-contained instruction for the JSON schema specialist", required = true) String message,
 			ToolContext toolContext) {
-		return jsonSchemaSpecialistFactory.create().chat(message, extractUserInfo(toolContext), extractSessionId(toolContext));
+		return jsonSchemaSpecialistFactory.create().chat(message, extractUserInfo(toolContext),
+				extractSessionId(toolContext), extractGridContext(toolContext));
 	}
 
 	@JSONEntityTool(name = TOOL_FILE_SUMMARY, description = "Delegate a task to the file summary specialist to inspect and summarize a file already "

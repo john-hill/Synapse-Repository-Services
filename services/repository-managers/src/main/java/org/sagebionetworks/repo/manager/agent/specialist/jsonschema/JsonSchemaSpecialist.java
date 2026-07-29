@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -45,10 +46,21 @@ public class JsonSchemaSpecialist {
 	 * context across multiple calls within the same specialist instance.
 	 */
 	public String chat(String message, UserInfo user, String sessionId) {
+		return chat(message, user, sessionId, null);
+	}
+
+	/**
+	 * Send a message to this specialist when operating within a grid session. The grid context lets
+	 * the specialist resolve and describe the grid's currently-bound schema without being handed a $id.
+	 */
+	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext) {
 		Map<String, Object> context = new HashMap<>();
 		context.put("userInfo", user);
 		if (sessionId != null) {
 			context.put("sessionId", sessionId);
+		}
+		if (gridContext != null) {
+			context.put(JsonSchemaTools.TOOL_CONTEXT_KEY_GRID_SESSION, gridContext);
 		}
 		return chatClient.prompt()
 				.user(message)

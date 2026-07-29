@@ -10,15 +10,17 @@ import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 
 /**
- * Factory for creating {@link CurieSupervisor} instances. Each instance gets a fresh conversation
- * memory and a pre-rendered system prompt. Curie delegates to a focused subset of specialists
- * (JSON schema + grid query + grid update + grid metadata + file summary), selected by name from
- * {@link SpecialistToolProvider}.
+ * Factory for creating {@link CurieSupervisor} instances. Each instance shares the durable,
+ * cross-machine {@link ChatMemoryRepository} (Bedrock AgentCore Memory) and a pre-rendered system
+ * prompt; the conversation is keyed per-turn from the user and chat session id. Curie delegates to a
+ * focused subset of specialists (JSON schema + grid query + grid update + grid metadata + file
+ * summary), selected by name from {@link SpecialistToolProvider}.
  */
 @Service
 public class CurieSupervisorFactory {
@@ -28,14 +30,17 @@ public class CurieSupervisorFactory {
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
 	private final CodeInterpreterTools codeInterpreterTools;
+	private final ChatMemoryRepository memoryRepository;
 	private final List<ToolCallback> specialistTools;
 	private final String renderedSystemPrompt;
 
 	public CurieSupervisorFactory(ChatModel chatModel, StackConfiguration stackConfig,
-			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools) {
+			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools,
+			ChatMemoryRepository curieChatMemoryRepository) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
 		this.codeInterpreterTools = codeInterpreterTools;
+		this.memoryRepository = curieChatMemoryRepository;
 		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_JSON_SCHEMA,
 				SupervisorTools.TOOL_GRID_QUERY, SupervisorTools.TOOL_GRID_UPDATE,
 				SupervisorTools.TOOL_GRID_METADATA, SupervisorTools.TOOL_FILE_SUMMARY);
@@ -43,7 +48,8 @@ public class CurieSupervisorFactory {
 	}
 
 	public CurieSupervisor create() {
-		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, renderedSystemPrompt);
+		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, memoryRepository,
+				renderedSystemPrompt);
 	}
 
 	String renderSystemPrompt() {

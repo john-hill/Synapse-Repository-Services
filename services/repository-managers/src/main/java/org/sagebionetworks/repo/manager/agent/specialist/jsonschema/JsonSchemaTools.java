@@ -8,7 +8,11 @@ import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolParam;
+import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
+import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
@@ -17,20 +21,31 @@ import org.springframework.stereotype.Service;
 
 /**
  * Tools available to the JSON Schema specialist. These operate on the fully-resolved
- * "validation schema" for a given schema $id: all external $ref references are collapsed
+ * "validation schema" for a schema $id: all external $ref references are collapsed
  * into a single local "definitions" map and each $ref is rewritten to point at the local
  * definition (see {@link JsonSchemaManager#getValidationSchema(String)}).
+ * <p>
+ * A caller that already knows the $id uses {@link #describeSchema}. When the specialist is
+ * delegated a task within a grid session (the trusted {@link GridAgentSessionContext} is present
+ * in the {@link ToolContext}), {@link #describeGridSchema} resolves the grid's currently-bound
+ * schema $id from the live session itself, so the supervisor never has to look up and forward a
+ * $id that could be stale if the binding changed.
  */
 @Service
 public class JsonSchemaTools extends JSONEntityToolBase {
 
+	static final String TOOL_CONTEXT_KEY_GRID_SESSION = "gridAgentSessionContext";
+
 	private final JsonSchemaManager jsonSchemaManager;
 	private final CodeInterpreterFileManager codeInterpreterFileManager;
+	private final GridManager gridManager;
 
-	public JsonSchemaTools(JsonSchemaManager jsonSchemaManager, CodeInterpreterFileManager codeInterpreterFileManager) {
+	public JsonSchemaTools(JsonSchemaManager jsonSchemaManager, CodeInterpreterFileManager codeInterpreterFileManager,
+			GridManager gridManager) {
 		super();
 		this.jsonSchemaManager = jsonSchemaManager;
 		this.codeInterpreterFileManager = codeInterpreterFileManager;
+		this.gridManager = gridManager;
 	}
 
 	@JSONEntityTool(description = "Get the fully-resolved validation schema for a Synapse JSON schema $id. "
@@ -45,6 +60,32 @@ public class JsonSchemaTools extends JSONEntityToolBase {
 			return new ToolResponse<>(schema);
 		} catch (Exception e) {
 			return new ToolResponse<>("Error describing schema '" + schemaId + "': " + e.getMessage());
+		}
+	}
+
+	@JSONEntityTool(description = "Get the fully-resolved validation schema bound to the CURRENT grid session, without "
+			+ "needing a schema $id. The grid's bound schema $id is resolved automatically from the live session, so the "
+			+ "result is always current even if the binding has changed. Use this to answer questions about the structure, "
+			+ "properties, required fields, and constraints that the grid's data must satisfy. Only available when operating "
+			+ "within a grid session.")
+	public ToolResponse<JsonSchema> describeGridSchema(ToolContext toolContext) {
+		UserInfo userInfo = extractUserInfo(toolContext);
+		if (userInfo == null) {
+			return new ToolResponse<>("No user context available");
+		}
+		GridAgentSessionContext gridContext = extractGridContext(toolContext);
+		if (gridContext == null) {
+			return new ToolResponse<>("No grid session context available");
+		}
+		try {
+			GridSession session = gridManager.getGridSession(userInfo, gridContext.getGridSessionId());
+			String schemaId = session.getGridJsonSchema$Id();
+			if (schemaId == null) {
+				return new ToolResponse<>("The current grid session has no bound JSON schema.");
+			}
+			return new ToolResponse<>(jsonSchemaManager.getValidationSchema(schemaId));
+		} catch (Exception e) {
+			return new ToolResponse<>("Error describing the grid's schema: " + e.getMessage());
 		}
 	}
 
@@ -87,6 +128,14 @@ public class JsonSchemaTools extends JSONEntityToolBase {
 
 	private String extractSessionId(ToolContext toolContext) {
 		return (String) toolContext.getContext().get("sessionId");
+	}
+
+	private UserInfo extractUserInfo(ToolContext toolContext) {
+		return (UserInfo) toolContext.getContext().get("userInfo");
+	}
+
+	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
+		return (GridAgentSessionContext) toolContext.getContext().get(TOOL_CONTEXT_KEY_GRID_SESSION);
 	}
 
 }

@@ -143,14 +143,16 @@ public class SupervisorToolsTest {
 	@Test
 	public void testAskJsonSchemaSpecialist() {
 		when(jsonSchemaSpecialistFactory.create()).thenReturn(jsonSchemaSpecialist);
-		when(jsonSchemaSpecialist.chat("describe my.org-S", userInfo, "session-123")).thenReturn("schema described");
+		when(jsonSchemaSpecialist.chat("describe my.org-S", userInfo, "session-123", gridContext))
+				.thenReturn("schema described");
 
 		// call under test
 		String result = tools.askJsonSchemaSpecialist("describe my.org-S", toolContext);
 
 		assertEquals("schema described", result);
 		verify(jsonSchemaSpecialistFactory).create();
-		verify(jsonSchemaSpecialist).chat("describe my.org-S", userInfo, "session-123");
+		// The grid context is forwarded so the specialist can resolve the grid's bound schema itself.
+		verify(jsonSchemaSpecialist).chat("describe my.org-S", userInfo, "session-123", gridContext);
 	}
 
 	@Test

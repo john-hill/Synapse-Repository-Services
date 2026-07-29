@@ -770,12 +770,8 @@ class CurationTaskDaoAutowireTest {
         Date pastDate = new Date(Instant.now().minus(2, ChronoUnit.DAYS).toEpochMilli());
         Date futureDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
 
-        dao.updateTaskStatus(userId, task1.getTaskId(),
-                new TaskStatus().setState(TaskState.IN_PROGRESS)
-                        .setEtag(dao.getTaskStatus(task1.getTaskId()).getEtag()).setDueDate(pastDate));
-        dao.updateTaskStatus(userId, task2.getTaskId(),
-                new TaskStatus().setState(TaskState.IN_PROGRESS)
-                        .setEtag(dao.getTaskStatus(task2.getTaskId()).getEtag()).setDueDate(futureDate));
+        dao.updateCurationTask(userId, task1.setDueDate(pastDate));
+        dao.updateCurationTask(userId, task2.setDueDate(futureDate));
 
         List<Long> allThree = List.of(task1.getTaskId(), task2.getTaskId(), task3.getTaskId());
         Long projectId = KeyFactory.stringToKey(project1.getId());

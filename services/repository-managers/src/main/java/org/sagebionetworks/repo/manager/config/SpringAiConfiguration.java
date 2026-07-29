@@ -31,6 +31,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
  * Spring AI configuration for Bedrock Converse ChatModel and AgentCore services.
+ * 
  */
 @Configuration
 public class SpringAiConfiguration {
@@ -65,10 +66,16 @@ public class SpringAiConfiguration {
 
 	@Bean
 	public ChatModel bedrockChatModel(AwsCredentialsProvider credentialProvider, StackConfiguration stackConfig) {
+		// converse is non-streaming, so the full model response must be generated before any bytes arrive;
+		// the socket (read) timeout must cover a whole generation, not the SDK default of 30s. apiCallTimeout
+		// is set just above the socket budget so a single slow generation gets its full read window without
+		// the SDK retrying the timed-out attempt.
+		Duration socketTimeout = Duration.ofSeconds(stackConfig.getBedrockConverseSocketTimeoutSeconds());
 		return BedrockProxyChatModel.builder()
 				.credentialsProvider(credentialProvider)
 				.region(Region.of(stackConfig.getBedrockConverseRegion()))
-				.timeout(Duration.ofMinutes(5))
+				.socketTimeout(socketTimeout)
+				.timeout(socketTimeout.plusSeconds(10))
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())
 						.build())

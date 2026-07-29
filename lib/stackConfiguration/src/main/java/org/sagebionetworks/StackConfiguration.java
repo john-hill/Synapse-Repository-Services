@@ -975,7 +975,12 @@ public interface StackConfiguration {
 	 * @return The AWS region for Bedrock Converse API calls.
 	 */
 	String getBedrockConverseRegion();
-	
+
+	/**
+	 * @return The HTTP socket (read) timeout, in seconds, for a single Bedrock Converse call.
+	 */
+	Long getBedrockConverseSocketTimeoutSeconds();
+
 	/**
 	 * @return The Claude Haiku model ID.
 	 */

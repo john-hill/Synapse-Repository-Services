@@ -27,6 +27,12 @@
 			<artifactId>lib-jdomodels</artifactId>
 		</dependency>
 
+		<!-- Used to generate the grid request JSON schema for the grid agent specialist prompts -->
+		<dependency>
+			<groupId>org.sagebionetworks</groupId>
+			<artifactId>lib-openapi</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>lib-doi</artifactId>

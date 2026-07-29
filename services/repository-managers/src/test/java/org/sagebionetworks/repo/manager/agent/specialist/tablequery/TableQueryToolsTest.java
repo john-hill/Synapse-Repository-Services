@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.specialist.tablequery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,7 +16,10 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +36,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.TableDescription;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
@@ -47,6 +52,7 @@ import org.sagebionetworks.util.csv.CSVWriterStream;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class TableQueryToolsTest {
@@ -74,6 +80,58 @@ public class TableQueryToolsTest {
 		userInfo = new UserInfo(false, 101L);
 		toolContext = new ToolContext(Map.of("userInfo", userInfo));
 		toolContextWithSession = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "session-123"));
+	}
+
+	private ToolCallback callback(String name) {
+		return tools.getToolCallbacks().stream()
+				.filter(c -> name.equals(c.getToolDefinition().name())).findFirst().orElseThrow();
+	}
+
+	@Test
+	public void testToolCallbackNamesAndSchemas() {
+		Set<String> names = tools.getToolCallbacks().stream().map(c -> c.getToolDefinition().name())
+				.collect(Collectors.toSet());
+
+		assertEquals(Set.of("describeTable", "queryTable", "writeQueryToSession"), names);
+
+		// A required scalar becomes a typed, required top-level property.
+		JSONObject describeSchema = new JSONObject(callback("describeTable").getToolDefinition().inputSchema());
+		assertEquals("string", describeSchema.getJSONObject("properties").getJSONObject("tableId").getString("type"));
+		assertTrue(describeSchema.getJSONArray("required").toList().contains("tableId"));
+
+		// An optional scalar is a property but is not listed as required.
+		JSONObject querySchema = new JSONObject(callback("queryTable").getToolDefinition().inputSchema());
+		assertEquals("string", querySchema.getJSONObject("properties").getJSONObject("sql").getString("type"));
+		assertEquals("integer", querySchema.getJSONObject("properties").getJSONObject("limit").getString("type"));
+		assertFalse(querySchema.getJSONArray("required").toList().contains("limit"));
+	}
+
+	@Test
+	public void testDescribeTableThroughCallback() throws Exception {
+		IdAndVersion idAndVersion = IdAndVersion.parse("syn123");
+		TableEntity tableEntity = new TableEntity();
+		tableEntity.setId("syn123");
+		tableEntity.setName("MyTable");
+		when(mockEntityManager.getEntity(userInfo, "syn123")).thenReturn(tableEntity);
+		when(mockTableManagerSupport.getTableType(idAndVersion)).thenReturn(TableType.table);
+		when(mockTableManagerSupport.getTableSchema(idAndVersion)).thenReturn(List.of());
+
+		// call under test — the model supplies tableId as a named JSON property.
+		String response = callback("describeTable").call("{\"tableId\": \"syn123\"}", toolContext);
+
+		TableDescription expected = new TableDescription().setTableType("table").setEntity(tableEntity)
+				.setColumnModels(List.of());
+		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(new ToolResponse<>(expected)), response);
+		verify(mockEntityManager).getEntity(userInfo, "syn123");
+	}
+
+	@Test
+	public void testDescribeTableThroughCallbackMissingRequired() {
+		// call under test — a missing required scalar is fed back as corrective guidance, not thrown.
+		String response = callback("describeTable").call("{}", toolContext);
+
+		assertTrue(response.contains("missing required argument 'tableId'"), response);
+		verifyNoInteractions(mockEntityManager);
 	}
 
 	@Test

@@ -6,16 +6,21 @@ import java.util.List;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
-import org.sagebionetworks.repo.manager.agent.specialist.JSONEntityResultConverter;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolParam;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.EntityChildrenRequest;
 import org.sagebionetworks.repo.model.EntityChildrenResponse;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.AddFilesToSessionRequest;
+import org.sagebionetworks.repo.model.agent.GetFilesMetadataRequest;
 import org.sagebionetworks.repo.model.agent.SessionFileMetadata;
 import org.sagebionetworks.repo.model.agent.SessionFileMetadataBatch;
+import org.sagebionetworks.repo.model.agent.SessionFileToAdd;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.entity.Direction;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -25,8 +30,6 @@ import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.service.EntityService;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,22 +40,22 @@ import org.springframework.stereotype.Service;
  * permissions are always respected.
  */
 @Service
-public class EntityMetadataSpecialistTools {
+public class EntityMetadataSpecialistTools extends JSONEntityToolBase {
 
 	private final EntityService entityService;
 	private final CodeInterpreterFileManager codeInterpreterFileManager;
 
 	public EntityMetadataSpecialistTools(EntityService entityService,
 			CodeInterpreterFileManager codeInterpreterFileManager) {
+		super();
 		this.entityService = entityService;
 		this.codeInterpreterFileManager = codeInterpreterFileManager;
 	}
 
-	@Tool(description = "Get the details of a Synapse entity including its type, name, parent, and creation "
-			+ "information. Use this to answer questions about what an entity is and where it lives.",
-			resultConverter = JSONEntityResultConverter.class)
+	@JSONEntityTool(description = "Get the details of a Synapse entity including its type, name, parent, and creation "
+			+ "information. Use this to answer questions about what an entity is and where it lives.")
 	public ToolResponse<Entity> getEntityDetails(
-			@ToolParam(description = "A Synapse entity ID such as 'syn123' or 'syn123.5' for a specific version", required = true) String entityId,
+			@JSONEntityToolParam(description = "A Synapse entity ID such as 'syn123' or 'syn123.5' for a specific version", required = true) String entityId,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -73,11 +76,10 @@ public class EntityMetadataSpecialistTools {
 		}
 	}
 
-	@Tool(description = "Get all annotations for a Synapse entity, including annotations derived from a bound "
-			+ "JSON schema. Use this to answer questions such as 'What annotations does syn123 have?'.",
-			resultConverter = JSONEntityResultConverter.class)
+	@JSONEntityTool(description = "Get all annotations for a Synapse entity, including annotations derived from a bound "
+			+ "JSON schema. Use this to answer questions such as 'What annotations does syn123 have?'.")
 	public ToolResponse<Annotations> getAnnotations(
-			@ToolParam(description = "A Synapse entity ID such as 'syn123'", required = true) String entityId,
+			@JSONEntityToolParam(description = "A Synapse entity ID such as 'syn123'", required = true) String entityId,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -92,11 +94,10 @@ public class EntityMetadataSpecialistTools {
 		}
 	}
 
-	@Tool(description = "Get the JSON schema binding for a Synapse entity, if one is bound. The binding "
-			+ "identifies the schema $id that validates the entity and whether derived annotations are enabled.",
-			resultConverter = JSONEntityResultConverter.class)
+	@JSONEntityTool(description = "Get the JSON schema binding for a Synapse entity, if one is bound. The binding "
+			+ "identifies the schema $id that validates the entity and whether derived annotations are enabled.")
 	public ToolResponse<JsonSchemaObjectBinding> getSchemaBinding(
-			@ToolParam(description = "A Synapse entity ID such as 'syn123'", required = true) String entityId,
+			@JSONEntityToolParam(description = "A Synapse entity ID such as 'syn123'", required = true) String entityId,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -111,12 +112,11 @@ public class EntityMetadataSpecialistTools {
 		}
 	}
 
-	@Tool(description = "List the child entities of a Synapse container (Project or Folder). Results are paged; "
-			+ "if the response includes a nextPageToken, pass it back to retrieve the next page.",
-			resultConverter = JSONEntityResultConverter.class)
+	@JSONEntityTool(description = "List the child entities of a Synapse container (Project or Folder). Results are paged; "
+			+ "if the response includes a nextPageToken, pass it back to retrieve the next page.")
 	public ToolResponse<EntityChildrenResponse> getChildren(
-			@ToolParam(description = "A Synapse entity ID of the parent container such as 'syn123'", required = true) String entityId,
-			@ToolParam(description = "A page token from a previous response to get the next page of children", required = false) String nextPageToken,
+			@JSONEntityToolParam(description = "A Synapse entity ID of the parent container such as 'syn123'", required = true) String entityId,
+			@JSONEntityToolParam(description = "A page token from a previous response to get the next page of children", required = false) String nextPageToken,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -137,21 +137,21 @@ public class EntityMetadataSpecialistTools {
 		}
 	}
 
-	@Tool(description = "Report the size, content type, and code-interpreter-session eligibility of one or more "
+	@JSONEntityTool(description = "Report the size, content type, and code-interpreter-session eligibility of one or more "
 			+ "Synapse files (each a FileEntity or RecordSet) WITHOUT adding them to the session. Use this to "
 			+ "decide whether to add or skip a file, and to explain why a file cannot be added: the user may lack "
 			+ "download permission, the file may be too large (limit 100 MB), or its type may not be supported "
 			+ "(allowed: PDF, CSV, TXT, JSON). Size and content type are only available when the user can download "
 			+ "the file. Each result includes a fileHandleAssociation; pass the associations of the files you want "
-			+ "to add to addFilesToSession.",
-			resultConverter = JSONEntityResultConverter.class)
+			+ "to add to addFilesToSession.")
 	public ToolResponse<SessionFileMetadataBatch> getFilesMetadata(
-			@ToolParam(description = "The FileEntity or RecordSet IDs to describe (e.g. 'syn123' or 'syn123.5')", required = true) List<String> entityIds,
+			@JSONEntityToolParam(description = "The FileEntity or RecordSet IDs to describe (e.g. 'syn123' or 'syn123.5')", required = true) GetFilesMetadataRequest request,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
 			return new ToolResponse<>("No user context available");
 		}
+		List<String> entityIds = request == null ? null : request.getEntityIds();
 		if (entityIds == null || entityIds.isEmpty()) {
 			return new ToolResponse<>("No entity IDs were provided");
 		}
@@ -188,14 +188,14 @@ public class EntityMetadataSpecialistTools {
 		}
 	}
 
-	@Tool(description = "Copy one or more Synapse files into the code interpreter session so they can be inspected "
+	@JSONEntityTool(description = "Copy one or more Synapse files into the code interpreter session so they can be inspected "
 			+ "or processed. Identify each file by the fileHandleAssociation obtained from getFilesMetadata. Each "
 			+ "file must be downloadable by the user, of a supported type (PDF, CSV, TXT, JSON), and no larger than "
 			+ "100 MB; files that fail these checks are reported as failures rather than added. Returns a per-file "
 			+ "report of which files were added and which could not be, with the reason.")
 	public String addFilesToSession(
-			@ToolParam(description = "The files to add, each pairing a fileHandleAssociation (from getFilesMetadata) "
-					+ "with the session path where it should appear (e.g. 'entity_metadata_specialist/data.csv')", required = true) List<FileToAdd> files,
+			@JSONEntityToolParam(description = "The files to add, each pairing a fileHandleAssociation (from getFilesMetadata) "
+					+ "with the session path where it should appear (e.g. 'entity_metadata_specialist/data.csv')", required = true) AddFilesToSessionRequest request,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -205,13 +205,14 @@ public class EntityMetadataSpecialistTools {
 		if (sessionId == null) {
 			return "Error: No code interpreter session ID available";
 		}
+		List<SessionFileToAdd> files = request == null ? null : request.getFiles();
 		if (files == null || files.isEmpty()) {
 			return "Error: No files were provided to add to the session";
 		}
 		try {
 			List<PushFileRequest> pushRequests = new ArrayList<>(files.size());
-			for (FileToAdd file : files) {
-				pushRequests.add(new PushFileRequest(file.fileHandleAssociation(), file.sessionPath()));
+			for (SessionFileToAdd file : files) {
+				pushRequests.add(new PushFileRequest(file.getFileHandleAssociation(), file.getSessionPath()));
 			}
 
 			// The file manager enforces download authorization, the type whitelist, and the size limit
@@ -220,8 +221,8 @@ public class EntityMetadataSpecialistTools {
 					sessionId);
 			StringBuilder report = new StringBuilder();
 			for (int i = 0; i < files.size(); i++) {
-				FileToAdd file = files.get(i);
-				String label = "'" + file.fileHandleAssociation().getAssociateObjectId() + "' at '" + file.sessionPath() + "'";
+				SessionFileToAdd file = files.get(i);
+				String label = "'" + file.getFileHandleAssociation().getAssociateObjectId() + "' at '" + file.getSessionPath() + "'";
 				PushFileResult result = results.get(i);
 				report.append(result.isError() ? "Failed to add " + label + ": " + result.error()
 						: "Added " + label).append("\n");
@@ -266,15 +267,6 @@ public class EntityMetadataSpecialistTools {
 			super(message);
 		}
 	}
-
-	/**
-	 * A single file to add to the code interpreter session.
-	 *
-	 * @param fileHandleAssociation The association identifying the file's content, as returned by
-	 *                              getFilesMetadata
-	 * @param sessionPath           The path where the file should appear in the session filesystem
-	 */
-	public record FileToAdd(FileHandleAssociation fileHandleAssociation, String sessionPath) {}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {
 		return (UserInfo) toolContext.getContext().get("userInfo");

@@ -24,6 +24,7 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
 import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
 import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
@@ -85,6 +86,16 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	 * @return
 	 */
 	GridReplica getReplica(UserInfo user, String sessionId, Long repicaId);
+
+	/**
+	 * Get the summary information (connection status and type) for a single replica of a grid session.
+	 *
+	 * @param user
+	 * @param sessionId
+	 * @param replicaId
+	 * @return
+	 */
+	GridReplicaInfo getReplicaInfo(UserInfo user, String sessionId, Long replicaId);
 
 	/**
 	 * List all replicas for a grid session with their connection status and type.

@@ -24,6 +24,9 @@ public class ExampleJSONEntityTool extends JSONEntityToolBase {
 	private Entity entity;
 	private String rawPayload;
 	private JSONObject rawObject;
+	private Long count;
+	private String label;
+	private boolean noArgCalled;
 	private ToolContext context;
 
 	public ExampleJSONEntityTool() {
@@ -61,6 +64,36 @@ public class ExampleJSONEntityTool extends JSONEntityToolBase {
 		this.rawObject = payload;
 		this.context = context;
 		return new ToolResponse<FileHandle>(new S3FileHandle().setId("789"));
+	}
+
+	@JSONEntityTool(name = "sumScalars", description = "Consumes scalar arguments bound by name")
+	public ToolResponse<FileHandle> sumScalars(
+			@JSONEntityToolParam(description = "how many", required = true) Long count,
+			@JSONEntityToolParam(description = "an optional label", required = false) String label,
+			ToolContext context) {
+		this.count = count;
+		this.label = label;
+		this.context = context;
+		return new ToolResponse<FileHandle>(new S3FileHandle().setId("count-" + count));
+	}
+
+	@JSONEntityTool(name = "ping", description = "Takes no argument")
+	public ToolResponse<FileHandle> ping(ToolContext context) {
+		this.noArgCalled = true;
+		this.context = context;
+		return new ToolResponse<FileHandle>(new S3FileHandle().setId("pong"));
+	}
+
+	public Long getCount() {
+		return count;
+	}
+
+	public String getLabel() {
+		return label;
+	}
+
+	public boolean isNoArgCalled() {
+		return noArgCalled;
 	}
 
 	public Entity getEntity() {

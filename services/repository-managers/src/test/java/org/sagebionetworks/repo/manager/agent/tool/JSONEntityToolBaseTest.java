@@ -38,7 +38,7 @@ public class JSONEntityToolBaseTest {
 	@Test
 	public void testGetToolCallbacks() {
 		assertNotNull(tool.getToolCallbacks());
-		assertEquals(3, tool.getToolCallbacks().size());
+		assertEquals(5, tool.getToolCallbacks().size());
 	}
 
 	@Test
@@ -146,6 +146,80 @@ public class JSONEntityToolBaseTest {
 
 		assertTrue(result.contains("was not valid JSON"), result);
 		assertNull(tool.getEntity());
+	}
+
+	@Test
+	public void testScalarInputSchemaFromParameters() {
+		String inputSchema = callback("sumScalars").getToolDefinition().inputSchema();
+		JSONObject schema = new JSONObject(inputSchema);
+
+		// Each scalar parameter is a typed top-level property, named by the parameter (build enables
+		// -parameters), with only the required ones listed under "required".
+		assertEquals("object", schema.getString("type"));
+		assertEquals("integer", schema.getJSONObject("properties").getJSONObject("count").getString("type"));
+		assertEquals("string", schema.getJSONObject("properties").getJSONObject("label").getString("type"));
+		assertEquals("how many", schema.getJSONObject("properties").getJSONObject("count").getString("description"));
+		assertEquals(1, schema.getJSONArray("required").length());
+		assertEquals("count", schema.getJSONArray("required").getString(0));
+	}
+
+	@Test
+	public void testNoArgumentInputSchemaIsEmptyObject() {
+		JSONObject schema = new JSONObject(callback("ping").getToolDefinition().inputSchema());
+		assertEquals("object", schema.getString("type"));
+		assertEquals(0, schema.getJSONObject("properties").length());
+		assertFalse(schema.has("required"));
+	}
+
+	@Test
+	public void testCallBindsScalarsByNameAndCoercesTypes() {
+		ToolContext context = new ToolContext(Map.of("key", "value"));
+
+		// call under test — named JSON properties bind to the method parameters, coerced to their types.
+		String result = callback("sumScalars").call("{\"count\": 7, \"label\": \"hi\"}", context);
+
+		assertEquals(Long.valueOf(7L), tool.getCount());
+		assertEquals("hi", tool.getLabel());
+		assertEquals(context, tool.getContext());
+		assertEquals(
+				JDOSecondaryPropertyUtils.createJSONFromObject(new ToolResponse<>(new S3FileHandle().setId("count-7"))),
+				result);
+	}
+
+	@Test
+	public void testCallOmitsOptionalScalar() {
+		// call under test — an omitted optional scalar binds to null; only the required one is supplied.
+		callback("sumScalars").call("{\"count\": 3}", null);
+
+		assertEquals(Long.valueOf(3L), tool.getCount());
+		assertNull(tool.getLabel());
+	}
+
+	@Test
+	public void testCallWithMissingRequiredScalarReturnsErrorString() {
+		// call under test — a missing required scalar is fed back as corrective guidance; the body never runs.
+		String result = callback("sumScalars").call("{\"label\": \"hi\"}", null);
+
+		assertTrue(result.contains("missing required argument 'count'"), result);
+		assertNull(tool.getCount());
+	}
+
+	@Test
+	public void testCallNoArgumentToolWithEmptyObject() {
+		// call under test — a no-argument tool is invoked with an empty argument object.
+		String result = callback("ping").call("{}", null);
+
+		assertTrue(tool.isNoArgCalled());
+		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(new ToolResponse<>(new S3FileHandle().setId("pong"))),
+				result);
+	}
+
+	@Test
+	public void testCallNoArgumentToolWithBlankInput() {
+		// call under test — a blank argument string is treated as an empty argument object.
+		callback("ping").call("", null);
+
+		assertTrue(tool.isNoArgCalled());
 	}
 
 	@Test

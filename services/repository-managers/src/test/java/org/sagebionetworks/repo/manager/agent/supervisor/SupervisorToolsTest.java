@@ -1,11 +1,16 @@
 package org.sagebionetworks.repo.manager.agent.supervisor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +20,8 @@ import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMe
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
+import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialist;
+import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialist;
@@ -26,6 +33,7 @@ import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySp
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class SupervisorToolsTest {
@@ -42,6 +50,8 @@ public class SupervisorToolsTest {
 	private GridQuerySpecialistFactory gridQuerySpecialistFactory;
 	@Mock
 	private GridUpdateSpecialistFactory gridUpdateSpecialistFactory;
+	@Mock
+	private GridMetadataSpecialistFactory gridMetadataSpecialistFactory;
 
 	@Mock
 	private TableQuerySpecialist tableQuerySpecialist;
@@ -55,6 +65,8 @@ public class SupervisorToolsTest {
 	private GridQuerySpecialist gridQuerySpecialist;
 	@Mock
 	private GridUpdateSpecialist gridUpdateSpecialist;
+	@Mock
+	private GridMetadataSpecialist gridMetadataSpecialist;
 
 	private SupervisorTools tools;
 	private UserInfo userInfo;
@@ -64,12 +76,54 @@ public class SupervisorToolsTest {
 	@BeforeEach
 	public void setup() {
 		tools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory, fileSummarySpecialistFactory,
-				entityMetadataSpecialistFactory, gridQuerySpecialistFactory, gridUpdateSpecialistFactory);
+				entityMetadataSpecialistFactory, gridQuerySpecialistFactory, gridUpdateSpecialistFactory,
+				gridMetadataSpecialistFactory);
 		userInfo = new UserInfo(false, 101L);
 		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L)
 				.setAgentsReplicaId(2L);
 		toolContext = new ToolContext(
 				Map.of("userInfo", userInfo, "sessionId", "session-123", "gridAgentSessionContext", gridContext));
+	}
+
+	private ToolCallback callback(String name) {
+		return tools.getToolCallbacks().stream()
+				.filter(c -> name.equals(c.getToolDefinition().name())).findFirst().orElseThrow();
+	}
+
+	@Test
+	public void testToolCallbackNamesAndSchemas() {
+		Set<String> names = tools.getToolCallbacks().stream().map(c -> c.getToolDefinition().name())
+				.collect(Collectors.toSet());
+
+		assertEquals(Set.of(SupervisorTools.TOOL_TABLE_QUERY, SupervisorTools.TOOL_JSON_SCHEMA,
+				SupervisorTools.TOOL_FILE_SUMMARY, SupervisorTools.TOOL_ENTITY_METADATA, SupervisorTools.TOOL_GRID_QUERY,
+				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA), names);
+
+		// The required message scalar becomes a typed, required top-level property.
+		JSONObject schema = new JSONObject(callback(SupervisorTools.TOOL_TABLE_QUERY).getToolDefinition().inputSchema());
+		assertEquals("string", schema.getJSONObject("properties").getJSONObject("message").getString("type"));
+		assertTrue(schema.getJSONArray("required").toList().contains("message"));
+	}
+
+	@Test
+	public void testAskTableQuerySpecialistThroughCallback() {
+		when(tableQuerySpecialistFactory.create()).thenReturn(tableQuerySpecialist);
+		when(tableQuerySpecialist.chat("describe syn1", userInfo, "session-123")).thenReturn("table described");
+
+		// call under test — the supervisor supplies message as a named JSON property.
+		String result = callback(SupervisorTools.TOOL_TABLE_QUERY).call("{\"message\": \"describe syn1\"}", toolContext);
+
+		assertEquals("table described", result);
+		verify(tableQuerySpecialist).chat("describe syn1", userInfo, "session-123");
+	}
+
+	@Test
+	public void testAskTableQuerySpecialistThroughCallbackMissingRequired() {
+		// call under test — a missing required scalar is fed back as corrective guidance, not thrown.
+		String result = callback(SupervisorTools.TOOL_TABLE_QUERY).call("{}", toolContext);
+
+		assertTrue(result.contains("missing required argument 'message'"), result);
+		verifyNoInteractions(tableQuerySpecialistFactory);
 	}
 
 	@Test
@@ -89,14 +143,16 @@ public class SupervisorToolsTest {
 	@Test
 	public void testAskJsonSchemaSpecialist() {
 		when(jsonSchemaSpecialistFactory.create()).thenReturn(jsonSchemaSpecialist);
-		when(jsonSchemaSpecialist.chat("describe my.org-S", userInfo, "session-123")).thenReturn("schema described");
+		when(jsonSchemaSpecialist.chat("describe my.org-S", userInfo, "session-123", gridContext))
+				.thenReturn("schema described");
 
 		// call under test
 		String result = tools.askJsonSchemaSpecialist("describe my.org-S", toolContext);
 
 		assertEquals("schema described", result);
 		verify(jsonSchemaSpecialistFactory).create();
-		verify(jsonSchemaSpecialist).chat("describe my.org-S", userInfo, "session-123");
+		// The grid context is forwarded so the specialist can resolve the grid's bound schema itself.
+		verify(jsonSchemaSpecialist).chat("describe my.org-S", userInfo, "session-123", gridContext);
 	}
 
 	@Test
@@ -152,6 +208,21 @@ public class SupervisorToolsTest {
 		assertEquals("grid updated", result);
 		verify(gridUpdateSpecialistFactory).create();
 		verify(gridUpdateSpecialist).chat("set age to 25", userInfo, "session-123", gridContext);
+	}
+
+	@Test
+	public void testAskGridMetadataSpecialist() {
+		when(gridMetadataSpecialistFactory.create()).thenReturn(gridMetadataSpecialist);
+		when(gridMetadataSpecialist.chat("who changed row 5", userInfo, "session-123", gridContext))
+				.thenReturn("replica described");
+
+		// call under test
+		String result = tools.askGridMetadataSpecialist("who changed row 5", toolContext);
+
+		assertEquals("replica described", result);
+		// A fresh specialist is created and given the propagated user, session, and grid context.
+		verify(gridMetadataSpecialistFactory).create();
+		verify(gridMetadataSpecialist).chat("who changed row 5", userInfo, "session-123", gridContext);
 	}
 
 	@Test

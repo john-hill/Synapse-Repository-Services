@@ -263,6 +263,14 @@ public class GridManagerImpl implements GridManager {
 				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
 	}
 
+	@Override
+	public GridReplicaInfo getReplicaInfo(UserInfo user, String sessionId, Long replicaId) {
+		ValidateArgument.required(replicaId, "replicaId");
+		validGridSessionAccess(user, sessionId);
+		return gridDao.getReplicaInfo(sessionId, replicaId)
+				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
+	}
+
 	/**
 	 * Validate that the user created the replica.
 	 * 

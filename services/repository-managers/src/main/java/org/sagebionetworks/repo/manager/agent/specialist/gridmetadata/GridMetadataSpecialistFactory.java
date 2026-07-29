@@ -1,7 +1,6 @@
-package org.sagebionetworks.repo.manager.agent.supervisor;
+package org.sagebionetworks.repo.manager.agent.specialist.gridmetadata;
 
 import java.io.StringWriter;
-import java.util.List;
 
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
@@ -11,38 +10,34 @@ import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 
 /**
- * Factory for creating {@link RecordSetGenerationSupervisor} instances. Each instance gets a fresh
- * conversation memory and a pre-rendered system prompt. The supervisor delegates to a focused
- * subset of specialists (entity metadata + JSON schema + file summary), selected by name from
- * {@link SpecialistToolProvider}.
+ * Factory for creating {@link GridMetadataSpecialist} instances. Each instance gets a fresh
+ * conversation memory and a pre-rendered system prompt.
  */
 @Service
-public class RecordSetGenerationSupervisorFactory {
+public class GridMetadataSpecialistFactory {
 
-	static final String PROMPT_TEMPLATE = "prompts/recordset-generation-supervisor.vtp";
+	static final String PROMPT_TEMPLATE = "prompts/grid-metadata-specialist.vtp";
 
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
+	private final GridMetadataSpecialistTools gridMetadataSpecialistTools;
 	private final CodeInterpreterTools codeInterpreterTools;
-	private final List<ToolCallback> specialistTools;
 	private final String renderedSystemPrompt;
 
-	public RecordSetGenerationSupervisorFactory(ChatModel chatModel, StackConfiguration stackConfig,
-			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools) {
+	public GridMetadataSpecialistFactory(ChatModel chatModel, StackConfiguration stackConfig,
+			GridMetadataSpecialistTools gridMetadataSpecialistTools, CodeInterpreterTools codeInterpreterTools) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
+		this.gridMetadataSpecialistTools = gridMetadataSpecialistTools;
 		this.codeInterpreterTools = codeInterpreterTools;
-		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_ENTITY_METADATA,
-				SupervisorTools.TOOL_JSON_SCHEMA, SupervisorTools.TOOL_FILE_SUMMARY);
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public RecordSetGenerationSupervisor create() {
-		return new RecordSetGenerationSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools,
+	public GridMetadataSpecialist create() {
+		return new GridMetadataSpecialist(chatModel, stackConfig, gridMetadataSpecialistTools, codeInterpreterTools,
 				renderedSystemPrompt);
 	}
 

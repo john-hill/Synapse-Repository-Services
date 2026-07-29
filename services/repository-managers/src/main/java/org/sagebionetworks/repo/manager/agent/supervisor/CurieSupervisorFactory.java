@@ -10,39 +10,45 @@ import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 
 /**
- * Factory for creating {@link RecordSetGenerationSupervisor} instances. Each instance gets a fresh
- * conversation memory and a pre-rendered system prompt. The supervisor delegates to a focused
- * subset of specialists (entity metadata + JSON schema + file summary), selected by name from
- * {@link SpecialistToolProvider}.
+ * Factory for creating {@link CurieSupervisor} instances. Each instance shares the durable,
+ * cross-machine {@link ChatMemoryRepository} (Bedrock AgentCore Memory) and a pre-rendered system
+ * prompt; the conversation is keyed per-turn from the user and chat session id. Curie delegates to a
+ * focused subset of specialists (JSON schema + grid query + grid update + grid metadata + file
+ * summary), selected by name from {@link SpecialistToolProvider}.
  */
 @Service
-public class RecordSetGenerationSupervisorFactory {
+public class CurieSupervisorFactory {
 
-	static final String PROMPT_TEMPLATE = "prompts/recordset-generation-supervisor.vtp";
+	static final String PROMPT_TEMPLATE = "prompts/curie-supervisor.vtp";
 
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
 	private final CodeInterpreterTools codeInterpreterTools;
+	private final ChatMemoryRepository memoryRepository;
 	private final List<ToolCallback> specialistTools;
 	private final String renderedSystemPrompt;
 
-	public RecordSetGenerationSupervisorFactory(ChatModel chatModel, StackConfiguration stackConfig,
-			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools) {
+	public CurieSupervisorFactory(ChatModel chatModel, StackConfiguration stackConfig,
+			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools,
+			ChatMemoryRepository curieChatMemoryRepository) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
 		this.codeInterpreterTools = codeInterpreterTools;
-		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_ENTITY_METADATA,
-				SupervisorTools.TOOL_JSON_SCHEMA, SupervisorTools.TOOL_FILE_SUMMARY);
+		this.memoryRepository = curieChatMemoryRepository;
+		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_JSON_SCHEMA,
+				SupervisorTools.TOOL_GRID_QUERY, SupervisorTools.TOOL_GRID_UPDATE,
+				SupervisorTools.TOOL_GRID_METADATA, SupervisorTools.TOOL_FILE_SUMMARY);
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public RecordSetGenerationSupervisor create() {
-		return new RecordSetGenerationSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools,
+	public CurieSupervisor create() {
+		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, memoryRepository,
 				renderedSystemPrompt);
 	}
 

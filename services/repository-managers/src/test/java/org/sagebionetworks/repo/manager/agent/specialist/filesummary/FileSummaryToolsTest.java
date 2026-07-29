@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.specialist.filesummary;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -9,7 +10,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class FileSummaryToolsTest {
@@ -35,6 +40,52 @@ public class FileSummaryToolsTest {
 		tools = new FileSummaryTools(mockCodeInterpreterClient);
 		toolContext = new ToolContext(Map.of());
 		toolContextWithSession = new ToolContext(Map.of("sessionId", "session-123"));
+	}
+
+	private ToolCallback callback(String name) {
+		return tools.getToolCallbacks().stream()
+				.filter(c -> name.equals(c.getToolDefinition().name())).findFirst().orElseThrow();
+	}
+
+	@Test
+	public void testToolCallbackNamesAndSchemas() {
+		Set<String> names = tools.getToolCallbacks().stream().map(c -> c.getToolDefinition().name())
+				.collect(Collectors.toSet());
+
+		assertEquals(Set.of("inspectFile", "extractPdfText"), names);
+
+		// A required scalar becomes a typed, required top-level property.
+		JSONObject inspectSchema = new JSONObject(callback("inspectFile").getToolDefinition().inputSchema());
+		assertEquals("string", inspectSchema.getJSONObject("properties").getJSONObject("filePath").getString("type"));
+		assertTrue(inspectSchema.getJSONArray("required").toList().contains("filePath"));
+
+		// The optional page number is an integer property that is not listed as required.
+		JSONObject extractSchema = new JSONObject(callback("extractPdfText").getToolDefinition().inputSchema());
+		assertEquals("integer",
+				extractSchema.getJSONObject("properties").getJSONObject("pageNumber").getString("type"));
+		assertFalse(extractSchema.getJSONArray("required").toList().contains("pageNumber"));
+	}
+
+	@Test
+	public void testInspectFileThroughCallback() {
+		CodeExecutionResult result = new CodeExecutionResult("size_bytes: 42\nline_count: 3\n", false, List.of());
+		when(mockCodeInterpreterClient.executeCode(eq("session-123"), eq("python"),
+				org.mockito.ArgumentMatchers.anyString())).thenReturn(result);
+
+		// call under test — a plain String return is passed through unchanged by the result converter.
+		String response = callback("inspectFile").call("{\"filePath\": \"query_specialist/results.csv\"}",
+				toolContextWithSession);
+
+		assertTrue(response.contains("line_count: 3"));
+	}
+
+	@Test
+	public void testInspectFileThroughCallbackMissingRequired() {
+		// call under test — a missing required scalar is fed back as corrective guidance, not thrown.
+		String response = callback("inspectFile").call("{}", toolContextWithSession);
+
+		assertTrue(response.contains("missing required argument 'filePath'"), response);
+		verifyNoInteractions(mockCodeInterpreterClient);
 	}
 
 	@Test

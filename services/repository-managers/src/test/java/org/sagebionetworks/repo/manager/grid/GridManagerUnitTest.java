@@ -621,6 +621,42 @@ public class GridManagerUnitTest {
 	}
 
 	@Test
+	public void testGetReplicaInfo() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		GridReplicaInfo expected = new GridReplicaInfo().setReplicaId(replicaId).setCreatedBy(userId.toString())
+				.setIsConnected(true).setReplicaType(GridReplicaType.USER);
+		when(mockGridDao.getReplicaInfo(gridSessionId, replicaId)).thenReturn(Optional.of(expected));
+
+		// call under test
+		GridReplicaInfo result = gridManager.getReplicaInfo(mockUser, gridSessionId, replicaId);
+		assertEquals(expected, result);
+	}
+
+	@Test
+	public void testGetReplicaInfoWithNotFound() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		when(mockGridDao.getReplicaInfo(gridSessionId, replicaId)).thenReturn(Optional.empty());
+
+		String message = assertThrows(NotFoundException.class, () -> {
+			// call under test
+			gridManager.getReplicaInfo(mockUser, gridSessionId, replicaId);
+		}).getMessage();
+		assertEquals("Grid replica not found.", message);
+	}
+
+	@Test
+	public void testGetReplicaInfoWithNullReplicaId() {
+		replicaId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.getReplicaInfo(mockUser, gridSessionId, replicaId);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+
+		verify(gridManager, never()).validGridSessionAccess(any(), any());
+	}
+
+	@Test
 	public void testValidateReplicaOwnerWithOwner() {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.isAdmin()).thenReturn(false);

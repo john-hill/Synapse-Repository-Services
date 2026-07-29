@@ -13,7 +13,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +27,6 @@ import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
-import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistTools.FileToAdd;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.EntityChildrenRequest;
 import org.sagebionetworks.repo.model.EntityChildrenResponse;
@@ -33,16 +35,21 @@ import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.AddFilesToSessionRequest;
+import org.sagebionetworks.repo.model.agent.GetFilesMetadataRequest;
 import org.sagebionetworks.repo.model.agent.SessionFileMetadata;
 import org.sagebionetworks.repo.model.agent.SessionFileMetadataBatch;
+import org.sagebionetworks.repo.model.agent.SessionFileToAdd;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2TestUtils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.service.EntityService;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.ToolCallback;
 
 @ExtendWith(MockitoExtension.class)
 public class EntityMetadataSpecialistToolsTest {
@@ -64,6 +71,71 @@ public class EntityMetadataSpecialistToolsTest {
 		userInfo = new UserInfo(false, 101L);
 		toolContext = new ToolContext(Map.of("userInfo", userInfo));
 		toolContextWithSession = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "session-123"));
+	}
+
+	private ToolCallback callback(String name) {
+		return tools.getToolCallbacks().stream()
+				.filter(c -> name.equals(c.getToolDefinition().name())).findFirst().orElseThrow();
+	}
+
+	@Test
+	public void testToolCallbackNamesAndSchemas() {
+		Set<String> names = tools.getToolCallbacks().stream().map(c -> c.getToolDefinition().name())
+				.collect(Collectors.toSet());
+
+		assertEquals(Set.of("getEntityDetails", "getAnnotations", "getSchemaBinding", "getChildren",
+				"getFilesMetadata", "addFilesToSession"), names);
+
+		// A required scalar becomes a typed, required top-level property.
+		JSONObject detailsSchema = new JSONObject(callback("getEntityDetails").getToolDefinition().inputSchema());
+		assertEquals("string", detailsSchema.getJSONObject("properties").getJSONObject("entityId").getString("type"));
+		assertTrue(detailsSchema.getJSONArray("required").toList().contains("entityId"));
+
+		// The optional page token is a string property that is not listed as required.
+		JSONObject childrenSchema = new JSONObject(callback("getChildren").getToolDefinition().inputSchema());
+		assertEquals("string",
+				childrenSchema.getJSONObject("properties").getJSONObject("nextPageToken").getString("type"));
+		assertFalse(childrenSchema.getJSONArray("required").toList().contains("nextPageToken"));
+
+		// A request-body tool advertises the schema of its single POJO parameter: an array property.
+		JSONObject filesMetadataSchema = new JSONObject(callback("getFilesMetadata").getToolDefinition().inputSchema());
+		assertEquals("array",
+				filesMetadataSchema.getJSONObject("properties").getJSONObject("entityIds").getString("type"));
+	}
+
+	@Test
+	public void testGetEntityDetailsThroughCallback() {
+		Project project = new Project().setId("syn123").setName("MyProject");
+		when(mockEntityService.getEntity(userInfo.getId(), "syn123")).thenReturn(project);
+
+		// call under test — the model supplies entityId as a named JSON property.
+		String response = callback("getEntityDetails").call("{\"entityId\": \"syn123\"}", toolContext);
+
+		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(new ToolResponse<>(project)), response);
+		verify(mockEntityService).getEntity(userInfo.getId(), "syn123");
+	}
+
+	@Test
+	public void testGetEntityDetailsThroughCallbackMissingRequired() {
+		// call under test — a missing required scalar is fed back as corrective guidance, not thrown.
+		String response = callback("getEntityDetails").call("{}", toolContext);
+
+		assertTrue(response.contains("missing required argument 'entityId'"), response);
+		verifyNoInteractions(mockEntityService);
+	}
+
+	@Test
+	public void testGetFilesMetadataThroughCallback() {
+		when(mockEntityService.getEntity(userInfo.getId(), "syn123"))
+				.thenReturn(new FileEntity().setId("syn123").setDataFileHandleId("222"));
+		SessionFileMetadata m1 = new SessionFileMetadata().setCanDownload(true).setCanAddToSession(true);
+		when(mockCodeInterpreterFileManager.getFileMetadataBatch(eq(userInfo), any())).thenReturn(List.of(m1));
+
+		// call under test — the array argument arrives as the request POJO's single property.
+		String response = callback("getFilesMetadata").call("{\"entityIds\": [\"syn123\"]}", toolContext);
+
+		assertTrue(response.contains("syn123"), response);
+		verify(mockCodeInterpreterFileManager).getFileMetadataBatch(eq(userInfo), any());
 	}
 
 	@Test
@@ -247,7 +319,9 @@ public class EntityMetadataSpecialistToolsTest {
 		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
 				.thenReturn(List.of(result1, result2));
 
-		List<FileToAdd> files = List.of(new FileToAdd(a1, "meta/a.csv"), new FileToAdd(a2, "meta/b.csv"));
+		AddFilesToSessionRequest files = new AddFilesToSessionRequest().setFiles(List.of(
+				new SessionFileToAdd().setFileHandleAssociation(a1).setSessionPath("meta/a.csv"),
+				new SessionFileToAdd().setFileHandleAssociation(a2).setSessionPath("meta/b.csv")));
 
 		// call under test
 		String response = tools.addFilesToSession(files, toolContextWithSession);
@@ -277,7 +351,9 @@ public class EntityMetadataSpecialistToolsTest {
 				.thenReturn(List.of(failure));
 
 		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd(association, "meta/a.csv")), toolContextWithSession);
+		String response = tools.addFilesToSession(new AddFilesToSessionRequest().setFiles(
+				List.of(new SessionFileToAdd().setFileHandleAssociation(association).setSessionPath("meta/a.csv"))),
+				toolContextWithSession);
 
 		assertTrue(response.contains("Failed to add 'syn123' at 'meta/a.csv': You do not have permission to download this file."),
 				"Got: " + response);
@@ -290,7 +366,9 @@ public class EntityMetadataSpecialistToolsTest {
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
 
 		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd(association, "meta/a.csv")), noUserContext);
+		String response = tools.addFilesToSession(new AddFilesToSessionRequest().setFiles(
+				List.of(new SessionFileToAdd().setFileHandleAssociation(association).setSessionPath("meta/a.csv"))),
+				noUserContext);
 
 		assertEquals("Error: No user context available", response);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
@@ -303,7 +381,9 @@ public class EntityMetadataSpecialistToolsTest {
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
 
 		// call under test
-		String response = tools.addFilesToSession(List.of(new FileToAdd(association, "meta/a.csv")), toolContext);
+		String response = tools.addFilesToSession(new AddFilesToSessionRequest().setFiles(
+				List.of(new SessionFileToAdd().setFileHandleAssociation(association).setSessionPath("meta/a.csv"))),
+				toolContext);
 
 		assertEquals("Error: No code interpreter session ID available", response);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
@@ -313,7 +393,8 @@ public class EntityMetadataSpecialistToolsTest {
 	@Test
 	public void testAddFilesToSessionWithEmptyFiles() {
 		// call under test
-		String response = tools.addFilesToSession(List.of(), toolContextWithSession);
+		String response = tools.addFilesToSession(new AddFilesToSessionRequest().setFiles(List.of()),
+				toolContextWithSession);
 
 		assertEquals("Error: No files were provided to add to the session", response);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
@@ -336,7 +417,8 @@ public class EntityMetadataSpecialistToolsTest {
 				.thenReturn(List.of(m1, m2));
 
 		// call under test
-		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123", "syn456.2"), toolContext);
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(
+				new GetFilesMetadataRequest().setEntityIds(List.of("syn123", "syn456.2")), toolContext);
 
 		assertNull(response.getErrorMessage());
 		List<SessionFileMetadata> results = response.getResponseBody().getResults();
@@ -364,7 +446,8 @@ public class EntityMetadataSpecialistToolsTest {
 		when(mockEntityService.getEntity(userInfo.getId(), "syn123")).thenReturn(new Project().setId("syn123"));
 
 		// call under test
-		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123"), toolContext);
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(
+				new GetFilesMetadataRequest().setEntityIds(List.of("syn123")), toolContext);
 
 		assertNull(response.getErrorMessage());
 		List<SessionFileMetadata> results = response.getResponseBody().getResults();
@@ -386,7 +469,8 @@ public class EntityMetadataSpecialistToolsTest {
 		when(mockCodeInterpreterFileManager.getFileMetadataBatch(eq(userInfo), any())).thenReturn(List.of(m1));
 
 		// call under test
-		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123", "syn999"), toolContext);
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(
+				new GetFilesMetadataRequest().setEntityIds(List.of("syn123", "syn999")), toolContext);
 
 		List<SessionFileMetadata> results = response.getResponseBody().getResults();
 		assertEquals(2, results.size());
@@ -407,7 +491,8 @@ public class EntityMetadataSpecialistToolsTest {
 		ToolContext noUserContext = new ToolContext(Map.of());
 
 		// call under test
-		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of("syn123"), noUserContext);
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(
+				new GetFilesMetadataRequest().setEntityIds(List.of("syn123")), noUserContext);
 
 		assertNull(response.getResponseBody());
 		assertEquals("No user context available", response.getErrorMessage());
@@ -418,7 +503,8 @@ public class EntityMetadataSpecialistToolsTest {
 	@Test
 	public void testGetFilesMetadataWithEmptyIds() {
 		// call under test
-		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(List.of(), toolContext);
+		ToolResponse<SessionFileMetadataBatch> response = tools.getFilesMetadata(
+				new GetFilesMetadataRequest().setEntityIds(List.of()), toolContext);
 
 		assertNull(response.getResponseBody());
 		assertEquals("No entity IDs were provided", response.getErrorMessage());

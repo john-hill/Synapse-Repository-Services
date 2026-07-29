@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -22,7 +21,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -200,40 +198,30 @@ public class FileSummarySpecialistIntegrationTest {
 	@Test
 	public void testRunMultiLinePythonScriptToolCall() {
 		setupUser();
-		String sessionId = codeInterpreterClient.startSession("fileSummaryIT-" + System.nanoTime());
-		try {
-			// Resolve the real runPython ToolCallback from the actual bean.
-			ToolCallback runPython = Arrays.stream(ToolCallbacks.from(codeInterpreterTools))
-					.filter(cb -> "runPython".equals(cb.getToolDefinition().name()))
-					.findFirst()
-					.orElseThrow(() -> new IllegalStateException("runPython tool callback not found"));
+		// Resolve the real runPython ToolCallback from the actual bean. CodeInterpreterTools is a
+		// JSONEntityToolBase, so its callbacks come from getToolCallbacks(), not @Tool reflection.
+		ToolCallback runPython = codeInterpreterTools.getToolCallbacks().stream()
+				.filter(cb -> "runPython".equals(cb.getToolDefinition().name()))
+				.findFirst()
+				.orElseThrow(() -> new IllegalStateException("runPython tool callback not found"));
 
-			String marker = "MULTILINE_OK_" + System.nanoTime();
-			// A multi-line Python script with RAW newlines, embedded as a JSON string value the same way
-			// the model emits it. The \n here are actual newline characters in the JSON payload.
-			String script = "import os\n"
-					+ "os.makedirs('summary_specialist', exist_ok=True)\n"
-					+ "with open('summary_specialist/multiline_check.txt', 'w') as f:\n"
-					+ "    for i in range(3):\n"
-					+ "        f.write('line ' + str(i) + '\\n')\n"
-					+ "    f.write('" + marker + "\\n')\n"
-					+ "print('done')";
-			String toolArguments = "{\"script\": \"" + script.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+		// A multi-line Python script with RAW newlines embedded in the JSON string value — the way a
+		// model emits it when it forgets to escape control characters. JSONEntityToolBase parses strictly,
+		// so rather than failing hard in the framework, the tool must return a model-visible corrective
+		// error the model can act on by resubmitting with the newlines escaped.
+		String script = "import os\n"
+				+ "os.makedirs('summary_specialist', exist_ok=True)\n"
+				+ "print('done')";
+		String toolArguments = "{\"script\": \"" + script.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
 
-			// call under test — the real Spring AI tool-callback path, including the arguments JSON parse.
-			ToolContext toolContext = new ToolContext(Map.of("userInfo", adminUser, "sessionId", sessionId));
-			String toolResult = runPython.call(toolArguments, toolContext);
-			assertNotNull(toolResult);
+		// call under test — the real Spring AI tool-callback path, including the arguments JSON parse.
+		ToolContext toolContext = new ToolContext(Map.of("userInfo", adminUser, "sessionId", "no-session"));
+		String toolResult = runPython.call(toolArguments, toolContext);
 
-			// Verify the side effect directly: the file exists and contains the marker the script wrote.
-			CodeExecutionResult readResult = codeInterpreterClient.executeCode(sessionId, "python",
-					"print(open('summary_specialist/multiline_check.txt').read())");
-			assertFalse(readResult.isError(),
-					"Multi-line script should have created the file. Got: " + readResult.textOutput());
-			assertTrue(readResult.textOutput().contains(marker),
-					"File written by the multi-line script should contain the marker. Got: " + readResult.textOutput());
-		} finally {
-			codeInterpreterClient.stopSession(sessionId);
-		}
+		assertNotNull(toolResult);
+		assertTrue(toolResult.contains("was not valid JSON for its input schema"),
+				"Unescaped control chars should yield a corrective parse error. Got: " + toolResult);
+		assertTrue(toolResult.contains("Resubmit the call with a corrected argument"),
+				"Corrective error should instruct the model to resubmit. Got: " + toolResult);
 	}
 }

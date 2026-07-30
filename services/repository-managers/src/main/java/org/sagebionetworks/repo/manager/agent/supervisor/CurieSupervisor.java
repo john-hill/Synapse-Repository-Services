@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
 import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.AgentChatAttachmentStatus;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
@@ -73,8 +74,8 @@ public class CurieSupervisor {
 	 * reused across turns and workers) only on the first {@code runPython} or specialist delegation of
 	 * the turn — never on a purely conversational turn.
 	 */
-	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext,
-			AgentTraceCallback traceCallback) {
+	public String chat(String message, List<AgentChatAttachmentStatus> stagedAttachments, UserInfo user,
+			String sessionId, GridAgentSessionContext gridContext, AgentTraceCallback traceCallback) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(user.getId(), "user.getId()");
 		ValidateArgument.requiredNotBlank(sessionId, "sessionId");
@@ -89,10 +90,34 @@ public class CurieSupervisor {
 			AgentToolContextKey.TRACE_CALLBACK.put(context, traceCallback);
 		}
 		return chatClient.prompt()
-				.user(message)
+				.user(withAttachmentPreamble(message, stagedAttachments))
 				.toolContext(context)
 				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
 				.call()
 				.content();
+	}
+
+	/**
+	 * Prepends a delimited description of the files staged into the code interpreter session for this turn
+	 * to the user's message, so the supervisor knows the files exist and where to read them. When no files
+	 * were staged the message is returned unchanged. The preamble is part of the user turn, so the durable
+	 * chat memory keeps the files referenceable on later turns.
+	 */
+	static String withAttachmentPreamble(String message, List<AgentChatAttachmentStatus> stagedAttachments) {
+		if (stagedAttachments == null || stagedAttachments.isEmpty()) {
+			return message;
+		}
+		StringBuilder preamble = new StringBuilder();
+		preamble.append("The user attached the following file(s) to this message. They have been loaded into your ")
+				.append("code interpreter session at the paths below; read them from those paths.\n");
+		for (AgentChatAttachmentStatus attachment : stagedAttachments) {
+			preamble.append("- path: ").append(attachment.getSessionPath())
+					.append(", name: ").append(attachment.getFileName())
+					.append(", content type: ").append(attachment.getContentType())
+					.append(", size (bytes): ").append(attachment.getContentSizeBytes())
+					.append("\n");
+		}
+		preamble.append("\n");
+		return preamble.append(message).toString();
 	}
 }

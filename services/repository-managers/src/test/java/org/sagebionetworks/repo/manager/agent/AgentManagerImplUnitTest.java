@@ -12,6 +12,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -58,6 +59,9 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.AgentAccessLevel;
+import org.sagebionetworks.repo.model.agent.AgentChatAttachmentFailureCode;
+import org.sagebionetworks.repo.model.agent.AgentChatAttachmentState;
+import org.sagebionetworks.repo.model.agent.AgentChatAttachmentStatus;
 import org.sagebionetworks.repo.model.agent.AgentChatRequest;
 import org.sagebionetworks.repo.model.agent.AgentChatResponse;
 import org.sagebionetworks.repo.model.agent.AgentRegistration;
@@ -75,6 +79,8 @@ import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.dao.asynch.AsynchronousJobStatusDAO;
 import org.sagebionetworks.repo.model.dbo.agent.AgentDao;
 import org.sagebionetworks.repo.model.feature.Feature;
+import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.Clock;
 
@@ -167,6 +173,9 @@ public class AgentManagerImplUnitTest {
 	@Mock
 	private CurieSupervisor mockCurieSupervisor;
 
+	@Mock
+	private AgentChatAttachmentStager mockAttachmentStager;
+
 	private AgentManagerImpl manager;
 
 	private String stackBedrockAgentId;
@@ -234,7 +243,7 @@ public class AgentManagerImplUnitTest {
 				stackBedrockGridAgentId);
 
 		manager = Mockito.spy(new AgentManagerImpl(mockAgentDao, mockAgentClientProvider, idMap,
-				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer, mockUserManager, mockCurieSupervisorFactory));
+				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer, mockUserManager, mockCurieSupervisorFactory, mockAttachmentStager));
 
 		when(mockLoggerProvider.getLogger(AgentManagerImpl.class.getName())).thenReturn(mockLogger);
 		manager.setLoggerProvider(mockLoggerProvider);
@@ -626,13 +635,15 @@ public class AgentManagerImplUnitTest {
 				.setExperimental(true);
 		session.setSessionContext(gridContext);
 		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockAttachmentStager.stageAttachments(eq(sageUser), eq(sessionId), any())).thenReturn(List.of());
 		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
-		when(mockCurieSupervisor.chat(eq(inputText), eq(sageUser), eq(sessionId), eq(gridContext), any()))
+		when(mockCurieSupervisor.chat(eq(inputText), eq(List.of()), eq(sageUser), eq(sessionId), eq(gridContext), any()))
 				.thenReturn("curie-answer");
 
 		// call under test
 		AgentChatResponse response = manager.invokeAgent(sageUser, jobId, chatRequest);
 
+		// A turn without attachments carries no attachmentStatuses in the response.
 		assertEquals(new AgentChatResponse().setSessionId(sessionId).setResponseText("curie-answer"), response);
 		verify(manager, never()).invokeAgentWithText(any(), any(), any());
 	}
@@ -644,9 +655,10 @@ public class AgentManagerImplUnitTest {
 		session.setSessionContext(gridContext);
 		chatRequest.setEnableTrace(true);
 		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockAttachmentStager.stageAttachments(eq(sageUser), eq(sessionId), any())).thenReturn(List.of());
 		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
 		ArgumentCaptor<AgentTraceCallback> callbackCaptor = ArgumentCaptor.forClass(AgentTraceCallback.class);
-		when(mockCurieSupervisor.chat(eq(inputText), eq(sageUser), eq(sessionId), eq(gridContext),
+		when(mockCurieSupervisor.chat(eq(inputText), eq(List.of()), eq(sageUser), eq(sessionId), eq(gridContext),
 				callbackCaptor.capture())).thenReturn("curie-answer");
 		when(mockClock.currentTimeMillis()).thenReturn(123L);
 
@@ -667,9 +679,10 @@ public class AgentManagerImplUnitTest {
 		session.setSessionContext(gridContext);
 		chatRequest.setEnableTrace(false);
 		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockAttachmentStager.stageAttachments(eq(sageUser), eq(sessionId), any())).thenReturn(List.of());
 		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
 		ArgumentCaptor<AgentTraceCallback> callbackCaptor = ArgumentCaptor.forClass(AgentTraceCallback.class);
-		when(mockCurieSupervisor.chat(eq(inputText), eq(sageUser), eq(sessionId), eq(gridContext),
+		when(mockCurieSupervisor.chat(eq(inputText), eq(List.of()), eq(sageUser), eq(sessionId), eq(gridContext),
 				callbackCaptor.capture())).thenReturn("curie-answer");
 
 		// call under test
@@ -677,6 +690,65 @@ public class AgentManagerImplUnitTest {
 
 		// With trace disabled no callback is supplied, so nothing is recorded.
 		assertNull(callbackCaptor.getValue());
+	}
+
+	@Test
+	public void testInvokeAgentWithExperimentalGridContextAndAttachments() {
+		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid123")
+				.setExperimental(true);
+		session.setSessionContext(gridContext);
+		FileHandleAssociation stagedAssociation = new FileHandleAssociation().setFileHandleId("1")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn1");
+		FileHandleAssociation failedAssociation = new FileHandleAssociation().setFileHandleId("2")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn2");
+		List<FileHandleAssociation> attachments = List.of(stagedAssociation, failedAssociation);
+		chatRequest.setAttachments(attachments);
+
+		AgentChatAttachmentStatus stagedStatus = new AgentChatAttachmentStatus().setFileHandleId("1")
+				.setAssociateObjectId("syn1").setAssociateObjectType(FileHandleAssociateType.FileEntity)
+				.setStatus(AgentChatAttachmentState.STAGED).setFileName("data.csv")
+				.setSessionPath("attachments/data.csv").setContentType("text/csv").setContentSizeBytes(4096L);
+		AgentChatAttachmentStatus failedStatus = new AgentChatAttachmentStatus().setFileHandleId("2")
+				.setAssociateObjectId("syn2").setAssociateObjectType(FileHandleAssociateType.FileEntity)
+				.setStatus(AgentChatAttachmentState.FAILED).setFailureMessage("too large")
+				.setFailureCode(AgentChatAttachmentFailureCode.EXCEEDS_SIZE_LIMIT);
+		List<AgentChatAttachmentStatus> statuses = List.of(stagedStatus, failedStatus);
+
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockAttachmentStager.stageAttachments(sageUser, sessionId, attachments)).thenReturn(statuses);
+		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
+		// Only the successfully staged files are forwarded to the supervisor; failures reach the client only.
+		when(mockCurieSupervisor.chat(eq(inputText), eq(List.of(stagedStatus)), eq(sageUser), eq(sessionId),
+				eq(gridContext), any())).thenReturn("curie-answer");
+
+		// call under test
+		AgentChatResponse response = manager.invokeAgent(sageUser, jobId, chatRequest);
+
+		// The full per-attachment status list, in request order, is returned to the client.
+		assertEquals(new AgentChatResponse().setSessionId(sessionId).setResponseText("curie-answer")
+				.setAttachmentStatuses(statuses), response);
+		verify(mockAttachmentStager).stageAttachments(sageUser, sessionId, attachments);
+		verify(manager, never()).invokeAgentWithText(any(), any(), any());
+	}
+
+	@Test
+	public void testInvokeAgentWithAttachmentsOnNonCurieSession() {
+		// A default (non-grid) session cannot accept attachments; the request is rejected outright.
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("1")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn1");
+		chatRequest.setAttachments(List.of(association));
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.invokeAgent(sageUser, jobId, chatRequest);
+		}).getMessage();
+
+		assertEquals("Attachments are only supported for experimental grid (Curie) chat sessions.", message);
+		// Rejected before any staging or model invocation.
+		verifyNoInteractions(mockAttachmentStager);
+		verifyNoInteractions(mockCurieSupervisorFactory);
+		verify(manager, never()).invokeAgentWithText(any(), any(), any());
 	}
 
 	@Test

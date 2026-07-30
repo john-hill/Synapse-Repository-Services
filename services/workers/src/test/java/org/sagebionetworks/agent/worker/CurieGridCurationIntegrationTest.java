@@ -1,5 +1,6 @@
 package org.sagebionetworks.agent.worker;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -7,7 +8,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
@@ -18,8 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisor;
-import org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisorFactory;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -30,19 +28,24 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.AgentAccessLevel;
+import org.sagebionetworks.repo.model.agent.AgentChatRequest;
+import org.sagebionetworks.repo.model.agent.AgentChatResponse;
+import org.sagebionetworks.repo.model.agent.AgentSession;
+import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
-import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
+import org.sagebionetworks.repo.service.AgentService;
 import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.util.ClasspathUtil;
 import org.sagebionetworks.util.JsonEntityUtils;
@@ -77,7 +80,7 @@ public class CurieGridCurationIntegrationTest {
 	private static final String SCHEMA_PATH = "schema/GridSpecialist.json";
 
 	@Autowired
-	private CurieSupervisorFactory curieSupervisorFactory;
+	private AgentService agentService;
 	@Autowired
 	private UserManager userManager;
 	@Autowired
@@ -95,7 +98,7 @@ public class CurieGridCurationIntegrationTest {
 
 	private UserInfo admin;
 	private GridSession session;
-	private GridAgentSessionContext gridContext;
+	private Long usersReplicaId;
 
 	@BeforeAll
 	public void beforeAll() throws Exception {
@@ -148,33 +151,58 @@ public class CurieGridCurationIntegrationTest {
 			return Pair.create(rows.size() == 4 && invalid == 1, null);
 		});
 
-		GridReplica usersReplica = gridManager
-				.createReplica(admin, new CreateReplicaRequest().setGridSessionId(session.getSessionId())).getReplica();
-		// The grid update tool publishes its patches through the agent's replica, resolved from
-		// agentsReplicaId; in production GridContextValidatorHandler sets it. Without it every update fails
-		// with "replicaId is required", so create the agent replica directly here and seed the context.
-		GridReplica agentReplica = gridManager.createAgentReplica(admin, session);
+		// The human user's replica; each agent session is created against it. Creating the agent session
+		// through AgentService runs GridContextValidatorHandler, which creates the agent's own replica and
+		// populates agentsReplicaId — so the test no longer seeds that itself.
+		usersReplicaId = gridManager
+				.createReplica(admin, new CreateReplicaRequest().setGridSessionId(session.getSessionId())).getReplica()
+				.getReplicaId();
+	}
 
-		gridContext = new GridAgentSessionContext().setGridSessionId(session.getSessionId())
-				.setUsersReplicaId(usersReplica.getReplicaId()).setAgentsReplicaId(agentReplica.getReplicaId());
+	/**
+	 * Create an experimental grid agent session bound to the shared grid session, so chat turns route
+	 * through the Curie supervisor rather than the default Bedrock agent.
+	 */
+	private AgentSession createCurieSession() {
+		GridAgentSessionContext context = new GridAgentSessionContext().setGridSessionId(session.getSessionId())
+				.setUsersReplicaId(usersReplicaId).setExperimental(true);
+		AgentSession agentSession = agentService.createSession(admin.getId(), new CreateAgentSessionRequest()
+				.setSessionContext(context).setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+		assertNotNull(agentSession);
+		assertNotNull(context.getAgentsReplicaId());
+		return agentSession;
+	}
+
+	/**
+	 * Send one chat turn through the agent chat async job and return the supervisor's response text.
+	 */
+	private String chat(AgentSession agentSession, String chatText) throws Exception {
+		return asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setSessionId(agentSession.getSessionId()).setChatText(chatText)
+						.setEnableTrace(true),
+				(AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(agentSession.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+				}, MAX_WAIT_MS).getResponse().getResponseText();
 	}
 
 	@Test
 	public void testCurieDiagnosesAndFixesInvalidRow() throws Exception {
-		// One durable chat session across all turns so Curie's memory carries the diagnosis into the fix.
-		String chatSessionId = "curieGridIT-" + UUID.randomUUID();
-		CurieSupervisor curie = curieSupervisorFactory.create();
+		// One durable agent session across all turns so Curie's memory carries the diagnosis into the fix.
+		AgentSession agentSession = createCurieSession();
 
 		// Turn 1 — diagnosis. Curie is not told which row is bad: it must query the grid (the grid query
 		// specialist returns each row's data alongside its validation messages) to discover the invalid
 		// row and explain why. We deliberately do NOT name the row, because a grid row is addressed
 		// internally by a CRDT rowId (replicaId.sequenceNumber), not by the "a" column value — naming
-		// "row a2" would push the specialist to treat "a2" as a rowId. The query result surfaces the "a"
-		// value of the offending row, which Curie echoes back.
-		String diagnosis = curie.chat(
+		// "row a2" would push the specialist to treat "a2" as a rowId. Left to its own discretion Curie
+		// may identify the row by that internal rowId, so we explicitly ask it to report the offending
+		// row's "a" column value, which the query result surfaces.
+		String diagnosis = chat(agentSession,
 				"Exactly one row in this grid is failing schema validation. Query the grid to find which row it "
-						+ "is, and explain which schema rule it violates and why.",
-				admin, chatSessionId, gridContext, null);
+						+ "is. Report the value of its 'a' column, and explain which schema rule it violates and why.");
 		assertNotNull(diagnosis);
 		String lowerDiagnosis = diagnosis.toLowerCase();
 		assertTrue(lowerDiagnosis.contains("a2"),
@@ -189,14 +217,12 @@ public class CurieGridCurationIntegrationTest {
 		// grid update specialist selects it with a column-value filter. Curie's most important rule is to
 		// preview and confirm before committing, so this turn is expected to propose the change and ask
 		// for confirmation rather than applying it.
-		String proposal = curie.chat(
-				"Please fix the row where column a is a2 by setting its weight to 42 so it passes validation.",
-				admin, chatSessionId, gridContext, null);
+		String proposal = chat(agentSession,
+				"Please fix the row where column a is a2 by setting its weight to 42 so it passes validation.");
 		assertNotNull(proposal);
 
 		// Turn 3 — explicit confirmation, so Curie delegates the actual update to the grid update specialist.
-		String applied = curie.chat("Yes, I confirm. Please apply that update now.", admin, chatSessionId, gridContext,
-				null);
+		String applied = chat(agentSession, "Yes, I confirm. Please apply that update now.");
 		assertNotNull(applied);
 
 		// Verify against real grid state: row a2 now carries weight 42 and passes validation. Polls
@@ -212,18 +238,16 @@ public class CurieGridCurationIntegrationTest {
 
 	@Test
 	public void testCurieDescribesGridSchema() throws Exception {
-		String chatSessionId = "curieGridSchemaIT-" + UUID.randomUUID();
-		CurieSupervisor curie = curieSupervisorFactory.create();
+		AgentSession agentSession = createCurieSession();
 
 		// A question that can only be answered by describing the schema rules themselves — the property
 		// names, their types, and which are required. None of this is derivable from a validation query
 		// (which only reports whether each row is valid and, on request, a violation message), so Curie
 		// must route through the JSON schema specialist. We never give it a schema $id: the specialist
 		// resolves the grid's bound schema on its own from the live session.
-		String description = curie.chat(
+		String description = chat(agentSession,
 				"Help me understand this grid's schema. Which columns does the schema define, what type "
-						+ "is each, and which columns are required?",
-				admin, chatSessionId, gridContext, null);
+						+ "is each, and which columns are required?");
 		assertNotNull(description);
 		String lower = description.toLowerCase();
 		// The required set (a, weight) and weight's integer type come only from the schema, not from any

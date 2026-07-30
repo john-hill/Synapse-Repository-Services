@@ -25,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFailureCode;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
@@ -316,8 +317,10 @@ public class EntityMetadataSpecialistToolsTest {
 		FileHandleAssociation a2 = new FileHandleAssociation().setFileHandleId("333")
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn456");
 
-		PushFileResult result1 = new PushFileResult(new PushFileRequest(a1, "meta/a.csv"), null, null);
-		PushFileResult result2 = new PushFileResult(new PushFileRequest(a2, "meta/b.csv"), null, null);
+		PushFileResult result1 = new PushFileResult(new PushFileRequest(a1, "meta/a.csv"), "meta/a.csv", null, null,
+				null, "a.csv", "text/csv", 10L);
+		PushFileResult result2 = new PushFileResult(new PushFileRequest(a2, "meta/b.csv"), "meta/b.csv", null, null,
+				null, "b.csv", "text/csv", 20L);
 		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
 				.thenReturn(List.of(result1, result2));
 
@@ -347,8 +350,8 @@ public class EntityMetadataSpecialistToolsTest {
 	public void testAddFilesToSessionWithFailure() {
 		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
-		PushFileResult failure = new PushFileResult(new PushFileRequest(association, "meta/a.csv"), null,
-				"You do not have permission to download this file.");
+		PushFileResult failure = new PushFileResult(new PushFileRequest(association, "meta/a.csv"), null, null,
+				"You do not have permission to download this file.", PushFailureCode.UNAUTHORIZED, null, null, null);
 		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
 				.thenReturn(List.of(failure));
 

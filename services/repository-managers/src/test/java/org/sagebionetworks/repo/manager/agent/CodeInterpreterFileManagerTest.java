@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFailureCode;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -257,6 +258,8 @@ public class CodeInterpreterFileManagerTest {
 		s3Handle.setBucketName("source-bucket");
 		s3Handle.setKey("path/to/file.csv");
 		s3Handle.setFileName("file.csv");
+		s3Handle.setContentType("text/csv");
+		s3Handle.setContentSize(2048L);
 		FileResult fileResult = new FileResult().setFileHandleId("222").setFileHandle(s3Handle);
 
 		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
@@ -274,6 +277,12 @@ public class CodeInterpreterFileManagerTest {
 		assertFalse(results.get(0).isError());
 		assertEquals(request, results.get(0).request());
 		assertEquals(mockCodeResult, results.get(0).execution());
+		assertNull(results.get(0).failureCode());
+		// An explicit session path is respected, and the resolved file metadata is reported.
+		assertEquals("entity_metadata_specialist/data.csv", results.get(0).sessionPath());
+		assertEquals("file.csv", results.get(0).fileName());
+		assertEquals("text/csv", results.get(0).contentType());
+		assertEquals(2048L, results.get(0).contentSizeBytes());
 
 		ArgumentCaptor<BatchFileRequest> batchCaptor = ArgumentCaptor.forClass(BatchFileRequest.class);
 		verify(mockFileHandleManager).getFileHandleAndUrlBatch(eq(user), batchCaptor.capture());
@@ -307,6 +316,7 @@ public class CodeInterpreterFileManagerTest {
 		assertEquals(1, results.size());
 		assertTrue(results.get(0).isError());
 		assertTrue(results.get(0).error().contains("do not have permission to download"), "Got: " + results.get(0).error());
+		assertEquals(PushFailureCode.UNAUTHORIZED, results.get(0).failureCode());
 
 		// Unauthorized files never touch S3 or the session.
 		verifyNoInteractions(mockS3Client);
@@ -335,6 +345,7 @@ public class CodeInterpreterFileManagerTest {
 		assertEquals(1, results.size());
 		assertTrue(results.get(0).isError());
 		assertTrue(results.get(0).error().contains("not an S3-backed file"));
+		assertEquals(PushFailureCode.NOT_S3, results.get(0).failureCode());
 
 		verifyNoInteractions(mockS3Client);
 		verifyNoInteractions(mockCodeInterpreterClient);
@@ -367,6 +378,7 @@ public class CodeInterpreterFileManagerTest {
 		assertEquals(1, results.size());
 		assertTrue(results.get(0).isError());
 		assertTrue(results.get(0).error().contains("type is not supported"), "Got: " + results.get(0).error());
+		assertEquals(PushFailureCode.UNSUPPORTED_TYPE, results.get(0).failureCode());
 
 		// Unsupported files never touch S3 or the session.
 		verifyNoInteractions(mockS3Client);
@@ -401,9 +413,119 @@ public class CodeInterpreterFileManagerTest {
 		assertEquals(1, results.size());
 		assertTrue(results.get(0).isError());
 		assertTrue(results.get(0).error().contains("exceeds the maximum"), "Got: " + results.get(0).error());
+		assertEquals(PushFailureCode.EXCEEDS_SIZE_LIMIT, results.get(0).failureCode());
 
 		verifyNoInteractions(mockS3Client);
 		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithNotFoundFile() {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, "data.csv");
+
+		FileResult fileResult = new FileResult().setFileHandleId("222").setFailureCode(FileResultFailureCode.NOT_FOUND);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertTrue(results.get(0).isError());
+		assertEquals(PushFailureCode.NOT_FOUND, results.get(0).failureCode());
+
+		verifyNoInteractions(mockS3Client);
+		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithNullSessionPathDerivesFromName() throws Exception {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		// A null session path signals the manager to derive one from the file's own name.
+		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
+		PushFileRequest request = new PushFileRequest(association, null);
+
+		S3FileHandle s3Handle = new S3FileHandle();
+		s3Handle.setId("222");
+		s3Handle.setBucketName("source-bucket");
+		s3Handle.setKey("path/to/report.csv");
+		s3Handle.setFileName("report.csv");
+		s3Handle.setContentType("text/csv");
+		s3Handle.setContentSize(4096L);
+		FileResult fileResult = new FileResult().setFileHandleId("222").setFileHandle(s3Handle);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(fileResult)));
+		when(mockS3Client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+		when(mockS3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(mockPresignedGetRequest);
+		when(mockPresignedGetRequest.url()).thenReturn(new URL("https://staging.s3.amazonaws.com/path/to/report.csv?presigned=true"));
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user, List.of(request), sessionId);
+
+		assertEquals(1, results.size());
+		assertFalse(results.get(0).isError());
+		assertEquals("attachments/report.csv", results.get(0).sessionPath());
+		assertEquals("report.csv", results.get(0).fileName());
+		assertEquals("text/csv", results.get(0).contentType());
+		assertEquals(4096L, results.get(0).contentSizeBytes());
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithNullSessionPathDisambiguatesCollision() throws Exception {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		// Two attachments with the same file name and no explicit path must land at distinct derived paths.
+		FileHandleAssociation firstAssociation = new FileHandleAssociation().setFileHandleId("1")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn1");
+		FileHandleAssociation secondAssociation = new FileHandleAssociation().setFileHandleId("2")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn2");
+		PushFileRequest firstRequest = new PushFileRequest(firstAssociation, null);
+		PushFileRequest secondRequest = new PushFileRequest(secondAssociation, null);
+
+		S3FileHandle firstHandle = new S3FileHandle();
+		firstHandle.setId("1");
+		firstHandle.setBucketName("source-bucket");
+		firstHandle.setKey("path/to/first/data.csv");
+		firstHandle.setFileName("data.csv");
+		firstHandle.setContentType("text/csv");
+
+		S3FileHandle secondHandle = new S3FileHandle();
+		secondHandle.setId("2");
+		secondHandle.setBucketName("source-bucket");
+		secondHandle.setKey("path/to/second/data.csv");
+		secondHandle.setFileName("data.csv");
+		secondHandle.setContentType("text/csv");
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(
+						new FileResult().setFileHandleId("1").setFileHandle(firstHandle),
+						new FileResult().setFileHandleId("2").setFileHandle(secondHandle))));
+		when(mockS3Client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+		when(mockS3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(mockPresignedGetRequest);
+		when(mockPresignedGetRequest.url()).thenReturn(new URL("https://staging.s3.amazonaws.com/data.csv?presigned=true"));
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user,
+				List.of(firstRequest, secondRequest), sessionId);
+
+		assertEquals(2, results.size());
+		assertEquals("attachments/data.csv", results.get(0).sessionPath());
+		assertEquals("attachments/data_1.csv", results.get(1).sessionPath());
 	}
 
 	@Test

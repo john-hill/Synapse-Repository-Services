@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -53,8 +54,9 @@ public class GridMetadataSpecialistToolsTest {
 		userInfo = new UserInfo(false, 101L);
 		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L)
 				.setAgentsReplicaId(2L);
-		toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "session-123",
-				"gridAgentSessionContext", gridContext));
+		toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,
+				AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-123",
+				AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext));
 	}
 
 	private ToolCallback callback(String name) {
@@ -76,7 +78,7 @@ public class GridMetadataSpecialistToolsTest {
 
 	@Test
 	public void testGetGridSessionWithNoUser() {
-		ToolContext noUser = new ToolContext(Map.of("gridAgentSessionContext", gridContext));
+		ToolContext noUser = new ToolContext(Map.of(AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext));
 
 		// call under test
 		ToolResponse<GridSession> result = tools.getGridSession(noUser);
@@ -87,7 +89,7 @@ public class GridMetadataSpecialistToolsTest {
 
 	@Test
 	public void testGetGridSessionWithNoGridContext() {
-		ToolContext noGrid = new ToolContext(Map.of("userInfo", userInfo));
+		ToolContext noGrid = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo));
 
 		// call under test
 		ToolResponse<GridSession> result = tools.getGridSession(noGrid);
@@ -123,7 +125,7 @@ public class GridMetadataSpecialistToolsTest {
 
 	@Test
 	public void testGetReplicaInfoWithNoGridContext() {
-		ToolContext noGrid = new ToolContext(Map.of("userInfo", userInfo));
+		ToolContext noGrid = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo));
 
 		// call under test
 		ToolResponse<GridReplicaInfo> result = tools.getReplicaInfo(5L, noGrid);
@@ -159,7 +161,7 @@ public class GridMetadataSpecialistToolsTest {
 
 	@Test
 	public void testListReplicasWithNoGridContext() {
-		ToolContext noGrid = new ToolContext(Map.of("userInfo", userInfo));
+		ToolContext noGrid = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo));
 
 		// call under test
 		ToolResponse<ListGridReplicasResponse> result = tools.listReplicas(null, noGrid);

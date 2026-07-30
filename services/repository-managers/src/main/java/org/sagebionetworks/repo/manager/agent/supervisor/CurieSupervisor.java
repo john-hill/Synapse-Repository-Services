@@ -5,7 +5,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
 import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
@@ -33,9 +36,12 @@ import org.springframework.ai.tool.ToolCallback;
 public class CurieSupervisor {
 
 	private final ChatClient chatClient;
+	private final CodeInterpreterSessionProvider sessionProvider;
 
 	CurieSupervisor(ChatModel chatModel, StackConfiguration stackConfig, List<ToolCallback> specialistTools,
-			CodeInterpreterTools codeInterpreterTools, ChatMemoryRepository memoryRepository, String systemPrompt) {
+			CodeInterpreterTools codeInterpreterTools, CodeInterpreterSessionProvider sessionProvider,
+			ChatMemoryRepository memoryRepository, String systemPrompt) {
+		this.sessionProvider = sessionProvider;
 		ChatMemory memory = MessageWindowChatMemory.builder()
 				.chatMemoryRepository(memoryRepository)
 				.maxMessages(40)
@@ -61,6 +67,11 @@ public class CurieSupervisor {
 	 * tool context, so they operate against the user's replica in the current grid session. The
 	 * optional {@code traceCallback} is forwarded the same way so every tool call in this turn — at
 	 * this supervisor and in the specialists it delegates to — is recorded as job trace.
+	 * <p>
+	 * The costly code interpreter session is provisioned lazily: a {@link CodeSessionSupplier} keyed by
+	 * this Synapse chat {@code sessionId} is placed in the context, and the session is created (or
+	 * reused across turns and workers) only on the first {@code runPython} or specialist delegation of
+	 * the turn — never on a purely conversational turn.
 	 */
 	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext,
 			AgentTraceCallback traceCallback) {
@@ -71,11 +82,11 @@ public class CurieSupervisor {
 		// Synapse chat session is the session.
 		String conversationId = user.getId() + ":" + sessionId;
 		Map<String, Object> context = new HashMap<>();
-		context.put("userInfo", user);
-		context.put("sessionId", sessionId);
-		context.put("gridAgentSessionContext", gridContext);
+		AgentToolContextKey.USER_INFO.put(context, user);
+		AgentToolContextKey.CODE_SESSION_SUPPLIER.put(context, sessionProvider.lazySupplier(sessionId));
+		AgentToolContextKey.GRID_SESSION_CONTEXT.put(context, gridContext);
 		if (traceCallback != null) {
-			context.put(AgentTraceCallback.CONTEXT_KEY, traceCallback);
+			AgentToolContextKey.TRACE_CALLBACK.put(context, traceCallback);
 		}
 		return chatClient.prompt()
 				.user(message)

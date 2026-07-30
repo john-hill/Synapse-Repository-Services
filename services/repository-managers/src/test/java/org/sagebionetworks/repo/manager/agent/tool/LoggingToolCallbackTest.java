@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
@@ -51,7 +52,7 @@ public class LoggingToolCallbackTest {
 		// The logger reads the tool name for every call.
 		when(mockDelegate.getToolDefinition()).thenReturn(mockToolDefinition);
 		when(mockToolDefinition.name()).thenReturn("queryGrid");
-		ToolContext context = new ToolContext(Map.of("userInfo", new UserInfo(false, 123L)));
+		ToolContext context = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), new UserInfo(false, 123L)));
 		when(mockDelegate.call("the prompt", context)).thenReturn("the tool response");
 
 		// call under test
@@ -65,7 +66,7 @@ public class LoggingToolCallbackTest {
 	public void testCallWithTraceCallbackRecordsInputAndResponse() {
 		when(mockDelegate.getToolDefinition()).thenReturn(mockToolDefinition);
 		when(mockToolDefinition.name()).thenReturn("askGridQuerySpecialist");
-		ToolContext context = new ToolContext(Map.of(AgentTraceCallback.CONTEXT_KEY, mockTraceCallback));
+		ToolContext context = new ToolContext(Map.of(AgentToolContextKey.TRACE_CALLBACK.getKey(), mockTraceCallback));
 		when(mockDelegate.call("the prompt", context)).thenReturn("the tool response");
 
 		// call under test
@@ -85,7 +86,7 @@ public class LoggingToolCallbackTest {
 	public void testCallWithoutTraceCallbackInContextDoesNotRecord() {
 		when(mockDelegate.getToolDefinition()).thenReturn(mockToolDefinition);
 		when(mockToolDefinition.name()).thenReturn("askGridQuerySpecialist");
-		ToolContext context = new ToolContext(Map.of("userInfo", new UserInfo(false, 123L)));
+		ToolContext context = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), new UserInfo(false, 123L)));
 		when(mockDelegate.call("the prompt", context)).thenReturn("the tool response");
 
 		// call under test
@@ -140,8 +141,9 @@ public class LoggingToolCallbackTest {
 		UserInfo userInfo = new UserInfo(false, 123L);
 		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid-session-9")
 				.setUsersReplicaId(42L);
-		ToolContext context = new ToolContext(
-				Map.of("userInfo", userInfo, "sessionId", "session-abc", "gridAgentSessionContext", gridContext));
+		ToolContext context = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,
+				AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-abc",
+				AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext));
 
 		// call under test
 		String described = LoggingToolCallback.describeContext(context);

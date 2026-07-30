@@ -24,7 +24,6 @@ import org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisorFactory;
 import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.manager.config.AgentSuffix;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;

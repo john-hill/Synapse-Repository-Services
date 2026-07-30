@@ -5,6 +5,7 @@ import java.util.StringJoiner;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
@@ -71,7 +72,7 @@ public class LoggingToolCallback implements ToolCallback {
 		if (toolContext == null) {
 			return null;
 		}
-		Object callback = toolContext.getContext().get(AgentTraceCallback.CONTEXT_KEY);
+		Object callback = AgentToolContextKey.TRACE_CALLBACK.get(toolContext);
 		return callback instanceof AgentTraceCallback traceCallback ? traceCallback : null;
 	}
 

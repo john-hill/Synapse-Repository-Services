@@ -2,8 +2,10 @@ package org.sagebionetworks.repo.manager.agent.tool;
 
 /**
  * A sink for trace events produced while an agent chat turn runs. It is carried in the
- * agent-immutable tool context under {@link #CONTEXT_KEY} so that {@link LoggingToolCallback} can
- * record each tool invocation against the originating asynchronous job.
+ * agent-immutable tool context under
+ * {@link org.sagebionetworks.repo.manager.agent.AgentToolContextKey#TRACE_CALLBACK} so that
+ * {@link LoggingToolCallback} can record each tool invocation against the originating asynchronous
+ * job.
  * <p>
  * The Curie multi-agent path uses this callback because its tools run several layers below the
  * manager and have no direct access to either the {@code AgentDao} bean or the {@code jobId}. The
@@ -12,11 +14,6 @@ package org.sagebionetworks.repo.manager.agent.tool;
  */
 @FunctionalInterface
 public interface AgentTraceCallback {
-
-	/**
-	 * The tool-context key under which the callback is carried.
-	 */
-	String CONTEXT_KEY = "agentTraceCallback";
 
 	/**
 	 * Record a single trace event for the current job. The implementation supplies the event

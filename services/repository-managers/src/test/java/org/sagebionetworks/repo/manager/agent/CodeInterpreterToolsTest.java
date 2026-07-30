@@ -44,7 +44,8 @@ public class CodeInterpreterToolsTest {
 	public void testRunPythonWithSuccessfulExecution() {
 		String script = "print(2 + 2)";
 		String sessionId = "testSession123";
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		ToolContext toolContext = new ToolContext(
+				Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo, AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 
 		when(codeInterpreterClient.executeCode(sessionId, "python", script)).thenReturn(codeExecutionResult);
 		when(codeExecutionResult.isError()).thenReturn(false);
@@ -61,7 +62,8 @@ public class CodeInterpreterToolsTest {
 	public void testRunPythonWithError() {
 		String script = "raise ValueError('bad')";
 		String sessionId = "testSession123";
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		ToolContext toolContext = new ToolContext(
+				Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo, AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 
 		when(codeInterpreterClient.executeCode(sessionId, "python", script)).thenReturn(codeExecutionResult);
 		when(codeExecutionResult.isError()).thenReturn(true);
@@ -75,9 +77,30 @@ public class CodeInterpreterToolsTest {
 	}
 
 	@Test
+	public void testRunPythonWithSessionSupplier() {
+		String script = "print(2 + 2)";
+		String sessionId = "lazyResolvedSession";
+		// The interactive Curie path installs a supplier rather than a raw sessionId; runPython must
+		// invoke it to resolve (and lazily create) the session.
+		CodeSessionSupplier supplier = () -> sessionId;
+		ToolContext toolContext = new ToolContext(
+				Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo, AgentToolContextKey.CODE_SESSION_SUPPLIER.getKey(), supplier));
+
+		when(codeInterpreterClient.executeCode(sessionId, "python", script)).thenReturn(codeExecutionResult);
+		when(codeExecutionResult.isError()).thenReturn(false);
+		when(codeExecutionResult.textOutput()).thenReturn("4\n");
+
+		// call under test
+		String result = tools.runPython(new RunPythonRequest().setScript(script), toolContext);
+
+		assertEquals("4\n", result);
+		verify(codeInterpreterClient).executeCode(sessionId, "python", script);
+	}
+
+	@Test
 	public void testRunPythonWithMissingSessionId() {
 		String script = "print('hello')";
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo));
+		ToolContext toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo));
 
 		// call under test
 		String result = tools.runPython(new RunPythonRequest().setScript(script), toolContext);
@@ -90,7 +113,8 @@ public class CodeInterpreterToolsTest {
 	public void testRunPythonWithOutputTruncation() {
 		String script = "print('x' * 20000)";
 		String sessionId = "testSession123";
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		ToolContext toolContext = new ToolContext(
+				Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo, AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 
 		String longOutput = "x".repeat(20_000);
 		when(codeInterpreterClient.executeCode(sessionId, "python", script)).thenReturn(codeExecutionResult);
@@ -131,7 +155,8 @@ public class CodeInterpreterToolsTest {
 	@Test
 	public void testRunPythonCallbackWithValidJson() {
 		String sessionId = "testSession123";
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		ToolContext toolContext = new ToolContext(
+				Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo, AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 		when(codeInterpreterClient.executeCode(sessionId, "python", "print(2 + 2)")).thenReturn(codeExecutionResult);
 		when(codeExecutionResult.isError()).thenReturn(false);
 		when(codeExecutionResult.textOutput()).thenReturn("4\n");
@@ -146,7 +171,8 @@ public class CodeInterpreterToolsTest {
 	@Test
 	public void testRunPythonCallbackWithUnescapedControlCharacter() {
 		String sessionId = "testSession123";
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		ToolContext toolContext = new ToolContext(
+				Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo, AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 		// A raw (unescaped) newline inside the JSON string value is technically invalid JSON, and the
 		// model routinely emits a multi-line script this way. The base normalizes it through the lenient
 		// mapper before parsing, so the newline is preserved in the script rather than costing a round trip.

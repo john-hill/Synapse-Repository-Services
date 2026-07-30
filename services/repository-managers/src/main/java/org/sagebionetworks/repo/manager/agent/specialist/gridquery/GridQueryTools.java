@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
@@ -40,8 +41,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class GridQueryTools extends JSONEntityToolBase {
-
-	static final String TOOL_CONTEXT_KEY_GRID_SESSION = "gridAgentSessionContext";
 
 	private final GridReplicaViewManager viewManager;
 	private final GridDao gridDao;
@@ -94,6 +93,6 @@ public class GridQueryTools extends JSONEntityToolBase {
 	}
 
 	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
-		return (GridAgentSessionContext) toolContext.getContext().get(TOOL_CONTEXT_KEY_GRID_SESSION);
+		return (GridAgentSessionContext) AgentToolContextKey.GRID_SESSION_CONTEXT.get(toolContext);
 	}
 }

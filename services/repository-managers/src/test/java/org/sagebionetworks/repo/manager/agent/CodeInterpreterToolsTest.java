@@ -145,18 +145,21 @@ public class CodeInterpreterToolsTest {
 
 	@Test
 	public void testRunPythonCallbackWithUnescapedControlCharacter() {
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "testSession123"));
-		// A raw (unescaped) newline inside the JSON string value is invalid JSON -- the exact case
-		// that used to hard-fail Spring AI's strict parser.
-		String malformed = "{\"script\":\"line1\nline2\"}";
+		String sessionId = "testSession123";
+		ToolContext toolContext = new ToolContext(Map.of("userInfo", userInfo, "sessionId", sessionId));
+		// A raw (unescaped) newline inside the JSON string value is technically invalid JSON, and the
+		// model routinely emits a multi-line script this way. The base normalizes it through the lenient
+		// mapper before parsing, so the newline is preserved in the script rather than costing a round trip.
+		String multiLineScript = "line1\nline2";
+		when(codeInterpreterClient.executeCode(sessionId, "python", multiLineScript)).thenReturn(codeExecutionResult);
+		when(codeExecutionResult.isError()).thenReturn(false);
+		when(codeExecutionResult.textOutput()).thenReturn("ok\n");
 
 		// call under test
-		String result = runPythonCallback().call(malformed, toolContext);
+		String result = runPythonCallback().call("{\"script\":\"line1\nline2\"}", toolContext);
 
-		// Instead of throwing, the tool returns a model-visible correction so the model can retry.
-		assertTrue(result.contains("was not valid JSON for its input schema"));
-		assertTrue(result.contains("Resubmit the call with a corrected argument"));
-		verifyNoInteractions(codeInterpreterClient);
+		assertEquals("ok\n", result);
+		verify(codeInterpreterClient).executeCode(sessionId, "python", multiLineScript);
 	}
 
 	private ToolCallback runPythonCallback() {

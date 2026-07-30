@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.util.ValidateArgument;
@@ -57,9 +58,12 @@ public class CurieSupervisor {
 	 * {@code sessionId}, so a later turn on a different worker continues the same conversation. Both
 	 * {@code user} and {@code sessionId} are required for this reason. The trusted
 	 * {@link GridAgentSessionContext} is forwarded to the grid specialists via the agent-immutable
-	 * tool context, so they operate against the user's replica in the current grid session.
+	 * tool context, so they operate against the user's replica in the current grid session. The
+	 * optional {@code traceCallback} is forwarded the same way so every tool call in this turn — at
+	 * this supervisor and in the specialists it delegates to — is recorded as job trace.
 	 */
-	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext) {
+	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext,
+			AgentTraceCallback traceCallback) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(user.getId(), "user.getId()");
 		ValidateArgument.requiredNotBlank(sessionId, "sessionId");
@@ -70,6 +74,9 @@ public class CurieSupervisor {
 		context.put("userInfo", user);
 		context.put("sessionId", sessionId);
 		context.put("gridAgentSessionContext", gridContext);
+		if (traceCallback != null) {
+			context.put(AgentTraceCallback.CONTEXT_KEY, traceCallback);
+		}
 		return chatClient.prompt()
 				.user(message)
 				.toolContext(context)

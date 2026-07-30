@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.agent;
 
 import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -46,6 +48,9 @@ import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
+import org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisor;
+import org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisorFactory;
+import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.manager.config.AgentSuffix;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
@@ -156,6 +161,12 @@ public class AgentManagerImplUnitTest {
 	@Mock
 	private UserManager mockUserManager;
 
+	@Mock
+	private CurieSupervisorFactory mockCurieSupervisorFactory;
+
+	@Mock
+	private CurieSupervisor mockCurieSupervisor;
+
 	private AgentManagerImpl manager;
 
 	private String stackBedrockAgentId;
@@ -223,7 +234,7 @@ public class AgentManagerImplUnitTest {
 				stackBedrockGridAgentId);
 
 		manager = Mockito.spy(new AgentManagerImpl(mockAgentDao, mockAgentClientProvider, idMap,
-				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer, mockUserManager));
+				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer, mockUserManager, mockCurieSupervisorFactory));
 
 		when(mockLoggerProvider.getLogger(AgentManagerImpl.class.getName())).thenReturn(mockLogger);
 		manager.setLoggerProvider(mockLoggerProvider);
@@ -607,6 +618,96 @@ public class AgentManagerImplUnitTest {
 		AgentChatResponse expected = new AgentChatResponse().setSessionId(sessionId).setResponseText(responseText);
 		assertEquals(response, expected);
 
+	}
+
+	@Test
+	public void testInvokeAgentWithExperimentalGridContext() {
+		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid123")
+				.setExperimental(true);
+		session.setSessionContext(gridContext);
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
+		when(mockCurieSupervisor.chat(eq(inputText), eq(sageUser), eq(sessionId), eq(gridContext), any()))
+				.thenReturn("curie-answer");
+
+		// call under test
+		AgentChatResponse response = manager.invokeAgent(sageUser, jobId, chatRequest);
+
+		assertEquals(new AgentChatResponse().setSessionId(sessionId).setResponseText("curie-answer"), response);
+		verify(manager, never()).invokeAgentWithText(any(), any(), any());
+	}
+
+	@Test
+	public void testInvokeAgentWithExperimentalGridContextAndTraceEnabled() {
+		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid123")
+				.setExperimental(true);
+		session.setSessionContext(gridContext);
+		chatRequest.setEnableTrace(true);
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
+		ArgumentCaptor<AgentTraceCallback> callbackCaptor = ArgumentCaptor.forClass(AgentTraceCallback.class);
+		when(mockCurieSupervisor.chat(eq(inputText), eq(sageUser), eq(sessionId), eq(gridContext),
+				callbackCaptor.capture())).thenReturn("curie-answer");
+		when(mockClock.currentTimeMillis()).thenReturn(123L);
+
+		// call under test
+		manager.invokeAgent(sageUser, jobId, chatRequest);
+
+		// The supplied callback writes trace against this job using the manager's clock.
+		AgentTraceCallback callback = callbackCaptor.getValue();
+		assertNotNull(callback);
+		callback.addTraceToJob("a message");
+		verify(mockAgentDao).addTraceToJob(jobId, 123L, "a message");
+	}
+
+	@Test
+	public void testInvokeAgentWithExperimentalGridContextAndTraceDisabled() {
+		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid123")
+				.setExperimental(true);
+		session.setSessionContext(gridContext);
+		chatRequest.setEnableTrace(false);
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		when(mockCurieSupervisorFactory.create()).thenReturn(mockCurieSupervisor);
+		ArgumentCaptor<AgentTraceCallback> callbackCaptor = ArgumentCaptor.forClass(AgentTraceCallback.class);
+		when(mockCurieSupervisor.chat(eq(inputText), eq(sageUser), eq(sessionId), eq(gridContext),
+				callbackCaptor.capture())).thenReturn("curie-answer");
+
+		// call under test
+		manager.invokeAgent(sageUser, jobId, chatRequest);
+
+		// With trace disabled no callback is supplied, so nothing is recorded.
+		assertNull(callbackCaptor.getValue());
+	}
+
+	@Test
+	public void testInvokeAgentWithNonExperimentalGridContext() {
+		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid123")
+				.setExperimental(false);
+		session.setSessionContext(gridContext);
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		String responseText = "hi";
+		doReturn(responseText).when(manager).invokeAgentWithText(jobId, session, chatRequest);
+
+		// call under test
+		AgentChatResponse response = manager.invokeAgent(sageUser, jobId, chatRequest);
+
+		assertEquals(new AgentChatResponse().setSessionId(sessionId).setResponseText(responseText), response);
+		verifyNoMoreInteractions(mockCurieSupervisorFactory);
+	}
+
+	@Test
+	public void testInvokeAgentWithGridContextAndNullExperimental() {
+		GridAgentSessionContext gridContext = new GridAgentSessionContext().setGridSessionId("grid123");
+		session.setSessionContext(gridContext);
+		doReturn(session).when(manager).getAndValidateAgentSession(sageUser, sessionId);
+		String responseText = "hi";
+		doReturn(responseText).when(manager).invokeAgentWithText(jobId, session, chatRequest);
+
+		// call under test
+		AgentChatResponse response = manager.invokeAgent(sageUser, jobId, chatRequest);
+
+		assertEquals(new AgentChatResponse().setSessionId(sessionId).setResponseText(responseText), response);
+		verifyNoMoreInteractions(mockCurieSupervisorFactory);
 	}
 
 	@Test

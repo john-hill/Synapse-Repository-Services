@@ -59,7 +59,7 @@ public class CurieSupervisorIntegrationTest {
 		String ack = firstTurn.chat(
 				"Please remember this reference code for our session: " + referenceCode
 						+ ". Just confirm you have noted it.",
-				adminUser, sessionId, gridContext);
+				adminUser, sessionId, gridContext, null);
 		assertNotNull(ack);
 
 		// A brand-new supervisor for the second turn — as if this turn ran on a different worker machine.
@@ -71,7 +71,7 @@ public class CurieSupervisorIntegrationTest {
 		// user:sessionId conversation key.
 		String recall = secondTurn.chat(
 				"What reference code did I give you earlier in this session? Reply with only the code.",
-				adminUser, sessionId, gridContext);
+				adminUser, sessionId, gridContext, null);
 		assertNotNull(recall);
 		assertTrue(recall.toUpperCase().contains(referenceCode),
 				"A new supervisor should recall the earlier turn's reference code. Got: " + recall);
@@ -89,7 +89,7 @@ public class CurieSupervisorIntegrationTest {
 		curieSupervisorFactory.create().chat(
 				"Please remember this reference code for our session: " + referenceCode
 						+ ". Just confirm you have noted it.",
-				adminUser, establishedSessionId, establishedContext);
+				adminUser, establishedSessionId, establishedContext, null);
 
 		// A different session for the same user must not see it — proving memory is keyed by session,
 		// not shared globally across the user's conversations.
@@ -102,7 +102,7 @@ public class CurieSupervisorIntegrationTest {
 		String recall = curieSupervisorFactory.create().chat(
 				"What reference code did I give you earlier in this session? "
 						+ "If you have no reference code on record, reply exactly NONE.",
-				adminUser, otherSessionId, otherContext);
+				adminUser, otherSessionId, otherContext, null);
 		assertNotNull(recall);
 		assertFalse(recall.toUpperCase().contains(referenceCode),
 				"A separate session must not recall another session's reference code. Got: " + recall);

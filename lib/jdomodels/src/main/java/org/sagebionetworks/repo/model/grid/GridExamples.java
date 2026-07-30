@@ -156,11 +156,13 @@ public class GridExamples {
 								.setSet(List.of(new LiteralSetValue().setColumnName("name").setValue("Dave")))
 								.setFilters(List.of(new RowSelectionFilter().setIsSelected(true))))))),
 
-				update("Set status = true only for rows with IDs r2 and r5 (explicit RowIdFilter targeting previously "
-						+ "retrieved IDs).",
+				update("When asked to update specific rows given their row IDs, use a RowIdFilter. A row ID is the "
+						+ "compact `replicaId.sequenceNumber` form a query returns for each row (e.g. 123.456), not a "
+						+ "column value. For example, set status = true only for the rows whose IDs are 123.456 and "
+						+ "123.789.",
 						new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
 								.setSet(List.of(new LiteralSetValue().setColumnName("status").setValue(true)))
-								.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5")))))))),
+								.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("123.456", "123.789")))))))),
 
 				update("Set color to undefined (omit the value property) for rows where material is null.",
 						new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()

@@ -20,6 +20,8 @@ import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
+import org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisorFactory;
+import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.manager.config.AgentSuffix;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
@@ -88,12 +90,13 @@ public class AgentManagerImpl implements AgentManager {
 	private Logger logger;
 	private final Consumer cloudWatchConsumer;
 	private final UserManager userManager;
+	private final CurieSupervisorFactory curieSupervisorFactory;
 
 	@Autowired
 	public AgentManagerImpl(AgentDao agentDao, AgentClientProvider agentClientProvider,
 			Map<AgentSuffix, String> stackBedrockAgentIds, ReturnControlHandlerProvider handlerProvider, Clock clock,
 			AsynchronousJobStatusDAO statusDao, FeatureManager featureManager, AgentContextValidator contextValidator,
-			Consumer consumer, UserManager userManager) {
+			Consumer consumer, UserManager userManager, CurieSupervisorFactory curieSupervisorFactory) {
 		super();
 		this.agentDao = agentDao;
 		this.agentClientProvider = agentClientProvider;
@@ -112,6 +115,7 @@ public class AgentManagerImpl implements AgentManager {
 		this.contextValidator = contextValidator;
 		this.cloudWatchConsumer = consumer;
 		this.userManager = userManager;
+		this.curieSupervisorFactory = curieSupervisorFactory;
 	}
 
 	@Autowired
@@ -169,6 +173,22 @@ public class AgentManagerImpl implements AgentManager {
 		// do nothing with an empty of blank input.
 		if (request.getChatText() == null || request.getChatText().isBlank()) {
 			return new AgentChatResponse().setResponseText("").setSessionId(request.getSessionId());
+		}
+		// Experimental grid sessions are handled by the Curie multi-agent supervisor rather than the
+		// default Bedrock agent.
+		if (session.getSessionContext() instanceof GridAgentSessionContext) {
+			GridAgentSessionContext gridContext = (GridAgentSessionContext) session.getSessionContext();
+			if (Boolean.TRUE.equals(gridContext.getExperimental())) {
+				// When trace is enabled, record the supervisor's conversation with its specialists
+				// against this job. A null callback (trace disabled) records nothing.
+				boolean enableTrace = request.getEnableTrace() != null ? request.getEnableTrace() : false;
+				AgentTraceCallback traceCallback = enableTrace
+						? message -> agentDao.addTraceToJob(jobId, clock.currentTimeMillis(), message)
+						: null;
+				String curieResponse = curieSupervisorFactory.create().chat(request.getChatText(), userInfo,
+						session.getSessionId(), gridContext, traceCallback);
+				return new AgentChatResponse().setResponseText(curieResponse).setSessionId(request.getSessionId());
+			}
 		}
 		String responseText = invokeAgentWithText(jobId, session, request);
 		return new AgentChatResponse().setResponseText(responseText).setSessionId(request.getSessionId());

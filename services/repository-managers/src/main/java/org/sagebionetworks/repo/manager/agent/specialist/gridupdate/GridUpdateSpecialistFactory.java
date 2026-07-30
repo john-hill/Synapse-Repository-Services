@@ -8,7 +8,6 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.model.grid.GridExamples;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
@@ -27,21 +26,18 @@ public class GridUpdateSpecialistFactory {
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
 	private final GridUpdateTools gridUpdateTools;
-	private final CodeInterpreterTools codeInterpreterTools;
 	private final String renderedSystemPrompt;
 
 	public GridUpdateSpecialistFactory(ChatModel chatModel, StackConfiguration stackConfig,
-			GridUpdateTools gridUpdateTools, CodeInterpreterTools codeInterpreterTools) {
+			GridUpdateTools gridUpdateTools) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
 		this.gridUpdateTools = gridUpdateTools;
-		this.codeInterpreterTools = codeInterpreterTools;
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
 	public GridUpdateSpecialist create() {
-		return new GridUpdateSpecialist(chatModel, stackConfig, gridUpdateTools, codeInterpreterTools,
-				renderedSystemPrompt);
+		return new GridUpdateSpecialist(chatModel, stackConfig, gridUpdateTools, renderedSystemPrompt);
 	}
 
 	String renderSystemPrompt() {

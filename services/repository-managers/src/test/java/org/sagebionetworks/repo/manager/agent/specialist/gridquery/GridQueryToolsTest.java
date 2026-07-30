@@ -132,6 +132,19 @@ public class GridQueryToolsTest {
 	}
 
 	@Test
+	public void testQueryGridWithEmptyColumnSelection() {
+		// A query that binds with no columnSelection (e.g. a double-wrapped request whose nested
+		// object is silently dropped) must be rejected rather than silently returning all rows.
+		String noSelection = "{\"query\":{\"limit\":10}}";
+
+		// call under test
+		String response = queryGridCallback().call(noSelection, toolContext);
+
+		assertTrue(new JSONObject(response).getString("errorMessage").contains("request.query.columnSelection"));
+		verifyNoInteractions(mockGridDao, mockViewManager);
+	}
+
+	@Test
 	public void testQueryGridWithNoInternalConnection() {
 		when(mockGridDao.getSingletonConnection(GRID_SESSION_ID, EventSource.INTERNAL)).thenReturn(Optional.empty());
 

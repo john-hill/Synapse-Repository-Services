@@ -174,7 +174,7 @@ public class CurieGridCurationIntegrationTest {
 		String diagnosis = curie.chat(
 				"Exactly one row in this grid is failing schema validation. Query the grid to find which row it "
 						+ "is, and explain which schema rule it violates and why.",
-				admin, chatSessionId, gridContext);
+				admin, chatSessionId, gridContext, null);
 		assertNotNull(diagnosis);
 		String lowerDiagnosis = diagnosis.toLowerCase();
 		assertTrue(lowerDiagnosis.contains("a2"),
@@ -191,11 +191,12 @@ public class CurieGridCurationIntegrationTest {
 		// for confirmation rather than applying it.
 		String proposal = curie.chat(
 				"Please fix the row where column a is a2 by setting its weight to 42 so it passes validation.",
-				admin, chatSessionId, gridContext);
+				admin, chatSessionId, gridContext, null);
 		assertNotNull(proposal);
 
 		// Turn 3 — explicit confirmation, so Curie delegates the actual update to the grid update specialist.
-		String applied = curie.chat("Yes, I confirm. Please apply that update now.", admin, chatSessionId, gridContext);
+		String applied = curie.chat("Yes, I confirm. Please apply that update now.", admin, chatSessionId, gridContext,
+				null);
 		assertNotNull(applied);
 
 		// Verify against real grid state: row a2 now carries weight 42 and passes validation. Polls
@@ -222,7 +223,7 @@ public class CurieGridCurationIntegrationTest {
 		String description = curie.chat(
 				"Help me understand this grid's schema. Which columns does the schema define, what type "
 						+ "is each, and which columns are required?",
-				admin, chatSessionId, gridContext);
+				admin, chatSessionId, gridContext, null);
 		assertNotNull(description);
 		String lower = description.toLowerCase();
 		// The required set (a, weight) and weight's integer type come only from the schema, not from any

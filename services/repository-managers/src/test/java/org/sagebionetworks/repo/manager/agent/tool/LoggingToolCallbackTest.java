@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
@@ -12,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -33,6 +36,9 @@ public class LoggingToolCallbackTest {
 	@Mock
 	private ToolMetadata mockToolMetadata;
 
+	@Mock
+	private AgentTraceCallback mockTraceCallback;
+
 	private LoggingToolCallback callback;
 
 	@BeforeEach
@@ -53,6 +59,39 @@ public class LoggingToolCallbackTest {
 
 		assertEquals("the tool response", response);
 		verify(mockDelegate).call("the prompt", context);
+	}
+
+	@Test
+	public void testCallWithTraceCallbackRecordsInputAndResponse() {
+		when(mockDelegate.getToolDefinition()).thenReturn(mockToolDefinition);
+		when(mockToolDefinition.name()).thenReturn("askGridQuerySpecialist");
+		ToolContext context = new ToolContext(Map.of(AgentTraceCallback.CONTEXT_KEY, mockTraceCallback));
+		when(mockDelegate.call("the prompt", context)).thenReturn("the tool response");
+
+		// call under test
+		String response = callback.call("the prompt", context);
+
+		assertEquals("the tool response", response);
+		// The input is recorded before delegation and the response after, so trace reads as a
+		// supervisor-to-specialist exchange.
+		InOrder order = inOrder(mockTraceCallback);
+		order.verify(mockTraceCallback)
+				.addTraceToJob("Called tool 'askGridQuerySpecialist' with input: the prompt");
+		order.verify(mockTraceCallback)
+				.addTraceToJob("Tool 'askGridQuerySpecialist' responded with: the tool response");
+	}
+
+	@Test
+	public void testCallWithoutTraceCallbackInContextDoesNotRecord() {
+		when(mockDelegate.getToolDefinition()).thenReturn(mockToolDefinition);
+		when(mockToolDefinition.name()).thenReturn("askGridQuerySpecialist");
+		ToolContext context = new ToolContext(Map.of("userInfo", new UserInfo(false, 123L)));
+		when(mockDelegate.call("the prompt", context)).thenReturn("the tool response");
+
+		// call under test
+		callback.call("the prompt", context);
+
+		verifyNoInteractions(mockTraceCallback);
 	}
 
 	@Test

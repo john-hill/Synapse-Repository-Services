@@ -70,6 +70,11 @@ public class GridQueryTools extends JSONEntityToolBase {
 		}
 		try {
 			ValidateArgument.required(request.getQuery(), "request.query");
+			// An absent columnSelection would otherwise silently degrade to select-all-rows, so an
+			// aggregate request (e.g. CountStar) that fails to bind would return full rows with no
+			// error. Rejecting it here lets the base class feed a corrective message back to the model.
+			ValidateArgument.requiredNotEmpty(request.getQuery().getColumnSelection(),
+					"request.query.columnSelection");
 			QueryElement element = new QueryElement(request.getQuery());
 
 			GridConnectionInfo internalConnection = gridDao

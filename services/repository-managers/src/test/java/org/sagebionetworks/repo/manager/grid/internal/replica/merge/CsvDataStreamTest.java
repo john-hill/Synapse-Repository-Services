@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.StringReader;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -179,5 +180,63 @@ public class CsvDataStreamTest {
 			new CsvDataStream(csvReader, columnMapping);
 		}).getMessage());
 		
+	}
+
+	/**
+	 * A blank cell in a non-key INTEGER column must not fail the import: blank
+	 * cells carry no type information during schema inference, so a column can
+	 * legitimately be typed INTEGER despite having blanks.
+	 */
+	@Test
+	public void testStreamWithBlankNonKeyIntegerCell() {
+		csvReader = new CSVReader(new StringReader(
+			"0,,data0" + System.lineSeparator()
+		));
+
+		dataStream = new CsvDataStream(csvReader, columnMapping);
+
+		// call under test
+		Object[] row = dataStream.next();
+
+		// A "no value" cell is represented as JSONObject.NULL (not a Java null),
+		// consistent with how ConValue represents ConType.NULL everywhere else.
+		assertArrayEquals(new Object[] { 0L, JSONObject.NULL, "data0" }, row);
+	}
+
+	/**
+	 * A non-key column may hold a value inferred from a different revision's data
+	 * that doesn't fit its declared type (e.g. an INTEGER column upserted from a
+	 * grid that has since gained non-numeric values). It must be carried through
+	 * as raw text rather than failing the whole import.
+	 */
+	@Test
+	public void testStreamWithUnparseableNonKeyIntegerCell() {
+		csvReader = new CSVReader(new StringReader(
+			"0,not-a-number,data0" + System.lineSeparator()
+		));
+
+		dataStream = new CsvDataStream(csvReader, columnMapping);
+
+		// call under test
+		Object[] row = dataStream.next();
+
+		assertArrayEquals(new Object[] { 0L, "not-a-number", "data0" }, row);
+	}
+
+	/**
+	 * The upsert key columns are stored in a typed, NOT NULL temp table column and
+	 * drive the join against the grid's temp table, so an unparseable key value
+	 * must still fail the import rather than being carried through as text.
+	 */
+	@Test
+	public void testStreamWithUnparseableUpsertKeyValueStillThrows() {
+		csvReader = new CSVReader(new StringReader(
+			"not-a-number,1,data0" + System.lineSeparator()
+		));
+
+		dataStream = new CsvDataStream(csvReader, columnMapping);
+
+		// call under test
+		assertThrows(NumberFormatException.class, dataStream::next);
 	}
 }

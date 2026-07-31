@@ -113,7 +113,16 @@ public class RecordSetSourceHandler implements SourceHandler {
 		this.recordSetExporter = recordSetExporter;
 		this.gridRowValidator = gridRowValidator;
 		this.nodeDao = nodeDao;
-		initialize();
+		try {
+			initialize();
+		} catch (RuntimeException | IOException e) {
+			// initialize() creates the temp file before it can fail (e.g. while loading
+			// the baseline revision). Since construction never completes, this handler
+			// is never returned to a try-with-resources, so close() would otherwise
+			// never run and the temp file would leak on every retry of a failing sync.
+			close();
+			throw e;
+		}
 	}
 
 	void initialize() throws IOException {
@@ -222,6 +231,16 @@ public class RecordSetSourceHandler implements SourceHandler {
 	 * rows. A blank key cell is stored as {@link ConType#UNDEFINED} rather than
 	 * translated, so a non-parseable (e.g. empty INTEGER) key value does not fail
 	 * the whole sync.
+	 *
+	 * <p>
+	 * This row's column types come from the <em>latest</em> revision's schema (see
+	 * {@link #initialize()}), but this method is also used to re-read the synced
+	 * <em>baseline</em> revision ({@link #loadBaselineHashes}) — an independent,
+	 * immutable CSV that may hold values incompatible with that schema (e.g. a
+	 * value inferred as an integer in the latest revision but alphanumeric in the
+	 * baseline). Translation is therefore lenient: a cell that cannot be
+	 * represented as its column's type is carried through as raw text instead of
+	 * failing the sync.
 	 */
 	RowSourceItem createSynchRow(String[] csvRow, Map<String, Integer> headerIndex) {
 		TreeMap<String, ConValue> data = new TreeMap<>();
@@ -233,7 +252,8 @@ public class RecordSetSourceHandler implements SourceHandler {
 				// possibly fail) — mark it undefined so it reads as a keyless row.
 				data.put(name, new ConValue(ConType.UNDEFINED, null));
 			} else {
-				data.put(name, translators.get(name).translateNullable(raw, requiredColumnNames.contains(name)));
+				data.put(name,
+						translators.get(name).translateLeniently(raw, requiredColumnNames.contains(name)));
 			}
 		}
 		String key = hasCompleteUpsertKey(data) ? UpsertKeyEncoder.encodeFromData(data, upsertKey)

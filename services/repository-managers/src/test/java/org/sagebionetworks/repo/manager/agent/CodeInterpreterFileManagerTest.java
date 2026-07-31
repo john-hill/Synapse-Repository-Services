@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -100,6 +101,43 @@ public class CodeInterpreterFileManagerTest {
 	@Test
 	public void testGetStagingBucket() {
 		assertEquals("dev.code-interpreter.staging.sagebase.org", fileManager.getStagingBucket());
+	}
+
+	@Test
+	public void testCountFilesInSessionDirectory() {
+		String sessionId = "session-1";
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class)))
+				.thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+		when(mockCodeResult.textOutput()).thenReturn("3\n");
+
+		// call under test
+		int count = fileManager.countFilesInSessionDirectory(sessionId,
+				CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY);
+
+		assertEquals(3, count);
+		// The rendered script must target the requested directory.
+		ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
+		verify(mockCodeInterpreterClient).executeCode(eq(sessionId), eq("python"), codeCaptor.capture());
+		assertTrue(
+				codeCaptor.getValue()
+						.contains("directory = '" + CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY + "'"),
+				"Got: " + codeCaptor.getValue());
+	}
+
+	@Test
+	public void testCountFilesInSessionDirectoryWithExecutionError() {
+		String sessionId = "session-1";
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class)))
+				.thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(true);
+		when(mockCodeResult.textOutput()).thenReturn("boom");
+
+		// call under test
+		String message = assertThrows(RuntimeException.class, () -> fileManager.countFilesInSessionDirectory(sessionId,
+				CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY)).getMessage();
+
+		assertTrue(message.contains("boom"), "Got: " + message);
 	}
 
 	@Test
@@ -442,6 +480,57 @@ public class CodeInterpreterFileManagerTest {
 
 		verifyNoInteractions(mockS3Client);
 		verifyNoInteractions(mockCodeInterpreterClient);
+	}
+
+	@Test
+	public void testPushFileHandlesToSessionWithMixedAuthorization() throws Exception {
+		UserInfo user = new UserInfo(false, 101L);
+		String sessionId = "session-1";
+
+		// A batch where the user can download the first file but not the second. Per-file authorization must
+		// stage the authorized file and reject the unauthorized one — the unauthorized file must never be
+		// copied or pushed into the session, even though it shares the batch with an authorized file.
+		FileHandleAssociation authorized = new FileHandleAssociation().setFileHandleId("1")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn1");
+		FileHandleAssociation unauthorized = new FileHandleAssociation().setFileHandleId("2")
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn2");
+		PushFileRequest authorizedRequest = new PushFileRequest(authorized, "authorized.csv");
+		PushFileRequest unauthorizedRequest = new PushFileRequest(unauthorized, "unauthorized.csv");
+
+		S3FileHandle authorizedHandle = new S3FileHandle();
+		authorizedHandle.setId("1");
+		authorizedHandle.setBucketName("source-bucket");
+		authorizedHandle.setKey("path/to/authorized.csv");
+		authorizedHandle.setFileName("authorized.csv");
+		authorizedHandle.setContentType("text/csv");
+		authorizedHandle.setContentSize(2048L);
+
+		when(mockFileHandleManager.getFileHandleAndUrlBatch(eq(user), any(BatchFileRequest.class)))
+				.thenReturn(new BatchFileResult().setRequestedFiles(List.of(
+						new FileResult().setFileHandleId("1").setFileHandle(authorizedHandle),
+						new FileResult().setFileHandleId("2").setFailureCode(FileResultFailureCode.UNAUTHORIZED))));
+		when(mockS3Client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+		when(mockS3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(mockPresignedGetRequest);
+		when(mockPresignedGetRequest.url()).thenReturn(new URL("https://staging.s3.amazonaws.com/path/to/authorized.csv?presigned=true"));
+		when(mockCodeInterpreterClient.executeCode(eq(sessionId), eq("python"), any(String.class))).thenReturn(mockCodeResult);
+		when(mockCodeResult.isError()).thenReturn(false);
+
+		// call under test
+		List<PushFileResult> results = fileManager.pushFileHandlesToSession(user,
+				List.of(authorizedRequest, unauthorizedRequest), sessionId);
+
+		assertEquals(2, results.size());
+		// Order is preserved: the authorized file is staged, the unauthorized file is rejected.
+		assertFalse(results.get(0).isError());
+		assertEquals("authorized.csv", results.get(0).sessionPath());
+		assertTrue(results.get(1).isError());
+		assertEquals(PushFailureCode.UNAUTHORIZED, results.get(1).failureCode());
+
+		// Only the authorized file is copied and pushed — the unauthorized file never touches S3 or the session.
+		ArgumentCaptor<CopyObjectRequest> copyCaptor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+		verify(mockS3Client, times(1)).copyObject(copyCaptor.capture());
+		assertEquals("path/to/authorized.csv", copyCaptor.getValue().sourceKey());
+		verify(mockCodeInterpreterClient, times(1)).executeCode(eq(sessionId), eq("python"), any(String.class));
 	}
 
 	@Test

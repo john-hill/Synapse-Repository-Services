@@ -21,15 +21,17 @@ import org.springframework.stereotype.Service;
  * copies the authorized, eligible files into the shared session so the agent and its specialists can
  * read them by path for the rest of the conversation. Per-attachment authorization, the approved-type
  * whitelist, and the per-file size cap are all enforced by {@link CodeInterpreterFileManager}; this
- * class adds only the request-level attachment limit and the mapping of each staging outcome onto the
+ * class adds only the attachment limit and the mapping of each staging outcome onto the
  * {@link AgentChatAttachmentStatus} returned to the client.
  */
 @Service
 public class AgentChatAttachmentStager {
 
 	/**
-	 * The maximum number of attachments a single chat turn may carry. A request that exceeds this is
-	 * rejected before any file is staged.
+	 * The maximum number of attached files a single Curie chat session may hold. Because the code
+	 * interpreter session is reused across chat turns, this is a cumulative cap over the whole
+	 * conversation, not a per-turn cap: a turn is rejected when the files already staged in the session
+	 * plus the turn's own attachments would exceed this limit.
 	 */
 	static final int MAX_AGENT_CHAT_ATTACHMENTS = 20;
 
@@ -46,10 +48,11 @@ public class AgentChatAttachmentStager {
 	 * Stage the given attachments into the code interpreter session for the given Synapse chat session,
 	 * returning one status per attachment in request order. A null or empty attachment list stages
 	 * nothing and resolves no session, preserving the invariant that a purely conversational turn never
-	 * provisions a code session. A request carrying more than {@link #MAX_AGENT_CHAT_ATTACHMENTS}
-	 * attachments is rejected with {@link IllegalArgumentException} before any file is resolved or staged.
-	 * Otherwise each attachment is staged best-effort: files that cannot be authorized, resolved, or
-	 * staged are reported as {@link AgentChatAttachmentState#FAILED} with a cause and the turn proceeds
+	 * provisions a code session. The session is reused across turns, so the {@link #MAX_AGENT_CHAT_ATTACHMENTS}
+	 * limit is enforced cumulatively: a request is rejected with {@link IllegalArgumentException} — before
+	 * any file is staged — when the files already in the session plus this turn's attachments would exceed
+	 * the limit. Otherwise each attachment is staged best-effort: files that cannot be authorized, resolved,
+	 * or staged are reported as {@link AgentChatAttachmentState#FAILED} with a cause and the turn proceeds
 	 * with whatever staged successfully.
 	 *
 	 * @param user           The user on whose behalf the files are staged; used for download authorization
@@ -66,12 +69,25 @@ public class AgentChatAttachmentStager {
 		if (attachments == null || attachments.isEmpty()) {
 			return Collections.emptyList();
 		}
+		// Fast fail before resolving a session when this turn alone already exceeds the limit; the
+		// cumulative check below cannot pass in that case regardless of what the session holds.
 		if (attachments.size() > MAX_AGENT_CHAT_ATTACHMENTS) {
-			throw new IllegalArgumentException("A chat message may include at most " + MAX_AGENT_CHAT_ATTACHMENTS
-					+ " attachments, but " + attachments.size() + " were provided.");
+			throw new IllegalArgumentException("A Curie chat session may hold at most " + MAX_AGENT_CHAT_ATTACHMENTS
+					+ " attached files, but this message alone provided " + attachments.size() + ".");
 		}
 
 		String sessionId = sessionProvider.getOrCreateSession(agentSessionId);
+
+		// The session is reused across turns, so files staged on earlier turns still count against the
+		// limit. Count what the session already holds and reject the turn if adding these attachments
+		// would push the cumulative total past the limit, before staging any of them.
+		int existingCount = codeInterpreterFileManager.countFilesInSessionDirectory(sessionId,
+				CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY);
+		if (existingCount + attachments.size() > MAX_AGENT_CHAT_ATTACHMENTS) {
+			throw new IllegalArgumentException("This chat session already holds " + existingCount
+					+ " attached files; attaching " + attachments.size()
+					+ " more would exceed the maximum of " + MAX_AGENT_CHAT_ATTACHMENTS + " attached files per session.");
+		}
 
 		// Session paths are derived from each file's own name, so the requests carry a null path.
 		List<PushFileRequest> pushRequests = new ArrayList<>(attachments.size());

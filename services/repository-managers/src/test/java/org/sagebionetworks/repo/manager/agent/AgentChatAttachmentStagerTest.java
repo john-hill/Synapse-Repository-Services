@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -95,6 +96,47 @@ public class AgentChatAttachmentStagerTest {
 		// Over-count is rejected before any session is resolved or any file is staged.
 		verifyNoInteractions(mockSessionProvider);
 		verifyNoInteractions(mockCodeInterpreterFileManager);
+	}
+
+	@Test
+	public void testStageAttachmentsWithCumulativeLimitExceeded() {
+		// The session already holds all-but-one of the allowed files, so attaching two more would push the
+		// cumulative total past the limit even though this single turn is well under it.
+		List<FileHandleAssociation> attachments = List.of(association("1", "syn1"), association("2", "syn2"));
+
+		when(mockSessionProvider.getOrCreateSession(agentSessionId)).thenReturn(codeSessionId);
+		when(mockCodeInterpreterFileManager.countFilesInSessionDirectory(codeSessionId,
+				CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY))
+						.thenReturn(AgentChatAttachmentStager.MAX_AGENT_CHAT_ATTACHMENTS - 1);
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class,
+				() -> stager.stageAttachments(user, agentSessionId, attachments)).getMessage();
+
+		assertTrue(message.contains("maximum of " + AgentChatAttachmentStager.MAX_AGENT_CHAT_ATTACHMENTS),
+				"Got: " + message);
+		// The cumulative cap is enforced before any file is staged.
+		verify(mockCodeInterpreterFileManager, never()).pushFileHandlesToSession(any(), any(), any());
+	}
+
+	@Test
+	public void testStageAttachmentsAtCumulativeLimit() {
+		// The session holds one fewer than the limit and this turn attaches exactly one, hitting the limit
+		// but not exceeding it, so the file is staged.
+		FileHandleAssociation association = association("222", "syn123");
+
+		when(mockSessionProvider.getOrCreateSession(agentSessionId)).thenReturn(codeSessionId);
+		when(mockCodeInterpreterFileManager.countFilesInSessionDirectory(codeSessionId,
+				CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY))
+						.thenReturn(AgentChatAttachmentStager.MAX_AGENT_CHAT_ATTACHMENTS - 1);
+		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(user), any(), eq(codeSessionId)))
+				.thenReturn(List.of(stagedResult(association, "attachments/data.csv", "data.csv", "text/csv", 4096L)));
+
+		// call under test
+		List<AgentChatAttachmentStatus> statuses = stager.stageAttachments(user, agentSessionId, List.of(association));
+
+		assertEquals(1, statuses.size());
+		assertEquals(AgentChatAttachmentState.STAGED, statuses.get(0).getStatus());
 	}
 
 	@Test

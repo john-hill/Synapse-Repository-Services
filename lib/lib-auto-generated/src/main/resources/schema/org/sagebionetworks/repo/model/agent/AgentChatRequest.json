@@ -19,7 +19,7 @@
 			"type": "boolean"
 		},
 		"attachments": {
-			"description": "Optional. Existing Synapse files to attach to this message; each is a FileHandleAssociation the user must be authorized to download. Attached files are staged into the agent's code interpreter session for this turn. Limits: at most 20 attachments; each file must be <= 100 MB and one of the approved content types (text/plain, application/pdf, text/csv, application/json). Only honored for experimental grid (Curie) sessions; sending attachments to any other session type is rejected.",
+			"description": "Optional. Existing Synapse files to attach to this message; each is a FileHandleAssociation the user must be authorized to download. Attached files are staged into the agent's code interpreter session and remain available for the rest of the conversation. Limits: a session may hold at most 20 attached files in total across all of its messages; each file must be <= 100 MB and one of the approved content types (text/plain, application/pdf, text/csv, application/json). Only honored for experimental grid (Curie) sessions; sending attachments to any other session type is rejected.",
 			"type": "array",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.file.FileHandleAssociation"

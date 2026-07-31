@@ -15,6 +15,8 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -56,7 +58,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
  * it by path. We upload one file of each flavor, each carrying a distinct text "code", attach both to a
  * single chat turn, and assert that (1) Curie reports both codes back — proving it actually read the
  * staged files — and (2) {@link AgentChatResponse#getAttachmentStatuses()} reports both as STAGED with a
- * session path. Requires live Bedrock + code interpreter + AgentCore Memory access.
+ * session path. A later turn attaches a third file and reads it, and we then assert the authoritative
+ * in-session file count grows from two to three — proving the code interpreter session is reused across
+ * chat requests so attachments accumulate rather than reset. Requires live Bedrock + code interpreter +
+ * AgentCore Memory access.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -66,6 +71,7 @@ public class CurieAttachmentIntegrationTest {
 	private static final long MAX_WAIT_MS = 1000L * 60 * 3;
 	private static final String RAW_HANDLE_CODE = "RAW-HANDLE-CODE-88421";
 	private static final String FILE_ENTITY_CODE = "FILE-ENTITY-CODE-13795";
+	private static final String SECOND_TURN_CODE = "SECOND-TURN-CODE-52063";
 
 	@Autowired
 	private AgentService agentService;
@@ -79,12 +85,17 @@ public class CurieAttachmentIntegrationTest {
 	private AsynchronousJobWorkerHelper asynchronousJobWorkerHelper;
 	@Autowired
 	private GridManager gridManager;
+	@Autowired
+	private CodeInterpreterSessionProvider codeInterpreterSessionProvider;
+	@Autowired
+	private CodeInterpreterFileManager codeInterpreterFileManager;
 
 	private UserInfo admin;
 	private GridSession session;
 	private Long usersReplicaId;
 	private FileHandleAssociation rawHandleAttachment;
 	private FileHandleAssociation fileEntityAttachment;
+	private FileHandleAssociation secondTurnAttachment;
 
 	@BeforeAll
 	public void beforeAll() throws Exception {
@@ -112,6 +123,12 @@ public class CurieAttachmentIntegrationTest {
 		fileEntityAttachment = new FileHandleAssociation().setFileHandleId(entityHandle.getId())
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId(fileEntity.getId());
 
+		// A third raw handle, attached on a later turn to prove the code session is reused: it should land in
+		// the same session that already holds the first turn's files.
+		S3FileHandle secondTurnHandle = uploadTextFile("second-turn", "The secret code is " + SECOND_TURN_CODE + ".");
+		secondTurnAttachment = new FileHandleAssociation().setFileHandleId(secondTurnHandle.getId())
+				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId(secondTurnHandle.getId());
+
 		// A minimal empty grid is enough: this test exercises attachment staging, not grid data. The
 		// experimental grid context still needs a real session and user replica so the agent session validates
 		// and routes through the Curie supervisor.
@@ -128,35 +145,76 @@ public class CurieAttachmentIntegrationTest {
 
 	@Test
 	public void testCurieReadsRawHandleAndFileEntityAttachments() throws Exception {
+		// One durable agent session across both turns. The code interpreter session is resolved
+		// deterministically from this agent session, so both turns must share the same session.
 		AgentSession agentSession = createCurieSession();
 
-		// Attach both files to a single turn and ask Curie to read each and report its code. Curie learns the
-		// staged files (and their session paths) from the per-turn preamble, then reads them via its code
-		// interpreter — so recovering both codes proves both flavors were staged and readable.
-		AgentChatResponse response = chat(agentSession, List.of(rawHandleAttachment, fileEntityAttachment),
+		// Turn 1 — attach both files and ask Curie to read each and report its code. Curie learns the staged
+		// files (and their session paths) from the per-turn preamble, then reads them via its code interpreter
+		// — so recovering both codes proves both flavors were staged and readable.
+		AgentChatResponse firstResponse = chat(agentSession, List.of(rawHandleAttachment, fileEntityAttachment),
 				"I've attached two text files. Read both of them and report the exact code string contained in "
 						+ "each file.");
 
-		String text = response.getResponseText();
-		assertTrue(text.contains(RAW_HANDLE_CODE),
-				"Curie should report the raw file handle's code. Got: " + text);
-		assertTrue(text.contains(FILE_ENTITY_CODE),
-				"Curie should report the FileEntity's code. Got: " + text);
+		String firstText = firstResponse.getResponseText();
+		assertTrue(firstText.contains(RAW_HANDLE_CODE),
+				"Curie should report the raw file handle's code. Got: " + firstText);
+		assertTrue(firstText.contains(FILE_ENTITY_CODE),
+				"Curie should report the FileEntity's code. Got: " + firstText);
 
 		// Both attachments must be reported STAGED, in request order, each with a session path.
-		List<AgentChatAttachmentStatus> statuses = response.getAttachmentStatuses();
-		assertNotNull(statuses);
-		assertEquals(2, statuses.size());
+		List<AgentChatAttachmentStatus> firstStatuses = firstResponse.getAttachmentStatuses();
+		assertNotNull(firstStatuses);
+		assertEquals(2, firstStatuses.size());
 
-		AgentChatAttachmentStatus rawStatus = statuses.get(0);
+		AgentChatAttachmentStatus rawStatus = firstStatuses.get(0);
 		assertEquals(rawHandleAttachment.getFileHandleId(), rawStatus.getFileHandleId());
 		assertEquals(AgentChatAttachmentState.STAGED, rawStatus.getStatus());
 		assertNotNull(rawStatus.getSessionPath());
 
-		AgentChatAttachmentStatus entityStatus = statuses.get(1);
+		AgentChatAttachmentStatus entityStatus = firstStatuses.get(1);
 		assertEquals(fileEntityAttachment.getFileHandleId(), entityStatus.getFileHandleId());
 		assertEquals(AgentChatAttachmentState.STAGED, entityStatus.getStatus());
 		assertNotNull(entityStatus.getSessionPath());
+
+		// The two files staged on turn 1 are the only files in the session's attachments directory. This
+		// authoritative count (read straight from the session, not from Curie's prose) is the baseline the
+		// next turn's file must add to.
+		assertEquals(2, attachmentsFileCount(agentSession));
+
+		// Turn 2 — attach a third file and ask only for its code, confirming a later turn can stage and read a
+		// new attachment.
+		AgentChatResponse secondResponse = chat(agentSession, List.of(secondTurnAttachment),
+				"I've now attached one more file. Read it and report the exact code string it contains.");
+
+		String secondText = secondResponse.getResponseText();
+		assertTrue(secondText.contains(SECOND_TURN_CODE),
+				"Curie should report the newly attached file's code. Got: " + secondText);
+
+		// attachmentStatuses is per-turn: this turn reports only the file it attached, staged into the session.
+		List<AgentChatAttachmentStatus> secondStatuses = secondResponse.getAttachmentStatuses();
+		assertNotNull(secondStatuses);
+		assertEquals(1, secondStatuses.size());
+		assertEquals(secondTurnAttachment.getFileHandleId(), secondStatuses.get(0).getFileHandleId());
+		assertEquals(AgentChatAttachmentState.STAGED, secondStatuses.get(0).getStatus());
+		assertNotNull(secondStatuses.get(0).getSessionPath());
+
+		// The attachments directory now holds all three files from both turns. Because every turn's
+		// attachments stage under the same "attachments/" directory, a total of three proves the second
+		// turn added to the first turn's files rather than replacing them — i.e. the same code session is
+		// reused across chat requests. A fresh-per-turn session would hold only the single turn-2 file.
+		assertEquals(3, attachmentsFileCount(agentSession));
+	}
+
+	/**
+	 * The authoritative count of files currently in the session's attachments directory, resolved the same
+	 * way production does: the code interpreter session is derived deterministically from the agent session,
+	 * then counted in-session. This is the cumulative total across all of the conversation's turns.
+	 */
+	private int attachmentsFileCount(AgentSession agentSession) {
+		String codeSessionId = codeInterpreterSessionProvider.getOrCreateSession(agentSession.getSessionId());
+		return codeInterpreterFileManager.countFilesInSessionDirectory(codeSessionId,
+				CodeInterpreterFileManager.ATTACHMENTS_DIRECTORY);
 	}
 
 	/**

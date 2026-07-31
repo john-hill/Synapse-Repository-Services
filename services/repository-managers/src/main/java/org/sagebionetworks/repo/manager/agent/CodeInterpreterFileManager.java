@@ -48,6 +48,7 @@ public class CodeInterpreterFileManager {
 
 	static final String DOWNLOAD_TEMPLATE = "code-templates/code-interpreter-download.py.vtp";
 	static final String UPLOAD_TEMPLATE = "code-templates/code-interpreter-upload.py.vtp";
+	static final String COUNT_FILES_TEMPLATE = "code-templates/code-interpreter-count-files.py.vtp";
 
 	/**
 	 * The maximum size of a file that may be added to a code interpreter session. Larger files are
@@ -56,11 +57,17 @@ public class CodeInterpreterFileManager {
 	static final long MAX_FILE_SIZE_BYTES = 100L * 1024L * 1024L;
 
 	/**
+	 * The session directory that auto-staged files (e.g. chat attachments) land in. It is the source of
+	 * truth for how many files a session already holds, since the session is reused across chat turns.
+	 */
+	public static final String ATTACHMENTS_DIRECTORY = "attachments";
+
+	/**
 	 * Prefix for session paths derived from a file's own name when a caller does not supply an explicit
 	 * path (e.g. chat attachments). Keeps auto-staged files together and out of the way of paths that a
 	 * specialist chooses explicitly.
 	 */
-	static final String DERIVED_PATH_PREFIX = "attachments/";
+	static final String DERIVED_PATH_PREFIX = ATTACHMENTS_DIRECTORY + "/";
 
 	private final S3Client s3Client;
 	private final S3Presigner s3Presigner;
@@ -182,6 +189,32 @@ public class CodeInterpreterFileManager {
 			}
 		}
 		return results;
+	}
+
+	/**
+	 * Count the files directly within a directory of a code interpreter session. A directory that does
+	 * not exist is reported as zero files, and only regular files (not subdirectories) are counted. This
+	 * reads the true, live file count from the session itself — the authoritative source given the session
+	 * is reused across chat turns — so a caller can enforce a cumulative limit on staged files.
+	 *
+	 * @param sessionId The code interpreter session ID
+	 * @param directory The session-relative directory to count files in (e.g. {@link #ATTACHMENTS_DIRECTORY})
+	 * @return The number of files in the directory, or zero if the directory does not exist
+	 */
+	public int countFilesInSessionDirectory(String sessionId, String directory) {
+		ValidateArgument.requiredNotBlank(sessionId, "sessionId");
+		ValidateArgument.requiredNotBlank(directory, "directory");
+
+		VelocityContext context = new VelocityContext();
+		context.put("directory", directory);
+		String code = renderTemplate(COUNT_FILES_TEMPLATE, context);
+
+		CodeExecutionResult execution = codeInterpreterClient.executeCode(sessionId, "python", code);
+		if (execution.isError()) {
+			throw new RuntimeException(
+					"Error counting files in session directory '" + directory + "': " + execution.textOutput());
+		}
+		return Integer.parseInt(execution.textOutput().trim());
 	}
 
 	/**

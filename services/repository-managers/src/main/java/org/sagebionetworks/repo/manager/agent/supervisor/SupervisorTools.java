@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.supervisor;
 
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
+import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.gridmetadata.GridMetadataSpecialistFactory;
@@ -135,14 +137,20 @@ public class SupervisorTools extends JSONEntityToolBase {
 	}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {
-		return (UserInfo) toolContext.getContext().get("userInfo");
+		return (UserInfo) AgentToolContextKey.USER_INFO.get(toolContext);
 	}
 
+	/**
+	 * Resolve the code interpreter session id for the delegated specialist. On the interactive Curie
+	 * path this invokes the lazy supplier, creating the shared session on first delegation; the
+	 * resolved AWS id is then forwarded to the specialist so its own tools operate against the same
+	 * session.
+	 */
 	private String extractSessionId(ToolContext toolContext) {
-		return (String) toolContext.getContext().get("sessionId");
+		return CodeSessionSupplier.resolveSessionId(toolContext);
 	}
 
 	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
-		return (GridAgentSessionContext) toolContext.getContext().get("gridAgentSessionContext");
+		return (GridAgentSessionContext) AgentToolContextKey.GRID_SESSION_CONTEXT.get(toolContext);
 	}
 }

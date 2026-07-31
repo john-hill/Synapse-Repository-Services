@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.agent.specialist.entitymetadata;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
@@ -269,11 +270,11 @@ public class EntityMetadataSpecialistTools extends JSONEntityToolBase {
 	}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {
-		return (UserInfo) toolContext.getContext().get("userInfo");
+		return (UserInfo) AgentToolContextKey.USER_INFO.get(toolContext);
 	}
 
 	private String extractSessionId(ToolContext toolContext) {
-		return (String) toolContext.getContext().get("sessionId");
+		return (String) AgentToolContextKey.CODE_SESSION_ID.get(toolContext);
 	}
 
 }

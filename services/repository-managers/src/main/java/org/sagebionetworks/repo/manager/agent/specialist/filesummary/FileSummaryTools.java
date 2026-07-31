@@ -7,6 +7,7 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolParam;
@@ -111,7 +112,7 @@ public class FileSummaryTools extends JSONEntityToolBase {
 	}
 
 	private String extractSessionId(ToolContext toolContext) {
-		return (String) toolContext.getContext().get("sessionId");
+		return (String) AgentToolContextKey.CODE_SESSION_ID.get(toolContext);
 	}
 
 	private String renderTemplate(String templateName, VelocityContext context) {

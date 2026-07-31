@@ -5,8 +5,13 @@ import java.util.List;
 import java.util.Map;
 
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
+import org.sagebionetworks.repo.manager.agent.tool.AgentTraceCallback;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.agent.AgentChatAttachmentStatus;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
@@ -32,9 +37,12 @@ import org.springframework.ai.tool.ToolCallback;
 public class CurieSupervisor {
 
 	private final ChatClient chatClient;
+	private final CodeInterpreterSessionProvider sessionProvider;
 
 	CurieSupervisor(ChatModel chatModel, StackConfiguration stackConfig, List<ToolCallback> specialistTools,
-			CodeInterpreterTools codeInterpreterTools, ChatMemoryRepository memoryRepository, String systemPrompt) {
+			CodeInterpreterTools codeInterpreterTools, CodeInterpreterSessionProvider sessionProvider,
+			ChatMemoryRepository memoryRepository, String systemPrompt) {
+		this.sessionProvider = sessionProvider;
 		ChatMemory memory = MessageWindowChatMemory.builder()
 				.chatMemoryRepository(memoryRepository)
 				.maxMessages(40)
@@ -57,9 +65,17 @@ public class CurieSupervisor {
 	 * {@code sessionId}, so a later turn on a different worker continues the same conversation. Both
 	 * {@code user} and {@code sessionId} are required for this reason. The trusted
 	 * {@link GridAgentSessionContext} is forwarded to the grid specialists via the agent-immutable
-	 * tool context, so they operate against the user's replica in the current grid session.
+	 * tool context, so they operate against the user's replica in the current grid session. The
+	 * optional {@code traceCallback} is forwarded the same way so every tool call in this turn — at
+	 * this supervisor and in the specialists it delegates to — is recorded as job trace.
+	 * <p>
+	 * The costly code interpreter session is provisioned lazily: a {@link CodeSessionSupplier} keyed by
+	 * this Synapse chat {@code sessionId} is placed in the context, and the session is created (or
+	 * reused across turns and workers) only on the first {@code runPython} or specialist delegation of
+	 * the turn — never on a purely conversational turn.
 	 */
-	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext) {
+	public String chat(String message, List<AgentChatAttachmentStatus> stagedAttachments, UserInfo user,
+			String sessionId, GridAgentSessionContext gridContext, AgentTraceCallback traceCallback) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(user.getId(), "user.getId()");
 		ValidateArgument.requiredNotBlank(sessionId, "sessionId");
@@ -67,14 +83,41 @@ public class CurieSupervisor {
 		// Synapse chat session is the session.
 		String conversationId = user.getId() + ":" + sessionId;
 		Map<String, Object> context = new HashMap<>();
-		context.put("userInfo", user);
-		context.put("sessionId", sessionId);
-		context.put("gridAgentSessionContext", gridContext);
+		AgentToolContextKey.USER_INFO.put(context, user);
+		AgentToolContextKey.CODE_SESSION_SUPPLIER.put(context, sessionProvider.lazySupplier(sessionId));
+		AgentToolContextKey.GRID_SESSION_CONTEXT.put(context, gridContext);
+		if (traceCallback != null) {
+			AgentToolContextKey.TRACE_CALLBACK.put(context, traceCallback);
+		}
 		return chatClient.prompt()
-				.user(message)
+				.user(withAttachmentPreamble(message, stagedAttachments))
 				.toolContext(context)
 				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
 				.call()
 				.content();
+	}
+
+	/**
+	 * Prepends a delimited description of the files staged into the code interpreter session for this turn
+	 * to the user's message, so the supervisor knows the files exist and where to read them. When no files
+	 * were staged the message is returned unchanged. The preamble is part of the user turn, so the durable
+	 * chat memory keeps the files referenceable on later turns.
+	 */
+	static String withAttachmentPreamble(String message, List<AgentChatAttachmentStatus> stagedAttachments) {
+		if (stagedAttachments == null || stagedAttachments.isEmpty()) {
+			return message;
+		}
+		StringBuilder preamble = new StringBuilder();
+		preamble.append("The user attached the following file(s) to this message. They have been loaded into your ")
+				.append("code interpreter session at the paths below; read them from those paths.\n");
+		for (AgentChatAttachmentStatus attachment : stagedAttachments) {
+			preamble.append("- path: ").append(attachment.getSessionPath())
+					.append(", name: ").append(attachment.getFileName())
+					.append(", content type: ").append(attachment.getContentType())
+					.append(", size (bytes): ").append(attachment.getContentSizeBytes())
+					.append("\n");
+		}
+		preamble.append("\n");
+		return preamble.append(message).toString();
 	}
 }

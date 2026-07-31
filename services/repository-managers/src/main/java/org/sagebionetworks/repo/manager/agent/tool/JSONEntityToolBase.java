@@ -21,6 +21,10 @@ import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.ai.tool.metadata.ToolMetadata;
 import org.springframework.lang.Nullable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Base class that exposes {@link JSONEntityTool}-annotated methods as Spring AI {@link ToolCallback}s.
  * <p>
@@ -47,6 +51,36 @@ import org.springframework.lang.Nullable;
  * its next turn.
  */
 public abstract class JSONEntityToolBase {
+
+	/**
+	 * A lenient mapper used only to normalize the model's raw argument string before the strict parsers
+	 * (org.json / the {@code concreteType}-aware path) see it. It accepts raw C0 control characters
+	 * (e.g. an unescaped newline inside a free-text value) that {@link JSONObject} would otherwise reject;
+	 * re-serializing escapes them, so a control character in an argument no longer costs a model round trip.
+	 */
+	private static final ObjectMapper LENIENT_MAPPER = createLenientMapper();
+
+	private static ObjectMapper createLenientMapper() {
+		ObjectMapper mapper = new ObjectMapper();
+		mapper.getFactory().configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true);
+		return mapper;
+	}
+
+	/**
+	 * Re-serialize the model's argument through the lenient mapper so raw control characters become
+	 * properly escaped JSON. Input that is not parseable even leniently is returned untouched, leaving the
+	 * strict parsers to produce the corrective error the model already knows how to act on.
+	 */
+	private static String normalizeJson(String toolInput) {
+		if (toolInput == null || toolInput.isBlank()) {
+			return toolInput;
+		}
+		try {
+			return LENIENT_MAPPER.writeValueAsString(LENIENT_MAPPER.readTree(toolInput));
+		} catch (JsonProcessingException e) {
+			return toolInput;
+		}
+	}
 
 	private final List<ToolCallback> callbacks;
 
@@ -220,6 +254,9 @@ public abstract class JSONEntityToolBase {
 		 *                                  parsed from the input.
 		 */
 		private Object[] marshalArguments(String toolInput, @Nullable ToolContext toolContext) {
+			// Normalize up front so a raw control character (e.g. a newline in a free-text value) is
+			// escaped before either the scalar (org.json) or body (concreteType-aware) parser sees it.
+			toolInput = normalizeJson(toolInput);
 			Parameter[] parameters = toolMethod.getParameters();
 			Object[] arguments = new Object[parameters.length];
 			boolean hasBody = findBodyParameter(toolMethod) != null;

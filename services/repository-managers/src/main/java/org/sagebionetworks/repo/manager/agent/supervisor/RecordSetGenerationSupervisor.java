@@ -6,7 +6,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
@@ -53,9 +55,12 @@ public class RecordSetGenerationSupervisor {
 	 */
 	public String chat(String message, UserInfo user, String sessionId) {
 		Map<String, Object> context = new HashMap<>();
-		context.put("userInfo", user);
+		AgentToolContextKey.USER_INFO.put(context, user);
 		if (sessionId != null) {
-			context.put("sessionId", sessionId);
+			// The code interpreter session is already started by the sub-worker; supply the resolved id
+			// through the same callback the interactive path uses so every tool resolves it uniformly.
+			CodeSessionSupplier sessionSupplier = () -> sessionId;
+			AgentToolContextKey.CODE_SESSION_SUPPLIER.put(context, sessionSupplier);
 		}
 		return chatClient.prompt()
 				.user(message)

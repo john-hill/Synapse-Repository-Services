@@ -108,14 +108,19 @@ public class SpringAiConfiguration {
 
 	@Bean
 	public AgentCoreCodeInterpreterClient agentCoreCodeInterpreterClient(BedrockAgentCoreClient syncClient,
-			BedrockAgentCoreAsyncClient asyncClient, AwsCredentialsProvider credentialProvider,
-			StackConfiguration stackConfig) {
-		String codeInterpreterIdentifier = lookupCodeInterpreterIdentifier(credentialProvider, stackConfig);
+			BedrockAgentCoreAsyncClient asyncClient, String codeInterpreterIdentifier) {
 		return new AgentCoreCodeInterpreterClient(syncClient, asyncClient,
 				new AgentCoreCodeInterpreterConfiguration(null, codeInterpreterIdentifier, null, null, null, null));
 	}
 
-	private String lookupCodeInterpreterIdentifier(AwsCredentialsProvider credentialProvider,
+	/**
+	 * The identifier of this stack's code interpreter, discovered once at startup. Exposed as a bean so
+	 * both {@link #agentCoreCodeInterpreterClient} and
+	 * {@link org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider} target the same
+	 * code interpreter when listing and starting sessions.
+	 */
+	@Bean
+	public String codeInterpreterIdentifier(AwsCredentialsProvider credentialProvider,
 			StackConfiguration stackConfig) {
 		String expectedName = stackConfig.getStack() + "_" + stackConfig.getStackInstance() + "_code_interpreter";
 		try (BedrockAgentCoreControlClient controlClient = BedrockAgentCoreControlClient.builder()

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.agent.specialist.gridmetadata;
 
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
@@ -29,8 +30,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class GridMetadataSpecialistTools extends JSONEntityToolBase {
-
-	static final String TOOL_CONTEXT_KEY_GRID_SESSION = "gridAgentSessionContext";
 
 	private final GridManager gridManager;
 	private final PrincipalAliasDAO principalAliasDAO;
@@ -123,11 +122,11 @@ public class GridMetadataSpecialistTools extends JSONEntityToolBase {
 	}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {
-		return (UserInfo) toolContext.getContext().get("userInfo");
+		return (UserInfo) AgentToolContextKey.USER_INFO.get(toolContext);
 	}
 
 	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
-		return (GridAgentSessionContext) toolContext.getContext().get(TOOL_CONTEXT_KEY_GRID_SESSION);
+		return (GridAgentSessionContext) AgentToolContextKey.GRID_SESSION_CONTEXT.get(toolContext);
 	}
 
 }

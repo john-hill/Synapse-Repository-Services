@@ -5,7 +5,9 @@ import java.io.StringWriter;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.velocity.Template;
@@ -46,12 +48,26 @@ public class CodeInterpreterFileManager {
 
 	static final String DOWNLOAD_TEMPLATE = "code-templates/code-interpreter-download.py.vtp";
 	static final String UPLOAD_TEMPLATE = "code-templates/code-interpreter-upload.py.vtp";
+	static final String COUNT_FILES_TEMPLATE = "code-templates/code-interpreter-count-files.py.vtp";
 
 	/**
 	 * The maximum size of a file that may be added to a code interpreter session. Larger files are
 	 * rejected rather than staged.
 	 */
 	static final long MAX_FILE_SIZE_BYTES = 100L * 1024L * 1024L;
+
+	/**
+	 * The session directory that auto-staged files (e.g. chat attachments) land in. It is the source of
+	 * truth for how many files a session already holds, since the session is reused across chat turns.
+	 */
+	public static final String ATTACHMENTS_DIRECTORY = "attachments";
+
+	/**
+	 * Prefix for session paths derived from a file's own name when a caller does not supply an explicit
+	 * path (e.g. chat attachments). Keeps auto-staged files together and out of the way of paths that a
+	 * specialist chooses explicitly.
+	 */
+	static final String DERIVED_PATH_PREFIX = ATTACHMENTS_DIRECTORY + "/";
 
 	private final S3Client s3Client;
 	private final S3Presigner s3Presigner;
@@ -150,21 +166,55 @@ public class CodeInterpreterFileManager {
 		// by index.
 		BatchFileResult batchResult = getFileHandleBatch(user, associations);
 		List<PushFileResult> results = new ArrayList<>(requests.size());
+		// Tracks every session path used so far this batch so auto-derived paths never collide with each
+		// other or with an explicit path a caller supplied.
+		Set<String> usedPaths = new HashSet<>();
 		for (int i = 0; i < requests.size(); i++) {
 			PushFileRequest request = requests.get(i);
 			FileResult fileResult = batchResult.getRequestedFiles().get(i);
 			SessionFileMetadata metadata = toMetadata(request.association(), fileResult);
 
 			if (!metadata.getCanAddToSession()) {
-				results.add(PushFileResult.failure(request, metadata.getReason()));
+				results.add(PushFileResult.failure(request, metadata.getReason(),
+						deriveFailureCode(fileResult, metadata), metadata));
 			} else {
+				String sessionPath = request.sessionPath() != null
+						? request.sessionPath()
+						: deriveSessionPath(metadata.getFileName(), usedPaths);
+				usedPaths.add(sessionPath);
 				S3FileHandle s3Handle = (S3FileHandle) fileResult.getFileHandle();
 				CodeExecutionResult execution = pushS3FileToSession(sessionId, s3Handle.getBucketName(),
-						s3Handle.getKey(), request.sessionPath());
-				results.add(PushFileResult.staged(request, execution));
+						s3Handle.getKey(), sessionPath);
+				results.add(PushFileResult.staged(request, sessionPath, execution, metadata));
 			}
 		}
 		return results;
+	}
+
+	/**
+	 * Count the files directly within a directory of a code interpreter session. A directory that does
+	 * not exist is reported as zero files, and only regular files (not subdirectories) are counted. This
+	 * reads the true, live file count from the session itself — the authoritative source given the session
+	 * is reused across chat turns — so a caller can enforce a cumulative limit on staged files.
+	 *
+	 * @param sessionId The code interpreter session ID
+	 * @param directory The session-relative directory to count files in (e.g. {@link #ATTACHMENTS_DIRECTORY})
+	 * @return The number of files in the directory, or zero if the directory does not exist
+	 */
+	public int countFilesInSessionDirectory(String sessionId, String directory) {
+		ValidateArgument.requiredNotBlank(sessionId, "sessionId");
+		ValidateArgument.requiredNotBlank(directory, "directory");
+
+		VelocityContext context = new VelocityContext();
+		context.put("directory", directory);
+		String code = renderTemplate(COUNT_FILES_TEMPLATE, context);
+
+		CodeExecutionResult execution = codeInterpreterClient.executeCode(sessionId, "python", code);
+		if (execution.isError()) {
+			throw new RuntimeException(
+					"Error counting files in session directory '" + directory + "': " + execution.textOutput());
+		}
+		return Integer.parseInt(execution.textOutput().trim());
 	}
 
 	/**
@@ -252,27 +302,106 @@ public class CodeInterpreterFileManager {
 	}
 
 	/**
+	 * Classifies why a file that could not be added to a session was rejected, mapping the coarse download
+	 * failure code and the eligibility flags from {@link #toMetadata} onto a single structured cause. The
+	 * type and size flags are only evaluated for S3-backed files, so a null {@code isSupportedType} means
+	 * the handle was not S3-backed. Unsupported type is checked before size to match the reason precedence
+	 * in {@link #toMetadata}.
+	 */
+	private static PushFailureCode deriveFailureCode(FileResult fileResult, SessionFileMetadata metadata) {
+		if (fileResult.getFailureCode() != null) {
+			return switch (fileResult.getFailureCode()) {
+				case UNAUTHORIZED -> PushFailureCode.UNAUTHORIZED;
+				case NOT_FOUND -> PushFailureCode.NOT_FOUND;
+			};
+		}
+		if (metadata.getIsSupportedType() == null) {
+			return PushFailureCode.NOT_S3;
+		}
+		if (!metadata.getIsSupportedType()) {
+			return PushFailureCode.UNSUPPORTED_TYPE;
+		}
+		if (!metadata.getIsWithinSizeLimit()) {
+			return PushFailureCode.EXCEEDS_SIZE_LIMIT;
+		}
+		return PushFailureCode.EXECUTION_ERROR;
+	}
+
+	/**
+	 * Derives a session path for a file from its own name, under {@link #DERIVED_PATH_PREFIX}, when a caller
+	 * did not supply an explicit path. Collisions within the batch are disambiguated by inserting {@code _1},
+	 * {@code _2}, ... before the file extension so every staged file lands at a distinct path.
+	 */
+	private static String deriveSessionPath(String fileName, Set<String> usedPaths) {
+		String baseName = (fileName == null || fileName.isBlank()) ? "attachment" : fileName;
+		String candidate = DERIVED_PATH_PREFIX + baseName;
+		if (!usedPaths.contains(candidate)) {
+			return candidate;
+		}
+		int dot = baseName.lastIndexOf('.');
+		String stem = dot > 0 ? baseName.substring(0, dot) : baseName;
+		String extension = dot > 0 ? baseName.substring(dot) : "";
+		int suffix = 1;
+		do {
+			candidate = DERIVED_PATH_PREFIX + stem + "_" + suffix + extension;
+			suffix++;
+		} while (usedPaths.contains(candidate));
+		return candidate;
+	}
+
+	/**
+	 * A structured cause for a file that could not be staged into a session. Distinguishes the download
+	 * failures (the user cannot see the file) from the eligibility failures (the file itself is unsuitable)
+	 * and from a failure of the in-session download step itself.
+	 */
+	public enum PushFailureCode {
+		NOT_FOUND,
+		UNAUTHORIZED,
+		NOT_S3,
+		UNSUPPORTED_TYPE,
+		EXCEEDS_SIZE_LIMIT,
+		EXECUTION_ERROR
+	}
+
+	/**
 	 * A request to push a single Synapse file into a code interpreter session.
 	 *
 	 * @param association The file handle association identifying the file and its authorization context
-	 * @param sessionPath The path where the file should appear in the session filesystem
+	 * @param sessionPath The path where the file should appear in the session filesystem; when null the path
+	 *                    is derived from the file's own name under {@link #DERIVED_PATH_PREFIX}
 	 */
 	public record PushFileRequest(FileHandleAssociation association, String sessionPath) {}
 
 	/**
-	 * The outcome of attempting to push a single file into a session.
+	 * The outcome of attempting to push a single file into a session. On success the resolved
+	 * {@code sessionPath}, {@code fileName}, {@code contentType}, and {@code contentSizeBytes} describe the
+	 * staged file; on failure {@code error} and {@code failureCode} describe why it could not be staged.
 	 *
-	 * @param request   The originating request
-	 * @param execution The code interpreter download result when the file was staged; null on failure
-	 * @param error     The reason the file could not be staged; null on success
+	 * @param request          The originating request
+	 * @param sessionPath      The path the file was staged at; null on failure
+	 * @param execution        The code interpreter download result when the file was staged; null on failure
+	 * @param error            The reason the file could not be staged; null on success
+	 * @param failureCode      The structured cause of failure; null on success
+	 * @param fileName         The resolved file name; null when the file could not be resolved
+	 * @param contentType      The resolved content type; null when the file could not be resolved
+	 * @param contentSizeBytes The resolved content size in bytes; null when the file could not be resolved
 	 */
-	public record PushFileResult(PushFileRequest request, CodeExecutionResult execution, String error) {
-		static PushFileResult staged(PushFileRequest request, CodeExecutionResult execution) {
-			return new PushFileResult(request, execution, execution.isError() ? execution.textOutput() : null);
+	public record PushFileResult(PushFileRequest request, String sessionPath, CodeExecutionResult execution,
+			String error, PushFailureCode failureCode, String fileName, String contentType, Long contentSizeBytes) {
+
+		static PushFileResult staged(PushFileRequest request, String sessionPath, CodeExecutionResult execution,
+				SessionFileMetadata metadata) {
+			boolean executionError = execution.isError();
+			return new PushFileResult(request, sessionPath, execution,
+					executionError ? execution.textOutput() : null,
+					executionError ? PushFailureCode.EXECUTION_ERROR : null,
+					metadata.getFileName(), metadata.getContentType(), metadata.getContentSizeBytes());
 		}
 
-		static PushFileResult failure(PushFileRequest request, String error) {
-			return new PushFileResult(request, null, error);
+		static PushFileResult failure(PushFileRequest request, String error, PushFailureCode failureCode,
+				SessionFileMetadata metadata) {
+			return new PushFileResult(request, null, null, error, failureCode,
+					metadata.getFileName(), metadata.getContentType(), metadata.getContentSizeBytes());
 		}
 
 		public boolean isError() {

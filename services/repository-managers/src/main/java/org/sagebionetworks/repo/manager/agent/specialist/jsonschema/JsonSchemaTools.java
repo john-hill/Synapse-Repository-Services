@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.agent.specialist.jsonschema;
 import java.io.File;
 import java.io.FileWriter;
 
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
@@ -33,8 +34,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class JsonSchemaTools extends JSONEntityToolBase {
-
-	static final String TOOL_CONTEXT_KEY_GRID_SESSION = "gridAgentSessionContext";
 
 	private final JsonSchemaManager jsonSchemaManager;
 	private final CodeInterpreterFileManager codeInterpreterFileManager;
@@ -127,15 +126,15 @@ public class JsonSchemaTools extends JSONEntityToolBase {
 	}
 
 	private String extractSessionId(ToolContext toolContext) {
-		return (String) toolContext.getContext().get("sessionId");
+		return (String) AgentToolContextKey.CODE_SESSION_ID.get(toolContext);
 	}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {
-		return (UserInfo) toolContext.getContext().get("userInfo");
+		return (UserInfo) AgentToolContextKey.USER_INFO.get(toolContext);
 	}
 
 	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
-		return (GridAgentSessionContext) toolContext.getContext().get(TOOL_CONTEXT_KEY_GRID_SESSION);
+		return (GridAgentSessionContext) AgentToolContextKey.GRID_SESSION_CONTEXT.get(toolContext);
 	}
 
 }

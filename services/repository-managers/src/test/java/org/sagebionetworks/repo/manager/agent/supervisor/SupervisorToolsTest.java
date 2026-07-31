@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
+import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialist;
 import org.sagebionetworks.repo.manager.agent.specialist.entitymetadata.EntityMetadataSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialist;
@@ -81,8 +83,9 @@ public class SupervisorToolsTest {
 		userInfo = new UserInfo(false, 101L);
 		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L)
 				.setAgentsReplicaId(2L);
-		toolContext = new ToolContext(
-				Map.of("userInfo", userInfo, "sessionId", "session-123", "gridAgentSessionContext", gridContext));
+		toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,
+				AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-123",
+				AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext));
 	}
 
 	private ToolCallback callback(String name) {
@@ -227,7 +230,7 @@ public class SupervisorToolsTest {
 
 	@Test
 	public void testAskTableQuerySpecialistWithoutSessionId() {
-		ToolContext noSession = new ToolContext(Map.of("userInfo", userInfo));
+		ToolContext noSession = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo));
 		when(tableQuerySpecialistFactory.create()).thenReturn(tableQuerySpecialist);
 		when(tableQuerySpecialist.chat("describe syn1", userInfo, null)).thenReturn("ok");
 
@@ -236,5 +239,22 @@ public class SupervisorToolsTest {
 
 		assertEquals("ok", result);
 		verify(tableQuerySpecialist).chat("describe syn1", userInfo, null);
+	}
+
+	@Test
+	public void testAskTableQuerySpecialistResolvesSessionSupplier() {
+		// The interactive Curie path installs a lazy supplier rather than a raw sessionId; delegation
+		// must resolve it and forward the concrete AWS session id to the specialist.
+		CodeSessionSupplier supplier = () -> "lazyResolvedSession";
+		ToolContext supplierContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,
+				AgentToolContextKey.CODE_SESSION_SUPPLIER.getKey(), supplier));
+		when(tableQuerySpecialistFactory.create()).thenReturn(tableQuerySpecialist);
+		when(tableQuerySpecialist.chat("describe syn1", userInfo, "lazyResolvedSession")).thenReturn("ok");
+
+		// call under test
+		String result = tools.askTableQuerySpecialist("describe syn1", supplierContext);
+
+		assertEquals("ok", result);
+		verify(tableQuerySpecialist).chat("describe syn1", userInfo, "lazyResolvedSession");
 	}
 }

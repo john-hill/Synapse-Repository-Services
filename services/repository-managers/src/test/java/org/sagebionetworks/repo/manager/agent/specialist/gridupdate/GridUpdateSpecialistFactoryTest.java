@@ -10,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.springframework.ai.chat.model.ChatModel;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,15 +24,11 @@ public class GridUpdateSpecialistFactoryTest {
 	@Mock
 	private GridUpdateTools mockGridUpdateTools;
 
-	@Mock
-	private CodeInterpreterTools mockCodeInterpreterTools;
-
 	private GridUpdateSpecialistFactory factory;
 
 	@BeforeEach
 	public void setup() {
-		factory = new GridUpdateSpecialistFactory(mockChatModel, mockStackConfig, mockGridUpdateTools,
-				mockCodeInterpreterTools);
+		factory = new GridUpdateSpecialistFactory(mockChatModel, mockStackConfig, mockGridUpdateTools);
 	}
 
 	@Test

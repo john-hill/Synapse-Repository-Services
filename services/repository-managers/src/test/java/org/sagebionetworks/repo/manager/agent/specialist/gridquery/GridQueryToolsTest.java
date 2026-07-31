@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
@@ -62,7 +63,7 @@ public class GridQueryToolsTest {
 	public void before() {
 		gridContext = new GridAgentSessionContext().setGridSessionId(GRID_SESSION_ID)
 				.setUsersReplicaId(USERS_REPLICA_ID).setAgentsReplicaId(AGENTS_REPLICA_ID);
-		toolContext = new ToolContext(Map.of(GridQueryTools.TOOL_CONTEXT_KEY_GRID_SESSION, gridContext));
+		toolContext = new ToolContext(Map.of(AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext));
 	}
 
 	/**
@@ -128,6 +129,19 @@ public class GridQueryToolsTest {
 		String response = queryGridCallback().call("{}", toolContext);
 
 		assertTrue(new JSONObject(response).getString("errorMessage").startsWith("Error executing grid query:"));
+		verifyNoInteractions(mockGridDao, mockViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithEmptyColumnSelection() {
+		// A query that binds with no columnSelection (e.g. a double-wrapped request whose nested
+		// object is silently dropped) must be rejected rather than silently returning all rows.
+		String noSelection = "{\"query\":{\"limit\":10}}";
+
+		// call under test
+		String response = queryGridCallback().call(noSelection, toolContext);
+
+		assertTrue(new JSONObject(response).getString("errorMessage").contains("request.query.columnSelection"));
 		verifyNoInteractions(mockGridDao, mockViewManager);
 	}
 

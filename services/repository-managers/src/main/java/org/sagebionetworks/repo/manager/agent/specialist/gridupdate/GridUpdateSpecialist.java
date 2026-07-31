@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
@@ -26,16 +26,15 @@ public class GridUpdateSpecialist {
 	private final String conversationId;
 
 	GridUpdateSpecialist(ChatModel chatModel, StackConfiguration stackConfig, GridUpdateTools gridUpdateTools,
-			CodeInterpreterTools codeInterpreterTools, String systemPrompt) {
+			String systemPrompt) {
 		this.conversationId = UUID.randomUUID().toString();
 		ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(20).build();
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
 				.defaultToolCallbacks(gridUpdateTools.getToolCallbacks())
-				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
-						.model(stackConfig.getModelIdClaudeHaiku())
+						.model(stackConfig.getModelIdClaudeSonnet())
 						.maxTokens(4096)
 						.build())
 				.build();
@@ -49,11 +48,11 @@ public class GridUpdateSpecialist {
 	 */
 	public String chat(String message, UserInfo user, String sessionId, GridAgentSessionContext gridContext) {
 		Map<String, Object> context = new HashMap<>();
-		context.put("userInfo", user);
+		AgentToolContextKey.USER_INFO.put(context, user);
 		if (sessionId != null) {
-			context.put("sessionId", sessionId);
+			AgentToolContextKey.CODE_SESSION_ID.put(context, sessionId);
 		}
-		context.put(GridUpdateTools.TOOL_CONTEXT_KEY_GRID_SESSION, gridContext);
+		AgentToolContextKey.GRID_SESSION_CONTEXT.put(context, gridContext);
 		return chatClient.prompt()
 				.user(message)
 				.toolContext(context)

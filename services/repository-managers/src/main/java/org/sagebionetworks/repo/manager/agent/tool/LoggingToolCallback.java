@@ -5,6 +5,7 @@ import java.util.StringJoiner;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
@@ -47,9 +48,32 @@ public class LoggingToolCallback implements ToolCallback {
 	public String call(String toolInput, @Nullable ToolContext toolContext) {
 		String name = delegate.getToolDefinition().name();
 		log.info("Calling tool '{}' [context: {}] with prompt: {}", name, describeContext(toolContext), toolInput);
+		AgentTraceCallback traceCallback = extractTraceCallback(toolContext);
+		if (traceCallback != null) {
+			traceCallback.addTraceToJob("Called tool '" + name + "' with input: " + toolInput);
+		}
 		String response = delegate.call(toolInput, toolContext);
 		log.info("Tool '{}' response: {}", name, response);
+		if (traceCallback != null) {
+			traceCallback.addTraceToJob("Tool '" + name + "' responded with: " + response);
+		}
 		return response;
+	}
+
+	/**
+	 * The trace callback is carried only in the supervisor's tool context, so recording both the
+	 * input and the response here captures the supervisor's conversation with its specialists — the
+	 * delegation instruction and the specialist's answer — without the noise of the specialists' own
+	 * nested tool calls. When no callback is present (trace disabled, or the legacy path), tracing is
+	 * skipped.
+	 */
+	@Nullable
+	private static AgentTraceCallback extractTraceCallback(@Nullable ToolContext toolContext) {
+		if (toolContext == null) {
+			return null;
+		}
+		Object callback = AgentToolContextKey.TRACE_CALLBACK.get(toolContext);
+		return callback instanceof AgentTraceCallback traceCallback ? traceCallback : null;
 	}
 
 	/**

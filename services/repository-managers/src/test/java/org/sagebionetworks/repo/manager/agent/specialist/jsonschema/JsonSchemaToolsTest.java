@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -64,8 +65,9 @@ public class JsonSchemaToolsTest {
 		userInfo = new UserInfo(false, 101L);
 		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L);
 		toolContext = new ToolContext(Map.of());
-		toolContextWithSession = new ToolContext(Map.of("sessionId", "session-123"));
-		toolContextWithGrid = new ToolContext(Map.of("userInfo", userInfo, "gridAgentSessionContext", gridContext));
+		toolContextWithSession = new ToolContext(Map.of(AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-123"));
+		toolContextWithGrid = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,
+				AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext));
 	}
 
 	private ToolCallback callback(String name) {
@@ -211,7 +213,7 @@ public class JsonSchemaToolsTest {
 	public void testDescribeGridSchemaWithNoUser() {
 		// call under test — user context is required before any read.
 		ToolResponse<JsonSchema> response = tools
-				.describeGridSchema(new ToolContext(Map.of("gridAgentSessionContext", gridContext)));
+				.describeGridSchema(new ToolContext(Map.of(AgentToolContextKey.GRID_SESSION_CONTEXT.getKey(), gridContext)));
 
 		assertNull(response.getResponseBody());
 		assertEquals("No user context available", response.getErrorMessage());
@@ -223,7 +225,7 @@ public class JsonSchemaToolsTest {
 	public void testDescribeGridSchemaWithNoGridContext() {
 		// call under test — without a grid session there is nothing to resolve.
 		ToolResponse<JsonSchema> response = tools
-				.describeGridSchema(new ToolContext(Map.of("userInfo", userInfo)));
+				.describeGridSchema(new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo)));
 
 		assertNull(response.getResponseBody());
 		assertEquals("No grid session context available", response.getErrorMessage());

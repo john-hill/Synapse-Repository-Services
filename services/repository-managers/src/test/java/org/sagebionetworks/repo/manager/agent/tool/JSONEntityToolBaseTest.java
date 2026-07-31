@@ -187,6 +187,23 @@ public class JSONEntityToolBaseTest {
 	}
 
 	@Test
+	public void testCallBindsScalarWithRawControlCharacter() {
+		// A model often emits free text with a raw (unescaped) newline inside a string value, which the
+		// strict org.json parser rejects outright. The base normalizes it through the lenient mapper first,
+		// so the newline is preserved in the bound value rather than costing a corrective round trip.
+		String rawNewlineInput = "{\"count\": 1, \"label\": \"line1\nline2\"}";
+
+		// call under test
+		String result = callback("sumScalars").call(rawNewlineInput, null);
+
+		assertEquals("line1\nline2", tool.getLabel());
+		assertEquals(Long.valueOf(1L), tool.getCount());
+		assertEquals(
+				JDOSecondaryPropertyUtils.createJSONFromObject(new ToolResponse<>(new S3FileHandle().setId("count-1"))),
+				result);
+	}
+
+	@Test
 	public void testCallOmitsOptionalScalar() {
 		// call under test — an omitted optional scalar binds to null; only the required one is supplied.
 		callback("sumScalars").call("{\"count\": 3}", null);

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -361,7 +362,8 @@ public class SpringAiPrototypeIntegrationTest {
 	public void testRunPythonTool() throws Exception {
 		String sessionId = codeInterpreterClient.startSession("runPythonTest" + System.nanoTime());
 		try {
-			ToolContext toolContext = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionId));
+			ToolContext toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), admin,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 
 			// call under test
 			String result = codeInterpreterTools.runPython(
@@ -379,8 +381,10 @@ public class SpringAiPrototypeIntegrationTest {
 		String sessionA = codeInterpreterClient.startSession("isolationA" + System.nanoTime());
 		String sessionB = codeInterpreterClient.startSession("isolationB" + System.nanoTime());
 		try {
-			ToolContext contextA = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionA));
-			ToolContext contextB = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionB));
+			ToolContext contextA = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), admin,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionA));
+			ToolContext contextB = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), admin,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionB));
 
 			// Create a file in session A
 			String createResult = codeInterpreterTools.runPython(new RunPythonRequest().setScript(String.join("\n",

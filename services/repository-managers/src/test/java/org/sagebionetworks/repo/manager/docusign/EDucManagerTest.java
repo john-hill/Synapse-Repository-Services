@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -636,6 +637,101 @@ public class EDucManagerTest {
 
 		// createdBy=100, then 301 (deduplicated)
 		assertEquals(List.of("100", "301"), result);
+	}
+
+	@Test
+	public void testGetSignatureQuotaSuccess() {
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(3L);
+
+		// call under test
+		EDucSignatureQuota result = eDucManager.getSignatureQuota(user, "req-1");
+
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(7), result.getRemaining());
+	}
+
+	@Test
+	public void testGetSignatureQuotaClampsRemainingAtZero() {
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(10L);
+
+		// call under test
+		EDucSignatureQuota result = eDucManager.getSignatureQuota(user, "req-1");
+
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(0), result.getRemaining());
+	}
+
+	@Test
+	public void testGetSignatureQuotaWithUnauthorizedUser() {
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+
+		// call under test
+		UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+				() -> eDucManager.getSignatureQuota(regularUser, "req-1"));
+
+		assertEquals("Only the request creator or an administrator can view the signature quota.", ex.getMessage());
+		verifyNoInteractions(mockEDucQuotaDao);
+	}
+
+
+	@Test
+	public void testResetQuotaWhenOverLimitDeletes() {
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(10L);
+
+		// call under test
+		EDucSignatureQuota result = eDucManager.resetQuota(adminUser, "456", 100L);
+
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(10), result.getRemaining());
+		verify(mockEDucQuotaDao).deleteByUserAndAccessRequirement(100L, 456L);
+	}
+
+	@Test
+	public void testResetQuotaWhenUnderLimitDoesNotDelete() {
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(4L);
+
+		// call under test
+		EDucSignatureQuota result = eDucManager.resetQuota(adminUser, "456", 100L);
+
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(6), result.getRemaining());
+		verify(mockEDucQuotaDao, never()).deleteByUserAndAccessRequirement(anyLong(), anyLong());
+	}
+
+	@Test
+	public void testResetQuotaWhenNoUsageDoesNotDelete() {
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(0L);
+
+		// call under test
+		EDucSignatureQuota result = eDucManager.resetQuota(adminUser, "456", 100L);
+
+		assertEquals(Long.valueOf(10), result.getRemaining());
+		verify(mockEDucQuotaDao, never()).deleteByUserAndAccessRequirement(anyLong(), anyLong());
+	}
+
+	@Test
+	public void testResetQuotaWithNonAdminUser() {
+		// call under test
+		UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+				() -> eDucManager.resetQuota(regularUser, "456", 100L));
+
+		assertEquals("Only an administrator can reset an eDUC quota.", ex.getMessage());
+		verifyNoInteractions(mockEDucQuotaDao, mockAccessRequirementDao);
 	}
 
 	// --- getSignatureStatus tests ---

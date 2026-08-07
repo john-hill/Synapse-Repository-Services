@@ -30,6 +30,7 @@ import org.sagebionetworks.repo.model.migration.MigrationTypeList;
 import org.sagebionetworks.repo.model.migration.MigrationTypeNames;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
 import org.sagebionetworks.repo.model.quiz.QuizResponse;
+import org.sagebionetworks.repo.model.educ.EDucSignatureQuota;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClientConfig;
 import org.sagebionetworks.util.ValidateArgument;
@@ -433,5 +434,14 @@ public class SynapseAdminClientImpl extends SynapseClientImpl implements Synapse
 	@Override
 	public void deleteRealm(String id) throws SynapseException {
 		deleteUri(getRepoEndpoint(), ADMIN + REALM + "/" + id);
+	}
+
+	@Override
+	public EDucSignatureQuota resetEDucQuota(String accessRequirementId, Long userId) throws SynapseException {
+		ValidateArgument.required(accessRequirementId, "accessRequirementId");
+		ValidateArgument.required(userId, "userId");
+		return postJSONEntity(getRepoEndpoint(),
+				"/accessRequirement/" + accessRequirementId + "/eDucQuota/reset?targetUserId=" + userId,
+				null, EDucSignatureQuota.class);
 	}
 }

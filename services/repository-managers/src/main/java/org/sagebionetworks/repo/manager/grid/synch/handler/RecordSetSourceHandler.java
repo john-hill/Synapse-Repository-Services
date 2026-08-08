@@ -226,21 +226,7 @@ public class RecordSetSourceHandler implements SourceHandler {
 	 * A row with a complete upsertKey is keyed deterministically via
 	 * {@link UpsertKeyEncoder}, so it matches the grid copy row for the same logical
 	 * row. A row with an <em>incomplete</em> upsertKey (any key column null/blank)
-	 * cannot be matched, so it is given a fresh random UUID key. The UUID ensures
-	 * keyless rows are never matched to a copy row AND are always imported as new
-	 * rows. A blank key cell is stored as {@link ConType#UNDEFINED} rather than
-	 * translated, so a non-parseable (e.g. empty INTEGER) key value does not fail
-	 * the whole sync.
-	 *
-	 * <p>
-	 * This row's column types come from the <em>latest</em> revision's schema (see
-	 * {@link #initialize()}), but this method is also used to re-read the synced
-	 * <em>baseline</em> revision ({@link #loadBaselineHashes}) — an independent,
-	 * immutable CSV that may hold values incompatible with that schema (e.g. a
-	 * value inferred as an integer in the latest revision but alphanumeric in the
-	 * baseline). Translation is therefore lenient: a cell that cannot be
-	 * represented as its column's type is carried through as raw text instead of
-	 * failing the sync.
+	 * cannot be matched, so it is given a fresh random UUID key.
 	 */
 	RowSourceItem createSynchRow(String[] csvRow, Map<String, Integer> headerIndex) {
 		TreeMap<String, ConValue> data = new TreeMap<>();
@@ -252,10 +238,16 @@ public class RecordSetSourceHandler implements SourceHandler {
 				// possibly fail) — mark it undefined so it reads as a keyless row.
 				data.put(name, new ConValue(ConType.UNDEFINED, null));
 			} else {
-				data.put(name,
-						translators.get(name).translateLeniently(raw, requiredColumnNames.contains(name)));
+				// Column types come from the latest revision's schema, but this method also
+				// re-reads the synced baseline revision — an independent, immutable CSV that
+				// may hold a value that schema cannot represent (e.g. alphanumeric where the
+				// latest revision inferred an integer). Translate leniently so such a cell is
+				// carried through as text instead of failing the whole sync.
+				data.put(name, translators.get(name).translateLeniently(raw, requiredColumnNames.contains(name)));
 			}
 		}
+		// The UUID ensures keyless rows are never matched to a copy row AND are always
+		// imported as new rows.
 		String key = hasCompleteUpsertKey(data) ? UpsertKeyEncoder.encodeFromData(data, upsertKey)
 				: UUID.randomUUID().toString();
 		return new RowSourceItem(data, key);

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.row.translator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -94,7 +95,7 @@ public class TranslatorTest {
 	}
 
 	@Test
-	public void testTranslateLenientlyOneArgOverloadDefaultsToRequired() {
+	public void testTranslateLenientlyWithNoIsRequiredPropertyArgument() {
 		// call under test
 		ConValue con = new LongTranslator().translateLeniently("JH-2-009-518B9-A_1");
 		assertEquals(new ConValue(ConType.STRING, "JH-2-009-518B9-A_1"), con);
@@ -115,6 +116,26 @@ public class TranslatorTest {
 		// call under test
 		ConValue con = new BooleanTranslator().translateLeniently("not-a-boolean", true);
 		assertEquals(new ConValue(ConType.BOOLEAN, false), con);
+	}
+
+	@Test
+	public void testTranslateLenientlyWithMalformedJsonArray() {
+		// org.json throws JSONException, which is not an IllegalArgumentException, so
+		// the narrowed catch must list it explicitly.
+		// call under test
+		ConValue con = new ArrayTranslator().translateLeniently("[1,2", true);
+		assertEquals(new ConValue(ConType.STRING, "[1,2"), con);
+	}
+
+	@Test
+	public void testTranslateLenientlyWithTranslatorDefect() {
+		// Leniency tolerates a value that does not fit the column type, NOT a defect in
+		// the translator itself — that must still fail loudly.
+		Translator defective = string -> {
+			throw new NullPointerException("boom");
+		};
+		// call under test
+		assertThrows(NullPointerException.class, () -> defective.translateLeniently("anything", true));
 	}
 
 }

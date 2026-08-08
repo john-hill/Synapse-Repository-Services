@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -591,6 +593,37 @@ public class RecordSetSourceHandlerTest {
 				mockRecordSetExporter, mockGridRowValidator, mockNodeDao);
 	}
 
+	/**
+	 * Build a handler over an explicit latest/baseline row pair, for tests that need a
+	 * specific value in a specific column. A null baselineRow gives the baseline
+	 * revision a header and no data rows.
+	 */
+	private RecordSetSourceHandler buildHandlerWithRows(ReconciledSchema schema, String[] header, String[] latestRow,
+			String[] baselineRow) throws IOException {
+		when(mockEntityManager.getEntity(mockUser, "syn1", RecordSet.class)).thenReturn(recordSet);
+		when(mockFileHandleManager.getRawFileHandleUnchecked("fhLatest")).thenReturn(latestFileHandle);
+		when(mockSchemaResolver.getReconciledSchema(eq("syn1"), eq(latestFileHandle), any())).thenReturn(schema);
+		when(mockCsvFileHandleProvider.getCsvReader(latestFileHandle, csvDescriptor)).thenReturn(mockLatestReader);
+		when(mockLatestReader.readNext()).thenReturn(header, latestRow, null);
+
+		when(mockEntityManager.getEntityForVersion(mockUser, "syn1", 2L, RecordSet.class))
+				.thenReturn(baselineRecordSet);
+		when(mockFileHandleManager.getRawFileHandleUnchecked("fhBaseline")).thenReturn(baselineFileHandle);
+		when(mockCsvFileHandleProvider.getCsvReader(baselineFileHandle, csvDescriptor)).thenReturn(mockBaselineReader);
+		if (baselineRow == null) {
+			when(mockBaselineReader.readNext()).thenReturn(header, null);
+		} else {
+			when(mockBaselineReader.readNext()).thenReturn(header, baselineRow, null);
+		}
+
+		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
+		when(mockFileProvider.createFileOutputStream(tempFile)).thenReturn(new FileOutputStream(tempFile));
+
+		return new RecordSetSourceHandler(mockUser, session, mockEntityManager, mockFileHandleManager,
+				mockCsvFileHandleProvider, mockSchemaResolver, mockFileProvider, mockRecordSetExporter,
+				mockGridRowValidator, mockNodeDao);
+	}
+
 	@Test
 	public void testIsColumnDeletedByUserWhenFullySyncedAndNotSchemaProperty() throws IOException {
 		// Source has [id, name, extra]. "extra" is NOT in the JSON schema and the grid is
@@ -657,37 +690,18 @@ public class RecordSetSourceHandlerTest {
 	}
 
 	/**
-	 * Regression test for the reported NumberFormatException: the "id" column is
-	 * inferred as INTEGER from the latest revision's CSV, but the synced baseline
-	 * revision (an independent, immutable CSV) holds a non-numeric value in that
-	 * same column. Loading the baseline hashes must not fail the whole sync.
+	 * Regression test for PLFM-9853. The "id" column is inferred as INTEGER from
+	 * the latest revision's CSV, but the synced baseline revision (an independent,
+	 * immutable CSV) holds a non-numeric value in that same column. Loading the
+	 * baseline hashes must not fail the whole sync.
 	 */
 	@Test
-	public void testInitializeDoesNotThrowWhenBaselineHasTypeIncompatibleKeyValue() throws IOException {
-		when(mockEntityManager.getEntity(mockUser, "syn1", RecordSet.class)).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandleUnchecked("fhLatest")).thenReturn(latestFileHandle);
-		when(mockSchemaResolver.getReconciledSchema(eq("syn1"), eq(latestFileHandle), any()))
-				.thenReturn(reconciledSchema);
-		when(mockCsvFileHandleProvider.getCsvReader(latestFileHandle, csvDescriptor)).thenReturn(mockLatestReader);
-		when(mockLatestReader.readNext()).thenReturn(new String[] { "id", "name" }, new String[] { "1", "Alice" },
-				null);
-
-		when(mockEntityManager.getEntityForVersion(mockUser, "syn1", 2L, RecordSet.class))
-				.thenReturn(baselineRecordSet);
-		when(mockFileHandleManager.getRawFileHandleUnchecked("fhBaseline")).thenReturn(baselineFileHandle);
-		when(mockCsvFileHandleProvider.getCsvReader(baselineFileHandle, csvDescriptor)).thenReturn(mockBaselineReader);
+	public void testInitializeWithTypeIncompatibleBaselineKeyValue() throws IOException {
+		// call under test — must not throw NumberFormatException
 		// The baseline (older) revision holds a non-numeric specimen id in the "id"
 		// column, which the latest revision's CSV inference typed as INTEGER.
-		when(mockBaselineReader.readNext()).thenReturn(new String[] { "id", "name" },
-				new String[] { "JH-2-009-518B9-A_1", "Alice" }, null);
-
-		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
-		when(mockFileProvider.createFileOutputStream(tempFile)).thenReturn(new FileOutputStream(tempFile));
-
-		// call under test — must not throw NumberFormatException
-		RecordSetSourceHandler handler = new RecordSetSourceHandler(mockUser, session, mockEntityManager,
-				mockFileHandleManager, mockCsvFileHandleProvider, mockSchemaResolver, mockFileProvider,
-				mockRecordSetExporter, mockGridRowValidator, mockNodeDao);
+		RecordSetSourceHandler handler = buildHandlerWithRows(reconciledSchema, new String[] { "id", "name" },
+				new String[] { "1", "Alice" }, new String[] { "JH-2-009-518B9-A_1", "Alice" });
 
 		// The real numeric-keyed baseline row is gone (replaced by the mismatched
 		// row), so the latest revision's numeric key is no longer in the baseline...
@@ -705,28 +719,9 @@ public class RecordSetSourceHandlerTest {
 	 * perturb the row's content hash.
 	 */
 	@Test
-	public void testChangedSinceBaselineWithTypeIncompatibleValueUnchangedIsNotChanged() throws IOException {
-		when(mockEntityManager.getEntity(mockUser, "syn1", RecordSet.class)).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandleUnchecked("fhLatest")).thenReturn(latestFileHandle);
-		when(mockSchemaResolver.getReconciledSchema(eq("syn1"), eq(latestFileHandle), any()))
-				.thenReturn(reconciledSchema);
-		when(mockCsvFileHandleProvider.getCsvReader(latestFileHandle, csvDescriptor)).thenReturn(mockLatestReader);
-		when(mockLatestReader.readNext()).thenReturn(new String[] { "id", "name" },
-				new String[] { "JH-2-009-518B9-A_1", "Alice" }, null);
-
-		when(mockEntityManager.getEntityForVersion(mockUser, "syn1", 2L, RecordSet.class))
-				.thenReturn(baselineRecordSet);
-		when(mockFileHandleManager.getRawFileHandleUnchecked("fhBaseline")).thenReturn(baselineFileHandle);
-		when(mockCsvFileHandleProvider.getCsvReader(baselineFileHandle, csvDescriptor)).thenReturn(mockBaselineReader);
-		when(mockBaselineReader.readNext()).thenReturn(new String[] { "id", "name" },
-				new String[] { "JH-2-009-518B9-A_1", "Alice" }, null);
-
-		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
-		when(mockFileProvider.createFileOutputStream(tempFile)).thenReturn(new FileOutputStream(tempFile));
-
-		RecordSetSourceHandler handler = new RecordSetSourceHandler(mockUser, session, mockEntityManager,
-				mockFileHandleManager, mockCsvFileHandleProvider, mockSchemaResolver, mockFileProvider,
-				mockRecordSetExporter, mockGridRowValidator, mockNodeDao);
+	public void testChangedSinceBaselineWithUnchangedTypeIncompatibleValue() throws IOException {
+		RecordSetSourceHandler handler = buildHandlerWithRows(reconciledSchema, new String[] { "id", "name" },
+				new String[] { "JH-2-009-518B9-A_1", "Alice" }, new String[] { "JH-2-009-518B9-A_1", "Alice" });
 
 		String fallbackKey = UpsertKeyEncoder
 				.encode(List.of(new ConValue(ConType.STRING, "JH-2-009-518B9-A_1")));
@@ -740,33 +735,15 @@ public class RecordSetSourceHandlerTest {
 	 * be inferred INTEGER despite having blanks), so translating one must not throw.
 	 */
 	@Test
-	public void testCreateSynchRowWithBlankNonKeyIntegerCellDoesNotThrow() throws IOException {
+	public void testCreateSynchRowWithBlankNonKeyIntegerCell() throws IOException {
 		ReconciledSchema schemaWithNumericNonKeyColumn = new ReconciledSchema(List.of(
 				new ColumnModel().setName("id").setColumnType(ColumnType.INTEGER),
 				new ColumnModel().setName("name").setColumnType(ColumnType.STRING).setMaximumSize(50L),
 				new ColumnModel().setName("age").setColumnType(ColumnType.INTEGER)),
 				List.of(), Collections.emptyList());
 
-		when(mockSchemaResolver.getReconciledSchema(eq("syn1"), eq(latestFileHandle), any()))
-				.thenReturn(schemaWithNumericNonKeyColumn);
-		when(mockEntityManager.getEntity(mockUser, "syn1", RecordSet.class)).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandleUnchecked("fhLatest")).thenReturn(latestFileHandle);
-		when(mockCsvFileHandleProvider.getCsvReader(latestFileHandle, csvDescriptor)).thenReturn(mockLatestReader);
-		when(mockLatestReader.readNext()).thenReturn(new String[] { "id", "name", "age" },
-				new String[] { "1", "Alice", "" }, null);
-
-		when(mockEntityManager.getEntityForVersion(mockUser, "syn1", 2L, RecordSet.class))
-				.thenReturn(baselineRecordSet);
-		when(mockFileHandleManager.getRawFileHandleUnchecked("fhBaseline")).thenReturn(baselineFileHandle);
-		when(mockCsvFileHandleProvider.getCsvReader(baselineFileHandle, csvDescriptor)).thenReturn(mockBaselineReader);
-		when(mockBaselineReader.readNext()).thenReturn(new String[] { "id", "name", "age" }, null);
-
-		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
-		when(mockFileProvider.createFileOutputStream(tempFile)).thenReturn(new FileOutputStream(tempFile));
-
-		RecordSetSourceHandler handler = new RecordSetSourceHandler(mockUser, session, mockEntityManager,
-				mockFileHandleManager, mockCsvFileHandleProvider, mockSchemaResolver, mockFileProvider,
-				mockRecordSetExporter, mockGridRowValidator, mockNodeDao);
+		RecordSetSourceHandler handler = buildHandlerWithRows(schemaWithNumericNonKeyColumn,
+				new String[] { "id", "name", "age" }, new String[] { "1", "Alice", "" }, null);
 
 		Map<String, Integer> headerIndex = Map.of("id", 0, "name", 1, "age", 2);
 		// call under test — a blank cell in a non-key INTEGER column must not throw
@@ -782,7 +759,7 @@ public class RecordSetSourceHandlerTest {
 	 * and the temp file would leak unless the constructor cleans up on failure.
 	 */
 	@Test
-	public void testConstructorDeletesTempFileWhenInitializeFailsAfterCreatingIt() throws IOException {
+	public void testConstructorWithInitializeFailureAfterTempFileCreated() throws IOException {
 		when(mockEntityManager.getEntity(mockUser, "syn1", RecordSet.class)).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandleUnchecked("fhLatest")).thenReturn(latestFileHandle);
 		when(mockSchemaResolver.getReconciledSchema(eq("syn1"), eq(latestFileHandle), any()))
@@ -807,6 +784,9 @@ public class RecordSetSourceHandlerTest {
 				mockFileProvider, mockRecordSetExporter, mockGridRowValidator, mockNodeDao));
 
 		assertFalse(tempFile.exists());
+		// Nothing past the failure point may have run.
+		verify(mockFileHandleManager, never()).getRawFileHandleUnchecked("fhBaseline");
+		verify(mockCsvFileHandleProvider, never()).getCsvReader(eq(baselineFileHandle), any());
 	}
 
 }

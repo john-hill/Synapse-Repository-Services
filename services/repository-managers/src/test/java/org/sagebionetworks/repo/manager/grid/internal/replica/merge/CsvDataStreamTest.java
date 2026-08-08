@@ -229,7 +229,7 @@ public class CsvDataStreamTest {
 	 * must still fail the import rather than being carried through as text.
 	 */
 	@Test
-	public void testStreamWithUnparseableUpsertKeyValueStillThrows() {
+	public void testStreamWithUnparseableUpsertKeyValue() {
 		csvReader = new CSVReader(new StringReader(
 			"not-a-number,1,data0" + System.lineSeparator()
 		));

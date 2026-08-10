@@ -10,7 +10,7 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 /**
  * Tests the {@link Translator#translateLeniently} default methods, exercised
  * through the real {@link Translator} implementations (no mocking: these are
- * plain value objects, not system boundaries).
+ * plain value objects).
  */
 public class TranslatorTest {
 

@@ -716,7 +716,7 @@ public class RecordSetSourceHandlerTest {
 	/**
 	 * A row unchanged across both revisions, including its type-incompatible
 	 * value, must still be reported as unchanged — the leniency fallback must not
-	 * perturb the row's content hash.
+	 * affect the row's content hash.
 	 */
 	@Test
 	public void testChangedSinceBaselineWithUnchangedTypeIncompatibleValue() throws IOException {

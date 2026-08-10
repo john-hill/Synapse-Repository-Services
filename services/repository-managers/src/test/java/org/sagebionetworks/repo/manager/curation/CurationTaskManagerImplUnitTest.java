@@ -38,6 +38,7 @@ import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -96,7 +97,7 @@ public class CurationTaskManagerImplUnitTest {
 
     @BeforeEach
     public void setup() {
-        userInfo = new UserInfo(false, userId);
+        userInfo = new UserInfo(false, userId, AuthorizationConstants.DEFAULT_REALM_ID);
     }
 
     @ParameterizedTest
@@ -410,7 +411,7 @@ public class CurationTaskManagerImplUnitTest {
     public void testGetCurationTasksWithAssignedToMe() {
         Long teamId = 555L;
         Set<Long> groups = new HashSet<>(Arrays.asList(userId, teamId));
-        userInfo.setGroups(groups);
+        userInfo = new UserInfo(false, userId, AuthorizationConstants.DEFAULT_REALM_ID, groups);
 
         ListCurationTaskRequest request = new ListCurationTaskRequest()
                 .setProjectId(projectId)
@@ -599,7 +600,7 @@ public class CurationTaskManagerImplUnitTest {
         // Add the group to the user's groups
         Set<Long> groups = new HashSet<>();
         groups.add(groupId);
-        userInfo.setGroups(groups);
+        userInfo = new UserInfo(false, userId, AuthorizationConstants.DEFAULT_REALM_ID, groups);
 
         when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(task));
         // No UPDATE access on project

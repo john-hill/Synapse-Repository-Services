@@ -54,6 +54,7 @@ import org.sagebionetworks.evaluation.model.SubmissionQuota;
 import org.sagebionetworks.evaluation.model.TeamSubmissionEligibility;
 import org.sagebionetworks.repo.manager.evaluation.SubmissionEligibilityManagerImpl;
 import org.sagebionetworks.repo.manager.evaluation.SubmissionQuotaUtil;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.Challenge;
 import org.sagebionetworks.repo.model.ChallengeDAO;
 import org.sagebionetworks.repo.model.ChallengeTeamDAO;
@@ -137,9 +138,8 @@ public class SubmissionEligibilityManagerTest {
 		submittingTeamMembers = new ArrayList<UserGroup>();
 		lenient().when(mockGroupMembersDAO.getMembers(SUBMITTING_TEAM_ID)).thenReturn(submittingTeamMembers);
 		
-		userInfo = new UserInfo(false);
-		userInfo.setId(Long.parseLong(SUBMITTER_PRINCIPAL_ID));
-		userInfo.setGroups(Collections.singleton(Long.parseLong(CHALLENGE_PARTICIPANT_TEAM_ID)));
+		userInfo = new UserInfo(false, Long.parseLong(SUBMITTER_PRINCIPAL_ID), AuthorizationConstants.DEFAULT_REALM_ID,
+				Collections.singleton(Long.parseLong(CHALLENGE_PARTICIPANT_TEAM_ID)));
 
 		roundStart = now;
 		roundEnd = new Date(now.getTime() + 123123123);
@@ -187,7 +187,8 @@ public class SubmissionEligibilityManagerTest {
 		assertTrue(submissionEligibilityManager.
 				isIndividualEligible(EVAL_ID, userInfo, now).isAuthorized());
 		// but if you're not registered for the challenge you're ineligible to submit
-		userInfo.setGroups(Collections.EMPTY_SET);
+		userInfo = new UserInfo(false, Long.parseLong(SUBMITTER_PRINCIPAL_ID), AuthorizationConstants.DEFAULT_REALM_ID,
+				Collections.emptySet());
 		assertFalse(submissionEligibilityManager.
 				isIndividualEligible(EVAL_ID, userInfo, now).isAuthorized());
 	}

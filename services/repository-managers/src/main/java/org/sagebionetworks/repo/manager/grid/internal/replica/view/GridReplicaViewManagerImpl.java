@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,13 +66,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 	private static final String GRID_INDEX_VIEW_TEMPLATE = loadStringFromClasspath("grid/grid-index-view-template.sql");
 
 	private static final BiFunction<Boolean, List<String>, RowMapper<RowView>> createRowViewMapper = (Boolean includeValidationMessages,List<String> orderedSelectColumnName) -> (ResultSet rs, int rowNum) -> {
-		List<ConstantNode> rowDataConNodes = new ArrayList<>();
-		JSONArray selectedVals = new JSONArray(rs.getString("SELECTED_VALS"));
-		for (int i = 0; i < selectedVals.length(); i++) {
-			if (selectedVals.optJSONObject(i) != null) {
-				rowDataConNodes.add(getConstantNodeFromVectorNodeJson(selectedVals.getJSONObject(i)));
-			}
-		}
+		Map<Integer, ConstantNode> rowDataConNodes = readSelectedValues(rs.getString("SELECTED_VALS"));
 		ValidationResults validationResults = JDOSecondaryPropertyUtils
 				.createObjectFromJSON(ValidationResults.class, rs.getString("VAL_RES"));
 		if(!Boolean.TRUE.equals(includeValidationMessages)) {
@@ -128,6 +123,26 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 	public static Long readNullableLong(ResultSet rs, String columnName) throws SQLException {
 		long val = rs.getLong(columnName);
 		return rs.wasNull() ? null : val;
+	}
+
+	/**
+	 * Maps a row's SELECTED_VALS array to the CRDT node of each selected column.
+	 *
+	 * @param selectedValsJson one element per selected column; a JSON null element means the row's
+	 *                         data vector has no entry for that column.
+	 * @return the nodes that exist, keyed by their index in the selected columns. A column with no
+	 *         entry in the row's vector is absent from the result.
+	 */
+	static Map<Integer, ConstantNode> readSelectedValues(String selectedValsJson) {
+		JSONArray selectedVals = new JSONArray(selectedValsJson);
+		Map<Integer, ConstantNode> nodes = new LinkedHashMap<>(selectedVals.length());
+		for (int i = 0; i < selectedVals.length(); i++) {
+			JSONObject nodeJson = selectedVals.optJSONObject(i);
+			if (nodeJson != null) {
+				nodes.put(i, getConstantNodeFromVectorNodeJson(nodeJson));
+			}
+		}
+		return nodes;
 	}
 
 	private final GridIndexDao gridIndexDao;

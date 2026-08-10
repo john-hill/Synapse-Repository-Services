@@ -106,13 +106,16 @@ public class CopyHandlerImpl implements CopyHandler {
 				.setMetadataNodeId(rowView.getRowMetadataNodeId()).setSynapseRow(rowView.getSynapseRow());
 	}
 
-	private List<CellCopyItem> createCopyCells(List<ConstantNode> nodes) {
+	private List<CellCopyItem> createCopyCells(Map<Integer, ConstantNode> nodes) {
 		List<CellCopyItem> cells = new ArrayList<>(nodes.size());
-		for (int i = 0; i < nodes.size(); i++) {
+		for (int i = 0; i < indexToColumnMap.size(); i++) {
 			ConstantNode node = nodes.get(i);
+			if (node == null) {
+				// The row has no node for this column, so there is no cell to copy.
+				continue;
+			}
 			boolean wasChangedByUser = GridConstants.isUserReplica(node.getId().getReplicaId());
-			String columnName = indexToColumnMap.get(i);
-			cells.add(new CellCopyItem().setName(columnName).setValue(node.getConValue())
+			cells.add(new CellCopyItem().setName(indexToColumnMap.get(i)).setValue(node.getConValue())
 					.setWasChangedByUser(wasChangedByUser));
 		}
 		return cells;

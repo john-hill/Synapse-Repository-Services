@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.json.JSONObject;
@@ -466,7 +467,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		RowView rowView = new RowView().setRowObject(
 				new RowObject()
-						.setData(new RowData().setNodes(List.of(
+						.setData(new RowData().setNodes(Map.of(0,
 								new org.sagebionetworks.repo.model.grid.node.ConstantNode()
 										.setId(newerDataTimestamp))))
 						.setMetadata(new RowMetadata()
@@ -485,7 +486,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		RowView rowView = new RowView().setRowObject(
 				new RowObject()
-						.setData(new RowData().setNodes(List.of(
+						.setData(new RowData().setNodes(Map.of(0,
 								new org.sagebionetworks.repo.model.grid.node.ConstantNode()
 										.setId(olderDataTimestamp))))
 						.setMetadata(new RowMetadata()
@@ -503,7 +504,7 @@ public class GridReplicaValidationManagerImplTest {
 
 		RowView rowView = new RowView().setRowObject(
 				new RowObject()
-						.setData(new RowData().setNodes(List.of(
+						.setData(new RowData().setNodes(Map.of(0,
 								new org.sagebionetworks.repo.model.grid.node.ConstantNode()
 										.setId(null))))
 						.setMetadata(new RowMetadata()
@@ -611,7 +612,7 @@ public class GridReplicaValidationManagerImplTest {
 		LogicalTimestamp olderDataTimestamp = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L);
 		RowView notStaleRow = new RowView().setRowObject(new RowObject()
 				.setData(new RowData().setRowJsonDocument(new JSONObject("{\"key\":\"value\"}"))
-						.setNodes(List.of(new ConstantNode().setId(olderDataTimestamp))))
+						.setNodes(Map.of(0, new ConstantNode().setId(olderDataTimestamp))))
 				.setMetadata(new RowMetadata().setRowValidation(new RowValidation().setConstantId(validationTimestamp))));
 		// sanity check: this row would be skipped by the data-changed filter
         assertFalse(manager.isDataNewerThanValidationResult(notStaleRow));

@@ -296,7 +296,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		}
 
 		// Otherwise, check all of the constant IDs in the validation results.
-		return rowData.getNodes().stream()
+		return rowData.getNodes().values().stream()
 				.map(ConstantNode::getId)
 				// If any are greater than the current validation timestamp, re-validate.
 				.anyMatch(id -> id != null && id.compareTo(metadata.getRowValidation().getConstantId()) > 0);

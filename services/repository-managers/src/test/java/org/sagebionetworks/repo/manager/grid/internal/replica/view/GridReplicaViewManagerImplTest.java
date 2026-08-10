@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -22,6 +24,10 @@ import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 @ExtendWith(MockitoExtension.class)
 public class GridReplicaViewManagerImplTest {
@@ -200,5 +206,27 @@ public class GridReplicaViewManagerImplTest {
 		return IntStream.range(startIndex, startIndex + count)
 				.mapToObj(i -> new RowView().setRowIndex((long) i))
 				.collect(Collectors.toList());
+	}
+
+	@Test
+	public void testReadSelectedValuesWithMissingVectorEntry() {
+		String selectedVals = "[null,{\"i\":[100,101],\"v\":[\"a\"]},null]";
+
+		// call under test
+		Map<Integer, ConstantNode> nodes = GridReplicaViewManagerImpl.readSelectedValues(selectedVals);
+
+		assertEquals(1, nodes.size());
+		assertEquals(new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L))
+				.setValue(new ConValue(ConType.STRING, "a")), nodes.get(1));
+		assertNull(nodes.get(0));
+		assertNull(nodes.get(2));
+	}
+
+	@Test
+	public void testReadSelectedValuesWithNoColumns() {
+		// call under test
+		Map<Integer, ConstantNode> nodes = GridReplicaViewManagerImpl.readSelectedValues("[]");
+
+		assertEquals(Map.of(), nodes);
 	}
 }

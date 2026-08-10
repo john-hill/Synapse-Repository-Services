@@ -1,8 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
@@ -11,24 +10,30 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class RowData {
 
-    private List<ConstantNode> nodes;
+    private Map<Integer, ConstantNode> nodes;
     private LogicalTimestamp vectorId;
     private JSONObject rowJsonDocument;
 
-    public List<ConValue> getCells() {
-        if (nodes == null) {
-            return null;
-        }
-        return nodes.stream().map(ConstantNode::getConValue).collect(Collectors.toList());
-    }
-
-    public List<ConstantNode> getNodes() {
+    /**
+     * The row's CRDT cell nodes, keyed by the cell's index in the query's selected columns. A column
+     * that has no node for this row is absent from the map.
+     */
+    public Map<Integer, ConstantNode> getNodes() {
         return nodes;
     }
 
-    public RowData setNodes(List<ConstantNode> nodes) {
+    public RowData setNodes(Map<Integer, ConstantNode> nodes) {
         this.nodes = nodes;
         return this;
+    }
+
+    /**
+     * @return the value of the cell at the given index in the query's selected columns, or null when
+     *         the row has no CRDT node for that column.
+     */
+    public ConValue getCell(int selectedColumnIndex) {
+        ConstantNode node = nodes == null ? null : nodes.get(selectedColumnIndex);
+        return node == null ? null : node.getConValue();
     }
 
     public LogicalTimestamp getVectorId() {

@@ -31,7 +31,7 @@ import org.sagebionetworks.cloudwatch.MetricStats;
 import org.sagebionetworks.cloudwatch.ProfileData;
 import org.sagebionetworks.util.Clock;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 
 @ExtendWith(MockitoExtension.class)
 public class WebhookMetricsCollectorUnitTest {
@@ -231,7 +231,7 @@ public class WebhookMetricsCollectorUnitTest {
 			.setNamespace(namespace)
 			.setDimension(Map.of("webhookId", webhookId))
 			.setName(name)
-			.setUnit(withStats == null ? StandardUnit.Count.name() : StandardUnit.Milliseconds.name())
+			.setUnit(withStats == null ? StandardUnit.COUNT.toString() : StandardUnit.MILLISECONDS.toString())
 			.setMetricStats(withStats);
 	}
 	

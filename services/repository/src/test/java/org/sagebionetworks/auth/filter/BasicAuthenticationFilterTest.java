@@ -1,6 +1,6 @@
 package org.sagebionetworks.auth.filter;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 import com.google.common.collect.ImmutableList;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
@@ -205,7 +205,7 @@ public class BasicAuthenticationFilterTest {
 		
 		data.setNamespace("Authentication - " + STACK_INSTANCE);
 		data.setName("BadCredentials");
-		data.setUnit(StandardUnit.Count.toString());
+		data.setUnit(StandardUnit.COUNT.toString());
 		data.setValue(1.0);
 		data.setTimestamp(timestamp);
 		

@@ -4,7 +4,7 @@
 	"enum": [
 		{
 			"name": "PULL",
-			"description": "Update the grid with the latest data from the source, without writing the grid back to the source."
+			"description": "Update the grid with the latest data from the source, without writing the grid back to the source. Currently only supported for RecordSet-based grid sessions."
 		},
 		{
 			"name": "PULL_PUSH",

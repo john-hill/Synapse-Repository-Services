@@ -25,6 +25,10 @@
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>firehose</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>cloudwatch</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.sagebionetworks</groupId>

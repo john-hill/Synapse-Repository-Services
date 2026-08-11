@@ -330,6 +330,10 @@
 		</dependency>
 		<dependency>
 			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>cloudwatch</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>opensearch</artifactId>
 		</dependency>
 		<dependency>

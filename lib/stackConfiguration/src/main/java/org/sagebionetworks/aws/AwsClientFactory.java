@@ -6,8 +6,6 @@ import java.util.Map;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.athena.AmazonAthena;
 import com.amazonaws.services.athena.AmazonAthenaClientBuilder;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
 import com.amazonaws.services.glue.AWSGlue;
 import com.amazonaws.services.glue.AWSGlueClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
@@ -69,18 +67,6 @@ public class AwsClientFactory {
 	 */
 	public static TransferManager createTransferManager() {
 		return new TransferManager(SynapseAWSCredentialsProviderChain.getInstance());
-	}
-
-	/**
-	 * Create an instance of the AmazonCloudWatch using a credential chain.
-	 *
-	 * @return
-	 */
-	public static AmazonCloudWatch createCloudWatchClient() {
-		AmazonCloudWatchClientBuilder builder = AmazonCloudWatchClientBuilder.standard();
-		builder.withRegion(Regions.US_EAST_1);
-		builder.withCredentials(SynapseAWSCredentialsProviderChain.getInstance());
-		return builder.build();
 	}
 
 	/**

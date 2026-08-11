@@ -9,6 +9,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.model.ChatModel;
@@ -30,16 +31,18 @@ public class CurieSupervisorFactory {
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
 	private final CodeInterpreterTools codeInterpreterTools;
+	private final CodeInterpreterSessionProvider sessionProvider;
 	private final ChatMemoryRepository memoryRepository;
 	private final List<ToolCallback> specialistTools;
 	private final String renderedSystemPrompt;
 
 	public CurieSupervisorFactory(ChatModel chatModel, StackConfiguration stackConfig,
 			SpecialistToolProvider specialistToolProvider, CodeInterpreterTools codeInterpreterTools,
-			ChatMemoryRepository curieChatMemoryRepository) {
+			CodeInterpreterSessionProvider sessionProvider, ChatMemoryRepository curieChatMemoryRepository) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
 		this.codeInterpreterTools = codeInterpreterTools;
+		this.sessionProvider = sessionProvider;
 		this.memoryRepository = curieChatMemoryRepository;
 		this.specialistTools = specialistToolProvider.getTools(SupervisorTools.TOOL_JSON_SCHEMA,
 				SupervisorTools.TOOL_GRID_QUERY, SupervisorTools.TOOL_GRID_UPDATE,
@@ -48,8 +51,8 @@ public class CurieSupervisorFactory {
 	}
 
 	public CurieSupervisor create() {
-		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, memoryRepository,
-				renderedSystemPrompt);
+		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, sessionProvider,
+				memoryRepository, renderedSystemPrompt);
 	}
 
 	String renderSystemPrompt() {

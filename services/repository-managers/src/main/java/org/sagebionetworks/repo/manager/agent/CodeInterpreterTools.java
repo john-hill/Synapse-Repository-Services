@@ -33,7 +33,7 @@ public class CodeInterpreterTools extends JSONEntityToolBase {
 	public String runPython(
 			@JSONEntityToolParam(description = "The Python script to execute", required = true) RunPythonRequest request,
 			ToolContext toolContext) {
-		String sessionId = (String) toolContext.getContext().get("sessionId");
+		String sessionId = CodeSessionSupplier.resolveSessionId(toolContext);
 		if (sessionId == null) {
 			return "Error: No code interpreter session ID available";
 		}

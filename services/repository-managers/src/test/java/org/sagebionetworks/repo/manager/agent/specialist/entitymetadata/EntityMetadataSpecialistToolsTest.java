@@ -23,7 +23,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
+import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFailureCode;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileRequest;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager.PushFileResult;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
@@ -69,8 +71,9 @@ public class EntityMetadataSpecialistToolsTest {
 	public void setup() {
 		tools = new EntityMetadataSpecialistTools(mockEntityService, mockCodeInterpreterFileManager);
 		userInfo = new UserInfo(false, 101L);
-		toolContext = new ToolContext(Map.of("userInfo", userInfo));
-		toolContextWithSession = new ToolContext(Map.of("userInfo", userInfo, "sessionId", "session-123"));
+		toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo));
+		toolContextWithSession = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,
+				AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-123"));
 	}
 
 	private ToolCallback callback(String name) {
@@ -314,8 +317,10 @@ public class EntityMetadataSpecialistToolsTest {
 		FileHandleAssociation a2 = new FileHandleAssociation().setFileHandleId("333")
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn456");
 
-		PushFileResult result1 = new PushFileResult(new PushFileRequest(a1, "meta/a.csv"), null, null);
-		PushFileResult result2 = new PushFileResult(new PushFileRequest(a2, "meta/b.csv"), null, null);
+		PushFileResult result1 = new PushFileResult(new PushFileRequest(a1, "meta/a.csv"), "meta/a.csv", null, null,
+				null, "a.csv", "text/csv", 10L);
+		PushFileResult result2 = new PushFileResult(new PushFileRequest(a2, "meta/b.csv"), "meta/b.csv", null, null,
+				null, "b.csv", "text/csv", 20L);
 		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
 				.thenReturn(List.of(result1, result2));
 
@@ -345,8 +350,8 @@ public class EntityMetadataSpecialistToolsTest {
 	public void testAddFilesToSessionWithFailure() {
 		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
-		PushFileResult failure = new PushFileResult(new PushFileRequest(association, "meta/a.csv"), null,
-				"You do not have permission to download this file.");
+		PushFileResult failure = new PushFileResult(new PushFileRequest(association, "meta/a.csv"), null, null,
+				"You do not have permission to download this file.", PushFailureCode.UNAUTHORIZED, null, null, null);
 		when(mockCodeInterpreterFileManager.pushFileHandlesToSession(eq(userInfo), any(), eq("session-123")))
 				.thenReturn(List.of(failure));
 
@@ -361,7 +366,7 @@ public class EntityMetadataSpecialistToolsTest {
 
 	@Test
 	public void testAddFilesToSessionWithNoUserInfo() {
-		ToolContext noUserContext = new ToolContext(Map.of("sessionId", "session-123"));
+		ToolContext noUserContext = new ToolContext(Map.of(AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-123"));
 		FileHandleAssociation association = new FileHandleAssociation().setFileHandleId("222")
 				.setAssociateObjectType(FileHandleAssociateType.FileEntity).setAssociateObjectId("syn123");
 

@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
 import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
@@ -41,8 +42,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class GridQueryTools extends JSONEntityToolBase {
 
-	static final String TOOL_CONTEXT_KEY_GRID_SESSION = "gridAgentSessionContext";
-
 	private final GridReplicaViewManager viewManager;
 	private final GridDao gridDao;
 
@@ -70,6 +69,11 @@ public class GridQueryTools extends JSONEntityToolBase {
 		}
 		try {
 			ValidateArgument.required(request.getQuery(), "request.query");
+			// An absent columnSelection would otherwise silently degrade to select-all-rows, so an
+			// aggregate request (e.g. CountStar) that fails to bind would return full rows with no
+			// error. Rejecting it here lets the base class feed a corrective message back to the model.
+			ValidateArgument.requiredNotEmpty(request.getQuery().getColumnSelection(),
+					"request.query.columnSelection");
 			QueryElement element = new QueryElement(request.getQuery());
 
 			GridConnectionInfo internalConnection = gridDao
@@ -89,6 +93,6 @@ public class GridQueryTools extends JSONEntityToolBase {
 	}
 
 	private GridAgentSessionContext extractGridContext(ToolContext toolContext) {
-		return (GridAgentSessionContext) toolContext.getContext().get(TOOL_CONTEXT_KEY_GRID_SESSION);
+		return (GridAgentSessionContext) AgentToolContextKey.GRID_SESSION_CONTEXT.get(toolContext);
 	}
 }

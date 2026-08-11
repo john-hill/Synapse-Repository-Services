@@ -12,6 +12,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.manager.agent.specialist.filesummary.FileSummarySpecialist;
@@ -184,16 +185,17 @@ public class FileSummarySpecialistIntegrationTest {
 	}
 
 	/**
-	 * Validates the SpringAiConfiguration tool-argument JSON parsing fix end-to-end, deterministically
-	 * (no LLM in the loop). Bedrock/Claude emit the runPython {@code script} tool-argument with raw
-	 * (unescaped) newlines; without the fix this fails during tool-argument parsing with
-	 * "Illegal unquoted character (CTRL-CHAR, code 10)" before the tool ever runs.
+	 * Validates the runPython tool-argument JSON parsing end-to-end, deterministically (no LLM in the
+	 * loop). Bedrock/Claude emit the runPython {@code script} tool-argument with raw (unescaped)
+	 * newlines; {@link org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase} normalizes those
+	 * control characters through its lenient mapper, so the multi-line script parses and executes rather
+	 * than costing the model a corrective round trip.
 	 * <p>
 	 * We drive the real Spring AI {@link ToolCallback} for runPython with a hand-authored arguments
 	 * string that contains a genuine multi-line script (raw newlines), exactly as the model would send
-	 * it. This exercises the same {@code MethodToolCallback.call} -> extractToolArguments parse that was
-	 * failing, then really executes the script on the session. We verify by the script's side effect,
-	 * so the test only passes if the multi-line argument actually parsed and executed.
+	 * it. This exercises the same tool-argument parse the base performs, then really executes the script
+	 * on the session. We verify by the script's printed side effect, so the test only passes if the
+	 * multi-line argument actually parsed and executed with its newlines preserved.
 	 */
 	@Test
 	public void testRunMultiLinePythonScriptToolCall() {
@@ -206,22 +208,28 @@ public class FileSummarySpecialistIntegrationTest {
 				.orElseThrow(() -> new IllegalStateException("runPython tool callback not found"));
 
 		// A multi-line Python script with RAW newlines embedded in the JSON string value — the way a
-		// model emits it when it forgets to escape control characters. JSONEntityToolBase parses strictly,
-		// so rather than failing hard in the framework, the tool must return a model-visible corrective
-		// error the model can act on by resubmitting with the newlines escaped.
+		// model emits it when it forgets to escape control characters. The base normalizes those raw
+		// control characters through the lenient mapper before parsing, so the newlines are preserved in
+		// the script and it runs. A unique marker printed by the last line proves the multi-line script
+		// parsed and executed.
+		String marker = "multiline-marker-" + System.nanoTime();
 		String script = "import os\n"
 				+ "os.makedirs('summary_specialist', exist_ok=True)\n"
-				+ "print('done')";
+				+ "print('" + marker + "')";
 		String toolArguments = "{\"script\": \"" + script.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
 
-		// call under test — the real Spring AI tool-callback path, including the arguments JSON parse.
-		ToolContext toolContext = new ToolContext(Map.of("userInfo", adminUser, "sessionId", "no-session"));
-		String toolResult = runPython.call(toolArguments, toolContext);
+		String sessionId = codeInterpreterClient.startSession("multiLineIT-" + System.nanoTime());
+		try {
+			// call under test — the real Spring AI tool-callback path, including the arguments JSON parse.
+			ToolContext toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), adminUser,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
+			String toolResult = runPython.call(toolArguments, toolContext);
 
-		assertNotNull(toolResult);
-		assertTrue(toolResult.contains("was not valid JSON for its input schema"),
-				"Unescaped control chars should yield a corrective parse error. Got: " + toolResult);
-		assertTrue(toolResult.contains("Resubmit the call with a corrected argument"),
-				"Corrective error should instruct the model to resubmit. Got: " + toolResult);
+			assertNotNull(toolResult);
+			assertTrue(toolResult.contains(marker),
+					"Multi-line script should have parsed and executed, printing its marker. Got: " + toolResult);
+		} finally {
+			codeInterpreterClient.stopSession(sessionId);
+		}
 	}
 }

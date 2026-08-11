@@ -59,12 +59,14 @@ The converter serializes the return value via `JDOSecondaryPropertyUtils.createJ
 
 ### `ToolContext` pattern
 
-All tools receive `ToolContext` as their last parameter (unannotated — `JSONEntityToolBase` binds it automatically). Extract user and session:
+All tools receive `ToolContext` as their last parameter (unannotated — `JSONEntityToolBase` binds it automatically). Extract user and session through the `AgentToolContextKey` enum — the single source of truth for every tool-context key — rather than bare string literals:
 
 ```java
-UserInfo userInfo = (UserInfo) toolContext.getContext().get("userInfo");
-String sessionId = (String) toolContext.getContext().get("sessionId");
+UserInfo userInfo = (UserInfo) AgentToolContextKey.USER_INFO.get(toolContext);
+String sessionId = CodeSessionSupplier.resolveSessionId(toolContext);
 ```
+
+`CodeSessionSupplier.resolveSessionId(...)` invokes the lazy code-session supplier when one is installed (interactive Curie) and otherwise falls back to the already-resolved id under {@code AgentToolContextKey.CODE_SESSION_ID} (batch and delegated-specialist paths).
 
 ### `ToolResponse<T>` for structured results with error handling
 

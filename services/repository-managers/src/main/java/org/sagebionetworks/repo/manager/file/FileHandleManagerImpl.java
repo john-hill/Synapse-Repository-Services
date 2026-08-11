@@ -123,7 +123,7 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.auth.internal.AWS4SignerUtils;
 import software.amazon.awssdk.services.cloudfront.CloudFrontUtilities;
 import software.amazon.awssdk.services.cloudfront.model.CannedSignerRequest;
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 import com.amazonaws.services.s3.model.BucketCrossOriginConfiguration;
 import com.amazonaws.services.s3.model.CORSRule;
 import com.amazonaws.services.s3.model.CORSRule.AllowedMethods;
@@ -405,7 +405,7 @@ public class FileHandleManagerImpl implements FileHandleManager {
 		cloudWatchData.setValue(Double.valueOf(handle.getId()));
 		
 		// We do not use a unit as the value of the metric is the file handle id itself
-		cloudWatchData.setUnit(StandardUnit.None.name());
+		cloudWatchData.setUnit(StandardUnit.NONE.toString());
 		
 		cloudWatchQueue.addProfileData(cloudWatchData);
 	}

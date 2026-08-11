@@ -5,9 +5,12 @@ import java.io.FileWriter;
 import java.util.List;
 
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
-import org.sagebionetworks.repo.manager.agent.specialist.JSONEntityResultConverter;
 import org.sagebionetworks.repo.manager.agent.specialist.ToolResponse;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityTool;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolBase;
+import org.sagebionetworks.repo.manager.agent.tool.JSONEntityToolParam;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.Entity;
@@ -25,12 +28,10 @@ import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.util.progress.ProgressListener;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TableQueryTools {
+public class TableQueryTools extends JSONEntityToolBase {
 
 	static final long MAX_QUERY_LIMIT = 100L;
 
@@ -54,16 +55,16 @@ public class TableQueryTools {
 
 	public TableQueryTools(TableQueryManager tableQueryManager, TableManagerSupport tableManagerSupport,
 			EntityManager entityManager, CodeInterpreterFileManager codeInterpreterFileManager) {
+		super();
 		this.tableQueryManager = tableQueryManager;
 		this.tableManagerSupport = tableManagerSupport;
 		this.entityManager = entityManager;
 		this.codeInterpreterFileManager = codeInterpreterFileManager;
 	}
 
-	@Tool(description = "Get metadata about a Synapse table or view including its type and full column schema.",
-			resultConverter = JSONEntityResultConverter.class)
+	@JSONEntityTool(description = "Get metadata about a Synapse table or view including its type and full column schema.")
 	public ToolResponse<TableDescription> describeTable(
-			@ToolParam(description = "A Synapse table ID such as 'syn123' or 'syn123.5' for a specific version", required = true) String tableId,
+			@JSONEntityToolParam(description = "A Synapse table ID such as 'syn123' or 'syn123.5' for a specific version", required = true) String tableId,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -92,13 +93,12 @@ public class TableQueryTools {
 		}
 	}
 
-	@Tool(description = "Execute a SQL query against a Synapse table or view. Returns a QueryResultBundle "
+	@JSONEntityTool(description = "Execute a SQL query against a Synapse table or view. Returns a QueryResultBundle "
 			+ "containing query results (up to 100 rows), total row count, select column metadata, column models, "
-			+ "and facet statistics. The query limit is capped at 100 rows.",
-			resultConverter = JSONEntityResultConverter.class)
+			+ "and facet statistics. The query limit is capped at 100 rows.")
 	public ToolResponse<QueryResultBundle> queryTable(
-			@ToolParam(description = "A Synapse SQL query such as 'SELECT col1, col2 FROM syn123 WHERE condition'", required = true) String sql,
-			@ToolParam(description = "Maximum number of rows to return (capped at 100)", required = false) Long limit,
+			@JSONEntityToolParam(description = "A Synapse SQL query such as 'SELECT col1, col2 FROM syn123 WHERE condition'", required = true) String sql,
+			@JSONEntityToolParam(description = "Maximum number of rows to return (capped at 100)", required = false) Long limit,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -126,12 +126,11 @@ public class TableQueryTools {
 		}
 	}
 
-	@Tool(description = "Execute a SQL query and write the full results as a CSV file to the code interpreter session. "
-			+ "Use this for large result sets that exceed 100 rows. The results are streamed directly to a file.",
-			resultConverter = JSONEntityResultConverter.class)
+	@JSONEntityTool(description = "Execute a SQL query and write the full results as a CSV file to the code interpreter session. "
+			+ "Use this for large result sets that exceed 100 rows. The results are streamed directly to a file.")
 	public ToolResponse<QueryResultBundle> writeQueryToSession(
-			@ToolParam(description = "A Synapse SQL query string", required = true) String sql,
-			@ToolParam(description = "File path in the session, e.g. 'query_specialist/results.csv'", required = true) String filePath,
+			@JSONEntityToolParam(description = "A Synapse SQL query string", required = true) String sql,
+			@JSONEntityToolParam(description = "File path in the session, e.g. 'query_specialist/results.csv'", required = true) String filePath,
 			ToolContext toolContext) {
 		UserInfo userInfo = extractUserInfo(toolContext);
 		if (userInfo == null) {
@@ -192,11 +191,11 @@ public class TableQueryTools {
 	}
 
 	private UserInfo extractUserInfo(ToolContext toolContext) {
-		return (UserInfo) toolContext.getContext().get("userInfo");
+		return (UserInfo) AgentToolContextKey.USER_INFO.get(toolContext);
 	}
 
 	private String extractSessionId(ToolContext toolContext) {
-		return (String) toolContext.getContext().get("sessionId");
+		return (String) AgentToolContextKey.CODE_SESSION_ID.get(toolContext);
 	}
 
 	static String escapeCsvField(String field) {

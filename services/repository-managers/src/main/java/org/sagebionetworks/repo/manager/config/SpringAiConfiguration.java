@@ -5,9 +5,12 @@ import java.time.Duration;
 import org.sagebionetworks.StackConfiguration;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterConfiguration;
+import org.springaicommunity.agentcore.memory.AgentCoreMemoryConversationIdParser;
+import org.springaicommunity.agentcore.memory.shorttem.AgentCoreShortTermMemoryRepository;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
 import org.springframework.ai.bedrock.converse.BedrockProxyChatModel;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.model.ModelOptionsUtils;
@@ -27,10 +30,14 @@ import software.amazon.awssdk.services.bedrockagentcorecontrol.BedrockAgentCoreC
 import software.amazon.awssdk.services.bedrockagentcorecontrol.model.CodeInterpreterSummary;
 import software.amazon.awssdk.services.bedrockagentcorecontrol.model.ListCodeInterpretersRequest;
 import software.amazon.awssdk.services.bedrockagentcorecontrol.model.ListCodeInterpretersResponse;
+import software.amazon.awssdk.services.bedrockagentcorecontrol.model.ListMemoriesRequest;
+import software.amazon.awssdk.services.bedrockagentcorecontrol.model.ListMemoriesResponse;
+import software.amazon.awssdk.services.bedrockagentcorecontrol.model.MemorySummary;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
  * Spring AI configuration for Bedrock Converse ChatModel and AgentCore services.
+ * 
  */
 @Configuration
 public class SpringAiConfiguration {
@@ -65,10 +72,16 @@ public class SpringAiConfiguration {
 
 	@Bean
 	public ChatModel bedrockChatModel(AwsCredentialsProvider credentialProvider, StackConfiguration stackConfig) {
+		// converse is non-streaming, so the full model response must be generated before any bytes arrive;
+		// the socket (read) timeout must cover a whole generation, not the SDK default of 30s. apiCallTimeout
+		// is set just above the socket budget so a single slow generation gets its full read window without
+		// the SDK retrying the timed-out attempt.
+		Duration socketTimeout = Duration.ofSeconds(stackConfig.getBedrockConverseSocketTimeoutSeconds());
 		return BedrockProxyChatModel.builder()
 				.credentialsProvider(credentialProvider)
 				.region(Region.of(stackConfig.getBedrockConverseRegion()))
-				.timeout(Duration.ofMinutes(5))
+				.socketTimeout(socketTimeout)
+				.timeout(socketTimeout.plusSeconds(10))
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())
 						.build())
@@ -95,14 +108,19 @@ public class SpringAiConfiguration {
 
 	@Bean
 	public AgentCoreCodeInterpreterClient agentCoreCodeInterpreterClient(BedrockAgentCoreClient syncClient,
-			BedrockAgentCoreAsyncClient asyncClient, AwsCredentialsProvider credentialProvider,
-			StackConfiguration stackConfig) {
-		String codeInterpreterIdentifier = lookupCodeInterpreterIdentifier(credentialProvider, stackConfig);
+			BedrockAgentCoreAsyncClient asyncClient, String codeInterpreterIdentifier) {
 		return new AgentCoreCodeInterpreterClient(syncClient, asyncClient,
 				new AgentCoreCodeInterpreterConfiguration(null, codeInterpreterIdentifier, null, null, null, null));
 	}
 
-	private String lookupCodeInterpreterIdentifier(AwsCredentialsProvider credentialProvider,
+	/**
+	 * The identifier of this stack's code interpreter, discovered once at startup. Exposed as a bean so
+	 * both {@link #agentCoreCodeInterpreterClient} and
+	 * {@link org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider} target the same
+	 * code interpreter when listing and starting sessions.
+	 */
+	@Bean
+	public String codeInterpreterIdentifier(AwsCredentialsProvider credentialProvider,
 			StackConfiguration stackConfig) {
 		String expectedName = stackConfig.getStack() + "_" + stackConfig.getStackInstance() + "_code_interpreter";
 		try (BedrockAgentCoreControlClient controlClient = BedrockAgentCoreControlClient.builder()
@@ -122,6 +140,52 @@ public class SpringAiConfiguration {
 			} while (nextToken != null);
 		}
 		throw new IllegalStateException("Code interpreter not found with name: " + expectedName);
+	}
+
+	/**
+	 * Durable, cross-machine chat memory for Curie backed by Bedrock AgentCore Memory. Curie runs on
+	 * async chat-job workers, so each user turn may execute on a different machine; an in-JVM memory
+	 * cannot carry the conversation forward. This {@link ChatMemoryRepository} persists each turn as
+	 * an AgentCore event and reads it back keyed by the {@code actorId:sessionId} conversation id that
+	 * {@link org.sagebionetworks.repo.manager.agent.supervisor.CurieSupervisor} derives from the user
+	 * and the durable Synapse chat session id, so any worker resolves the same event stream.
+	 */
+	@Bean
+	public ChatMemoryRepository curieChatMemoryRepository(BedrockAgentCoreClient bedrockAgentCoreClient,
+			AwsCredentialsProvider credentialProvider, StackConfiguration stackConfig) {
+		String memoryId = lookupMemoryIdentifier(credentialProvider, stackConfig);
+		// totalEventsLimit bounds the ListEvents cost to the newest N events; MessageWindowChatMemory
+		// applies the real message window on top. ignoreUnknownRoles=true so a non user/assistant
+		// message in the window is skipped rather than failing the whole turn.
+		return new AgentCoreShortTermMemoryRepository(memoryId, bedrockAgentCoreClient, 100,
+				AgentCoreMemoryConversationIdParser.DEFAULT_SESSION, 100, true);
+	}
+
+	/**
+	 * Discover the AgentCore Memory resource provisioned for this stack. AgentCore assigns a memory id
+	 * of the form {@code <name>-<suffix>}, and {@link MemorySummary} exposes only the id, so the
+	 * resource created for this stack is matched by the {@code <stack>_<instance>_curie_memory} name
+	 * prefix (mirrors {@link #lookupCodeInterpreterIdentifier}).
+	 */
+	private String lookupMemoryIdentifier(AwsCredentialsProvider credentialProvider, StackConfiguration stackConfig) {
+		String expectedPrefix = stackConfig.getStack() + "_" + stackConfig.getStackInstance() + "_curie_memory";
+		try (BedrockAgentCoreControlClient controlClient = BedrockAgentCoreControlClient.builder()
+				.credentialsProvider(credentialProvider)
+				.region(Region.of(stackConfig.getBedrockConverseRegion()))
+				.build()) {
+			String nextToken = null;
+			do {
+				ListMemoriesResponse response = controlClient.listMemories(
+						ListMemoriesRequest.builder().nextToken(nextToken).build());
+				for (MemorySummary summary : response.memories()) {
+					if (summary.id() != null && summary.id().startsWith(expectedPrefix)) {
+						return summary.id();
+					}
+				}
+				nextToken = response.nextToken();
+			} while (nextToken != null);
+		}
+		throw new IllegalStateException("AgentCore Memory not found with name prefix: " + expectedPrefix);
 	}
 
 	@Bean

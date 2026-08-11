@@ -128,7 +128,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.SdkClientException;
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
@@ -3171,7 +3171,7 @@ public class FileHandleManagerImplTest {
 		expectedData.setNamespace("File Handles - instance");
 		expectedData.setName("UnavailableFileHandleAccessed");
 		expectedData.setValue(123D);
-		expectedData.setUnit(StandardUnit.None.name());
+		expectedData.setUnit(StandardUnit.NONE.toString());
 		
 		ArgumentCaptor<ProfileData> captor = ArgumentCaptor.forClass(ProfileData.class);
 		

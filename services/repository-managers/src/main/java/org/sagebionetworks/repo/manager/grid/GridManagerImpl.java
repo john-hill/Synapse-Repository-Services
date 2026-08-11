@@ -75,10 +75,12 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
+import org.sagebionetworks.repo.model.grid.query.result.Row;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
@@ -258,6 +260,14 @@ public class GridManagerImpl implements GridManager {
 		// User must have access to the session in order to create a replica
 		validGridSessionAccess(user, sessionId);
 		return gridDao.getGridReplica(sessionId, replicaId)
+				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
+	}
+
+	@Override
+	public GridReplicaInfo getReplicaInfo(UserInfo user, String sessionId, Long replicaId) {
+		ValidateArgument.required(replicaId, "replicaId");
+		validGridSessionAccess(user, sessionId);
+		return gridDao.getReplicaInfo(sessionId, replicaId)
 				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
 	}
 
@@ -721,7 +731,19 @@ public class GridManagerImpl implements GridManager {
 	@Override
 	public long executeGridUpdate(GridHeader header, GridConnectionInfo publishingConnection,
 			JSONObject rawUpdate) throws Exception {
+		return executeGridUpdateInternal(header, publishingConnection, rawUpdate, false).count();
+	}
+
+	private record UpdateResult(Long count, List<Row> preview) {}
+
+	private UpdateResult executeGridUpdateInternal(GridHeader header, GridConnectionInfo publishingConnection,
+			JSONObject rawUpdate, boolean isPreview) throws Exception {
 		Update update = JDOSecondaryPropertyUtils.createEntityFromJSONObject(rawUpdate, Update.class);
+		if (isPreview) {
+			// A preview is always bounded: cap at 10 rows, honoring a smaller caller-supplied limit.
+			Long limit = update.getLimit();
+			update.setLimit(limit == null ? 10L : Math.min(10L, limit));
+		}
 		JSONArray rawSetValueArray = rawUpdate.getJSONArray("set");
 		List<SetValue> set = update.getSet();
 		List<FilterElement> filters = update.getFilters() == null ? Collections.emptyList()
@@ -737,6 +759,7 @@ public class GridManagerImpl implements GridManager {
 		}).toArray(Integer[]::new);
 
 		long updateCount = 0;
+		List<Row> preview = new ArrayList<>();
 		Iterator<RowView> rows = gridReplicaViewManager.getQueryIterator(header,
 				new QueryElement().setWhere(filters).setLimit(update.getLimit()));
 		try (IntendedChangePublisher icp = new IntendedChangePublisher(publishingConnection,
@@ -745,22 +768,46 @@ public class GridManagerImpl implements GridManager {
 				List<ConValue> updates = new ArrayList<>();
 				List<Integer> finalIndex = new ArrayList<>();
 				RowView row = rows.next();
+				JSONObject rowPreviewObject = isPreview
+						? new JSONObject(row.getRowObject().getData().getRowJsonDocument().toString())
+						: null;
 				for (int i = 0; i < set.size(); i++) {
 					JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
 					Optional<ConValue> op = setValueProcessorFactory.createConValue(row, set.get(i), rawSetValue);
 					if (op.isPresent()) {
+						ConValue con = op.get();
 						finalIndex.add(indexArray[i]);
-						updates.add(op.get());
+						updates.add(con);
+						if (isPreview) {
+							String key = set.get(i).getColumnName();
+							if (ConType.NULL.equals(con.getType())) {
+								rowPreviewObject.put(key, JSONObject.NULL);
+							} else if (ConType.UNDEFINED.equals(con.getType())) {
+								rowPreviewObject.remove(key);
+							} else {
+								rowPreviewObject.put(key, con.getValue());
+							}
+						}
 					}
 				}
 				if (!updates.isEmpty()) {
-					icp.publish(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates,
-							finalIndex.toArray(new Integer[finalIndex.size()])));
+					if (isPreview) {
+						preview.add(new Row().setRowId(row.getRowId()).setData(rowPreviewObject));
+					} else {
+						icp.publish(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates,
+								finalIndex.toArray(new Integer[finalIndex.size()])));
+					}
 					updateCount++;
 				}
 			}
 		}
-		return updateCount;
+		return new UpdateResult(updateCount, preview);
+	}
+	
+	@Override
+	public List<Row> executeGridUpdatePreview(GridHeader header, GridConnectionInfo publishingConnection,
+			JSONObject rawUpdate) throws Exception {
+		return executeGridUpdateInternal(header, publishingConnection, rawUpdate, true).preview();
 	}
 
 	@WriteTransaction

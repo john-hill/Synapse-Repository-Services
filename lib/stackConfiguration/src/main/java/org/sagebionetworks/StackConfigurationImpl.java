@@ -1421,4 +1421,9 @@ public class StackConfigurationImpl implements StackConfiguration {
 	public String getBedrockConverseRegion() {
 		return configuration.getProperty("org.sagebionetworks.bedrock.converse.region");
 	}
+
+	@Override
+	public Long getBedrockConverseSocketTimeoutSeconds() {
+		return Long.valueOf(configuration.getProperty("org.sagebionetworks.bedrock.converse.socket.timeout.seconds"));
+	}
 }

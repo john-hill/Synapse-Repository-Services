@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.springframework.ai.bedrock.converse.BedrockChatOptions;
@@ -31,7 +32,8 @@ public class EntityMetadataSpecialist {
 		ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(20).build();
 		this.chatClient = ChatClient.builder(chatModel)
 				.defaultSystem(systemPrompt)
-				.defaultTools(entityMetadataSpecialistTools, codeInterpreterTools)
+				.defaultToolCallbacks(entityMetadataSpecialistTools.getToolCallbacks())
+				.defaultToolCallbacks(codeInterpreterTools.getToolCallbacks())
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())
@@ -46,9 +48,9 @@ public class EntityMetadataSpecialist {
 	 */
 	public String chat(String message, UserInfo user, String sessionId) {
 		Map<String, Object> context = new HashMap<>();
-		context.put("userInfo", user);
+		AgentToolContextKey.USER_INFO.put(context, user);
 		if (sessionId != null) {
-			context.put("sessionId", sessionId);
+			AgentToolContextKey.CODE_SESSION_ID.put(context, sessionId);
 		}
 		return chatClient.prompt()
 				.user(message)

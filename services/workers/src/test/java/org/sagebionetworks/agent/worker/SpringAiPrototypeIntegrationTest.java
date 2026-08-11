@@ -19,12 +19,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.AgentAccessLevel;
+import org.sagebionetworks.repo.model.agent.RunPythonRequest;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.utils.ContentTypeUtil;
@@ -360,10 +362,12 @@ public class SpringAiPrototypeIntegrationTest {
 	public void testRunPythonTool() throws Exception {
 		String sessionId = codeInterpreterClient.startSession("runPythonTest" + System.nanoTime());
 		try {
-			ToolContext toolContext = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionId));
+			ToolContext toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), admin,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 
 			// call under test
-			String result = codeInterpreterTools.runPython("print(sum(range(1, 101)))", toolContext);
+			String result = codeInterpreterTools.runPython(
+					new RunPythonRequest().setScript("print(sum(range(1, 101)))"), toolContext);
 
 			assertNotNull(result);
 			assertTrue(result.contains("5050"), "Should contain the sum 1..100. Got: " + result);
@@ -377,26 +381,28 @@ public class SpringAiPrototypeIntegrationTest {
 		String sessionA = codeInterpreterClient.startSession("isolationA" + System.nanoTime());
 		String sessionB = codeInterpreterClient.startSession("isolationB" + System.nanoTime());
 		try {
-			ToolContext contextA = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionA));
-			ToolContext contextB = new ToolContext(Map.of("userInfo", admin, "sessionId", sessionB));
+			ToolContext contextA = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), admin,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionA));
+			ToolContext contextB = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), admin,
+					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionB));
 
 			// Create a file in session A
-			String createResult = codeInterpreterTools.runPython(String.join("\n",
+			String createResult = codeInterpreterTools.runPython(new RunPythonRequest().setScript(String.join("\n",
 					"with open('secret_a.txt', 'w') as f:",
 					"    f.write('session A secret data')",
-					"print('created')"), contextA);
+					"print('created')")), contextA);
 			assertTrue(createResult.contains("created"), "File creation should succeed in session A. Got: " + createResult);
 
 			// Verify session A can read its own file
-			String readA = codeInterpreterTools.runPython(String.join("\n",
+			String readA = codeInterpreterTools.runPython(new RunPythonRequest().setScript(String.join("\n",
 					"with open('secret_a.txt', 'r') as f:",
-					"    print(f.read())"), contextA);
+					"    print(f.read())")), contextA);
 			assertTrue(readA.contains("session A secret data"), "Session A should read its own file. Got: " + readA);
 
 			// Verify session B cannot see session A's file
-			String readB = codeInterpreterTools.runPython(String.join("\n",
+			String readB = codeInterpreterTools.runPython(new RunPythonRequest().setScript(String.join("\n",
 					"import os",
-					"print(os.path.exists('secret_a.txt'))"), contextB);
+					"print(os.path.exists('secret_a.txt'))")), contextB);
 			assertTrue(readB.contains("False"), "Session B should NOT see session A's file. Got: " + readB);
 		} finally {
 			codeInterpreterClient.stopSession(sessionA);

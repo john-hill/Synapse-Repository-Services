@@ -40,7 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 import org.springframework.web.servlet.ModelAndView;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 import com.google.common.collect.ImmutableList;
 
 @ExtendWith(MockitoExtension.class)
@@ -149,7 +149,7 @@ public class UnexpectedExceptionFilterTest {
 		logEvent.setNamespace("UnexpectedExceptionFilter - " + stackInstance);
 		logEvent.setName("UnhandledException");
 		logEvent.setValue(1.0);
-		logEvent.setUnit(StandardUnit.Count.toString());
+		logEvent.setUnit(StandardUnit.COUNT.toString());
 		logEvent.setTimestamp(timestamp);
 		
 		Map<String, String> dimensions = new HashMap<>();

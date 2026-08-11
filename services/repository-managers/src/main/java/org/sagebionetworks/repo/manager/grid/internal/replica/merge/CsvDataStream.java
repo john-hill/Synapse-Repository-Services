@@ -60,10 +60,19 @@ public class CsvDataStream implements DataStream {
 			String stringValue = currentRow[mapping.getCsvIndex()];
 			
 			if (mapping.isUpsertColumn()) {
+				// Upsert key columns are stored in a typed, NOT NULL temp table column and
+				// drive the join against the grid's temp table, so a value that cannot be
+				// represented as the column's type must fail the import rather than being
+				// carried through as text.
 				stringValue = checkUpsertKeyValue(stringValue);
+				values[i] = columnTranslators[i].translateNullable(stringValue).getValue();
+			} else {
+				// Non-key columns are packed untyped into a JSON array (see
+				// GridCsvImportDaoImpl#mapRow), so a value that doesn't fit the column's
+				// declared type — e.g. inferred from a different revision's data — is
+				// carried through as raw text instead of failing the whole import.
+				values[i] = columnTranslators[i].translateLeniently(stringValue).getValue();
 			}
-			
-			values[i] = columnTranslators[i].translateNullable(stringValue).getValue();
 		}
 		
 		return values;

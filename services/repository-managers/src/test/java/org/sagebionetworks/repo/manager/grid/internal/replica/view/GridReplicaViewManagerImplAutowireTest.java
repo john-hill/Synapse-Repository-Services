@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,7 +14,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -240,10 +240,10 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setData(new RowData()
 										.setVectorId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(37L))
-										.setNodes(Map.of(
-												0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(38L)).setValue(new ConValue(ConType.STRING, "string3")),
-												1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(39L)).setValue(new ConValue(ConType.LONG, 103003L))
-										))
+										.setNodes(new ConstantNode[] {
+												new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(38L)).setValue(new ConValue(ConType.STRING, "string3")),
+												new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(39L)).setValue(new ConValue(ConType.LONG, 103003L))
+										})
 										.setRowJsonDocument(new JSONObject(Map.of("a", "string3", "b", 103003L))))
 								.setMetadata(new RowMetadata().setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow()))),
@@ -254,10 +254,10 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setData(new RowData()
 										.setVectorId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(44L))
-										.setNodes(Map.of(
-												0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(45L)).setValue(new ConValue(ConType.STRING, "string4")),
-												1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L)).setValue(new ConValue(ConType.LONG, 103004L))
-										))
+										.setNodes(new ConstantNode[] {
+												new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(45L)).setValue(new ConValue(ConType.STRING, "string4")),
+												new ConstantNode().setId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L)).setValue(new ConValue(ConType.LONG, 103004L))
+										})
 										.setRowJsonDocument(new JSONObject(Map.of("a", "string4", "b", 103004L))))
 								.setMetadata(new RowMetadata().setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow()))));
@@ -323,9 +323,10 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		assertEquals(1, page.size());
 		RowData data = page.get(0).getRowObject().getData();
-		// "c" has no node in this row, so it is absent from the cell map and the other two values
-		// stay on their own columns.
-		assertEquals(Set.of(1, 2), data.getNodes().keySet());
+		// "c" has no node in this row, so it is null at that position in the node array and the other
+		// two values stay on their own columns.
+		assertEquals(3, data.getNodes().length);
+		assertNull(data.getNodes()[0]);
 		assertNull(data.getCell(0));
 		assertEquals(new ConValue(ConType.STRING, "string0"), data.getCell(1));
 		assertEquals(new ConValue(ConType.LONG, 103000L), data.getCell(2));
@@ -1154,7 +1155,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(allRows.size(), result.size());
 		// Nothing selected, we expect empty cells
 		for (int i = 0; i < allRows.size(); i++) {
-			assertEquals(Map.of(), result.get(i).getRowObject().getData().getNodes());
+			assertArrayEquals(new ConstantNode[0], result.get(i).getRowObject().getData().getNodes());
 			assertEquals("{}", result.get(i).getRowObject().getData().getRowJsonDocument().toString());
 		}
 

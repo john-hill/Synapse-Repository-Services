@@ -344,8 +344,13 @@ public class SnapshotRowHandler implements RowHandler {
      */
     ConstantNode createValidationConstant(Map<Integer, ConstantNode> cellValues) {
         // getRowData leaves VectorNode.values null for a row with no values.
-        JSONObject rowJson = GridJsonUtils.gridRowToJsonObject(columnNames,
-                cellValues == null ? Map.of() : cellValues);
+        ConstantNode[] orderedNodes = new ConstantNode[columnNames.size()];
+        if (cellValues != null) {
+            for (int i = 0; i < orderedNodes.length; i++) {
+                orderedNodes[i] = cellValues.get(i);
+            }
+        }
+        JSONObject rowJson = GridJsonUtils.gridRowToJsonObject(columnNames, orderedNodes);
 
         // Create JsonSubject for validation
         JsonSubject subject = new JsonObjectSubject(rowJson);

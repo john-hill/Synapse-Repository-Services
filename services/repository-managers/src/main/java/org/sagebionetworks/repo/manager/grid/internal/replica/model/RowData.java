@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 
-import java.util.Map;
+import java.util.Arrays;
 import java.util.Objects;
 
 import org.json.JSONObject;
@@ -10,19 +10,19 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class RowData {
 
-    private Map<Integer, ConstantNode> nodes;
+    private ConstantNode[] nodes;
     private LogicalTimestamp vectorId;
     private JSONObject rowJsonDocument;
 
     /**
-     * The row's CRDT cell nodes, keyed by the cell's index in the query's selected columns. A column
-     * that has no node for this row is absent from the map.
+     * The row's CRDT cell nodes, indexed by the cell's position in the query's selected columns. A
+     * column that has no node for this row is {@code null} at that position.
      */
-    public Map<Integer, ConstantNode> getNodes() {
+    public ConstantNode[] getNodes() {
         return nodes;
     }
 
-    public RowData setNodes(Map<Integer, ConstantNode> nodes) {
+    public RowData setNodes(ConstantNode[] nodes) {
         this.nodes = nodes;
         return this;
     }
@@ -32,7 +32,7 @@ public class RowData {
      *         the row has no CRDT node for that column.
      */
     public ConValue getCell(int selectedColumnIndex) {
-        ConstantNode node = nodes == null ? null : nodes.get(selectedColumnIndex);
+        ConstantNode node = nodes == null || selectedColumnIndex >= nodes.length ? null : nodes[selectedColumnIndex];
         return node == null ? null : node.getConValue();
     }
 
@@ -86,7 +86,7 @@ public class RowData {
 
     @Override
     public String toString() {
-        return "RowData [nodes=" + nodes + ", vectorId=" + vectorId + ", rowJsonDocument=" + rowJsonDocument + "]";
+        return "RowData [nodes=" + Arrays.toString(nodes) + ", vectorId=" + vectorId + ", rowJsonDocument=" + rowJsonDocument + "]";
     }
 
 }

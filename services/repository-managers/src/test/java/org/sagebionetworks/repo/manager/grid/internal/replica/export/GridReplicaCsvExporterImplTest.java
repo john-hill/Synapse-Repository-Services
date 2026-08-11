@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,16 +103,16 @@ public class GridReplicaCsvExporterImplTest {
         rowViews = new ArrayList<>();
         rowViews.add(new RowView().setRowObject(new RowObject()
                 .setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(1L).setVersionNumber(2L).setEtag("etag1")))
-                .setData(new RowData().setNodes(Map.of(
-                        0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.STRING, "a")),
-                        1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, "b"))
-                )))));
+                .setData(new RowData().setNodes(new ConstantNode[] {
+                        new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.STRING, "a")),
+                        new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, "b"))
+                }))));
         rowViews.add(new RowView().setRowObject(new RowObject()
                 .setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(3L).setVersionNumber(4L).setEtag("etag2")))
-                .setData(new RowData().setNodes(Map.of(
-                         0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(102L)).setValue(new ConValue(ConType.STRING, "c")),
-                         1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(103L)).setValue(new ConValue(ConType.STRING, "d"))
-                )))));
+                .setData(new RowData().setNodes(new ConstantNode[] {
+                         new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(102L)).setValue(new ConValue(ConType.STRING, "c")),
+                         new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(103L)).setValue(new ConValue(ConType.STRING, "d"))
+                }))));
     }
 
     @Test
@@ -283,10 +282,10 @@ public class GridReplicaCsvExporterImplTest {
     @Test
     public void testExportGridAsCsvWithNullOrEmptyValues() throws IOException {
         rowViews.get(0).getRowObject().getMetadata().getSynapseRow().setRowId(null).setVersionNumber(null).setEtag(null);
-        rowViews.get(0).getRowObject().getData().setNodes(Map.of(
-                 0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.STRING, "a")),
-                 1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, ""))
-        ));
+        rowViews.get(0).getRowObject().getData().setNodes(new ConstantNode[] {
+                 new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.STRING, "a")),
+                 new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, ""))
+        });
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
@@ -319,9 +318,10 @@ public class GridReplicaCsvExporterImplTest {
 
     @Test
     public void testExportGridAsCsvWithMissingCell() throws IOException {
-        rowViews.get(0).getRowObject().getData().setNodes(Map.of(
-                1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, "b"))
-        ));
+        rowViews.get(0).getRowObject().getData().setNodes(new ConstantNode[] {
+                null,
+                new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, "b"))
+        });
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
@@ -350,10 +350,10 @@ public class GridReplicaCsvExporterImplTest {
 
     @Test
     public void testExportGridAsCsvWithNullValue() throws IOException {
-        rowViews.get(0).getRowObject().getData().setNodes(Map.of(
-                0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.NULL, null)),
-                1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, "b"))
-        ));
+        rowViews.get(0).getRowObject().getData().setNodes(new ConstantNode[] {
+                new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.NULL, null)),
+                new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L)).setValue(new ConValue(ConType.STRING, "b"))
+        });
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);

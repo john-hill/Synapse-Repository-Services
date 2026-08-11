@@ -106,10 +106,10 @@ public class CopyHandlerImpl implements CopyHandler {
 				.setMetadataNodeId(rowView.getRowMetadataNodeId()).setSynapseRow(rowView.getSynapseRow());
 	}
 
-	private List<CellCopyItem> createCopyCells(Map<Integer, ConstantNode> nodes) {
-		List<CellCopyItem> cells = new ArrayList<>(nodes.size());
-		for (int i = 0; i < indexToColumnMap.size(); i++) {
-			ConstantNode node = nodes.get(i);
+	private List<CellCopyItem> createCopyCells(ConstantNode[] nodes) {
+		List<CellCopyItem> cells = new ArrayList<>(nodes.length);
+		for (int i = 0; i < indexToColumnMap.size() && i < nodes.length; i++) {
+			ConstantNode node = nodes[i];
 			if (node == null) {
 				// The row has no node for this column, so there is no cell to copy.
 				continue;

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -11,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -213,20 +213,20 @@ public class GridReplicaViewManagerImplTest {
 		String selectedVals = "[null,{\"i\":[100,101],\"v\":[\"a\"]},null]";
 
 		// call under test
-		Map<Integer, ConstantNode> nodes = GridReplicaViewManagerImpl.readSelectedValues(selectedVals);
+		ConstantNode[] nodes = GridReplicaViewManagerImpl.readSelectedValues(selectedVals);
 
-		assertEquals(1, nodes.size());
+		assertEquals(3, nodes.length);
+		assertNull(nodes[0]);
 		assertEquals(new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(101L))
-				.setValue(new ConValue(ConType.STRING, "a")), nodes.get(1));
-		assertNull(nodes.get(0));
-		assertNull(nodes.get(2));
+				.setValue(new ConValue(ConType.STRING, "a")), nodes[1]);
+		assertNull(nodes[2]);
 	}
 
 	@Test
 	public void testReadSelectedValuesWithNoColumns() {
 		// call under test
-		Map<Integer, ConstantNode> nodes = GridReplicaViewManagerImpl.readSelectedValues("[]");
+		ConstantNode[] nodes = GridReplicaViewManagerImpl.readSelectedValues("[]");
 
-		assertEquals(Map.of(), nodes);
+		assertArrayEquals(new ConstantNode[0], nodes);
 	}
 }

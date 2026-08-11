@@ -270,7 +270,7 @@ public class GridIntegrationTestUtils {
 
 	/** The CRDT cell node for a column in a row, located by the column's position in the header. */
 	private ConstantNode cellNode(GridHeader header, RowView row, String columnName) {
-		return row.getRowObject().getData().getNodes().get(columnPosition(header, columnName));
+		return row.getRowObject().getData().getNodes()[columnPosition(header, columnName)];
 	}
 
 	/** Find the (current) row whose "a" key column equals the given value. */

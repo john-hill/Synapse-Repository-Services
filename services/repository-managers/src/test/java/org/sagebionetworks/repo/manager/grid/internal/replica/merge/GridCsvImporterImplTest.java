@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -142,18 +141,18 @@ public class GridCsvImporterImplTest {
 		
 		gridRows = List.of(
 			new RowView().setRowObject(new RowObject().setData(new RowData()
-					.setNodes(Map.of(
-						0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.LONG, 0)),
-						1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(102L)).setValue(new ConValue(ConType.LONG, 1)),
-						2, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(103L)).setValue(new ConValue(ConType.BOOLEAN, true))
-					)).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(98L))
+					.setNodes(new ConstantNode[] {
+						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.LONG, 0)),
+						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(102L)).setValue(new ConValue(ConType.LONG, 1)),
+						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(103L)).setValue(new ConValue(ConType.BOOLEAN, true))
+					}).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(98L))
 			)),
 			new RowView().setRowObject(new RowObject().setData(new RowData()
-					.setNodes(Map.of(
-						0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(104L)).setValue(new ConValue(ConType.LONG, 2)),
-						1, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(105L)).setValue(new ConValue(ConType.LONG, 3)),
-						2, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(106L)).setValue(new ConValue(ConType.BOOLEAN, true))
-					)).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(99L)))
+					.setNodes(new ConstantNode[] {
+						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(104L)).setValue(new ConValue(ConType.LONG, 2)),
+						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(105L)).setValue(new ConValue(ConType.LONG, 3)),
+						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(106L)).setValue(new ConValue(ConType.BOOLEAN, true))
+					}).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(99L)))
 			)
 		);
 		

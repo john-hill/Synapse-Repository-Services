@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.Test;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
@@ -31,11 +30,11 @@ public class GridDataStreamTest {
 				.setSequenceNumber(base.getSequenceNumber());
 		return new RowView().setRowObject(new RowObject().setData(
 			new RowData().setVectorId(LogicalTimestamp.newIncrement(vId, vecIncrement))
-				.setNodes(Map.of(
-					0, new ConstantNode().setId(LogicalTimestamp.newIncrement(vId, n1)).setValue(cell0),
-					1, new ConstantNode().setId(LogicalTimestamp.newIncrement(vId, n2)).setValue(cell1),
-					2, new ConstantNode().setId(LogicalTimestamp.newIncrement(vId, n3)).setValue(cell2)
-				))
+				.setNodes(new ConstantNode[] {
+					new ConstantNode().setId(LogicalTimestamp.newIncrement(vId, n1)).setValue(cell0),
+					new ConstantNode().setId(LogicalTimestamp.newIncrement(vId, n2)).setValue(cell1),
+					new ConstantNode().setId(LogicalTimestamp.newIncrement(vId, n3)).setValue(cell2)
+				})
 		));
 	}
 
@@ -47,27 +46,27 @@ public class GridDataStreamTest {
         List<RowView> rows = List.of(
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 1))
-        			.setNodes(Map.of(
-							0, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 4)).setValue(new ConValue(ConType.STRING, "1")),
-							1, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 5)).setValue(new ConValue(ConType.STRING, "more1")),
-							2, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 6)).setValue(new ConValue(ConType.LONG, 1L))
-					))
+        			.setNodes(new ConstantNode[] {
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 4)).setValue(new ConValue(ConType.STRING, "1")),
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 5)).setValue(new ConValue(ConType.STRING, "more1")),
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 6)).setValue(new ConValue(ConType.LONG, 1L))
+					})
 			)),
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 2))
-        			.setNodes(Map.of(
-							0, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 7)).setValue(new ConValue(ConType.STRING, "2")),
-							1, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 8)).setValue(new ConValue(ConType.STRING, "more2")),
-							2, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 9)).setValue(new ConValue(ConType.LONG, 2L))
-					))
+        			.setNodes(new ConstantNode[] {
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 7)).setValue(new ConValue(ConType.STRING, "2")),
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 8)).setValue(new ConValue(ConType.STRING, "more2")),
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 9)).setValue(new ConValue(ConType.LONG, 2L))
+					})
 			)),
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 3))
-        			.setNodes(Map.of(
-							0, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 10)).setValue(new ConValue(ConType.STRING, "3")),
-							1, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 11)).setValue(new ConValue(ConType.STRING, "more3")),
-							2, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 12)).setValue(new ConValue(ConType.LONG, 3L))
-					))
+        			.setNodes(new ConstantNode[] {
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 10)).setValue(new ConValue(ConType.STRING, "3")),
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 11)).setValue(new ConValue(ConType.STRING, "more3")),
+							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 12)).setValue(new ConValue(ConType.LONG, 3L))
+					})
 			))			
 		);
 
@@ -113,10 +112,11 @@ public class GridDataStreamTest {
 			18, 19, 20));
 		rows.add(new RowView().setRowObject(new RowObject().setData(
 			new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 21))
-				.setNodes(Map.of(
-					1, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 22)).setValue(new ConValue(ConType.STRING, "x")),
-					2, new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 23)).setValue(new ConValue(ConType.LONG, 4L))
-				))
+				.setNodes(new ConstantNode[] {
+					null,
+					new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 22)).setValue(new ConValue(ConType.STRING, "x")),
+					new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 23)).setValue(new ConValue(ConType.LONG, 4L))
+				})
 		)));
 
 		GridDataStream stream = new GridDataStream(rows.iterator(), MAPPING);

@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -117,43 +116,29 @@ public class CopyHandlerImplTest {
 	public void testGetRows() {
 		try (CopyHandlerImpl handler = setupHandler()) {
 
-			List<RowView> rowViews = List.of(
-					// 111
-					new RowView()
-							.setArrNodeId(new LogicalTimestamp().setReplicaId(
-									internalReplicaId).setSequenceNumber(
-											6L))
-							.setRowObject(
-									new RowObject()
-											.setData(
-													new RowData().setVectorId(
-															new LogicalTimestamp().setReplicaId(internalReplicaId)
-																	.setSequenceNumber(7L))
-															.setNodes(Map.of(0, new ConstantNode()
-																	.setId(new LogicalTimestamp()
-																			.setReplicaId(internalReplicaId)
-																			.setSequenceNumber(8L))
-																	.setValue(new ConValue(ConType.STRING, "foo")))))
-											.setMetadata(
-													new RowMetadata().setSynapseRow(new SynapseRow().setRowId(111L)))),
-					// 222
-					new RowView()
-							.setArrNodeId(new LogicalTimestamp().setReplicaId(
-									internalReplicaId).setSequenceNumber(
-											9L))
-							.setRowObject(
-									new RowObject()
-											.setData(
-													new RowData().setVectorId(
-															new LogicalTimestamp().setReplicaId(internalReplicaId)
-																	.setSequenceNumber(10L))
-															.setNodes(Map.of(0, new ConstantNode()
-																	.setId(new LogicalTimestamp()
-																			.setReplicaId(userReplicaId)
-																			.setSequenceNumber(11L))
-																	.setValue(new ConValue(ConType.STRING, "bar")))))
-											.setMetadata(
-													new RowMetadata().setSynapseRow(new SynapseRow().setRowId(222L)))));
+			ConstantNode node1 = new ConstantNode()
+					.setId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(8L))
+					.setValue(new ConValue(ConType.STRING, "foo"));
+			RowData data1 = new RowData()
+					.setVectorId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(7L))
+					.setNodes(new ConstantNode[] { node1 });
+			RowView rowView1 = new RowView()
+					.setArrNodeId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(6L))
+					.setRowObject(new RowObject().setData(data1)
+							.setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(111L))));
+
+			ConstantNode node2 = new ConstantNode()
+					.setId(new LogicalTimestamp().setReplicaId(userReplicaId).setSequenceNumber(11L))
+					.setValue(new ConValue(ConType.STRING, "bar"));
+			RowData data2 = new RowData()
+					.setVectorId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(10L))
+					.setNodes(new ConstantNode[] { node2 });
+			RowView rowView2 = new RowView()
+					.setArrNodeId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(9L))
+					.setRowObject(new RowObject().setData(data2)
+							.setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(222L))));
+
+			List<RowView> rowViews = List.of(rowView1, rowView2);
 
 			when(mockGridReplicaViewManager.getQueryIterator(mockHeader, new QueryElement()))
 					.thenReturn(rowViews.iterator());
@@ -192,15 +177,17 @@ public class CopyHandlerImplTest {
 	@Test
 	public void testGetRowsWithMissingCell() {
 		try (CopyHandlerImpl handler = setupHandler()) {
-			List<RowView> rowViews = List.of(new RowView()
+			ConstantNode node = new ConstantNode()
+					.setId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(8L))
+					.setValue(new ConValue(ConType.STRING, "foo"));
+			RowData data = new RowData()
+					.setVectorId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(7L))
+					.setNodes(new ConstantNode[] { null, node });
+			RowView rowView = new RowView()
 					.setArrNodeId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(6L))
-					.setRowObject(new RowObject()
-							.setData(new RowData()
-									.setVectorId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(7L))
-									.setNodes(Map.of(1, new ConstantNode()
-											.setId(new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(8L))
-											.setValue(new ConValue(ConType.STRING, "foo")))))
-							.setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(111L)))));
+					.setRowObject(new RowObject().setData(data)
+							.setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(111L))));
+			List<RowView> rowViews = List.of(rowView);
 
 			when(mockGridReplicaViewManager.getQueryIterator(mockHeader, new QueryElement()))
 					.thenReturn(rowViews.iterator());

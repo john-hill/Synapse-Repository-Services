@@ -15,18 +15,19 @@ public class GridJsonUtils {
      * Transforms a list of ordered column names and a row's CRDT nodes into a JSON object.
      *
      * @param orderedColumnNames the column names, in order.
-     * @param nodesByIndex       the row's nodes, keyed by their index in {@code orderedColumnNames}.
+     * @param nodesByIndex       the row's nodes, indexed by their position in {@code orderedColumnNames}.
+     *                           A column with no node for the row is {@code null} at that index.
      * @return a JSON object holding one key per column that has a value. A column absent from
-     *         {@code nodesByIndex} has no value, and the JSON Joy CRDT spec also allows 'undefined'
-     *         values; both are omitted.
+     *         {@code nodesByIndex} (either past the array's length or {@code null}) has no value, and
+     *         the JSON Joy CRDT spec also allows 'undefined' values; both are omitted.
      */
-    public static JSONObject gridRowToJsonObject(List<String> orderedColumnNames, Map<Integer, ConstantNode> nodesByIndex) {
+    public static JSONObject gridRowToJsonObject(List<String> orderedColumnNames, ConstantNode[] nodesByIndex) {
         ValidateArgument.required(orderedColumnNames, "orderedColumnNames");
         ValidateArgument.required(nodesByIndex, "nodesByIndex");
 
         JSONObject json = new JSONObject();
-        for (int i = 0; i < orderedColumnNames.size(); i++) {
-            ConstantNode node = nodesByIndex.get(i);
+        for (int i = 0; i < orderedColumnNames.size() && i < nodesByIndex.length; i++) {
+            ConstantNode node = nodesByIndex[i];
             if (node == null || node.getConValue() == null || node.getConValue().isUndefined()) {
                 continue;
             }

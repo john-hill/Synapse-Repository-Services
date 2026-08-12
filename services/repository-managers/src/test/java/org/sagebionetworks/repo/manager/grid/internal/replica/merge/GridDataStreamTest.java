@@ -46,7 +46,7 @@ public class GridDataStreamTest {
         List<RowView> rows = List.of(
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 1))
-        			.setNodes(new ConstantNode[] {
+					.setNodes(new ConstantNode[] {
 							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 4)).setValue(new ConValue(ConType.STRING, "1")),
 							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 5)).setValue(new ConValue(ConType.STRING, "more1")),
 							new ConstantNode().setId(LogicalTimestamp.newIncrement(vectorId, 6)).setValue(new ConValue(ConType.LONG, 1L))

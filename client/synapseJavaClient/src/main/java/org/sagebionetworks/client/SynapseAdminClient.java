@@ -342,8 +342,8 @@ public interface SynapseAdminClient extends SynapseClient {
 
 	/**
 	 * Administrative service to reset a user's eDUC (electronic Data Use Certificate) signature
-	 * routing quota for an Access Requirement. The quota is reset only when the user is at or over
-	 * the limit; otherwise the current quota is returned unchanged.
+	 * routing quota for an Access Requirement. The user's routing usage for the access requirement is
+	 * deleted, restoring their full quota.
 	 *
 	 * @param accessRequirementId the access requirement the quota is scoped to
 	 * @param userId              the user whose quota should be reset

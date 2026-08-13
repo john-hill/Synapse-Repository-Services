@@ -62,6 +62,7 @@ import org.sagebionetworks.repo.model.educ.EDucSignatureQuota;
 import org.sagebionetworks.repo.model.principal.AliasType;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.Clock;
 
 
@@ -640,7 +641,7 @@ public class EDucManagerTest {
 	}
 
 	@Test
-	public void testGetSignatureQuotaSuccess() {
+	public void testGetSignatureQuotaWithCreatorUser() {
 		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
 		Request request = buildValidRequest();
 		when(mockRequestDao.get("req-1")).thenReturn(request);
@@ -670,6 +671,23 @@ public class EDucManagerTest {
 	}
 
 	@Test
+	public void testGetSignatureQuotaWithAdminUser() {
+		Request request = buildValidRequest();
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		// the quota is looked up for the request creator (100), not the calling admin (1)
+		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(3L);
+
+		// call under test
+		EDucSignatureQuota result = eDucManager.getSignatureQuota(adminUser, "req-1");
+
+		assertEquals(Long.valueOf(10), result.getQuota());
+		assertEquals(Long.valueOf(7), result.getRemaining());
+		verify(mockEDucQuotaDao).getCount(eq(100L), eq(456L), anyLong(), anyLong());
+		verify(mockEDucQuotaDao, never()).getCount(eq(adminUser.getId()), anyLong(), anyLong(), anyLong());
+	}
+
+	@Test
 	public void testGetSignatureQuotaWithUnauthorizedUser() {
 		Request request = buildValidRequest();
 		when(mockRequestDao.get("req-1")).thenReturn(request);
@@ -684,10 +702,8 @@ public class EDucManagerTest {
 
 
 	@Test
-	public void testResetQuotaWhenOverLimitDeletes() {
+	public void testResetQuotaWithAdminUser() {
 		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
-		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
-		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(10L);
 
 		// call under test
 		EDucSignatureQuota result = eDucManager.resetQuota(adminUser, "456", 100L);
@@ -698,30 +714,13 @@ public class EDucManagerTest {
 	}
 
 	@Test
-	public void testResetQuotaWhenUnderLimitDoesNotDelete() {
-		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
-		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
-		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(4L);
+	public void testResetQuotaWithNonExistentAccessRequirement() {
+		when(mockAccessRequirementDao.get("456")).thenThrow(new NotFoundException("does not exist"));
 
 		// call under test
-		EDucSignatureQuota result = eDucManager.resetQuota(adminUser, "456", 100L);
+		assertThrows(NotFoundException.class, () -> eDucManager.resetQuota(adminUser, "456", 100L));
 
-		assertEquals(Long.valueOf(10), result.getQuota());
-		assertEquals(Long.valueOf(6), result.getRemaining());
-		verify(mockEDucQuotaDao, never()).deleteByUserAndAccessRequirement(anyLong(), anyLong());
-	}
-
-	@Test
-	public void testResetQuotaWhenNoUsageDoesNotDelete() {
-		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
-		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
-		when(mockEDucQuotaDao.getCount(eq(100L), eq(456L), anyLong(), anyLong())).thenReturn(0L);
-
-		// call under test
-		EDucSignatureQuota result = eDucManager.resetQuota(adminUser, "456", 100L);
-
-		assertEquals(Long.valueOf(10), result.getRemaining());
-		verify(mockEDucQuotaDao, never()).deleteByUserAndAccessRequirement(anyLong(), anyLong());
+		verifyNoInteractions(mockEDucQuotaDao);
 	}
 
 	@Test

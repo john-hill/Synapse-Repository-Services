@@ -376,9 +376,8 @@ public class AccessRequirementController {
 
 	/**
 	 * Administrative service to reset a user's eDUC signature routing quota for the given Access
-	 * Requirement. Only be used by a Synapse administrator. The quota is reset (the underlying
-	 * usage records deleted) only when the user is at or over the limit; otherwise the current quota
-	 * is returned unchanged.
+	 * Requirement. Only be used by a Synapse administrator. The user's routing usage for the access
+	 * requirement is deleted, restoring their full quota.
 	 *
 	 * @param userId        - The ID of the administrator making the request.
 	 * @param requirementId - The ID of the access requirement the quota is scoped to.
@@ -387,7 +386,7 @@ public class AccessRequirementController {
 	 */
 	@RequiredScope({view, modify})
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.ACCESS_REQUIREMENT_EDUC_QUOTA_RESET, method = RequestMethod.POST)
+	@RequestMapping(value = UrlHelpers.ADMIN_ACCESS_REQUIREMENT_EDUC_QUOTA_RESET, method = RequestMethod.POST)
 	public @ResponseBody EDucSignatureQuota resetEDucQuota(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String requirementId,

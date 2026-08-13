@@ -162,7 +162,7 @@ public class EDucManager {
 			throw new UnauthorizedException("Only the request creator or an administrator can view the signature quota.");
 		}
 
-		Long userId = userInfo.getId();
+		Long userId = Long.parseLong(request.getCreatedBy());
 		Long arId = Long.parseLong(request.getAccessRequirementId());
 
 		long nowMs = clock.currentTimeMillis();
@@ -190,19 +190,11 @@ public class EDucManager {
 
 		Long arId = Long.parseLong(accessRequirementId);
 
-		long nowMs = clock.currentTimeMillis();
-		long thirtyDaysAgoMs = nowMs - THIRTY_DAYS_IN_MS;
-
-		long count = eDucQuotaDao.getCount(userId, arId, thirtyDaysAgoMs, nowMs);
-
-		if (count >= MAX_ENVELOPES_PER_MONTH) {
-			eDucQuotaDao.deleteByUserAndAccessRequirement(userId, arId);
-			count = 0;
-		}
+		eDucQuotaDao.deleteByUserAndAccessRequirement(userId, arId);
 
 		EDucSignatureQuota result = new EDucSignatureQuota();
 		result.setQuota((long) MAX_ENVELOPES_PER_MONTH);
-		result.setRemaining(Math.max(0L, MAX_ENVELOPES_PER_MONTH - count));
+		result.setRemaining((long) MAX_ENVELOPES_PER_MONTH);
 		return result;
 	}
 

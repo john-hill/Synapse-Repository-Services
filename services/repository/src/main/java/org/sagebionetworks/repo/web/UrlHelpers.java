@@ -612,7 +612,7 @@ public class UrlHelpers {
 	public static final String ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID_SUBJECTS = ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID+"/subjects";
 
 	public static final String ACCESS_REQUIREMENT_VERSION = ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/version";
-	public static final String ACCESS_REQUIREMENT_EDUC_QUOTA_RESET = ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/eDucQuota/reset";
+	public static final String ADMIN_ACCESS_REQUIREMENT_EDUC_QUOTA_RESET = ADMIN + ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/eDucQuota/reset";
 
 	public static final String ACCESS_APPROVAL = "/accessApproval";
 	public static final String ACCESS_APPROVAL_WITH_ENTITY_ID = ENTITY_ID+ACCESS_APPROVAL;

@@ -44,7 +44,8 @@ public class EDucService {
 
 	public EDucSignatureQuota resetQuota(Long userId, String accessRequirementId, Long targetUserId) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		return eDucManager.resetQuota(userInfo, accessRequirementId, targetUserId);
+		UserInfo targetUserInfo = userManager.getUserInfo(targetUserId);
+		return eDucManager.resetQuota(userInfo, accessRequirementId, targetUserInfo.getId());
 	}
 
 	public EDucFileHandleId previewEDuc(Long userId, String requestId) {

@@ -57,7 +57,7 @@ import org.sagebionetworks.repo.model.table.UploadToTableRequest;
 import org.sagebionetworks.repo.model.table.UploadToTableResult;
 import org.sagebionetworks.repo.web.NotFoundException;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 
 /**
  * Unit test for AsynchJobStatusManagerImpl
@@ -409,7 +409,7 @@ public class AsynchJobStatusManagerImplTest {
 		Map<String, String> dimension = profile.getDimension();
 		assertNotNull(dimension);
 		assertEquals(AsynchJobType.ADD_FILES_TO_DOWNLOAD_LIST.name(), dimension.get(AsynchJobStatusManagerImpl.JOB_TYPE));
-		assertEquals(StandardUnit.Milliseconds.name(), profile.getUnit());
+		assertEquals(StandardUnit.MILLISECONDS.toString(), profile.getUnit());
 	}
 	
 	@Test

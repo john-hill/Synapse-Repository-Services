@@ -23,7 +23,7 @@ import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.cloudwatch.Consumer;
 import org.sagebionetworks.cloudwatch.ProfileData;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 
 @ExtendWith(MockitoExtension.class)
 public class DiskMonitorTest {
@@ -83,7 +83,7 @@ public class DiskMonitorTest {
 				.setNamespace("Workers-Disk-test")
 				.setName("percentTempDiskSpaceUsed")
 				.setValue(94.5)
-				.setUnit(StandardUnit.Percent.name())
+				.setUnit(StandardUnit.PERCENT.toString())
 				.setDimension(Map.of(
 					"machineId", "someVMID"
 				)));
@@ -122,7 +122,7 @@ public class DiskMonitorTest {
 				.setNamespace("Workers-Disk-test")
 				.setName("percentTempDiskSpaceUsed")
 				.setValue(94.5)
-				.setUnit(StandardUnit.Percent.name())
+				.setUnit(StandardUnit.PERCENT.toString())
 				.setDimension(Map.of(
 					"machineId", "someVMID"
 				)));
@@ -149,7 +149,7 @@ public class DiskMonitorTest {
 				.setNamespace("Workers-Disk-test")
 				.setName("percentTempDiskSpaceUsed")
 				.setValue(89.0)
-				.setUnit(StandardUnit.Percent.name())
+				.setUnit(StandardUnit.PERCENT.toString())
 				.setDimension(Map.of(
 					"machineId", "someVMID"
 				)));

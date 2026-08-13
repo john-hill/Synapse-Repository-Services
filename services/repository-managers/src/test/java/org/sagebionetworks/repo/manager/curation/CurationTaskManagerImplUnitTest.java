@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +46,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.CurationTaskProperties;
+import org.sagebionetworks.repo.model.curation.DueDateFilter;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.TaskBundle;
@@ -312,7 +314,7 @@ public class CurationTaskManagerImplUnitTest {
 
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
-                eq(null), eq(null), isNull(), anyLong(), anyLong())).thenReturn(bundles);
+                eq(null), eq(null), isNull(), isNull(), isNull(), eq(false), anyLong(), anyLong())).thenReturn(bundles);
 
         // Call under test
         ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -334,7 +336,7 @@ public class CurationTaskManagerImplUnitTest {
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
                 .thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
-                eq(null), eq(null), eq(taskId), anyLong(), anyLong())).thenReturn(bundles);
+                eq(null), eq(null), eq(taskId), isNull(), isNull(), eq(false), anyLong(), anyLong())).thenReturn(bundles);
 
         // call under test
         ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -359,7 +361,8 @@ public class CurationTaskManagerImplUnitTest {
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = List.of(bundle1);
 
-        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq(taskIds), anyLong(), anyLong()))
+        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), eq(taskIds),
+                isNull(), isNull(), eq(false), anyLong(), anyLong()))
                 .thenReturn(bundles);
 
         // call under test
@@ -383,7 +386,7 @@ public class CurationTaskManagerImplUnitTest {
 		when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY),
 				eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
 		when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))), eq(List.of(111L,222L)),
-				eq(null), isNull(), anyLong(), anyLong())).thenReturn(bundles);
+				eq(null), isNull(), isNull(), isNull(), eq(false), anyLong(), anyLong())).thenReturn(bundles);
 
 		// Call under test
 		ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -423,7 +426,7 @@ public class CurationTaskManagerImplUnitTest {
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
                 .thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
-                eq(new ArrayList<>(groups)), eq(null), isNull(), anyLong(), anyLong())).thenReturn(bundles);
+                eq(new ArrayList<>(groups)), eq(null), isNull(), isNull(), isNull(), eq(false), anyLong(), anyLong())).thenReturn(bundles);
 
         // Call under test
         ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
@@ -463,7 +466,8 @@ public class CurationTaskManagerImplUnitTest {
         TaskBundle bundle1 = new TaskBundle().setTask(task1);
         List<TaskBundle> bundles = Arrays.asList(bundle1);
 
-        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), isNull(), anyLong(), anyLong()))
+        when(mockCurationTaskDao.getCurationTaskBundles(any(), eq(null), eq(null), isNull(),
+                isNull(), isNull(), eq(false), anyLong(), anyLong()))
                 .thenReturn(bundles);
 
         // Call under test
@@ -502,6 +506,80 @@ public class CurationTaskManagerImplUnitTest {
         assertNotNull(response);
         assertTrue(response.getPage().isEmpty());
         assertTrue(response.getBundlePage().isEmpty());
+    }
+
+    @Test
+    public void testGetCurationTasksWithDueDateFilter() {
+        Date start = new Date(1000L);
+        Date end = new Date(2000L);
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setDueDate(new DueDateFilter().setStart(start).setEnd(end));
+        CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
+        TaskBundle bundle1 = new TaskBundle().setTask(task1);
+        List<TaskBundle> bundles = List.of(bundle1);
+
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
+                .thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
+                eq(null), eq(null), isNull(), eq(start), eq(end), eq(false), anyLong(), anyLong()))
+                .thenReturn(bundles);
+
+        // call under test
+        ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
+
+        assertEquals(List.of(task1), response.getPage());
+        assertEquals(bundles, response.getBundlePage());
+    }
+
+    @Test
+    public void testGetCurationTasksWithDueDateFilterIncludeUnset() {
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setDueDate(new DueDateFilter().setIncludeUnset(true));
+        CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
+        TaskBundle bundle1 = new TaskBundle().setTask(task1);
+        List<TaskBundle> bundles = List.of(bundle1);
+
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
+                .thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
+                eq(null), eq(null), isNull(), isNull(), isNull(), eq(true), anyLong(), anyLong()))
+                .thenReturn(bundles);
+
+        // call under test
+        ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
+
+        assertEquals(List.of(task1), response.getPage());
+    }
+
+    @Test
+    public void testGetCurationTasksWithDueDateFilterStartAfterEndFails() {
+        Date start = new Date(2000L);
+        Date end = new Date(1000L);
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setDueDate(new DueDateFilter().setStart(start).setEnd(end));
+
+        // call under test
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> curationTaskManager.getCurationTasks(userInfo, request));
+        assertTrue(ex.getMessage().contains("start"));
+        verifyNoMoreInteractions(mockCurationTaskDao, mockAclManager);
+    }
+
+    @Test
+    public void testGetCurationTasksWithEmptyDueDateFilterFails() {
+        // An empty DueDateFilter with no fields set is a no-op and should be rejected.
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setDueDate(new DueDateFilter());
+
+        // call under test
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> curationTaskManager.getCurationTasks(userInfo, request));
+        assertTrue(ex.getMessage().contains("dueDate"));
+        verifyNoMoreInteractions(mockCurationTaskDao, mockAclManager);
     }
 
     @Test

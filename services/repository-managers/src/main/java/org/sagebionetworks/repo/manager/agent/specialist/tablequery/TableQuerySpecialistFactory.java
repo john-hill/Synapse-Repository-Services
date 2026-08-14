@@ -14,6 +14,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
@@ -45,7 +46,7 @@ public class TableQuerySpecialistFactory {
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public TableQuerySpecialist create() {
+	public Agent create() {
 		return new TableQuerySpecialist(chatModel, stackConfig, tableQueryTools, codeInterpreterTools, renderedSystemPrompt);
 	}
 

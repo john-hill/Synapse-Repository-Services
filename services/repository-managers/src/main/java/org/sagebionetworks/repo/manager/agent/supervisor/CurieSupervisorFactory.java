@@ -9,6 +9,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
@@ -50,7 +51,7 @@ public class CurieSupervisorFactory {
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public CurieSupervisor create() {
+	public Agent create() {
 		return new CurieSupervisor(chatModel, stackConfig, specialistTools, codeInterpreterTools, sessionProvider,
 				memoryRepository, renderedSystemPrompt);
 	}

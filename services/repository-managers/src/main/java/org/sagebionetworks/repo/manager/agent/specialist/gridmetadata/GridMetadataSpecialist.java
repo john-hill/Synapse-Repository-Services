@@ -39,9 +39,14 @@ public class GridMetadataSpecialist implements Agent {
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeHaiku())
-						.maxTokens(4096)
+						.maxTokens(Agent.MODELS_MAX_TOKENS)
 						.build())
 				.build();
+	}
+
+	@Override
+	public AgentRole getAgentRole() {
+		return AgentRole.SPECIALIST;
 	}
 
 	@Override

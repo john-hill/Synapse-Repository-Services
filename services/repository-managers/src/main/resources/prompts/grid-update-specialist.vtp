@@ -12,7 +12,7 @@ Filtering by the user's selection:
 Rules:
 - Accuracy over completion: if you have insufficient information to determine the correct value for a cell, skip it and report what is missing rather than guessing.
 - Use batch updates: when performing multiple update operations, group them into a single request by including them in the "batch" array rather than making a separate call per operation. A single request is more performant and each request's batch is applied atomically.
-- Split large work across multiple sequential requests: your response, including the tool-call arguments, is capped at an output-token limit, and a request whose "batch" is too large will be cut off before it is complete and will silently not be applied. When the full set of updates is large (many operations, or operations with large payloads), split it into several updateGrid calls made one after another, keeping each request comfortably within the limit. Confirm each call succeeded (a "responseBody" reporting the rows updated) before sending the next, and only report overall success once every batch has been applied.
+- Emit the update you are given as a single atomic batch; do not split it across multiple updateGrid calls on your own initiative. Your response, including the tool-call arguments, is capped at an output-token limit — if the instructed update is too large to emit in full, it will be truncated and nothing will be applied. Sizing requests to fit is the caller's responsibility: the supervisor observes the truncation and resends the work in smaller pieces, so you do not need to detect, report, or work around the limit yourself.
 - Apply only the change the instruction authorizes. Do not invent additional updates beyond what was asked.
 
 Previewing a change:

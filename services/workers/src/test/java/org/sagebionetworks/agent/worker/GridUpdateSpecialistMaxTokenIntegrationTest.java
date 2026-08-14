@@ -1,6 +1,6 @@
 package org.sagebionetworks.agent.worker;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.File;
@@ -12,6 +12,7 @@ import java.util.Map;
 
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
@@ -59,25 +60,24 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import au.com.bytecode.opencsv.CSVWriter;
 
 /**
- * Real-LLM regression test for PLFM-9868: when a {@link GridUpdateSpecialist} turn is truncated at its
- * output-token limit, the tool call it was emitting never executes, yet the model still returns a
- * "success" narration — a false success. The fix has {@code Agent.chat} detect the {@code max_tokens}
- * finish reason and return {@link Agent#TRUNCATED_RESPONSE_MESSAGE} instead of that narration, so the
- * caller learns the batch was too large rather than being told it succeeded.
+ * Real-LLM regression test for PLFM-9868: a large per-row {@code updateGrid} apply used to be truncated
+ * at the specialist's output-token limit — the tool call it was emitting never executed, yet the model
+ * still returned a "success" narration (a false success). The fix runs every agent at the model's full
+ * output budget ({@link Agent#MODELS_MAX_TOKENS}), so a large single batch now emits and applies in full
+ * instead of being cut off.
  * <p>
  * The fixture is deliberately <b>wide and tall</b> — {@link #ROW_COUNT} rows by
  * {@link #TARGET_COLUMN_COUNT} initially-undefined string columns — and the single test asks the
- * specialist to write an explicit value into every target cell of every row in <b>one</b>
- * {@code updateGrid} call. That is the same per-row-by-rowId apply shape seen in the PLFM-9868 agent
- * trace, scaled up so the one call cannot fit in one response (each {@code LiteralSetValue} carries the
- * long {@code org.sagebionetworks.repo.model.grid.update.LiteralSetValue} concreteType discriminator),
- * forcing the truncating turn.
+ * {@link GridUpdateSpecialist} to write an explicit value into every target cell of every row in
+ * <b>one</b> {@code updateGrid} call (the same per-row-by-rowId apply shape seen in the PLFM-9868 agent
+ * trace). The test then verifies every cell actually holds its applied value, proving the batch was
+ * applied rather than lost to truncation.
  * <p>
- * The assertion verifies only that the specialist reports the truncation to its caller (returns
- * {@link Agent#TRUNCATED_RESPONSE_MESSAGE}) rather than a false success. How a supervisor recovers from
- * that message — by re-delegating the work in smaller pieces — is a separate concern tested elsewhere;
- * here the test is the supervisor and just receives the report.
+ * The complementary guard — that {@code Agent.chat} reports {@link Agent#TRUNCATED_RESPONSE_MESSAGE} to
+ * its caller rather than a false success when a turn does hit the token limit — is covered
+ * deterministically by {@code AgentTest}.
  */
+@Disabled // This is an expensive and slow test that was used to diagnose the issue. It is too slow to include in a normal build.
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 @TestInstance(Lifecycle.PER_CLASS)
@@ -88,10 +88,10 @@ public class GridUpdateSpecialistMaxTokenIntegrationTest {
 
 	private static final String SCHEMA_PATH = "schema/GridUpdateSpecialistMaxToken.json";
 
-	// Sized so a single literal batch over every target cell (ROW_COUNT * TARGET_COLUMN_COUNT
-	// assignments, each carrying a verbose concreteType) cannot fit in one response within the
-	// specialist's output-token budget, so the apply only completes if the specialist splits it across
-	// multiple updateGrid batches.
+	// A large, wide batch: ROW_COUNT * TARGET_COLUMN_COUNT literal assignments in one apply (each
+	// carrying a verbose concreteType discriminator) — the PLFM-9868 shape that used to overflow the
+	// specialist's output-token limit. It must now apply in full because agents run at the model's max
+	// output budget.
 	private static final int ROW_COUNT = 16;
 	private static final int TARGET_COLUMN_COUNT = 12;
 
@@ -176,25 +176,27 @@ public class GridUpdateSpecialistMaxTokenIntegrationTest {
 	}
 
 	@Test
-	public void testLargeSingleBatchApplyTruncates() throws Exception {
+	public void testLargeSingleBatchAppliesAllCells() throws Exception {
 		Agent specialist = specialistFactory.create();
 
 		Map<String, String> rowIdByKey = readRowIdsByKey();
 
 		// Build one explicit literal value per (row, column) and an instruction that mandates a SINGLE
-		// updateGrid call. This mirrors the supervisor's "Please APPLY ... There are N rows" message from
-		// the PLFM-9868 trace, scaled up so the one call cannot fit in one response and the turn ends
-		// truncated (finish reason max_tokens) with the tool call never executed.
+		// updateGrid call — the "Please APPLY ... There are N rows" message from the PLFM-9868 trace,
+		// scaled up. With agents at the model's full output budget this large batch emits and applies in
+		// one turn instead of truncating into a false success.
 		StringBuilder instruction = new StringBuilder();
 		instruction.append("Please APPLY the following updates to the grid in a SINGLE updateGrid call. Update ")
 				.append("each row identified by its exact rowId with the exact values listed. Do not split the ")
 				.append("work across multiple calls — put every row in one updateGrid batch. There are ")
 				.append(ROW_COUNT).append(" rows to apply.\n");
+		Map<String, Map<String, String>> expectedByKey = new LinkedHashMap<>();
 		for (int r = 0; r < ROW_COUNT; r++) {
 			String key = key(r);
 			String rowId = rowIdByKey.get(key);
 			assertNotNull(rowId, "Missing rowId for fixture key: " + key);
 
+			Map<String, String> expectedCells = new LinkedHashMap<>();
 			instruction.append("rowId ").append(rowId).append(":");
 			for (int c = 0; c < TARGET_COLUMN_COUNT; c++) {
 				String col = column(c);
@@ -202,16 +204,19 @@ public class GridUpdateSpecialistMaxTokenIntegrationTest {
 				if (c < TARGET_COLUMN_COUNT - 1) {
 					instruction.append(',');
 				}
+				expectedCells.put(col, value(r, c));
 			}
 			instruction.append('\n');
+			expectedByKey.put(key, expectedCells);
 		}
 
 		// call under test
 		String response = specialist.chat(instruction.toString(), toolContext());
 
-		// The oversized single batch truncated the turn at the output-token limit, so instead of the
-		// model's misleading "success" narration the specialist reports the truncation to its caller.
-		assertEquals(Agent.TRUNCATED_RESPONSE_MESSAGE, response);
+		// The batch was not truncated into a false success...
+		assertNotEquals(Agent.TRUNCATED_RESPONSE_MESSAGE, response);
+		// ...and every target cell now holds its applied value in the merged internal view.
+		gridTestUtils.waitForRows(session.getSessionId(), INTERNAL_REPLICA_ID, expectedByKey);
 	}
 
 	/**

@@ -42,9 +42,14 @@ public class RecordSetGenerationSupervisor implements Agent {
 				.defaultAdvisors(MessageChatMemoryAdvisor.builder(memory).build())
 				.defaultOptions(BedrockChatOptions.builder()
 						.model(stackConfig.getModelIdClaudeSonnet())
-						.maxTokens(8192)
+						.maxTokens(Agent.MODELS_MAX_TOKENS)
 						.build())
 				.build();
+	}
+
+	@Override
+	public AgentRole getAgentRole() {
+		return AgentRole.SUPERVISOR;
 	}
 
 	@Override

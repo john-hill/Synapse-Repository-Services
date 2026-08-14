@@ -19,6 +19,7 @@ import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisor;
 import org.sagebionetworks.repo.manager.agent.supervisor.SampleSheetSupervisorFactory;
 import org.sagebionetworks.repo.manager.curation.CurationTaskManager;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.execution.SampleSheetGenerationExecutionDetails;
@@ -56,7 +57,7 @@ public class SampleSheetGenerationSubWorkerTest {
 	public void setup() {
 		subWorker = new SampleSheetGenerationSubWorker(supervisorFactory, codeInterpreterClient, codeInterpreterFileManager,
 				recordSetOutputWriter, curationTaskManager);
-		user = new UserInfo(false, 101L);
+		user = new UserInfo(false, 101L, AuthorizationConstants.DEFAULT_REALM_ID);
 		// The generation task carries its input parameters in its SampleSheetGenerationExecutionProperties.
 		task = new CurationTask().setTaskId(555L).setProjectId("syn1").setDataType("fastq")
 				.setTaskProperties(new SampleSheetGenerationExecutionProperties()

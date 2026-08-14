@@ -13,7 +13,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -38,6 +37,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.RecordSet;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -102,7 +102,7 @@ public class GridCsvImporterImplTest {
 	
 	@BeforeEach
 	public void before() {
-		user = new UserInfo(false, 123L);
+		user = new UserInfo(false, 123L, AuthorizationConstants.DEFAULT_REALM_ID);
 		
 		descriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
 		
@@ -142,18 +142,18 @@ public class GridCsvImporterImplTest {
 		
 		gridRows = List.of(
 			new RowView().setRowObject(new RowObject().setData(new RowData()
-					.setNodes(Arrays.asList(
+					.setNodes(new ConstantNode[] {
 						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(100L)).setValue(new ConValue(ConType.LONG, 0)),
 						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(102L)).setValue(new ConValue(ConType.LONG, 1)),
 						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(103L)).setValue(new ConValue(ConType.BOOLEAN, true))
-					)).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(98L))
+					}).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(98L))
 			)),
 			new RowView().setRowObject(new RowObject().setData(new RowData()
-					.setNodes(Arrays.asList(
+					.setNodes(new ConstantNode[] {
 						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(104L)).setValue(new ConValue(ConType.LONG, 2)),
 						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(105L)).setValue(new ConValue(ConType.LONG, 3)),
 						new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(106L)).setValue(new ConValue(ConType.BOOLEAN, true))
-					)).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(99L)))
+					}).setVectorId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(99L)))
 			)
 		);
 		

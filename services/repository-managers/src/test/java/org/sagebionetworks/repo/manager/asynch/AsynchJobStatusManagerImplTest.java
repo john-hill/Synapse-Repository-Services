@@ -39,6 +39,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.StackStatusDao;
 import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.asynch.AsynchJobState;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
@@ -56,7 +57,7 @@ import org.sagebionetworks.repo.model.table.UploadToTableRequest;
 import org.sagebionetworks.repo.model.table.UploadToTableResult;
 import org.sagebionetworks.repo.web.NotFoundException;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 
 /**
  * Unit test for AsynchJobStatusManagerImpl
@@ -95,8 +96,7 @@ public class AsynchJobStatusManagerImplTest {
 	public void before() throws DatastoreException, NotFoundException{
 		startedJobId = "99999";
 	
-		user = new UserInfo(false);
-		user.setId(007L);
+		user = new UserInfo(false, 007L, AuthorizationConstants.DEFAULT_REALM_ID);
 		
 		status = new AsynchronousJobStatus();
 		status.setStartedByUserId(user.getId());
@@ -409,7 +409,7 @@ public class AsynchJobStatusManagerImplTest {
 		Map<String, String> dimension = profile.getDimension();
 		assertNotNull(dimension);
 		assertEquals(AsynchJobType.ADD_FILES_TO_DOWNLOAD_LIST.name(), dimension.get(AsynchJobStatusManagerImpl.JOB_TYPE));
-		assertEquals(StandardUnit.Milliseconds.name(), profile.getUnit());
+		assertEquals(StandardUnit.MILLISECONDS.toString(), profile.getUnit());
 	}
 	
 	@Test

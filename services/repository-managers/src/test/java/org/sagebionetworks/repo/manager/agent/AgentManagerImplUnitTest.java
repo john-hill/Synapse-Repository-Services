@@ -253,19 +253,14 @@ public class AgentManagerImplUnitTest {
 		anonymousUserId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
 
 		boolean isAdmin = false;
-		sageUser = new UserInfo(isAdmin);
-		sageUser.setGroups(Set.of(sageTeamId));
-		sageUser.setId(444L);
+		sageUser = new UserInfo(isAdmin, 444L, AuthorizationConstants.DEFAULT_REALM_ID, Set.of(sageTeamId));
 
-		anonymous = new UserInfo(false);
-		anonymous.setId(anonymousUserId);
+		anonymous = new UserInfo(false, anonymousUserId, AuthorizationConstants.DEFAULT_REALM_ID);
 		anonymous.setRealmAnonymousUserId(anonymousUserId);
 
-		admin = new UserInfo(true);
-		admin.setId(adminId);
+		admin = new UserInfo(true, adminId, AuthorizationConstants.DEFAULT_REALM_ID);
 
-		nonSageNonAdmin = new UserInfo(false);
-		nonSageNonAdmin.setId(555L);
+		nonSageNonAdmin = new UserInfo(false, 555L, AuthorizationConstants.DEFAULT_REALM_ID);
 
 		invocationId = "someInvocationId";
 

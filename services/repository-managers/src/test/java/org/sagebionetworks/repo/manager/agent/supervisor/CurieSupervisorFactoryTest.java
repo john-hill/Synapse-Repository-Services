@@ -16,6 +16,7 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterSessionProvider;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.config.ManagerConfiguration;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
@@ -53,7 +54,8 @@ public class CurieSupervisorFactoryTest {
 				SupervisorTools.TOOL_GRID_UPDATE, SupervisorTools.TOOL_GRID_METADATA, SupervisorTools.TOOL_FILE_SUMMARY))
 				.thenReturn(List.of(mockToolCallback));
 		factory = new CurieSupervisorFactory(mockChatModel, mockStackConfig, mockSpecialistToolProvider,
-				mockCodeInterpreterTools, mockSessionProvider, mockMemoryRepository);
+				mockCodeInterpreterTools, mockSessionProvider, mockMemoryRepository,
+				new ManagerConfiguration().velocityEngine());
 	}
 
 	@Test

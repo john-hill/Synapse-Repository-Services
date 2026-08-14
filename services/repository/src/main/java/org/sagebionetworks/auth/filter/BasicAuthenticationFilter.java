@@ -27,7 +27,7 @@ import org.sagebionetworks.cloudwatch.Consumer;
 import org.sagebionetworks.cloudwatch.MetricUtils;
 import org.sagebionetworks.cloudwatch.ProfileData;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
 
 /**
  * Implementation of a filter that extracts base64 encoded credentials from the
@@ -44,7 +44,7 @@ public abstract class BasicAuthenticationFilter implements Filter {
 	private static final String CLOUD_WATCH_METRIC_NAME = "BadCredentials";
 	private static final String CLOUD_WATCH_DIMENSION_FILTER = "filterClass";
 	private static final String CLOUD_WATCH_DIMENSION_MESSAGE = "message";
-	private static final String CLOUD_WATCH_UNIT_COUNT = StandardUnit.Count.toString();
+	private static final String CLOUD_WATCH_UNIT_COUNT = StandardUnit.COUNT.toString();
 
 	private Logger logger = LogManager.getLogger(getClass());
 	

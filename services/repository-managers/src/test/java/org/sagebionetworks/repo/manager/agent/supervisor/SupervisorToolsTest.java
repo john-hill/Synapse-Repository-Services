@@ -25,6 +25,7 @@ import org.sagebionetworks.repo.manager.agent.specialist.gridquery.GridQuerySpec
 import org.sagebionetworks.repo.manager.agent.specialist.gridupdate.GridUpdateSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.jsonschema.JsonSchemaSpecialistFactory;
 import org.sagebionetworks.repo.manager.agent.specialist.tablequery.TableQuerySpecialistFactory;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.springframework.ai.chat.model.ToolContext;
@@ -73,7 +74,7 @@ public class SupervisorToolsTest {
 		tools = new SupervisorTools(tableQuerySpecialistFactory, jsonSchemaSpecialistFactory, fileSummarySpecialistFactory,
 				entityMetadataSpecialistFactory, gridQuerySpecialistFactory, gridUpdateSpecialistFactory,
 				gridMetadataSpecialistFactory);
-		userInfo = new UserInfo(false, 101L);
+		userInfo = new UserInfo(false, 101L, AuthorizationConstants.DEFAULT_REALM_ID);
 		gridContext = new GridAgentSessionContext().setGridSessionId("grid-1").setUsersReplicaId(1L)
 				.setAgentsReplicaId(2L);
 		toolContext = new ToolContext(Map.of(AgentToolContextKey.USER_INFO.getKey(), userInfo,

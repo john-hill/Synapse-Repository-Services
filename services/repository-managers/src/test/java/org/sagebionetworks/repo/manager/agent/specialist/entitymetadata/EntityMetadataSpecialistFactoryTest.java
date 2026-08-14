@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.config.ManagerConfiguration;
 import org.springframework.ai.chat.model.ChatModel;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,7 +34,7 @@ public class EntityMetadataSpecialistFactoryTest {
 	@BeforeEach
 	public void setup() {
 		factory = new EntityMetadataSpecialistFactory(mockChatModel, mockStackConfig, mockEntityMetadataSpecialistTools,
-				mockCodeInterpreterTools);
+				mockCodeInterpreterTools, new ManagerConfiguration().velocityEngine());
 	}
 
 	@Test

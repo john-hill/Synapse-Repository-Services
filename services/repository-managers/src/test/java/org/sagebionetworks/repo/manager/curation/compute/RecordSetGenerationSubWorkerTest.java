@@ -20,7 +20,9 @@ import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterFileManager;
 import org.sagebionetworks.repo.manager.agent.supervisor.RecordSetGenerationSupervisorFactory;
+import org.sagebionetworks.repo.manager.config.ManagerConfiguration;
 import org.sagebionetworks.repo.manager.curation.CurationTaskManager;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityChildrenRequest;
 import org.sagebionetworks.repo.model.EntityChildrenResponse;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -62,8 +64,8 @@ public class RecordSetGenerationSubWorkerTest {
 	@BeforeEach
 	public void setup() {
 		subWorker = new RecordSetGenerationSubWorker(supervisorFactory, codeInterpreterClient, codeInterpreterFileManager,
-				recordSetOutputWriter, curationTaskManager, entityManager);
-		user = new UserInfo(false, 101L);
+				recordSetOutputWriter, curationTaskManager, entityManager, new ManagerConfiguration().velocityEngine());
+		user = new UserInfo(false, 101L, AuthorizationConstants.DEFAULT_REALM_ID);
 		// The generation task carries its input parameters in its RecordSetGenerationExecutionProperties.
 		task = new CurationTask().setTaskId(555L).setProjectId("syn1").setDataType("fastq")
 				.setTaskProperties(new RecordSetGenerationExecutionProperties()

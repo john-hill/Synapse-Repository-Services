@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.config.ManagerConfiguration;
 import org.springframework.ai.chat.model.ChatModel;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,7 +36,8 @@ public class TableQuerySpecialistFactoryTest {
 
 	@BeforeEach
 	public void setup() {
-		factory = new TableQuerySpecialistFactory(mockChatModel, mockStackConfig, mockTableQueryTools, mockCodeInterpreterTools);
+		factory = new TableQuerySpecialistFactory(mockChatModel, mockStackConfig, mockTableQueryTools, mockCodeInterpreterTools,
+				new ManagerConfiguration().velocityEngine());
 	}
 
 	@Test

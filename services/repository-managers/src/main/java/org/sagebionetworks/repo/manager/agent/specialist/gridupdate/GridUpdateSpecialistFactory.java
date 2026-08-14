@@ -8,6 +8,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.model.grid.GridExamples;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class GridUpdateSpecialistFactory {
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public GridUpdateSpecialist create() {
+	public Agent create() {
 		return new GridUpdateSpecialist(chatModel, stackConfig, gridUpdateTools, renderedSystemPrompt);
 	}
 

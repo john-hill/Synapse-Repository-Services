@@ -13,7 +13,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.manager.agent.CodeInterpreterTools;
+import org.sagebionetworks.repo.manager.config.ManagerConfiguration;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 
@@ -43,13 +45,13 @@ public class SampleSheetSupervisorFactoryTest {
 		when(mockSpecialistToolProvider.getTools(SupervisorTools.TOOL_TABLE_QUERY, SupervisorTools.TOOL_JSON_SCHEMA,
 				SupervisorTools.TOOL_FILE_SUMMARY)).thenReturn(List.of(mockToolCallback));
 		factory = new SampleSheetSupervisorFactory(mockChatModel, mockStackConfig, mockSpecialistToolProvider,
-				mockCodeInterpreterTools);
+				mockCodeInterpreterTools, new ManagerConfiguration().velocityEngine());
 	}
 
 	@Test
 	public void testCreate() {
 		// call under test
-		SampleSheetSupervisor supervisor = factory.create();
+		Agent supervisor = factory.create();
 
 		assertNotNull(supervisor);
 	}

@@ -5,9 +5,8 @@ import java.io.StringWriter;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.RuntimeConstants;
-import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.agent.Agent;
 import org.sagebionetworks.repo.model.grid.GridExamples;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
@@ -26,30 +25,27 @@ public class GridUpdateSpecialistFactory {
 	private final ChatModel chatModel;
 	private final StackConfiguration stackConfig;
 	private final GridUpdateTools gridUpdateTools;
+	private final VelocityEngine velocityEngine;
 	private final String renderedSystemPrompt;
 
 	public GridUpdateSpecialistFactory(ChatModel chatModel, StackConfiguration stackConfig,
-			GridUpdateTools gridUpdateTools) {
+			GridUpdateTools gridUpdateTools, VelocityEngine velocityEngine) {
 		this.chatModel = chatModel;
 		this.stackConfig = stackConfig;
 		this.gridUpdateTools = gridUpdateTools;
+		this.velocityEngine = velocityEngine;
 		this.renderedSystemPrompt = renderSystemPrompt();
 	}
 
-	public GridUpdateSpecialist create() {
+	public Agent create() {
 		return new GridUpdateSpecialist(chatModel, stackConfig, gridUpdateTools, renderedSystemPrompt);
 	}
 
 	String renderSystemPrompt() {
-		VelocityEngine engine = new VelocityEngine();
-		engine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath");
-		engine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
-		engine.setProperty("runtime.references.strict", true);
-
 		VelocityContext context = new VelocityContext();
 		context.put("updateExamples", GridExamples.getUpdateExamples());
 
-		Template template = engine.getTemplate(PROMPT_TEMPLATE);
+		Template template = velocityEngine.getTemplate(PROMPT_TEMPLATE);
 		StringWriter writer = new StringWriter();
 		template.merge(context, writer);
 		return writer.toString();

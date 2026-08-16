@@ -61,9 +61,10 @@ public class TurnLimitAdvisor implements CallAdvisor {
 	public static final int DEFAULT_MAX_TURNS = 20;
 
 	/**
-	 * Registered just after the chat-memory advisor ({@link Advisor#DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER}),
-	 * so it counts turns and short-circuits the over-budget turn after memory has assembled the
-	 * conversation and immediately before the model would be called.
+	 * Placed after the chat-memory advisor ({@link Advisor#DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER}) and, by
+	 * design, <em>inside</em> the loop-driving {@link ToolCallAdvisor} (see {@code Agent}). Being the
+	 * innermost advisor before the model, it is re-invoked on every tool-loop iteration — which is how it
+	 * counts turns — and short-circuits the over-budget turn immediately before the model would be called.
 	 */
 	public static final int ADVISOR_ORDER = Advisor.DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER + 100;
 

@@ -10,7 +10,11 @@ import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.manager.agent.tool.TurnLimitAdvisor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -19,6 +23,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 /**
  * Proves the turn-limit guarantee at the {@code Agent.chat()} seam through the <em>real</em> Spring AI
@@ -138,5 +144,80 @@ public class AgentTurnLimitWiringTest {
 
 		AssistantMessage terminal = new AssistantMessage(TurnLimitAdvisor.TURN_LIMIT_REACHED_RESULT);
 		assertFalse(terminal.hasToolCalls());
+	}
+
+	@Test
+	public void testToolLoopDoesNotReplayEmptyAssistantMessageWithMemoryAdvisor() {
+		// Regression for PLFM-9881: BedrockProxyChatModel emits a spurious empty-text, tool-call-free
+		// placeholder generation for a pure tool-use turn. If the per-agent ChatMemory advisor runs inside
+		// the tool-calling loop, its `after` step stores that placeholder and it is replayed on the next
+		// iteration, which Bedrock Converse rejects as an empty-content message (HTTP 400). The advisor
+		// ordering must keep memory outside the loop so the placeholder never re-enters a request.
+		EmptyPlaceholderThenDoneModel model = new EmptyPlaceholderThenDoneModel();
+		ChatClient chatClient = ChatClient.builder(model)
+				.defaultToolCallbacks(new AlwaysSucceedingTool())
+				.defaultAdvisors(MessageChatMemoryAdvisor.builder(MessageWindowChatMemory.builder().build()).build())
+				.defaultOptions(ToolCallingChatOptions.builder().build())
+				.build();
+		Agent agent = new Agent() {
+			@Override
+			public AgentRole getAgentRole() {
+				return AgentRole.SUPERVISOR;
+			}
+
+			@Override
+			public ChatClientRequestSpec prepareChatClientRequestSpec(String message, ToolContext context) {
+				return chatClient.prompt().user(message).toolContext(context.getContext())
+						.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, "test-conversation"));
+			}
+		};
+
+		// call under test
+		String result = agent.chat("do the work", new ToolContext(Map.of()));
+
+		assertEquals(EmptyPlaceholderThenDoneModel.FINAL_ANSWER, result);
+		// The second turn's request must not carry the empty placeholder assistant message.
+		assertFalse(model.sawEmptyAssistantMessageOnSecondTurn(),
+				"An empty-content assistant message was replayed to the model; Bedrock would reject it (400).");
+	}
+
+	/**
+	 * Emits a pure tool-use turn shaped exactly like {@code BedrockProxyChatModel}'s output for one — an
+	 * empty placeholder generation (no text, no tool calls) alongside the real tool-call generation — then
+	 * finishes with a plain text answer. On the second turn it records whether the empty placeholder was
+	 * replayed back into the request, which is the failure the memory-ordering fix prevents.
+	 */
+	private static class EmptyPlaceholderThenDoneModel implements ChatModel {
+
+		static final String FINAL_ANSWER = "RESULT: SUCCESS - done";
+
+		private int callCount = 0;
+
+		private boolean sawEmptyOnSecondTurn = false;
+
+		@Override
+		public ChatResponse call(Prompt prompt) {
+			callCount++;
+			if (callCount == 1) {
+				Generation placeholder = new Generation(AssistantMessage.builder().properties(Map.of()).build());
+				AssistantMessage toolCall = AssistantMessage.builder()
+						.content("")
+						.toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function",
+								AlwaysSucceedingTool.NAME, "{}")))
+						.build();
+				return new ChatResponse(List.of(placeholder, new Generation(toolCall)));
+			}
+			for (Message message : prompt.getInstructions()) {
+				if (message instanceof AssistantMessage assistant && !StringUtils.hasText(assistant.getText())
+						&& CollectionUtils.isEmpty(assistant.getToolCalls())) {
+					sawEmptyOnSecondTurn = true;
+				}
+			}
+			return new ChatResponse(List.of(new Generation(new AssistantMessage(FINAL_ANSWER))));
+		}
+
+		boolean sawEmptyAssistantMessageOnSecondTurn() {
+			return sawEmptyOnSecondTurn;
+		}
 	}
 }

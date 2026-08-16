@@ -7,6 +7,7 @@ import org.sagebionetworks.repo.manager.agent.tool.TurnLimitAdvisor;
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.client.advisor.ToolCallAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.model.ToolContext;
@@ -79,12 +80,23 @@ public interface Agent {
 	 * Runs the tool-calling loop as part of the advisor chain (instead of internally, below the chain)
 	 * so {@link #TURN_LIMIT_ADVISOR} — a downstream advisor it re-invokes each iteration — can bound it.
 	 * Attached to every agent's request by {@link #chat(String, ToolContext)}, so the bound holds for
-	 * every current and future agent without each agent having to opt in (PLFM-9881). Configured with
-	 * {@code disableMemory()} because every agent registers its own {@code ChatMemory} advisor, which
-	 * remains the owner of conversation history. Stateless, so this single instance is shared across all
-	 * agents and concurrent chats.
+	 * every current and future agent without each agent having to opt in (PLFM-9881).
+	 * <p>
+	 * Its order places it <em>inside</em> the agent's own {@code ChatMemory} advisor (which sits at
+	 * {@link Advisor#DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER}) and <em>outside</em> {@link #TURN_LIMIT_ADVISOR}.
+	 * That ordering is load-bearing: the memory advisor must run <em>once per {@code chat()}</em>, not once
+	 * per tool-loop iteration. If it were outside this loop-driving advisor (its stock default), the loop
+	 * would re-invoke it every iteration, and its {@code after} step would store <em>every</em> generation
+	 * of each turn into memory — including the spurious empty-text, tool-call-free placeholder generation
+	 * {@code BedrockProxyChatModel} emits for a pure tool-use turn. That empty assistant message would then
+	 * be replayed on the next iteration, and Bedrock Converse rejects a message with empty content ("the
+	 * content field ... is empty", HTTP 400). Kept inside memory, the loop instead carries its own clean
+	 * conversation history (built by the {@code ToolCallingManager} from only the real tool-call
+	 * generation), and memory sees only the single final answer. Stateless, so this one instance is shared
+	 * across all agents and concurrent chats.
 	 */
-	static final ToolCallAdvisor TURN_LIMITING_TOOL_CALL_ADVISOR = ToolCallAdvisor.builder().disableMemory().build();
+	static final ToolCallAdvisor TURN_LIMITING_TOOL_CALL_ADVISOR = ToolCallAdvisor.builder()
+			.advisorOrder(Advisor.DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER + 50).build();
 
 	/** Bounds the {@link #TURN_LIMITING_TOOL_CALL_ADVISOR} loop to {@link TurnLimitAdvisor#DEFAULT_MAX_TURNS}. */
 	static final TurnLimitAdvisor TURN_LIMIT_ADVISOR = new TurnLimitAdvisor();

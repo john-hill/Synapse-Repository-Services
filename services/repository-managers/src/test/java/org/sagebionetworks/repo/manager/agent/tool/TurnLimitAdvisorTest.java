@@ -41,10 +41,11 @@ public class TurnLimitAdvisorTest {
 	private ChatClientResponse chainResponse;
 
 	/**
-	 * Builds a request carrying the tool the model would loop on, and (optionally) a seeded turn counter
-	 * under the key the advisor reads.
+	 * Builds a request carrying the tool the model would loop on, and (optionally) a value seeded under the
+	 * key the advisor reads. Accepts {@link Object} so tests can seed a wrong-typed value (or none) to
+	 * exercise the fail-fast path.
 	 */
-	private ChatClientRequest requestWithCounter(AtomicInteger counter) {
+	private ChatClientRequest requestWithCounter(Object counter) {
 		ToolCallingChatOptions options = ToolCallingChatOptions.builder().toolNames(A_TOOL).build();
 		Prompt prompt = new Prompt(List.of(new UserMessage("do work")), options);
 		Map<String, Object> context = new HashMap<>();
@@ -136,18 +137,27 @@ public class TurnLimitAdvisorTest {
 
 	@Test
 	public void testAdviseCallWithNoCounter() {
-		// Without a seeded counter (e.g. the advisor used outside Agent.chat) no limit is enforced, even
-		// when the budget is 1 and the counter would otherwise be over it.
+		// Without a seeded counter the advisor cannot enforce a bound, so it fails fast rather than silently
+		// running unbounded — this is what stops a chain wired without the counter from looping forever.
 		ChatClientRequest request = requestWithCounter(null);
-		when(chain.nextCall(any())).thenReturn(chainResponse);
 		TurnLimitAdvisor advisor = new TurnLimitAdvisor(1);
 
 		// call under test
-		ChatClientResponse result = advisor.adviseCall(request, chain);
-		result = advisor.adviseCall(request, chain);
+		assertThrows(IllegalStateException.class, () -> advisor.adviseCall(request, chain));
 
-		assertSame(chainResponse, result);
-		verify(chain, times(2)).nextCall(request);
+		verify(chain, never()).nextCall(any());
+	}
+
+	@Test
+	public void testAdviseCallWithWrongTypeCounter() {
+		// A value of the wrong type under the counter key is treated like a missing counter: fail fast.
+		ChatClientRequest request = requestWithCounter("not-a-counter");
+		TurnLimitAdvisor advisor = new TurnLimitAdvisor(1);
+
+		// call under test
+		assertThrows(IllegalStateException.class, () -> advisor.adviseCall(request, chain));
+
+		verify(chain, never()).nextCall(any());
 	}
 
 	@Test

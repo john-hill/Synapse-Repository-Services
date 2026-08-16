@@ -43,8 +43,10 @@ import org.springframework.ai.chat.model.Generation;
  * {@link AgentToolContextKey#TURN_COUNT}; the counter must be seeded there before the loop starts (see
  * {@code Agent.chat}) because the {@link ToolCallAdvisor} rebuilds each iteration's request from the
  * original context, so a counter this advisor tried to add itself would be discarded on the next
- * iteration. A single advisor instance holds no per-conversation state and is safe to share across
- * concurrent chats.
+ * iteration. If the counter is absent or of the wrong type this advisor throws an
+ * {@link IllegalStateException} rather than silently running unbounded, so a chain wired without the
+ * seeded counter fails fast instead of reintroducing the runaway loop. A single advisor instance holds
+ * no per-conversation state and is safe to share across concurrent chats.
  */
 public class TurnLimitAdvisor implements CallAdvisor {
 
@@ -100,11 +102,14 @@ public class TurnLimitAdvisor implements CallAdvisor {
 
 	@Override
 	public ChatClientResponse adviseCall(ChatClientRequest chatClientRequest, CallAdvisorChain callAdvisorChain) {
+		// The counter must have been seeded into the context before the loop started (see Agent.chat). An
+		// absent or wrong-typed counter means this advisor was wired into a chain without that seeding, which
+		// would leave the tool-calling loop unbounded — the exact PLFM-9879 failure mode. Fail loudly rather
+		// than silently degrade to no limit, so a misconfiguration cannot reintroduce the runaway loop.
 		Object counter = chatClientRequest.context().get(AgentToolContextKey.TURN_COUNT.getKey());
-		// Enforce only when a counter was seeded for this loop; used outside that path (e.g. a plain
-		// single-shot call) this advisor is a pass-through.
 		if (!(counter instanceof AtomicInteger turnCount)) {
-			return callAdvisorChain.nextCall(chatClientRequest);
+			throw new IllegalStateException("A turn counter (AtomicInteger) must be seeded into the advisor context "
+					+ "under '" + AgentToolContextKey.TURN_COUNT.getKey() + "' before the tool-calling loop starts.");
 		}
 		// The model is allowed maxTurns turns. The loop only re-enters this advisor when the previous turn
 		// asked for another tool call, so the first turn past the budget means the model is still not done.

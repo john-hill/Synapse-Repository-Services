@@ -54,7 +54,16 @@ public enum AgentToolContextKey {
 	 * successfully staged into the shared code interpreter session for the current Curie turn. The
 	 * {@code CurieSupervisor} reads it to prepend a description of those files to the user message.
 	 */
-	STAGED_ATTACHMENTS("stagedAttachments");
+	STAGED_ATTACHMENTS("stagedAttachments"),
+
+	/**
+	 * A per-{@code chat()} turn counter ({@link java.util.concurrent.atomic.AtomicInteger}) seeded into the
+	 * advisor context by {@code Agent.chat()} before the tool-calling loop starts and read by
+	 * {@link org.sagebionetworks.repo.manager.agent.tool.TurnLimitAdvisor} to bound the number of model
+	 * turns a single chat may take (PLFM-9881). Carried in the same context map as the tool keys, so it is
+	 * centralized here to avoid colliding with them.
+	 */
+	TURN_COUNT("turnCount");
 
 	private final String key;
 

@@ -112,8 +112,11 @@ public class RecordSetGenerationSubWorker implements ComputeTaskSubWorker<Record
 		String targetSchemaId = recordSetOutputWriter.getBoundSchemaId(user, recordSetId);
 		validateInputFileCount(user, properties.getFolderId());
 
+		long startNanos = System.nanoTime();
 		String sessionId = codeInterpreterClient.startSession("recordSetGen-" + task.getTaskId());
 		try {
+			LOG.info("Starting RecordSet generation for task {}: inputFolderId={}, recordSetId={}, targetSchemaId={}, "
+					+ "sessionId={}", task.getTaskId(), properties.getFolderId(), recordSetId, targetSchemaId, sessionId);
 			callback.updateProgress("Running the RecordSet generation supervisor", 0L, 100L);
 			// The batch path runs against an already-started session, so the id is placed directly under
 			// CODE_SESSION_ID (no lazy supplier) for the supervisor's specialists to resolve.
@@ -122,6 +125,8 @@ public class RecordSetGenerationSubWorker implements ComputeTaskSubWorker<Record
 					AgentToolContextKey.CODE_SESSION_ID.getKey(), sessionId));
 			String supervisorResponse = supervisorFactory.create().chat(buildSupervisorMessage(properties.getFolderId(),
 					targetSchemaId, properties.getInstructions()), toolContext);
+			LOG.info("RecordSet generation supervisor for task {} (session {}) returned: {}", task.getTaskId(),
+					sessionId, supervisorResponse);
 
 			SupervisorResult.requireSuccess(supervisorResponse, "RecordSet generation did not succeed: ");
 
@@ -134,6 +139,8 @@ public class RecordSetGenerationSubWorker implements ComputeTaskSubWorker<Record
 			recordSetOutputWriter.storeCsvAsNewRecordSetVersion(user, recordSetId, dataFileHandleId);
 
 			callback.updateProgress("RecordSet generation complete", 100L, 100L);
+			LOG.info("Completed RecordSet generation for task {} in {} ms: stored file handle {} on RecordSet {}",
+					task.getTaskId(), (System.nanoTime() - startNanos) / 1_000_000L, dataFileHandleId, recordSetId);
 			return details;
 		} finally {
 			try {

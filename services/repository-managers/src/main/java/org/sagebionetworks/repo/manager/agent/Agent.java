@@ -1,9 +1,12 @@
 package org.sagebionetworks.repo.manager.agent;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.sagebionetworks.repo.manager.agent.tool.TurnLimitAdvisor;
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
+import org.springframework.ai.chat.client.advisor.ToolCallAdvisor;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.model.ToolContext;
@@ -73,6 +76,20 @@ public interface Agent {
 			+ "or a narrower request if you need the rest.]";
 
 	/**
+	 * Runs the tool-calling loop as part of the advisor chain (instead of internally, below the chain)
+	 * so {@link #TURN_LIMIT_ADVISOR} — a downstream advisor it re-invokes each iteration — can bound it.
+	 * Attached to every agent's request by {@link #chat(String, ToolContext)}, so the bound holds for
+	 * every current and future agent without each agent having to opt in (PLFM-9881). Configured with
+	 * {@code disableMemory()} because every agent registers its own {@code ChatMemory} advisor, which
+	 * remains the owner of conversation history. Stateless, so this single instance is shared across all
+	 * agents and concurrent chats.
+	 */
+	static final ToolCallAdvisor TURN_LIMITING_TOOL_CALL_ADVISOR = ToolCallAdvisor.builder().disableMemory().build();
+
+	/** Bounds the {@link #TURN_LIMITING_TOOL_CALL_ADVISOR} loop to {@link TurnLimitAdvisor#DEFAULT_MAX_TURNS}. */
+	static final TurnLimitAdvisor TURN_LIMIT_ADVISOR = new TurnLimitAdvisor();
+
+	/**
 	 * Builds the request spec for a single turn: the user message, the tool context passed straight
 	 * through, and the memory advisor bound to this instance's conversation. The implementation wires its
 	 * own tools, system prompt, model, and output-token budget here (via its {@code ChatClient}).
@@ -112,7 +129,13 @@ public interface Agent {
 	 *         is no response
 	 */
 	default String chat(String message, ToolContext context) {
-		ChatClientRequestSpec spec = prepareChatClientRequestSpec(message, context);
+		// Enforce the turn limit for every agent from the one place they all run a turn: hoist the
+		// tool-calling loop into the advisor chain and seed a fresh counter for this invocation, so no
+		// agent can accidentally run an unbounded loop (PLFM-9881). Each agent's own ChatMemory advisor is
+		// left in the chain to own conversation history.
+		ChatClientRequestSpec spec = prepareChatClientRequestSpec(message, context)
+				.advisors(a -> a.advisors(TURN_LIMITING_TOOL_CALL_ADVISOR, TURN_LIMIT_ADVISOR)
+						.param(AgentToolContextKey.TURN_COUNT.getKey(), new AtomicInteger()));
 		CallResponseSpec response = spec.call();
 
 		ChatResponse chatResponse = response.chatResponse();

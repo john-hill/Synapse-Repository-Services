@@ -73,8 +73,8 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 
 		GridHeader gridHeader = replicaSupport.getGridHeaderOrThrow(gridSession);
 		
-		// Publish the imported changes under a replica owned by the importing user, so
-		// the imported cells carry user attribution (PLFM-9880)
+		// Publish the imported changes under a replica owned by the importing user, so the
+		// imported cells carry user attribution (PLFM-9880)
 		GridConnectionInfo publisherConnInfo = gridManager.getOrCreateUserConnection(gridSession.getSessionId(),
 				user, EventSource.IMPORT);
 		

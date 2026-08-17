@@ -310,11 +310,11 @@ public class EDucManagerTest {
 		assertEquals("Dr. Jones", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_name")));
 		assertEquals("Professor", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_title")));
 		assertEquals("pi@university.edu", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_email")));
-		assertEquals("MIT", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_institution")));
 		assertEquals("drjones", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_user_name")));
 		assertEquals("Jane Admin", tabValues.get(new RoleLabelKey("signing_official", "signing_official_name")));
 		assertEquals("VP Research", tabValues.get(new RoleLabelKey("signing_official", "signing_official_title")));
 		assertEquals("so@university.edu", tabValues.get(new RoleLabelKey("signing_official", "signing_official_email")));
+		assertEquals("MIT", tabValues.get(new RoleLabelKey("signing_official", "signing_official_institution")));
 		assertEquals("creatoruser", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_user_name")));
 		assertEquals("Creator User", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_name")));
 		assertEquals("collab1user", tabValues.get(new RoleLabelKey("collaborator_2", "collaborator_2_user_name")));

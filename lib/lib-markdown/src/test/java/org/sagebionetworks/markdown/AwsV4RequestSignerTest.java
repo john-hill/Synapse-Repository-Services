@@ -2,7 +2,6 @@ package org.sagebionetworks.markdown;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -112,6 +111,49 @@ public class AwsV4RequestSignerTest {
 	}
 
 	@Test
+	public void testSignWithSigningScope() throws Exception {
+		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
+		byte[] payloadBytes = "{\"markdown\":\"## a heading\"}".getBytes(StandardCharsets.UTF_8);
+
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/...");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
+
+		// call under test
+		signer.sign(URI.create(endpoint), payloadBytes);
+
+		// API Gateway rejects the request unless the signature is scoped to execute-api in the
+		// region hosting the API, so the scope is fixed here rather than derived from the endpoint
+		ArgumentCaptor<SignRequest> requestCaptor = ArgumentCaptor.forClass(SignRequest.class);
+		verify(mockHttpSigner).sign(requestCaptor.capture());
+		SignRequest capturedRequest = requestCaptor.getValue();
+		assertEquals("execute-api", capturedRequest.property(AwsV4HttpSigner.SERVICE_SIGNING_NAME));
+		assertEquals("us-east-1", capturedRequest.property(AwsV4HttpSigner.REGION_NAME));
+	}
+
+	@Test
+	public void testSignWithMethodAndPayload() throws Exception {
+		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
+		String payload = "{\"markdown\":\"## a heading\"}";
+		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
+
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/...");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
+
+		// call under test
+		signer.sign(URI.create(endpoint), payloadBytes);
+
+		// The signature covers the method and a hash of the body, so both must reach the signer intact
+		ArgumentCaptor<SignRequest> requestCaptor = ArgumentCaptor.forClass(SignRequest.class);
+		verify(mockHttpSigner).sign(requestCaptor.capture());
+		SignRequest capturedRequest = requestCaptor.getValue();
+		assertEquals(SdkHttpMethod.POST, capturedRequest.request().method());
+		ContentStreamProvider capturedPayload = (ContentStreamProvider) capturedRequest.payload().get();
+		assertEquals(payload, new String(capturedPayload.newStream().readAllBytes(), StandardCharsets.UTF_8));
+	}
+
+	@Test
 	public void testSignExcludesHostHeader() throws Exception {
 		String endpoint = "https://abc123.execute-api.us-east-1.amazonaws.com/prod/markdown";
 		String payload = "{\"markdown\":\"## a heading\"}";
@@ -180,21 +222,13 @@ public class AwsV4RequestSignerTest {
 		String payload = "{\"markdown\":\"test\"}";
 		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
-		Map<String, String> canned1 = new HashMap<>();
-		canned1.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/.../service1");
-		Map<String, String> canned2 = new HashMap<>();
-		canned2.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/.../service2");
-		when(mockHttpSigner.sign(any(SignRequest.class)))
-			.thenReturn(fakeSignedRequest(canned1))
-			.thenReturn(fakeSignedRequest(canned2));
+		Map<String, String> canned = new HashMap<>();
+		canned.put("Authorization", "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/...");
+		when(mockHttpSigner.sign(any(SignRequest.class))).thenReturn(fakeSignedRequest(canned));
 
 		// call under test - each endpoint is signed independently
-		Map<String, String> headers1 = signer.sign(URI.create(endpoint1), payloadBytes);
-		Map<String, String> headers2 = signer.sign(URI.create(endpoint2), payloadBytes);
-
-		assertNotNull(headers1.get("Authorization"));
-		assertNotNull(headers2.get("Authorization"));
-		assertNotEquals(headers1.get("Authorization"), headers2.get("Authorization"));
+		signer.sign(URI.create(endpoint1), payloadBytes);
+		signer.sign(URI.create(endpoint2), payloadBytes);
 
 		// Verify each call was signed with its own endpoint rather than a cached/shared one
 		ArgumentCaptor<SignRequest> requestCaptor = ArgumentCaptor.forClass(SignRequest.class);

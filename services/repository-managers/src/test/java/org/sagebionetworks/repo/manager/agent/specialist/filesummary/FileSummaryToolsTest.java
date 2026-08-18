@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.agent.AgentToolContextKey;
+import org.sagebionetworks.repo.manager.agent.CodeSessionSupplier;
 import org.springaicommunity.agentcore.codeinterpreter.AgentCoreCodeInterpreterClient;
 import org.springaicommunity.agentcore.codeinterpreter.CodeExecutionResult;
 import org.springframework.ai.chat.model.ToolContext;
@@ -40,7 +41,8 @@ public class FileSummaryToolsTest {
 	public void setup() {
 		tools = new FileSummaryTools(mockCodeInterpreterClient);
 		toolContext = new ToolContext(Map.of());
-		toolContextWithSession = new ToolContext(Map.of(AgentToolContextKey.CODE_SESSION_ID.getKey(), "session-123"));
+		toolContextWithSession = new ToolContext(
+				Map.of(AgentToolContextKey.CODE_SESSION_SUPPLIER.getKey(), CodeSessionSupplier.of("session-123")));
 	}
 
 	private ToolCallback callback(String name) {

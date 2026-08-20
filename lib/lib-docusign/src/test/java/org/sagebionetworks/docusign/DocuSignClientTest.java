@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -201,6 +203,31 @@ public class DocuSignClientTest {
 		assertEquals(1, soRole.getTabs().getEmailTabs().size());
 		assertEquals("so@example.com", soRole.getTabs().getEmailTabs().get(0).getValue());
 		assertEquals("MIT", soRole.getTabs().getTextTabs().get(0).getValue());
+
+		// The PI role has no full-name tab value here, so its name falls back to the email so that
+		// every recipient has a name (required before the envelope can be sent).
+		TemplateRole piRole = roles.stream()
+				.filter(r -> "principal_investigator".equals(r.getRoleName())).findFirst().orElseThrow();
+		assertEquals("pi@example.com", piRole.getName());
+	}
+
+	@Test
+	public void testBuildTemplateRolesSetsNameOnEveryRole() {
+		Map<String, String> roleEmails = Map.of(
+				"signing_official", "so@example.com",
+				"principal_investigator", "pi@example.com",
+				"collaborator_1", "c1@example.com"
+		);
+		// no full-name tab values provided for any role
+		Map<RoleLabelKey, String> tabValues = Map.of();
+
+		// call under test
+		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues);
+
+		// every role must have a non-null name (falls back to the email)
+		for (TemplateRole role : roles) {
+			assertEquals(role.getEmail(), role.getName());
+		}
 	}
 
 	@Test
@@ -215,6 +242,29 @@ public class DocuSignClientTest {
 				DocuSignApiRetryHelper.convertApiException(new ApiException(500, "x")).getClass());
 		assertEquals(IllegalStateException.class,
 				DocuSignApiRetryHelper.convertApiException(new ApiException(429, "x")).getClass());
+	}
+
+	@Test
+	public void testConvertApiExceptionSurfacesResponseBody() {
+		String responseBody = "{\"errorCode\":\"RECIPIENTS_NOT_PROVIDED\","
+				+ "\"message\":\"A recipient is missing a required field.\"}";
+		ApiException apiException = new ApiException(400, "Bad Request", null, responseBody);
+
+		RuntimeException result = DocuSignApiRetryHelper.convertApiException(apiException);
+
+		assertEquals(IllegalStateException.class, result.getClass());
+		assertTrue(result.getMessage().contains("RECIPIENTS_NOT_PROVIDED"),
+				"Expected the DocuSign response body in the message but was: " + result.getMessage());
+		assertTrue(result.getMessage().contains("DocuSign API error 400."));
+	}
+
+	@Test
+	public void testConvertApiExceptionWithNoResponseBody() {
+		ApiException apiException = new ApiException(500, "boom");
+
+		RuntimeException result = DocuSignApiRetryHelper.convertApiException(apiException);
+
+		assertEquals("DocuSign API error 500.", result.getMessage());
 	}
 
 	@Test
@@ -286,14 +336,76 @@ public class DocuSignClientTest {
 		assertEquals("Unexpected status bogus", ex.getMessage());
 	}
 
+	private static Signer signerWithEmail(String recipientId, String roleName, String email) {
+		Signer signer = new Signer();
+		signer.setRecipientId(recipientId);
+		signer.setRoleName(roleName);
+		signer.setEmail(email);
+		return signer;
+	}
+
 	@Test
 	public void testSendEnvelopeSuccess() {
+		// all recipients are resolved (have an email), so none are removed
+		Signer pi = signerWithEmail("1", "principal_investigator", "pi@example.com");
+		Signer collab1 = signerWithEmail("2", "collaborator_1", "c1@example.com");
+		Recipients recipients = new Recipients();
+		recipients.setSigners(List.of(pi, collab1));
+		Envelope existing = new Envelope();
+		existing.setRecipients(recipients);
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(existing);
+
 		// call under test
 		client.sendEnvelope("env-1");
+
+		verify(mockDocuSignEnvelopesApi, never()).deleteRecipients(any(), any());
+		ArgumentCaptor<Envelope> captor = ArgumentCaptor.forClass(Envelope.class);
+		verify(mockDocuSignEnvelopesApi).updateEnvelope(eq("env-1"), captor.capture());
+		assertEquals("sent", captor.getValue().getStatus());
+	}
+
+	@Test
+	public void testSendEnvelopeRemovesUnusedCollaborators() {
+		// collaborator_2 was defined by the template but left unfilled (no email)
+		Signer pi = signerWithEmail("1", "principal_investigator", "pi@example.com");
+		Signer collab1 = signerWithEmail("2", "collaborator_1", "c1@example.com");
+		Signer collab2 = signerWithEmail("3", "collaborator_2", null);
+		Recipients recipients = new Recipients();
+		recipients.setSigners(List.of(pi, collab1, collab2));
+		Envelope existing = new Envelope();
+		existing.setRecipients(recipients);
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(existing);
+
+		// call under test
+		client.sendEnvelope("env-1");
+
+		ArgumentCaptor<Recipients> deleteCaptor = ArgumentCaptor.forClass(Recipients.class);
+		verify(mockDocuSignEnvelopesApi).deleteRecipients(eq("env-1"), deleteCaptor.capture());
+		List<Signer> removed = deleteCaptor.getValue().getSigners();
+		assertEquals(1, removed.size());
+		assertEquals("3", removed.get(0).getRecipientId());
+		assertEquals("collaborator_2", removed.get(0).getRoleName());
 
 		ArgumentCaptor<Envelope> captor = ArgumentCaptor.forClass(Envelope.class);
 		verify(mockDocuSignEnvelopesApi).updateEnvelope(eq("env-1"), captor.capture());
 		assertEquals("sent", captor.getValue().getStatus());
+	}
+
+	@Test
+	public void testSendEnvelopeDoesNotRemoveUnresolvedRequiredRoles() {
+		// a required role with no email must NOT be removed — the send should be left to fail
+		Signer pi = signerWithEmail("1", "principal_investigator", null);
+		Signer so = signerWithEmail("2", "signing_official", null);
+		Recipients recipients = new Recipients();
+		recipients.setSigners(List.of(pi, so));
+		Envelope existing = new Envelope();
+		existing.setRecipients(recipients);
+		when(mockDocuSignEnvelopesApi.getEnvelope("env-1")).thenReturn(existing);
+
+		// call under test
+		client.sendEnvelope("env-1");
+
+		verify(mockDocuSignEnvelopesApi, never()).deleteRecipients(any(), any());
 	}
 
 	@Test

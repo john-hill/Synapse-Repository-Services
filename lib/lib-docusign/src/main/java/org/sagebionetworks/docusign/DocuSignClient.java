@@ -20,6 +20,7 @@ import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
 import com.docusign.esign.model.EnvelopeTemplate;
 import com.docusign.esign.model.EnvelopeTemplateResults;
+import com.docusign.esign.model.Recipients;
 import com.docusign.esign.model.Signer;
 import com.docusign.esign.model.Tabs;
 import com.docusign.esign.model.TemplateRole;
@@ -94,15 +95,47 @@ public class DocuSignClient {
 	}
 
 	/**
-	 * Sends an existing draft envelope.
+	 * Prepares and sends an existing draft envelope. Any unused collaborator recipients that the
+	 * template defined but the request did not fill (they have no email) are removed first, since
+	 * DocuSign rejects sending an envelope that has an unresolved recipient.
 	 *
 	 * @param envelopeId the ID of the draft envelope to send
 	 */
 	public void sendEnvelope(String envelopeId) {
 		ValidateArgument.required(envelopeId, "envelopeId");
+		removeUnusedCollaboratorRecipients(envelopeId);
 		Envelope envelope = new Envelope();
 		envelope.setStatus("sent");
 		envelopesApi.updateEnvelope(envelopeId, envelope);
+	}
+
+	/**
+	 * Removes collaborator recipients that were instantiated from the template but never filled in
+	 * (i.e. have no email). Required roles (principal investigator, signing official) are never
+	 * removed — if one of those is unresolved, the send is left to fail so the problem surfaces
+	 * rather than being silently masked.
+	 */
+	private void removeUnusedCollaboratorRecipients(String envelopeId) {
+		Envelope envelope = envelopesApi.getEnvelope(envelopeId);
+		if (envelope.getRecipients() == null || envelope.getRecipients().getSigners() == null) {
+			return;
+		}
+		List<Signer> unused = new ArrayList<>();
+		for (Signer signer : envelope.getRecipients().getSigners()) {
+			boolean isCollaborator = DocuSignTemplateValidator.collaboratorIndex(signer.getRoleName()) > 0;
+			boolean hasNoEmail = signer.getEmail() == null || signer.getEmail().isBlank();
+			if (isCollaborator && hasNoEmail) {
+				Signer toRemove = new Signer();
+				toRemove.setRecipientId(signer.getRecipientId());
+				toRemove.setRoleName(signer.getRoleName());
+				unused.add(toRemove);
+			}
+		}
+		if (!unused.isEmpty()) {
+			Recipients recipients = new Recipients();
+			recipients.setSigners(unused);
+			envelopesApi.deleteRecipients(envelopeId, recipients);
+		}
 	}
 
 	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
@@ -119,6 +152,7 @@ public class DocuSignClient {
 			Tabs tabs = new Tabs();
 			role.setTabs(tabs);
 
+			String fullName = null;
 			for (Map.Entry<RoleLabelKey, String> tabEntry : tabValues.entrySet()) {
 				if (!tabEntry.getKey().roleName().equals(roleName)) {
 					continue;
@@ -128,9 +162,13 @@ public class DocuSignClient {
 				TabType type = DocuSignTemplateValidator.typeforRoleAndLabel(roleName, tabLabel);
 				type.fillInTabValue(tabs, tabLabel, value);
 				if (TabType.FULL_NAME.equals(type)) {
-					role.setName(value);
+					fullName = value;
 				}
 			}
+
+			// DocuSign requires every recipient to have a name before the envelope can be sent.
+			// Use the full-name tab value when present, otherwise fall back to the email address.
+			role.setName(fullName != null ? fullName : email);
 
 			roles.add(role);
 		}

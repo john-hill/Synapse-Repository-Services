@@ -5,6 +5,7 @@ import java.util.List;
 import com.docusign.esign.model.Envelope;
 import com.docusign.esign.model.EnvelopeDefinition;
 import com.docusign.esign.model.EnvelopeSummary;
+import com.docusign.esign.model.Recipients;
 
 interface DocuSignEnvelopesApi {
 
@@ -19,4 +20,9 @@ interface DocuSignEnvelopesApi {
 	List<Envelope> listStatus(List<String> envelopeIds);
 
 	byte[] getDocument(String envelopeId, String documentId);
+
+	/**
+	 * Remove the given recipients from an envelope.
+	 */
+	void deleteRecipients(String envelopeId, Recipients recipients);
 }

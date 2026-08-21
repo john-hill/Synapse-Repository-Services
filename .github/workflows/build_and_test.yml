@@ -23,11 +23,14 @@ on:
   pull_request:
     branches: [develop]
 
-# let only one copy of the workflow run at a time; Dependabot gets its own queue so its
-# dependency bumps never hold up a developer's build, and never run two at once against
-# the shared Dependabot stack
+# let only one copy of the workflow run at a time; the rest wait their turn in FIFO order
+# instead of being cancelled. Dependabot queues separately so a batch of dependency bumps
+# never holds up a developer's build, and never runs two at once against the shared
+# Dependabot stack
 concurrency:
   group: ${{ github.workflow }}${{ github.event.pull_request.user.login == 'dependabot[bot]' && '-dependabot' || '' }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   build_and_test:

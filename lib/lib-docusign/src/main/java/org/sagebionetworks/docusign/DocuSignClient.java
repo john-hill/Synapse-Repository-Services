@@ -71,20 +71,21 @@ public class DocuSignClient {
 	 * Creates a draft envelope from the specified template without sending it.
 	 *
 	 * @param templateId the DocuSign template ID
-	 * @param roleEmails map from role name to the signer's email address
+	 * @param recipients map from role name to the signer's email and name (both are required for
+	 *        every role before the envelope can be sent)
 	 * @param tabValues map from (roleName, tabLabel) to the text value to pre-fill
 	 * @return the envelope ID of the created draft envelope
 	 */
-	public String createEnvelope(String templateId, Map<String, String> roleEmails,
+	public String createEnvelope(String templateId, Map<String, RecipientInfo> recipients,
 			Map<RoleLabelKey, String> tabValues) {
 		ValidateArgument.required(templateId, "templateId");
-		ValidateArgument.required(roleEmails, "roleEmails");
+		ValidateArgument.required(recipients, "recipients");
 		ValidateArgument.required(tabValues, "tabValues");
 
 		EnvelopeTemplate template = templatesApi.getTemplate(templateId);
 		DocuSignTemplateValidator.validate(template);
 
-		List<TemplateRole> templateRoles = buildTemplateRoles(roleEmails, tabValues);
+		List<TemplateRole> templateRoles = buildTemplateRoles(recipients, tabValues);
 		EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
 		envelopeDefinition.setTemplateId(templateId);
 		envelopeDefinition.setTemplateRoles(templateRoles);
@@ -138,21 +139,28 @@ public class DocuSignClient {
 		}
 	}
 
-	static List<TemplateRole> buildTemplateRoles(Map<String, String> roleEmails,
+	static List<TemplateRole> buildTemplateRoles(Map<String, RecipientInfo> recipients,
 			Map<RoleLabelKey, String> tabValues) {
 		List<TemplateRole> roles = new ArrayList<>();
-		for (Map.Entry<String, String> entry : roleEmails.entrySet()) {
+		for (Map.Entry<String, RecipientInfo> entry : recipients.entrySet()) {
 			String roleName = entry.getKey();
-			String email = entry.getValue();
+			RecipientInfo recipient = entry.getValue();
+
+			// DocuSign requires every recipient to have both an email and a name before the
+			// envelope can be sent. The caller is responsible for supplying both.
+			String email = recipient == null ? null : recipient.email();
+			String name = recipient == null ? null : recipient.name();
+			ValidateArgument.requiredNotBlank(email, "email for role '" + roleName + "'");
+			ValidateArgument.requiredNotBlank(name, "name for role '" + roleName + "'");
 
 			TemplateRole role = new TemplateRole();
 			role.setRoleName(roleName);
 			role.setEmail(email);
+			role.setName(name);
 
 			Tabs tabs = new Tabs();
 			role.setTabs(tabs);
 
-			String fullName = null;
 			for (Map.Entry<RoleLabelKey, String> tabEntry : tabValues.entrySet()) {
 				if (!tabEntry.getKey().roleName().equals(roleName)) {
 					continue;
@@ -161,14 +169,7 @@ public class DocuSignClient {
 				String value = tabEntry.getValue();
 				TabType type = DocuSignTemplateValidator.typeforRoleAndLabel(roleName, tabLabel);
 				type.fillInTabValue(tabs, tabLabel, value);
-				if (TabType.FULL_NAME.equals(type)) {
-					fullName = value;
-				}
 			}
-
-			// DocuSign requires every recipient to have a name before the envelope can be sent.
-			// Use the full-name tab value when present, otherwise fall back to the email address.
-			role.setName(fullName != null ? fullName : email);
 
 			roles.add(role);
 		}

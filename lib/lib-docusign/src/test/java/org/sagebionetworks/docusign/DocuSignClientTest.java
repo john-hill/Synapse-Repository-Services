@@ -138,9 +138,9 @@ public class DocuSignClientTest {
 		summary.setEnvelopeId("env-123");
 		when(mockDocuSignEnvelopesApi.createEnvelope(any())).thenReturn(summary);
 
-		Map<String, String> roleEmails = Map.of(
-				"signing_official", "so@example.com",
-				"principal_investigator", "pi@example.com"
+		Map<String, RecipientInfo> recipients = Map.of(
+				"signing_official", new RecipientInfo("so@example.com", "Dr. Smith"),
+				"principal_investigator", new RecipientInfo("pi@example.com", "Dr. Jones")
 		);
 		Map<RoleLabelKey, String> tabValues = Map.of(
 				new RoleLabelKey("signing_official", "signing_official_name"), "Dr. Smith",
@@ -148,7 +148,7 @@ public class DocuSignClientTest {
 		);
 
 		// call under test
-		String envelopeId = client.createEnvelope("tpl-1", roleEmails, tabValues);
+		String envelopeId = client.createEnvelope("tpl-1", recipients, tabValues);
 
 		assertEquals("env-123", envelopeId);
 		ArgumentCaptor<EnvelopeDefinition> captor = ArgumentCaptor.forClass(EnvelopeDefinition.class);
@@ -165,21 +165,22 @@ public class DocuSignClientTest {
 		template.setRecipients(null);
 		when(mockDocuSignTemplatesApi.getTemplate("tpl-1")).thenReturn(template);
 
-		Map<String, String> roleEmails = Map.of("signing_official", "so@example.com");
+		Map<String, RecipientInfo> recipients = Map.of(
+				"signing_official", new RecipientInfo("so@example.com", "Dr. Smith"));
 		Map<RoleLabelKey, String> tabValues = Map.of();
 
 		// call under test
 		assertThrows(IllegalArgumentException.class,
-				() -> client.createEnvelope("tpl-1", roleEmails, tabValues));
+				() -> client.createEnvelope("tpl-1", recipients, tabValues));
 
 		verifyNoInteractions(mockDocuSignEnvelopesApi);
 	}
 
 	@Test
 	public void testBuildTemplateRolesWithCorrectTabTypes() {
-		Map<String, String> roleEmails = Map.of(
-				"signing_official", "so@example.com",
-				"principal_investigator", "pi@example.com"
+		Map<String, RecipientInfo> recipients = Map.of(
+				"signing_official", new RecipientInfo("so@example.com", "Dr. Smith"),
+				"principal_investigator", new RecipientInfo("pi@example.com", "Dr. Jones")
 		);
 		Map<RoleLabelKey, String> tabValues = Map.of(
 				new RoleLabelKey("signing_official", "signing_official_name"), "Dr. Smith",
@@ -189,7 +190,7 @@ public class DocuSignClientTest {
 		);
 
 		// call under test
-		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues);
+		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(recipients, tabValues);
 
 		assertEquals(2, roles.size());
 		TemplateRole soRole = roles.stream()
@@ -204,30 +205,52 @@ public class DocuSignClientTest {
 		assertEquals("so@example.com", soRole.getTabs().getEmailTabs().get(0).getValue());
 		assertEquals("MIT", soRole.getTabs().getTextTabs().get(0).getValue());
 
-		// The PI role has no full-name tab value here, so its name falls back to the email so that
-		// every recipient has a name (required before the envelope can be sent).
+		// The name comes from the recipient info (not the tab values or the email).
 		TemplateRole piRole = roles.stream()
 				.filter(r -> "principal_investigator".equals(r.getRoleName())).findFirst().orElseThrow();
-		assertEquals("pi@example.com", piRole.getName());
+		assertEquals("Dr. Jones", piRole.getName());
 	}
 
 	@Test
-	public void testBuildTemplateRolesSetsNameOnEveryRole() {
-		Map<String, String> roleEmails = Map.of(
-				"signing_official", "so@example.com",
-				"principal_investigator", "pi@example.com",
-				"collaborator_1", "c1@example.com"
+	public void testBuildTemplateRolesSetsNameFromRecipientInfo() {
+		Map<String, RecipientInfo> recipients = Map.of(
+				"signing_official", new RecipientInfo("so@example.com", "Sally Signer"),
+				"principal_investigator", new RecipientInfo("pi@example.com", "Paul Investigator"),
+				"collaborator_1", new RecipientInfo("c1@example.com", "Carl Collaborator")
 		);
-		// no full-name tab values provided for any role
 		Map<RoleLabelKey, String> tabValues = Map.of();
 
 		// call under test
-		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(roleEmails, tabValues);
+		List<TemplateRole> roles = DocuSignClient.buildTemplateRoles(recipients, tabValues);
 
-		// every role must have a non-null name (falls back to the email)
 		for (TemplateRole role : roles) {
-			assertEquals(role.getEmail(), role.getName());
+			assertEquals(recipients.get(role.getRoleName()).name(), role.getName());
+			assertEquals(recipients.get(role.getRoleName()).email(), role.getEmail());
 		}
+	}
+
+	@Test
+	public void testBuildTemplateRolesWithMissingName() {
+		Map<String, RecipientInfo> recipients = Map.of(
+				"signing_official", new RecipientInfo("so@example.com", null));
+		Map<RoleLabelKey, String> tabValues = Map.of();
+
+		// call under test — a role with no name is rejected
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> DocuSignClient.buildTemplateRoles(recipients, tabValues));
+		assertTrue(ex.getMessage().contains("name for role 'signing_official'"));
+	}
+
+	@Test
+	public void testBuildTemplateRolesWithMissingEmail() {
+		Map<String, RecipientInfo> recipients = Map.of(
+				"signing_official", new RecipientInfo(null, "Dr. Smith"));
+		Map<RoleLabelKey, String> tabValues = Map.of();
+
+		// call under test — a role with no email is rejected
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> DocuSignClient.buildTemplateRoles(recipients, tabValues));
+		assertTrue(ex.getMessage().contains("email for role 'signing_official'"));
 	}
 
 	@Test

@@ -298,6 +298,7 @@ public class RequestManagerImpl implements RequestManager{
 		for (RequestUserInfo info : page) {
 			AccessRequestSummary summary = new AccessRequestSummary();
 			summary.setRequestId(info.getRequestId());
+			summary.setAccessRequirementId(info.getAccessRequirementId());
 			summary.setAccessRequirementName(info.getAccessRequirementName());
 			summary.setIsEDuc(info.getEnvelopeId() != null);
 			summary.setSubmittedOn(info.getSubmittedOn());

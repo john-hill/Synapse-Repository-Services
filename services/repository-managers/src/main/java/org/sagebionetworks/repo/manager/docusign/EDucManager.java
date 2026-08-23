@@ -381,17 +381,19 @@ public class EDucManager {
 	}
 
 	// A collaborator's looked-up data, gathered once and reused for both the recipient identity
-	// and the tab values. userName is always present; fullName may be null when the user's
-	// profile has no first or last name.
-	private record CollaboratorInfo(String userId, String userName, String fullName) {}
+	// and the tab values. email and userName are always present; fullName may be null when the
+	// user's profile has no first or last name.
+	private record CollaboratorInfo(String userId, String email, String userName, String fullName) {}
 
 	private List<CollaboratorInfo> gatherCollaboratorInfos(List<String> collaboratorUserIds) {
 		List<CollaboratorInfo> collaborators = new ArrayList<>(collaboratorUserIds.size());
 		for (String collabUserId : collaboratorUserIds) {
-			String userName = principalAliasDao.getUserName(Long.parseLong(collabUserId));
+			long principalId = Long.parseLong(collabUserId);
+			String email = notificationEmailDao.getNotificationEmailForPrincipal(principalId);
+			String userName = principalAliasDao.getUserName(principalId);
 			UserProfile profile = userProfileDao.get(collabUserId);
 			String fullName = buildFullName(profile.getFirstName(), profile.getLastName());
-			collaborators.add(new CollaboratorInfo(collabUserId, userName, fullName));
+			collaborators.add(new CollaboratorInfo(collabUserId, email, userName, fullName));
 		}
 		return collaborators;
 	}
@@ -415,11 +417,9 @@ public class EDucManager {
 
 		for (int i = 0; i < collaborators.size(); i++) {
 			CollaboratorInfo collaborator = collaborators.get(i);
-			String email = notificationEmailDao.getNotificationEmailForPrincipal(
-					Long.parseLong(collaborator.userId()));
 			String name = StringUtils.isBlank(collaborator.fullName())
 					? collaborator.userName() : collaborator.fullName();
-			recipients.put("collaborator_" + (i + 1), new RecipientInfo(email, name));
+			recipients.put("collaborator_" + (i + 1), new RecipientInfo(collaborator.email(), name));
 		}
 
 		return recipients;

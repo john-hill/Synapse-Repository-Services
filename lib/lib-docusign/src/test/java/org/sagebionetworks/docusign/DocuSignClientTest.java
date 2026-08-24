@@ -181,7 +181,6 @@ public class DocuSignClientTest {
 		);
 		Map<RoleLabelKey, String> tabValues = Map.of(
 				new RoleLabelKey("signing_official", "signing_official_name"), "Dr. Smith",
-				new RoleLabelKey("signing_official", "signing_official_title"), "Director",
 				new RoleLabelKey("signing_official", "signing_official_email"), "so@example.com",
 				new RoleLabelKey("signing_official", "signing_official_institution"), "MIT"
 		);
@@ -196,8 +195,6 @@ public class DocuSignClientTest {
 		assertEquals("Dr. Smith", soRole.getName());
 		assertEquals(1, soRole.getTabs().getFullNameTabs().size());
 		assertEquals("signing_official_name", soRole.getTabs().getFullNameTabs().get(0).getTabLabel());
-		assertEquals(1, soRole.getTabs().getTitleTabs().size());
-		assertEquals("Director", soRole.getTabs().getTitleTabs().get(0).getValue());
 		assertEquals(1, soRole.getTabs().getEmailTabs().size());
 		assertEquals("so@example.com", soRole.getTabs().getEmailTabs().get(0).getValue());
 		assertEquals("MIT", soRole.getTabs().getTextTabs().get(0).getValue());

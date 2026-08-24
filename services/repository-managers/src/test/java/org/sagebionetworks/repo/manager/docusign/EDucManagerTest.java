@@ -212,12 +212,10 @@ public class EDucManagerTest {
 		PrincipalInvestigator pi = new PrincipalInvestigator();
 		pi.setUserId("200");
 		pi.setName("Dr. Jones");
-		pi.setTitle("Professor");
 		pi.setInstitutionalEmail("pi@university.edu");
 
 		SigningOfficial so = new SigningOfficial();
 		so.setName("Jane Admin");
-		so.setTitle("VP Research");
 		so.setInstitutionalEmail("so@university.edu");
 
 		AccessorChange collab1 = new AccessorChange();
@@ -308,11 +306,9 @@ public class EDucManagerTest {
 
 		Map<RoleLabelKey, String> tabValues = tabsCaptor.getValue();
 		assertEquals("Dr. Jones", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_name")));
-		assertEquals("Professor", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_title")));
 		assertEquals("pi@university.edu", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_email")));
 		assertEquals("drjones", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_user_name")));
 		assertEquals("Jane Admin", tabValues.get(new RoleLabelKey("signing_official", "signing_official_name")));
-		assertEquals("VP Research", tabValues.get(new RoleLabelKey("signing_official", "signing_official_title")));
 		assertEquals("so@university.edu", tabValues.get(new RoleLabelKey("signing_official", "signing_official_email")));
 		assertEquals("MIT", tabValues.get(new RoleLabelKey("signing_official", "signing_official_institution")));
 		assertEquals("creatoruser", tabValues.get(new RoleLabelKey("collaborator_1", "collaborator_1_user_name")));

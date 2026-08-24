@@ -430,13 +430,11 @@ public class EDucManager {
 
 		SigningOfficial so = request.getSigningOfficial();
 		addIfPresent(tabValues, "signing_official", "signing_official_name", so.getName());
-		addIfPresent(tabValues, "signing_official", "signing_official_title", so.getTitle());
 		addIfPresent(tabValues, "signing_official", "signing_official_email", so.getInstitutionalEmail());
 		addIfPresent(tabValues, "signing_official", "signing_official_institution", request.getInstitution());
 
 		PrincipalInvestigator pi = request.getPrincipalInvestigator();
 		addIfPresent(tabValues, "principal_investigator", "principal_investigator_name", pi.getName());
-		addIfPresent(tabValues, "principal_investigator", "principal_investigator_title", pi.getTitle());
 		addIfPresent(tabValues, "principal_investigator", "principal_investigator_email", pi.getInstitutionalEmail());
 
 		String piUserName = principalAliasDao.getUserName(Long.parseLong(pi.getUserId()));

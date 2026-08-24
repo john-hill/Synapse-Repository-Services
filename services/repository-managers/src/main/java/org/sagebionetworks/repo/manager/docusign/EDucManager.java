@@ -12,6 +12,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.EnvelopeStatusResult;
+import org.sagebionetworks.docusign.RecipientInfo;
 import org.sagebionetworks.docusign.RoleLabelKey;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.AccessRequirement;
@@ -247,16 +248,21 @@ public class EDucManager {
 		PrincipalInvestigator pi = request.getPrincipalInvestigator();
 		ValidateArgument.required(pi, "principalInvestigator");
 		ValidateArgument.required(pi.getUserId(), "principalInvestigator.userId");
+		ValidateArgument.requiredNotBlank(pi.getName(), "principalInvestigator.name");
 
 		SigningOfficial so = request.getSigningOfficial();
 		ValidateArgument.required(so, "signingOfficial");
 		ValidateArgument.required(so.getInstitutionalEmail(), "signingOfficial.institutionalEmail");
+		ValidateArgument.requiredNotBlank(so.getName(), "signingOfficial.name");
 
 		List<String> collaboratorUserIds = buildCollaboratorUserIds(request);
-		Map<String, String> roleEmails = buildRoleEmails(request, collaboratorUserIds);
-		Map<RoleLabelKey, String> tabValues = buildTabValues(request, collaboratorUserIds);
+		// Look up each collaborator's profile and user name once and reuse for both the recipient
+		// identities and the tab values.
+		List<CollaboratorInfo> collaborators = gatherCollaboratorInfos(collaboratorUserIds);
+		Map<String, RecipientInfo> recipients = buildRecipients(request, collaborators);
+		Map<RoleLabelKey, String> tabValues = buildTabValues(request, collaborators);
 
-		String envelopeId = docuSignClient.createEnvelope(templateId, roleEmails, tabValues);
+		String envelopeId = docuSignClient.createEnvelope(templateId, recipients, tabValues);
 
 		request.setEDucSignatureEnvelopeId(envelopeId);
 		requestDao.update(request);
@@ -374,27 +380,52 @@ public class EDucManager {
 		return new ArrayList<>(collaboratorIds);
 	}
 
-	private Map<String, String> buildRoleEmails(RequestInterface request, List<String> collaboratorUserIds) {
-		Map<String, String> roleEmails = new LinkedHashMap<>();
+	// A collaborator's looked-up data, gathered once and reused for both the recipient identity
+	// and the tab values. email and userName are always present; fullName may be null when the
+	// user's profile has no first or last name.
+	private record CollaboratorInfo(String userId, String email, String userName, String fullName) {}
 
-		PrincipalInvestigator pi = request.getPrincipalInvestigator();
-		roleEmails.put("principal_investigator",
-				notificationEmailDao.getNotificationEmailForPrincipal(Long.parseLong(pi.getUserId())));
-
-		SigningOfficial so = request.getSigningOfficial();
-		ValidateArgument.required(so, "signingOfficial");
-		roleEmails.put("signing_official", so.getInstitutionalEmail());
-
-		for (int i = 0; i < collaboratorUserIds.size(); i++) {
-			String email = notificationEmailDao.getNotificationEmailForPrincipal(
-					Long.parseLong(collaboratorUserIds.get(i)));
-			roleEmails.put("collaborator_" + (i + 1), email);
+	private List<CollaboratorInfo> gatherCollaboratorInfos(List<String> collaboratorUserIds) {
+		List<CollaboratorInfo> collaborators = new ArrayList<>(collaboratorUserIds.size());
+		for (String collabUserId : collaboratorUserIds) {
+			long principalId = Long.parseLong(collabUserId);
+			String email = notificationEmailDao.getNotificationEmailForPrincipal(principalId);
+			String userName = principalAliasDao.getUserName(principalId);
+			UserProfile profile = userProfileDao.get(collabUserId);
+			String fullName = buildFullName(profile.getFirstName(), profile.getLastName());
+			collaborators.add(new CollaboratorInfo(collabUserId, email, userName, fullName));
 		}
-
-		return roleEmails;
+		return collaborators;
 	}
 
-	private Map<RoleLabelKey, String> buildTabValues(RequestInterface request, List<String> collaboratorUserIds) {
+	/**
+	 * Builds the map from DocuSign role name to the recipient's email and name. Every role must
+	 * have both before the envelope can be sent. The signing official and principal investigator
+	 * names come from the request (their presence is validated in {@link #createDraftEDuc}). A
+	 * collaborator's name comes from their user profile (first and/or last name) when available,
+	 * otherwise their Synapse user name, which every user is guaranteed to have.
+	 */
+	private Map<String, RecipientInfo> buildRecipients(RequestInterface request, List<CollaboratorInfo> collaborators) {
+		Map<String, RecipientInfo> recipients = new LinkedHashMap<>();
+
+		PrincipalInvestigator pi = request.getPrincipalInvestigator();
+		String piEmail = notificationEmailDao.getNotificationEmailForPrincipal(Long.parseLong(pi.getUserId()));
+		recipients.put("principal_investigator", new RecipientInfo(piEmail, pi.getName()));
+
+		SigningOfficial so = request.getSigningOfficial();
+		recipients.put("signing_official", new RecipientInfo(so.getInstitutionalEmail(), so.getName()));
+
+		for (int i = 0; i < collaborators.size(); i++) {
+			CollaboratorInfo collaborator = collaborators.get(i);
+			String name = StringUtils.isBlank(collaborator.fullName())
+					? collaborator.userName() : collaborator.fullName();
+			recipients.put("collaborator_" + (i + 1), new RecipientInfo(collaborator.email(), name));
+		}
+
+		return recipients;
+	}
+
+	private Map<RoleLabelKey, String> buildTabValues(RequestInterface request, List<CollaboratorInfo> collaborators) {
 		Map<RoleLabelKey, String> tabValues = new LinkedHashMap<>();
 
 		SigningOfficial so = request.getSigningOfficial();
@@ -411,16 +442,11 @@ public class EDucManager {
 		String piUserName = principalAliasDao.getUserName(Long.parseLong(pi.getUserId()));
 		addIfPresent(tabValues, "principal_investigator", "principal_investigator_user_name", piUserName);
 
-		for (int i = 0; i < collaboratorUserIds.size(); i++) {
+		for (int i = 0; i < collaborators.size(); i++) {
 			String role = "collaborator_" + (i + 1);
-			String collabUserId = collaboratorUserIds.get(i);
-
-			String userName = principalAliasDao.getUserName(Long.parseLong(collabUserId));
-			addIfPresent(tabValues, role, role + "_user_name", userName);
-
-			UserProfile profile = userProfileDao.get(collabUserId);
-			String fullName = buildFullName(profile.getFirstName(), profile.getLastName());
-			addIfPresent(tabValues, role, role + "_name", fullName);
+			CollaboratorInfo collaborator = collaborators.get(i);
+			addIfPresent(tabValues, role, role + "_user_name", collaborator.userName());
+			addIfPresent(tabValues, role, role + "_name", collaborator.fullName());
 		}
 
 		return tabValues;

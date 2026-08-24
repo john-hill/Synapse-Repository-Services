@@ -30,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.docusign.DocuSignClient;
 import org.sagebionetworks.docusign.EnvelopeStatusResult;
+import org.sagebionetworks.docusign.RecipientInfo;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.educ.EDucFileHandleId;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -292,19 +293,21 @@ public class EDucManagerTest {
 		verify(mockEDucQuotaDao).create(eq(100L), anyLong(), eq("env-xyz"));
 
 		@SuppressWarnings("unchecked")
-		ArgumentCaptor<Map<String, String>> emailsCaptor = ArgumentCaptor.forClass(Map.class);
+		ArgumentCaptor<Map<String, RecipientInfo>> recipientsCaptor = ArgumentCaptor.forClass(Map.class);
 		@SuppressWarnings("unchecked")
 		ArgumentCaptor<Map<RoleLabelKey, String>> tabsCaptor = ArgumentCaptor.forClass(Map.class);
-		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), emailsCaptor.capture(), tabsCaptor.capture());
+		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), recipientsCaptor.capture(), tabsCaptor.capture());
 
-		// Collaborators: createdBy=100 first, then 301, 302 from accessorChanges (PI 200 excluded)
-		Map<String, String> roleEmails = emailsCaptor.getValue();
-		assertEquals("pi@synapse.org", roleEmails.get("principal_investigator"));
-		assertEquals("so@university.edu", roleEmails.get("signing_official"));
-		assertEquals("creator@example.com", roleEmails.get("collaborator_1"));
-		assertEquals("c1@example.com", roleEmails.get("collaborator_2"));
-		assertEquals("c2@example.com", roleEmails.get("collaborator_3"));
-		assertEquals(5, roleEmails.size());
+		// Collaborators: createdBy=100 first, then 301, 302 from accessorChanges (PI 200 excluded).
+		// Emails come from the notification email DAO; names are PI/SO from the request and
+		// collaborators from their user profile full names.
+		Map<String, RecipientInfo> recipients = recipientsCaptor.getValue();
+		assertEquals(new RecipientInfo("pi@synapse.org", "Dr. Jones"), recipients.get("principal_investigator"));
+		assertEquals(new RecipientInfo("so@university.edu", "Jane Admin"), recipients.get("signing_official"));
+		assertEquals(new RecipientInfo("creator@example.com", "Creator User"), recipients.get("collaborator_1"));
+		assertEquals(new RecipientInfo("c1@example.com", "Alice Smith"), recipients.get("collaborator_2"));
+		assertEquals(new RecipientInfo("c2@example.com", "Bob Brown"), recipients.get("collaborator_3"));
+		assertEquals(5, recipients.size());
 
 		Map<RoleLabelKey, String> tabValues = tabsCaptor.getValue();
 		assertEquals("Dr. Jones", tabValues.get(new RoleLabelKey("principal_investigator", "principal_investigator_name")));
@@ -492,6 +495,70 @@ public class EDucManagerTest {
 	}
 
 	@Test
+	public void testRouteForSignatureWithNoPIName() {
+		Request request = buildValidRequest();
+		request.getPrincipalInvestigator().setName(null);
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
+
+		assertEquals("principalInvestigator.name is required and must not be the empty string.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testRouteForSignatureWithNoSOName() {
+		Request request = buildValidRequest();
+		request.getSigningOfficial().setName(null);
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> eDucManager.routeForSignature(user, "req-1"));
+
+		assertEquals("signingOfficial.name is required and must not be the empty string.", ex.getMessage());
+		verifyNoInteractions(mockDocuSignClient);
+	}
+
+	@Test
+	public void testRouteForSignatureCollaboratorNameFallsBackToUserName() {
+		// A collaborator whose user profile has no name should have its name default to the
+		// Synapse user name.
+		Request request = buildValidRequest();
+		// keep only the creator as collaborator to simplify the assertions
+		request.setAccessorChanges(Collections.emptyList());
+		UserInfo user = new UserInfo(false, 100L, DEFAULT_REALM_ID);
+		when(mockRequestDao.get("req-1")).thenReturn(request);
+		when(mockAccessRequirementDao.get("456")).thenReturn(buildValidAccessRequirement());
+		when(mockClock.currentTimeMillis()).thenReturn(JULY_15_2026_MS);
+		when(mockEDucQuotaDao.getCount(eq(100L), anyLong(), anyLong(), anyLong())).thenReturn(0L);
+		when(mockEDucQuotaDao.getGlobalCount(anyLong(), anyLong())).thenReturn(0L);
+		when(mockPrincipalAliasDao.getUserName(200L)).thenReturn("drjones");
+		when(mockPrincipalAliasDao.getUserName(100L)).thenReturn("creatoruser");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(200L)).thenReturn("pi@synapse.org");
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(100L)).thenReturn("creator@example.com");
+		// the creator's profile has no first/last name
+		when(mockUserProfileDao.get("100")).thenReturn(new UserProfile());
+		when(mockDocuSignClient.createEnvelope(eq("tpl-abc"), any(), any())).thenReturn("env-fallback");
+		when(mockRequestDao.update(any())).thenAnswer(i -> i.getArgument(0));
+
+		// call under test
+		eDucManager.routeForSignature(user, "req-1");
+
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<Map<String, RecipientInfo>> recipientsCaptor = ArgumentCaptor.forClass(Map.class);
+		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), recipientsCaptor.capture(), any());
+		// name falls back to the Synapse user name when the profile has no first/last name
+		assertEquals("creatoruser", recipientsCaptor.getValue().get("collaborator_1").name());
+	}
+
+	@Test
 	public void testRouteForSignatureWithNoAccessorChanges() {
 		Request request = buildValidRequest();
 		request.setAccessorChanges(Collections.emptyList());
@@ -519,11 +586,11 @@ public class EDucManagerTest {
 		assertEquals(Long.valueOf(9), result.getRemaining());
 
 		@SuppressWarnings("unchecked")
-		ArgumentCaptor<Map<String, String>> emailsCaptor = ArgumentCaptor.forClass(Map.class);
-		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), emailsCaptor.capture(), any());
+		ArgumentCaptor<Map<String, RecipientInfo>> recipientsCaptor = ArgumentCaptor.forClass(Map.class);
+		verify(mockDocuSignClient).createEnvelope(eq("tpl-abc"), recipientsCaptor.capture(), any());
 		// PI + SO + createdBy as collaborator_1
-		assertEquals(3, emailsCaptor.getValue().size());
-		assertEquals("creator@example.com", emailsCaptor.getValue().get("collaborator_1"));
+		assertEquals(3, recipientsCaptor.getValue().size());
+		assertEquals("creator@example.com", recipientsCaptor.getValue().get("collaborator_1").email());
 	}
 
 	@Test

@@ -735,6 +735,7 @@ public class RequestManagerImplTest {
 
 		RequestUserInfo info = new RequestUserInfo();
 		info.setRequestId("100");
+		info.setAccessRequirementId("55");
 		info.setAccessRequirementName("AR Name");
 		info.setSubmissionStatus(SubmissionState.APPROVED);
 		info.setEnvelopeId(null);
@@ -751,6 +752,7 @@ public class RequestManagerImplTest {
 		assertEquals(1, result.getResults().size());
 		AccessRequestSummary summary = result.getResults().get(0);
 		assertEquals("100", summary.getRequestId());
+		assertEquals("55", summary.getAccessRequirementId());
 		assertEquals("AR Name", summary.getAccessRequirementName());
 		assertEquals(AccessRequestStatusEnum.approved, summary.getStatus());
 		assertEquals(false, summary.getIsEDuc());

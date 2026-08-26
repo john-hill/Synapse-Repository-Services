@@ -1,17 +1,25 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Date;
+import java.util.Optional;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.sagebionetworks.repo.model.AggregateDataConfiguration;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DataType;
 import org.sagebionetworks.repo.model.DataTypeResponse;
+import org.sagebionetworks.repo.model.FacetPostProcessingAlgorithm;
+import org.sagebionetworks.repo.model.FacetPostProcessingConfig;
+import org.sagebionetworks.repo.model.FacetPostProcessingParameters;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
@@ -145,5 +153,71 @@ public class DataTypeDaoImplTest {
 		dataTypeDao.getObjectDataType(objectId, objectType);
 	}
 
+	private AggregateDataConfiguration newAggregateConfiguration() {
+		return new AggregateDataConfiguration().setSuppressionThreshold(10L).setFacetPostProcessingConfig(
+				new FacetPostProcessingConfig().setAlgorithm(FacetPostProcessingAlgorithm.ROUNDING)
+						.setParameters(new FacetPostProcessingParameters()));
+	}
+
+	@Test
+	public void testChangeDataTypeWithAggregateData() {
+		AggregateDataConfiguration config = newAggregateConfiguration();
+		// call under test
+		DataTypeResponse response = dataTypeDao.changeDataType(userId, objectId, objectType, DataType.AGGREGATE_DATA,
+				config);
+		assertNotNull(response);
+		assertEquals(DataType.AGGREGATE_DATA, response.getDataType());
+		// the whole configuration must round-trip through the JSON column
+		assertEquals(config, response.getAggregateDataConfiguration());
+	}
+
+	@Test
+	public void testGetAggregateDataConfigurationWithAggregateData() {
+		AggregateDataConfiguration config = newAggregateConfiguration();
+		dataTypeDao.changeDataType(userId, objectId, objectType, DataType.AGGREGATE_DATA, config);
+		// call under test
+		Optional<AggregateDataConfiguration> result = dataTypeDao.getAggregateDataConfiguration(objectId, objectType);
+		assertTrue(result.isPresent());
+		assertEquals(config, result.get());
+	}
+
+	@Test
+	public void testChangeDataTypeFromAggregateClearsConfiguration() {
+		dataTypeDao.changeDataType(userId, objectId, objectType, DataType.AGGREGATE_DATA, newAggregateConfiguration());
+		// call under test: switch back to a non-aggregate type
+		DataTypeResponse response = dataTypeDao.changeDataType(userId, objectId, objectType, DataType.SENSITIVE_DATA);
+		assertNull(response.getAggregateDataConfiguration());
+		assertFalse(dataTypeDao.getAggregateDataConfiguration(objectId, objectType).isPresent());
+	}
+
+	@Test
+	public void testGetAggregateDataConfigurationWithNonAggregateDecoy() {
+		// a non-aggregate row must not report a configuration
+		dataTypeDao.changeDataType(userId, objectId, objectType, DataType.OPEN_DATA);
+		// call under test
+		Optional<AggregateDataConfiguration> result = dataTypeDao.getAggregateDataConfiguration(objectId, objectType);
+		assertFalse(result.isPresent());
+	}
+
+	@Test
+	public void testGetAggregateDataConfigurationDoesNotExist() {
+		// call under test: no row for this object at all
+		Optional<AggregateDataConfiguration> result = dataTypeDao.getAggregateDataConfiguration(objectId, objectType);
+		assertFalse(result.isPresent());
+	}
+
+	@Test (expected=IllegalArgumentException.class)
+	public void testGetAggregateDataConfigurationNullObjectId() {
+		objectId = null;
+		// call under test
+		dataTypeDao.getAggregateDataConfiguration(objectId, objectType);
+	}
+
+	@Test (expected=IllegalArgumentException.class)
+	public void testGetAggregateDataConfigurationNullObjectType() {
+		objectType = null;
+		// call under test
+		dataTypeDao.getAggregateDataConfiguration(objectId, objectType);
+	}
 
 }

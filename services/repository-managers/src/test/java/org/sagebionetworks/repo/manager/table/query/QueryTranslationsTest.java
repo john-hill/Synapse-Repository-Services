@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.table.query;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -145,5 +146,30 @@ public class QueryTranslationsTest {
 		}).getMessage();
 		assertEquals("options is required.", message);
 
+	}
+
+	@Test
+	public void testBuildWithAggregateOnly() {
+		// An aggregate-only query must always run the count to enforce the suppression gate,
+		// even when the caller did not request a count.
+		options = new QueryOptions().withRunQuery(true).withRunCount(false);
+		builder.setAggregateOnly(true).setSuppressionThreshold(20L);
+
+		// call under test
+		QueryTranslations queries = new QueryTranslations(builder.build(), options);
+
+		assertTrue(queries.isAggregateOnly());
+		assertEquals(20L, queries.getSuppressionThreshold());
+		// the count is forced despite runCount being false
+		assertTrue(queries.getCountQuery().isPresent());
+	}
+
+	@Test
+	public void testBuildWithDefaultAggregateFields() {
+		// call under test
+		QueryTranslations queries = new QueryTranslations(builder.build(), options);
+
+		assertFalse(queries.isAggregateOnly());
+		assertNull(queries.getSuppressionThreshold());
 	}
 }

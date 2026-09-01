@@ -14,6 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.sagebionetworks.repo.model.AggregateDataConfiguration;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -153,7 +154,7 @@ public class QueryTranslationsTest {
 		// An aggregate-only query must always run the count to enforce the suppression gate,
 		// even when the caller did not request a count.
 		options = new QueryOptions().withRunQuery(true).withRunCount(false);
-		builder.setAggregateOnly(true).setSuppressionThreshold(20L);
+		builder.setAggregateDataConfiguration(new AggregateDataConfiguration().setSuppressionThreshold(20L));
 
 		// call under test
 		QueryTranslations queries = new QueryTranslations(builder.build(), options);
